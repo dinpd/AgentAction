@@ -56,7 +56,26 @@ agentid explain examples/customer-support-refund-agent.yaml
 agentid risk-score examples/customer-support-refund-agent.yaml
 agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
 agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
+agentid config-ui --output agentid-policy-builder.html
+agentid gateway examples/customer-support-refund-agent.yaml --host 127.0.0.1 --port 8787
 ```
+
+`config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
+
+`gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Check gateway health and active agent ID |
+| `GET /policy?target=opa` | Return generated policy for the active manifest |
+| `POST /authorize` | Authorize a proposed tool call against the manifest |
+| `POST /jit-grants` | Issue an in-memory JIT grant for a just-in-time tool |
+
+Set `AGENTID_GATEWAY_API_KEY` or pass `--api-key` to require `Authorization: Bearer <key>`.
+
+For edge deployment, see [`cloudflare/`](cloudflare/) for a Cloudflare Workers
+gateway with Durable Object-backed JIT grants and a GitHub Actions deployment
+workflow.
 
 ---
 
@@ -104,7 +123,9 @@ agentid audit examples/sample-tool-log.json --manifest examples/customer-support
 - MCP tool metadata import/export
 - OAuth scope recommendation
 - JIT grant simulator
-- Web-based manifest viewer
+- Web-based manifest builder
+- SaaS authorization gateway adapters
+- Hosted Cloudflare gateway package
 - Risk policy profiles by environment
 - Audit log normalization
 - CI/CD gates for unsafe agent configs

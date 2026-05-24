@@ -12,6 +12,9 @@ license = { text = "MIT" }
 authors = [{ name = "AgentID contributors" }]
 dependencies = ["PyYAML>=6.0.1"]
 
+[project.optional-dependencies]
+dev = ["pytest>=9.0.3"]
+
 [project.scripts]
 agentid = "agentid.cli:main"
 

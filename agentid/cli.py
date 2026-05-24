@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from agentid.audit import audit_events, load_audit_log
+from agentid.config_ui import write_config_ui
 from agentid.explain import explain_manifest
+from agentid.gateway import serve
 from agentid.manifest import ManifestError, load_manifest, validate_manifest
 from agentid.policy import generate_policy
 from agentid.risk import risk_label, risk_score
@@ -30,11 +33,33 @@ def main(argv: list[str] | None = None) -> int:
     policy_parser.add_argument("manifest")
     policy_parser.add_argument("--target", choices=["opa"], default="opa")
 
+    config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
+    config_ui_parser.add_argument("--output", default="agentid-policy-builder.html")
+
+    gateway_parser = subparsers.add_parser("gateway", help="Run the AgentID authorization gateway.")
+    gateway_parser.add_argument("manifest")
+    gateway_parser.add_argument("--host", default="127.0.0.1")
+    gateway_parser.add_argument("--port", type=int, default=8787)
+    gateway_parser.add_argument("--api-key", default=os.environ.get("AGENTID_GATEWAY_API_KEY"))
+
     audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentID manifest.")
     audit_parser.add_argument("audit_log")
     audit_parser.add_argument("--manifest", required=True)
 
     args = parser.parse_args(argv)
+
+    if args.command == "config-ui":
+        path = write_config_ui(args.output)
+        print(f"Wrote config UI: {path}")
+        return 0
+
+    if args.command == "gateway":
+        try:
+            serve(args.manifest, args.host, args.port, args.api_key)
+        except ManifestError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        return 0
 
     try:
         manifest = load_manifest(args.manifest)

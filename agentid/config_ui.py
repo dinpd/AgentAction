@@ -1,0 +1,578 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+CONFIG_UI_HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentID Policy Builder</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #eef3f8;
+      --ink: #172033;
+      --muted: #5c677d;
+      --line: #d8dee8;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --danger: #b42318;
+      --code: #101828;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.4;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(360px, 520px) minmax(0, 1fr);
+      gap: 20px;
+      padding: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    section, .output {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    section {
+      padding: 18px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--muted);
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 78px;
+      resize: vertical;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      min-height: 36px;
+      padding: 8px 11px;
+      border-radius: 6px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover { background: var(--accent-dark); }
+
+    button.icon {
+      width: 36px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .tool, .flow {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .output {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .tab {
+      min-height: 32px;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      background: #e7f5f2;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      min-height: calc(100vh - 150px);
+      overflow: auto;
+      color: #f8fafc;
+      background: var(--code);
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+
+    .error {
+      color: var(--danger);
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 960px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      pre {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentID Policy Builder</h1>
+    <div class="toolbar">
+      <button id="addTool">Add tool</button>
+      <button id="addFlow">Add flow</button>
+      <button id="copyOutput" class="primary">Copy output</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stack">
+      <section>
+        <h2>Agent</h2>
+        <div class="grid">
+          <label>ID<input id="agentId" value="support-copilot-prod"></label>
+          <label>Name<input id="agentName" value="Support Copilot"></label>
+          <label>Owner<input id="owner" value="support-platform"></label>
+          <label>Environment<select id="environment"><option>production</option><option>staging</option><option>development</option></select></label>
+          <label>Expires at<input id="expiresAt" type="date"></label>
+          <label>Default JIT TTL<input id="jitTtl" type="number" min="30" max="3600" value="300"></label>
+        </div>
+        <label style="margin-top:12px">Purpose<textarea id="purpose">Answer customer-support questions and update ticket metadata within approved workflows.</textarea></label>
+      </section>
+
+      <section>
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">Tools</h2>
+          <button class="icon" id="toolPlus" title="Add tool">+</button>
+        </div>
+        <div id="tools" class="stack"></div>
+      </section>
+
+      <section>
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">Data Flows</h2>
+          <button class="icon" id="flowPlus" title="Add flow">+</button>
+        </div>
+        <div id="flows" class="stack"></div>
+      </section>
+
+      <section>
+        <h2>Runtime</h2>
+        <div class="grid">
+          <label><span><input id="enforceManifest" type="checkbox" checked> Enforce manifest</span></label>
+          <label><span><input id="detectToolDrift" type="checkbox" checked> Detect tool drift</span></label>
+          <label><span><input id="detectNewDestinations" type="checkbox" checked> Detect new destinations</span></label>
+          <label><span><input id="killSwitch" type="checkbox" checked> Kill switch</span></label>
+          <label><span><input id="logToolCalls" type="checkbox" checked> Log tool calls</span></label>
+          <label><span><input id="logDecisions" type="checkbox" checked> Log decisions</span></label>
+          <label><span><input id="logJitGrants" type="checkbox" checked> Log JIT grants</span></label>
+          <label><span><input id="mayCallAgents" type="checkbox"> May call agents</span></label>
+        </div>
+      </section>
+    </div>
+
+    <div class="output">
+      <div class="tabs">
+        <button class="tab active" data-tab="yaml">Manifest YAML</button>
+        <button class="tab" data-tab="rego">OPA Policy</button>
+        <button class="tab" data-tab="curl">Gateway cURL</button>
+      </div>
+      <pre id="output"></pre>
+      <div id="error" class="error" style="padding:0 16px 14px"></div>
+    </div>
+  </main>
+
+  <script>
+    const state = {
+      tab: "yaml",
+      tools: [
+        { name: "zendesk.ticket.read", access: "read", approval: "none", auth_mode: "delegated", resource: "tickets/*", ttl: "" },
+        { name: "zendesk.ticket.update", access: "write", approval: "human_confirm", auth_mode: "just_in_time", resource: "tickets/*", ttl: "300" }
+      ],
+      flows: [
+        { from: "zendesk", to: "agent_context", allowed: true },
+        { from: "agent_context", to: "external_email", allowed: false }
+      ]
+    };
+
+    const accessOptions = ["read", "write", "execute", "admin"];
+    const approvalOptions = ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"];
+    const authOptions = ["delegated", "service", "just_in_time"];
+
+    function yamlScalar(value) {
+      const text = String(value ?? "");
+      if (!text) return '""';
+      if (/^[A-Za-z0-9_./:@ -]+$/.test(text) && !["true", "false", "null"].includes(text)) return text;
+      return JSON.stringify(text);
+    }
+
+    function manifest() {
+      const tools = state.tools.map((tool) => ({
+        name: tool.name.trim(),
+        access: tool.access,
+        approval: tool.approval,
+        auth_mode: tool.auth_mode,
+        constraints: {
+          resource: tool.resource.trim(),
+          ...(tool.ttl ? { token_ttl_seconds: Number(tool.ttl) } : {})
+        }
+      })).filter((tool) => tool.name);
+
+      return {
+        agent: {
+          id: agentId.value.trim(),
+          name: agentName.value.trim(),
+          owner: owner.value.trim(),
+          environment: environment.value,
+          purpose: purpose.value.trim(),
+          ...(expiresAt.value ? { expires_at: expiresAt.value } : {})
+        },
+        delegation_chain: {
+          may_call_agents: mayCallAgents.checked,
+          allowed_agents: []
+        },
+        intent: {
+          confirmation_required_for: tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name)
+        },
+        jit_authorization: {
+          enabled: tools.some((tool) => tool.auth_mode === "just_in_time"),
+          default_ttl_seconds: Number(jitTtl.value || 300),
+          bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+          revoke_after_use: true
+        },
+        tools,
+        data_flows: state.flows.map((flow) => ({ from: flow.from.trim(), to: flow.to.trim(), allowed: Boolean(flow.allowed) })).filter((flow) => flow.from && flow.to),
+        runtime: {
+          enforce_manifest: enforceManifest.checked,
+          detect_tool_drift: detectToolDrift.checked,
+          detect_new_destinations: detectNewDestinations.checked
+        },
+        audit: {
+          log_prompt_summary: true,
+          log_tool_calls: logToolCalls.checked,
+          log_decisions: logDecisions.checked,
+          log_jit_grants: logJitGrants.checked
+        },
+        kill_switch: {
+          enabled: killSwitch.checked,
+          revoke_on_policy_violation: killSwitch.checked
+        }
+      };
+    }
+
+    function toYaml(value, indent = 0) {
+      const pad = " ".repeat(indent);
+      if (Array.isArray(value)) {
+        if (!value.length) return "[]";
+        return value.map((item) => {
+          if (item && typeof item === "object") {
+            const rendered = toYaml(item, indent + 2).split("\n");
+            return `${pad}- ${rendered[0].trimStart()}\n${rendered.slice(1).join("\n")}`;
+          }
+          return `${pad}- ${yamlScalar(item)}`;
+        }).join("\n");
+      }
+      if (value && typeof value === "object") {
+        return Object.entries(value).map(([key, val]) => {
+          if (val && typeof val === "object") {
+            const rendered = toYaml(val, indent + 2);
+            return rendered === "[]" ? `${pad}${key}: []` : `${pad}${key}:\n${rendered}`;
+          }
+          return `${pad}${key}: ${typeof val === "boolean" || typeof val === "number" ? val : yamlScalar(val)}`;
+        }).join("\n");
+      }
+      return yamlScalar(value);
+    }
+
+    function opaPolicy(data) {
+      const allowed = data.tools.map((tool) => `allowed_tools["${tool.name}"] := "${tool.access}"`).join("\n") || "# No tools declared.";
+      const approvals = data.tools.filter((tool) => ["required", "human_confirm", "step_up", "manager"].includes(tool.approval)).map((tool) => `requires_approval["${tool.name}"]`).join("\n") || "# No approval-required tools declared.";
+      const blocked = data.tools.filter((tool) => tool.approval === "block").map((tool) => `blocked_tools["${tool.name}"]`).join("\n") || "# No blocked tools declared.";
+      const jit = data.tools.filter((tool) => tool.auth_mode === "just_in_time").map((tool) => `requires_jit["${tool.name}"]`).join("\n") || "# No JIT-required tools declared.";
+      const flows = data.data_flows.filter((flow) => flow.allowed).map((flow) => `allowed_flows["${flow.from}::${flow.to}"]`).join("\n") || "# No explicit allowed data flows declared.";
+      return `package agentid
+
+default allow := false
+
+agent_id := "${data.agent.id}"
+
+${allowed}
+
+${approvals}
+
+${blocked}
+
+${jit}
+
+${flows}
+
+tool_allowed if {
+    input.agent_id == agent_id
+    allowed_tools[input.tool] == input.action
+    not blocked_tools[input.tool]
+}
+
+flow_allowed if {
+    input.data_from == ""
+    input.data_to == ""
+}
+
+flow_allowed if {
+    allowed_flows[concat("::", [input.data_from, input.data_to])]
+}
+
+jit_satisfied if {
+    not requires_jit[input.tool]
+}
+
+jit_satisfied if {
+    requires_jit[input.tool]
+    input.jit_grant_valid == true
+    input.jit_grant_agent_id == input.agent_id
+    input.jit_grant_tool == input.tool
+    input.jit_grant_action == input.action
+}
+
+approval_satisfied if {
+    not requires_approval[input.tool]
+}
+
+approval_satisfied if {
+    requires_approval[input.tool]
+    input.approved == true
+}
+
+allow if {
+    tool_allowed
+    flow_allowed
+    jit_satisfied
+    approval_satisfied
+}`;
+    }
+
+    function curlExample(data) {
+      const event = {
+        agent_id: data.agent.id,
+        tool: data.tools[0]?.name || "tool.name",
+        action: data.tools[0]?.access || "read",
+        data_from: "",
+        data_to: "",
+        approved: false
+      };
+      return `curl -s http://localhost:8787/authorize \\
+  -H 'content-type: application/json' \\
+  -d '${JSON.stringify(event, null, 2)}'`;
+    }
+
+    function renderTools() {
+      tools.innerHTML = "";
+      state.tools.forEach((tool, index) => {
+        const el = document.createElement("div");
+        el.className = "tool";
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <strong>Tool ${index + 1}</strong>
+            <button class="icon" title="Remove tool" data-remove-tool="${index}">x</button>
+          </div>
+          <div class="grid">
+            <label>Name<input data-tool="${index}" data-field="name" value="${tool.name}"></label>
+            <label>Resource<input data-tool="${index}" data-field="resource" value="${tool.resource}"></label>
+            <label>Access<select data-tool="${index}" data-field="access">${accessOptions.map((v) => `<option ${tool.access === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Approval<select data-tool="${index}" data-field="approval">${approvalOptions.map((v) => `<option ${tool.approval === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Auth mode<select data-tool="${index}" data-field="auth_mode">${authOptions.map((v) => `<option ${tool.auth_mode === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Token TTL<input type="number" min="30" data-tool="${index}" data-field="ttl" value="${tool.ttl}"></label>
+          </div>`;
+        tools.appendChild(el);
+      });
+    }
+
+    function renderFlows() {
+      flows.innerHTML = "";
+      state.flows.forEach((flow, index) => {
+        const el = document.createElement("div");
+        el.className = "flow";
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <strong>Flow ${index + 1}</strong>
+            <button class="icon" title="Remove flow" data-remove-flow="${index}">x</button>
+          </div>
+          <div class="grid">
+            <label>From<input data-flow="${index}" data-field="from" value="${flow.from}"></label>
+            <label>To<input data-flow="${index}" data-field="to" value="${flow.to}"></label>
+            <label><span><input data-flow="${index}" data-field="allowed" type="checkbox" ${flow.allowed ? "checked" : ""}> Allowed</span></label>
+          </div>`;
+        flows.appendChild(el);
+      });
+    }
+
+    function renderOutput() {
+      const data = manifest();
+      error.textContent = "";
+      if (!data.agent.id || !data.agent.name || !data.agent.owner || !data.agent.purpose) {
+        error.textContent = "Agent ID, name, owner, and purpose are required.";
+      }
+      output.textContent = state.tab === "yaml" ? toYaml(data) : state.tab === "rego" ? opaPolicy(data) : curlExample(data);
+    }
+
+    function render() {
+      renderTools();
+      renderFlows();
+      renderOutput();
+    }
+
+    document.addEventListener("input", (event) => {
+      const target = event.target;
+      if (target.dataset.tool) state.tools[Number(target.dataset.tool)][target.dataset.field] = target.value;
+      if (target.dataset.flow) state.flows[Number(target.dataset.flow)][target.dataset.field] = target.type === "checkbox" ? target.checked : target.value;
+      renderOutput();
+    });
+
+    document.addEventListener("click", async (event) => {
+      const target = event.target;
+      if (target.dataset.tab) {
+        state.tab = target.dataset.tab;
+        document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === state.tab));
+        renderOutput();
+      }
+      if (target.id === "addTool" || target.id === "toolPlus") {
+        state.tools.push({ name: "", access: "read", approval: "none", auth_mode: "delegated", resource: "", ttl: "" });
+        render();
+      }
+      if (target.id === "addFlow" || target.id === "flowPlus") {
+        state.flows.push({ from: "", to: "", allowed: true });
+        render();
+      }
+      if (target.dataset.removeTool) {
+        state.tools.splice(Number(target.dataset.removeTool), 1);
+        render();
+      }
+      if (target.dataset.removeFlow) {
+        state.flows.splice(Number(target.dataset.removeFlow), 1);
+        render();
+      }
+      if (target.id === "copyOutput") {
+        await navigator.clipboard.writeText(output.textContent);
+        target.textContent = "Copied";
+        setTimeout(() => target.textContent = "Copy output", 900);
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
+"""
+
+
+def write_config_ui(path: str | Path) -> Path:
+    output_path = Path(path)
+    output_path.write_text(CONFIG_UI_HTML)
+    return output_path
