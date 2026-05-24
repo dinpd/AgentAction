@@ -15,6 +15,10 @@ compatibility_date = "2026-05-24"
 name = "JIT_GRANTS"
 class_name = "AgentIdJitGrants"
 
+[[kv_namespaces]]
+binding = "AGENTID_MANIFESTS"
+id = "fcaf886fa671404b9b39033fb34f4990"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AgentIdJitGrants"]
