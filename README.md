@@ -195,19 +195,29 @@ tokens from the customer's OIDC provider via JWKS.
 
 ## Roadmap
 
-- JSON Schema for the manifest
-- GitHub Action for PR validation
-- Stronger policy generation for OPA and Cedar
-- MCP tool metadata import/export
-- OAuth scope recommendation
-- JIT grant simulator
+Implemented:
+
+- JSON Schema for manifests
+- GitHub Action for PR validation and risk-threshold checks
 - Web-based manifest builder
-- SaaS authorization gateway adapters
-- Hosted Cloudflare gateway package
+- Python authorization gateway
+- Cloudflare Workers gateway with KV tenant manifests and Durable Object JIT grants
+- OIDC claim/scopes section in manifests
+- Demo OIDC JWT flow and production JWKS validation path
+- TypeScript gateway client helper
+- Hosted refund-control demo
+- CI checks for tests, schema validation, manifest risk, and TypeScript SDK
+
+Next:
+
+- More ecommerce manifests and audit-log examples
+- Stronger OPA policy generation and Cedar policy generation
+- MCP tool metadata import/export
+- OAuth scope recommendation from tool manifests
 - Risk policy profiles by environment
-- Audit log normalization
-- CI/CD gates for unsafe agent configs
+- Audit log normalization and versioned event spec
 - Delegation-chain visualization
+- DevOps examples for deploys, secret access, database writes, and incident response
 
 ---
 
