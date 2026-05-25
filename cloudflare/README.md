@@ -51,6 +51,11 @@ gateway and demo Worker:
 npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
 ```
 
+For production OIDC, set each tenant manifest to `token_validation: jwks` with
+the customer's `issuer`, `audiences`, and `jwks_uri`. The gateway validates
+RS256 JWT signatures against the matching JWKS `kid`, then enforces issuer,
+audience, tenant, agent, and scope checks from the manifest.
+
 For a single-tenant deployment, set `AGENTID_MANIFEST_JSON` as a Worker variable.
 For SaaS multi-tenancy, bind a KV namespace named `AGENTID_MANIFESTS` and store
 each tenant manifest as JSON under the tenant ID used in `/tenants/<tenant-id>/...`.

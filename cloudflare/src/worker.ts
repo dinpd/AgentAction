@@ -482,7 +482,7 @@ async function authenticate(
     }
     claims = await verifyDemoJwt(token, env.AGENTID_DEMO_OIDC_SECRET);
   } else {
-    return { ok: false, status: 501, error: "jwks OIDC validation is declared but not yet implemented in this Worker" };
+    claims = await verifyJwksJwt(token, stringValue(oidc.jwks_uri));
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -553,11 +553,7 @@ function audienceMatches(audience: unknown, allowed: unknown): boolean {
 }
 
 async function verifyDemoJwt(token: string, secret: string): Promise<Record<string, unknown>> {
-  const parts = token.split(".");
-  if (parts.length !== 3) throw new Error("invalid OIDC token format");
-
-  const [encodedHeader, encodedPayload, encodedSignature] = parts;
-  const header = JSON.parse(base64UrlDecode(encodedHeader)) as Record<string, unknown>;
+  const { encodedHeader, encodedPayload, encodedSignature, header } = parseJwt(token);
   if (header.alg !== "HS256") throw new Error("unsupported demo OIDC token algorithm");
 
   const key = await crypto.subtle.importKey(
@@ -576,6 +572,57 @@ async function verifyDemoJwt(token: string, secret: string): Promise<Record<stri
   );
   if (!valid) throw new Error("invalid OIDC token signature");
   return JSON.parse(base64UrlDecode(encodedPayload)) as Record<string, unknown>;
+}
+
+async function verifyJwksJwt(token: string, jwksUri: string): Promise<Record<string, unknown>> {
+  if (!jwksUri) throw new Error("oidc.jwks_uri is required for JWKS validation");
+  const { encodedHeader, encodedPayload, encodedSignature, header } = parseJwt(token);
+  if (header.alg !== "RS256") throw new Error("unsupported JWKS OIDC token algorithm");
+  const kid = stringValue(header.kid);
+  if (!kid) throw new Error("OIDC token header is missing kid");
+
+  const jwksResponse = await fetch(jwksUri, {
+    headers: { accept: "application/json" },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+  if (!jwksResponse.ok) throw new Error(`failed to fetch JWKS: ${jwksResponse.status}`);
+
+  const jwks = await jwksResponse.json() as { keys?: Array<JsonWebKey & { kid?: string; alg?: string }> };
+  const jwk = (jwks.keys || []).find((key) => key.kid === kid);
+  if (!jwk) throw new Error("OIDC signing key not found in JWKS");
+
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const valid = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    base64UrlToBytes(encodedSignature),
+    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+  );
+  if (!valid) throw new Error("invalid OIDC token signature");
+  return JSON.parse(base64UrlDecode(encodedPayload)) as Record<string, unknown>;
+}
+
+function parseJwt(token: string): {
+  encodedHeader: string;
+  encodedPayload: string;
+  encodedSignature: string;
+  header: Record<string, unknown>;
+} {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("invalid OIDC token format");
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  return {
+    encodedHeader,
+    encodedPayload,
+    encodedSignature,
+    header: JSON.parse(base64UrlDecode(encodedHeader)) as Record<string, unknown>,
+  };
 }
 
 function base64UrlDecode(value: string): string {
