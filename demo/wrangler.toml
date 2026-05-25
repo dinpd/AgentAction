@@ -1,0 +1,16 @@
+name = "agentid-refund-demo"
+main = "src/worker.ts"
+compatibility_date = "2026-05-24"
+workers_dev = true
+preview_urls = true
+
+[vars]
+AGENTID_GATEWAY_URL = "https://agentid-gateway.drisw.workers.dev"
+AGENTID_TENANT_ID = "refund-demo-agent"
+
+[[services]]
+binding = "AGENTID_GATEWAY"
+service = "agentid-gateway"
+
+# Set the gateway token as a Worker secret:
+#   npx wrangler secret put AGENTID_GATEWAY_TOKEN

@@ -1,0 +1,672 @@
+type Env = {
+  AGENTID_GATEWAY_URL: string;
+  AGENTID_GATEWAY_TOKEN: string;
+  AGENTID_TENANT_ID: string;
+  AGENTID_GATEWAY?: { fetch(request: Request): Promise<Response> };
+};
+
+type DemoStep = {
+  id: string;
+  title: string;
+  detail: string;
+  status: "ready" | "running" | "allow" | "deny" | "info";
+  payload?: unknown;
+  response?: unknown;
+};
+
+const HTML = String.raw`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentID Refund Control Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fa;
+      --surface: #ffffff;
+      --surface-2: #eef4f8;
+      --ink: #142033;
+      --muted: #607085;
+      --line: #d7e0ea;
+      --green: #0f766e;
+      --green-2: #dff5f1;
+      --blue: #1d4ed8;
+      --blue-2: #e7efff;
+      --red: #b42318;
+      --red-2: #ffe9e6;
+      --amber: #9a5b00;
+      --amber-2: #fff3d7;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.4;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 20px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: 19px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 15px;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr) 430px;
+      gap: 18px;
+    }
+
+    section, aside {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+
+    section, aside {
+      padding: 16px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 8px 11px;
+    }
+
+    button.primary {
+      border-color: var(--green);
+      background: var(--green);
+      color: #fff;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    input, select {
+      min-height: 38px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      padding: 8px 10px;
+    }
+
+    .stack { display: grid; gap: 12px; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .customer {
+      display: grid;
+      gap: 14px;
+    }
+
+    .metric {
+      padding: 11px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: 8px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .metric strong {
+      font-size: 19px;
+    }
+
+    .case-note {
+      padding: 12px;
+      background: var(--blue-2);
+      border: 1px solid #c8d8ff;
+      border-radius: 8px;
+      color: #17346d;
+      font-size: 13px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #fff;
+    }
+
+    .step.allow .icon { background: var(--green-2); border-color: #95d8cf; color: var(--green); }
+    .step.deny .icon { background: var(--red-2); border-color: #ffb5ac; color: var(--red); }
+    .step.running .icon { background: var(--amber-2); border-color: #f0c36a; color: var(--amber); }
+    .step.info .icon { background: var(--blue-2); border-color: #b9cdfb; color: var(--blue); }
+
+    .step p {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .details {
+      display: grid;
+      gap: 12px;
+    }
+
+    pre {
+      margin: 0;
+      min-height: 190px;
+      overflow: auto;
+      border-radius: 8px;
+      background: var(--code);
+      color: #f8fafc;
+      padding: 12px;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .status {
+      min-height: 36px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .status.allow { background: var(--green-2); color: var(--green); }
+    .status.deny { background: var(--red-2); color: var(--red); }
+    .status.info { background: var(--blue-2); color: var(--blue); }
+
+    .use-cases {
+      display: grid;
+      gap: 8px;
+    }
+
+    .use-case {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .use-case strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .use-case span {
+      color: var(--muted);
+    }
+
+    @media (max-width: 1120px) {
+      main { grid-template-columns: 1fr; }
+      header { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>AgentID Refund Control Demo</h1>
+      <p style="color:var(--muted);font-size:13px;margin-top:3px">SaaS runtime checks agent authority before tool execution.</p>
+    </div>
+    <div class="toolbar">
+      <span class="pill">Gateway: Cloudflare Worker</span>
+      <span class="pill">Tenant: refund-demo-agent</span>
+      <a class="pill" href="https://agentid-policy-builder.pages.dev/" target="_blank" rel="noreferrer">Policy Builder</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="customer">
+      <h2>Support Case</h2>
+      <div class="case-note">
+        Customer was charged after cancelling. The agent may issue one month immediately after policy/JIT checks. If the customer rejects that, a three-month refund requires human notification before execution.
+      </div>
+      <div class="grid-2">
+        <div class="metric"><span>Customer</span><strong>Avery Kim</strong></div>
+        <div class="metric"><span>Plan</span><strong>Pro</strong></div>
+        <div class="metric"><span>Monthly fee</span><strong>$29</strong></div>
+        <div class="metric"><span>Prior refunds</span><strong id="priorRefundMetric">0</strong></div>
+      </div>
+      <label>Refund scenario
+        <select id="scenario">
+          <option value="one">Refund one month, clean history</option>
+          <option value="repeat">Refund one month, prior refund found</option>
+          <option value="three">Refund three months after customer escalation</option>
+        </select>
+      </label>
+      <div class="grid-2">
+        <label>Months<input id="months" type="number" min="1" max="6" value="1"></label>
+        <label>Amount<input id="amount" type="text" value="$29" readonly></label>
+      </div>
+      <div class="toolbar">
+        <button class="primary" id="run">Run Scenario</button>
+        <button id="reset">Reset</button>
+      </div>
+      <div id="status" class="status">Ready to run policy-backed refund flow.</div>
+    </section>
+
+    <section>
+      <h2>Runtime Flow</h2>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <aside class="details">
+      <div>
+        <h2>Decision Payload</h2>
+        <pre id="payload">{}</pre>
+      </div>
+      <div>
+        <h2>Gateway Response</h2>
+        <pre id="response">{}</pre>
+      </div>
+      <div>
+        <h2>Other Demo Use Cases</h2>
+        <div class="use-cases">
+          <div class="use-case"><strong>Outbound email guardrail</strong><span>Allow customer-domain replies, block sensitive data to external email.</span></div>
+          <div class="use-case"><strong>CRM write escalation</strong><span>Read account data freely, require approval for plan changes or data deletion.</span></div>
+          <div class="use-case"><strong>Finance operations</strong><span>Permit invoice lookup, require JIT for credits, block bank-detail changes.</span></div>
+          <div class="use-case"><strong>Agent-to-agent delegation</strong><span>Show one agent denied when trying to call an undeclared specialist agent.</span></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const els = {
+      scenario: document.getElementById("scenario"),
+      months: document.getElementById("months"),
+      amount: document.getElementById("amount"),
+      priorRefundMetric: document.getElementById("priorRefundMetric"),
+      run: document.getElementById("run"),
+      reset: document.getElementById("reset"),
+      status: document.getElementById("status"),
+      timeline: document.getElementById("timeline"),
+      payload: document.getElementById("payload"),
+      response: document.getElementById("response")
+    };
+
+    const state = { steps: [] };
+
+    function money(months) {
+      return "$" + (Number(months) * 29);
+    }
+
+    function syncScenario() {
+      els.months.value = els.scenario.value === "three" ? "3" : "1";
+      els.amount.value = money(els.months.value);
+      els.priorRefundMetric.textContent = els.scenario.value === "repeat" ? "1" : "0";
+    }
+
+    function setStatus(text, kind = "") {
+      els.status.className = "status " + kind;
+      els.status.textContent = text;
+    }
+
+    function addStep(step) {
+      state.steps.push(step);
+      renderSteps();
+      if (step.payload) els.payload.textContent = JSON.stringify(step.payload, null, 2);
+      if (step.response) els.response.textContent = JSON.stringify(step.response, null, 2);
+    }
+
+    function renderSteps() {
+      els.timeline.innerHTML = state.steps.map((step, index) => {
+        const marker = step.status === "allow" ? "✓" : step.status === "deny" ? "!" : step.status === "running" ? "…" : String(index + 1);
+        return '<div class="step ' + step.status + '">' +
+          '<div class="icon">' + marker + '</div>' +
+          '<div><h3>' + escapeHtml(step.title) + '</h3><p>' + escapeHtml(step.detail) + '</p></div>' +
+          '</div>';
+      }).join("");
+    }
+
+    function reset() {
+      state.steps = [];
+      renderSteps();
+      els.payload.textContent = "{}";
+      els.response.textContent = "{}";
+      setStatus("Ready to run policy-backed refund flow.");
+    }
+
+    async function api(path, body) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const json = await response.json();
+      return { status: response.status, body: json };
+    }
+
+    async function runScenario() {
+      reset();
+      els.run.disabled = true;
+      const months = Number(els.months.value);
+      const amount = months * 29;
+      const hasPriorRefund = els.scenario.value === "repeat";
+      const needsHumanReview = months > 1 || hasPriorRefund;
+      const resource = "refund/case-1042/" + months + "-months";
+
+      try {
+        addStep({
+          id: "read",
+          title: "Read customer support context",
+          detail: "The app asks AgentID if the support agent can read Zendesk context for this case.",
+          status: "running"
+        });
+        const readPayload = {
+          agent_id: "refund-demo-agent",
+          tool: "zendesk.search_tickets",
+          action: "read",
+          data_from: "zendesk",
+          data_to: "agent_context"
+        };
+        const read = await api("/api/authorize", readPayload);
+        addStep({
+          id: "read-result",
+          title: read.body.allow ? "Context read allowed" : "Context read denied",
+          detail: read.body.allow ? "The declared read permission and data flow match the manifest." : read.body.findings.join("; "),
+          status: read.body.allow ? "allow" : "deny",
+          payload: readPayload,
+          response: read.body
+        });
+        if (!read.body.allow) return setStatus("Stopped before refund: support context read denied.", "deny");
+
+        addStep({
+          id: "history",
+          title: "Check customer refund history",
+          detail: "Before any refund, the app asks AgentID if the agent can read billing history for repeat-refund risk.",
+          status: "running"
+        });
+        const historyPayload = {
+          agent_id: "refund-demo-agent",
+          tool: "billing.refund_history",
+          action: "read",
+          data_from: "billing",
+          data_to: "agent_context"
+        };
+        const history = await api("/api/authorize", historyPayload);
+        addStep({
+          id: "history-result",
+          title: history.body.allow ? "Refund history check allowed" : "Refund history check denied",
+          detail: history.body.allow
+            ? (hasPriorRefund ? "History shows a prior refund, so the app escalates before issuing even a one-month refund." : "History is clean, so one-month refund can continue without human review.")
+            : history.body.findings.join("; "),
+          status: history.body.allow ? "allow" : "deny",
+          payload: historyPayload,
+          response: history.body
+        });
+        if (!history.body.allow) return setStatus("Stopped before refund: billing history check denied.", "deny");
+
+        if (needsHumanReview) {
+          addStep({
+            id: "escalate",
+            title: months > 1 ? "Customer rejected one-month refund" : "Repeat-refund history found",
+            detail: months > 1
+              ? "The app applies its refund policy profile: multi-month refunds require human notification before the refund tool can run."
+              : "The app applies its refund policy profile: repeat refunds require human notification even when the amount is one month.",
+            status: "info"
+          });
+          const notifyPayload = {
+            agent_id: "refund-demo-agent",
+            tool: "human.notify_refund_review",
+            action: "write",
+            data_from: "agent_context",
+            data_to: "human_review_queue"
+          };
+          const notify = await api("/api/authorize", notifyPayload);
+          addStep({
+            id: "notify-result",
+            title: notify.body.allow ? "Human notification allowed" : "Human notification denied",
+            detail: notify.body.allow ? "Supervisor review notification was policy-authorized before the larger refund." : notify.body.findings.join("; "),
+            status: notify.body.allow ? "allow" : "deny",
+            payload: notifyPayload,
+            response: notify.body
+          });
+          if (!notify.body.allow) return setStatus("Stopped before refund: human notification was not allowed.", "deny");
+        }
+
+        const approvalId = months === 1 ? "auto-policy-one-month" : "human-review-3-months-approved";
+        addStep({
+          id: "grant",
+          title: "Request JIT authority for Stripe refund",
+          detail: months === 1 && !hasPriorRefund
+            ? "One-month refund is below the escalation threshold, so the app requests a scoped JIT grant."
+            : "Human review is complete, so the app requests a scoped JIT grant for the refund.",
+          status: "running"
+        });
+        const grantPayload = {
+          tool: "stripe.create_refund",
+          action: "write",
+          resource,
+          approval_id: approvalId,
+          user_id: "support-rep-17"
+        };
+        const grant = await api("/api/jit-grants", grantPayload);
+        addStep({
+          id: "grant-result",
+          title: grant.status === 201 ? "JIT grant issued" : "JIT grant denied",
+          detail: grant.status === 201 ? "The grant is bound to agent, user, tool, action, resource, approval, and expiry." : grant.body.error,
+          status: grant.status === 201 ? "allow" : "deny",
+          payload: grantPayload,
+          response: grant.body
+        });
+        if (grant.status !== 201) return setStatus("Stopped before refund: JIT grant failed.", "deny");
+
+        const refundPayload = {
+          agent_id: "refund-demo-agent",
+          tool: "stripe.create_refund",
+          action: "write",
+          resource,
+          approved: true,
+          jit_grant_id: grant.body.jit_grant_id
+        };
+        const refund = await api("/api/authorize", refundPayload);
+        addStep({
+          id: "refund-result",
+          title: refund.body.allow ? "Refund execution allowed" : "Refund execution denied",
+          detail: refund.body.allow
+            ? money(months) + " refund may be sent to Stripe. The JIT grant is now consumed."
+            : refund.body.findings.join("; "),
+          status: refund.body.allow ? "allow" : "deny",
+          payload: refundPayload,
+          response: refund.body
+        });
+
+        setStatus(refund.body.allow
+          ? "Refund approved by AgentID controls: " + money(months) + " for " + months + " month" + (months === 1 ? "." : "s.")
+          : "Refund blocked by AgentID controls.",
+          refund.body.allow ? "allow" : "deny");
+      } catch (error) {
+        setStatus("Demo error: " + error.message, "deny");
+      } finally {
+        els.run.disabled = false;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[char]);
+    }
+
+    els.scenario.addEventListener("change", syncScenario);
+    els.months.addEventListener("input", () => els.amount.value = money(els.months.value));
+    els.run.addEventListener("click", runScenario);
+    els.reset.addEventListener("click", reset);
+    syncScenario();
+    reset();
+  </script>
+</body>
+</html>`;
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "OPTIONS") return empty();
+    if (request.method === "GET" && url.pathname === "/") {
+      return html(HTML);
+    }
+    if (request.method === "POST" && url.pathname === "/api/authorize") {
+      return proxyGateway(request, env, "authorize");
+    }
+    if (request.method === "POST" && url.pathname === "/api/jit-grants") {
+      return proxyGateway(request, env, "jit-grants");
+    }
+    return json({ error: "not found" }, 404);
+  },
+};
+
+async function proxyGateway(request: Request, env: Env, endpoint: string): Promise<Response> {
+  const payload = await request.text();
+  const path = `/tenants/${env.AGENTID_TENANT_ID}/${endpoint}`;
+  const target = env.AGENTID_GATEWAY
+    ? `https://agentid-gateway${path}`
+    : `${env.AGENTID_GATEWAY_URL}${path}`;
+  const gatewayRequest = new Request(target, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.AGENTID_GATEWAY_TOKEN}`,
+      "content-type": "application/json",
+    },
+    body: payload,
+  });
+  const response = env.AGENTID_GATEWAY
+    ? await env.AGENTID_GATEWAY.fetch(gatewayRequest)
+    : await fetch(gatewayRequest);
+  return new Response(await response.text(), {
+    status: response.status,
+    headers: cors({ "content-type": response.headers.get("content-type") || "application/json" }),
+  });
+}
+
+function html(body: string): Response {
+  return new Response(body, {
+    headers: cors({ "content-type": "text/html; charset=utf-8" }),
+  });
+}
+
+function json(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload, null, 2), {
+    status,
+    headers: cors({ "content-type": "application/json" }),
+  });
+}
+
+function empty(): Response {
+  return new Response(null, { status: 204, headers: cors({}) });
+}
+
+function cors(headers: Record<string, string>): Headers {
+  return new Headers({
+    ...headers,
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+  });
+}

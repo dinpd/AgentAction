@@ -77,6 +77,12 @@ For edge deployment, see [`cloudflare/`](cloudflare/) for a Cloudflare Workers
 gateway with Durable Object-backed JIT grants and a GitHub Actions deployment
 workflow.
 
+The hosted refund-control demo is available at
+[`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
+It shows a SaaS support app consulting AgentID before refund actions, including
+customer refund-history checks, human notification for escalations, and JIT
+authority before Stripe refund execution. Demo source lives in [`demo/`](demo/).
+
 ---
 
 ## Manifest concepts
