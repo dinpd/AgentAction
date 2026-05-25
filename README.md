@@ -83,6 +83,8 @@ It shows a SaaS support app consulting AgentID before refund actions, including
 customer refund-history checks, human notification for escalations, and JIT
 authority before Stripe refund execution. Demo source lives in [`demo/`](demo/).
 
+![AgentID Refund Control Demo](docs/AgentIDRefundControlDemo.png)
+
 ---
 
 ## Manifest concepts
