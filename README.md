@@ -29,6 +29,7 @@ Try the hosted demo:
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
+For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 
 ---
 
@@ -115,6 +116,8 @@ jobs:
 For SaaS runtime integration, see the TypeScript helper in
 [`sdk/typescript/`](sdk/typescript/). It provides `authorizeToolCall`,
 `requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
+For architecture guidance, see
+[`docs/integration-patterns.md`](docs/integration-patterns.md).
 
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 
