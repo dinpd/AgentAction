@@ -1,6 +1,9 @@
 type Env = {
   AGENTID_GATEWAY_URL: string;
-  AGENTID_GATEWAY_TOKEN: string;
+  AGENTID_GATEWAY_TOKEN?: string;
+  AGENTID_DEMO_OIDC_SECRET?: string;
+  AGENTID_OIDC_ISSUER: string;
+  AGENTID_OIDC_AUDIENCE: string;
   AGENTID_TENANT_ID: string;
   AGENTID_GATEWAY?: { fetch(request: Request): Promise<Response> };
 };
@@ -312,6 +315,7 @@ const HTML = String.raw`<!doctype html>
     </div>
     <div class="toolbar">
       <span class="pill">Gateway: Cloudflare Worker</span>
+      <span class="pill">Auth: OIDC JWT</span>
       <span class="pill">Tenant: refund-demo-agent</span>
       <a class="pill" href="https://agentid-policy-builder.pages.dev/" target="_blank" rel="noreferrer">Policy Builder</a>
     </div>
@@ -628,10 +632,16 @@ async function proxyGateway(request: Request, env: Env, endpoint: string): Promi
   const target = env.AGENTID_GATEWAY
     ? `https://agentid-gateway${path}`
     : `${env.AGENTID_GATEWAY_URL}${path}`;
+  const bearerToken = env.AGENTID_DEMO_OIDC_SECRET
+    ? await createDemoOidcToken(env, endpoint)
+    : env.AGENTID_GATEWAY_TOKEN;
+  if (!bearerToken) {
+    return json({ error: "demo auth token is not configured" }, 500);
+  }
   const gatewayRequest = new Request(target, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.AGENTID_GATEWAY_TOKEN}`,
+      authorization: `Bearer ${bearerToken}`,
       "content-type": "application/json",
     },
     body: payload,
@@ -643,6 +653,44 @@ async function proxyGateway(request: Request, env: Env, endpoint: string): Promi
     status: response.status,
     headers: cors({ "content-type": response.headers.get("content-type") || "application/json" }),
   });
+}
+
+async function createDemoOidcToken(env: Env, endpoint: string): Promise<string> {
+  if (!env.AGENTID_DEMO_OIDC_SECRET) throw new Error("AGENTID_DEMO_OIDC_SECRET is not configured");
+  const now = Math.floor(Date.now() / 1000);
+  const scopes = ["agentid.authorize"];
+  if (endpoint === "jit-grants") scopes.push("agentid.jit.grant");
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = {
+    iss: env.AGENTID_OIDC_ISSUER,
+    aud: env.AGENTID_OIDC_AUDIENCE,
+    sub: "support-rep-17",
+    tid: env.AGENTID_TENANT_ID,
+    agent_id: "refund-demo-agent",
+    email: "support-rep-17@example.com",
+    scope: scopes.join(" "),
+    iat: now,
+    exp: now + 300,
+  };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(env.AGENTID_DEMO_OIDC_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${base64UrlEncode(signature)}`;
+}
+
+function base64UrlEncode(value: string | ArrayBuffer): string {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function html(body: string): Response {

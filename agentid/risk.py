@@ -14,6 +14,19 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
         score += 15
         reasons.append("production environment")
 
+    oidc = manifest.get("oidc", {})
+    if oidc.get("enabled"):
+        score -= 6
+        if oidc.get("token_validation") == "demo_hs256":
+            score += 10
+            reasons.append("demo OIDC token validation is enabled")
+        required_scopes = oidc.get("required_scopes", {})
+        if isinstance(required_scopes, dict) and required_scopes:
+            score -= 4
+    else:
+        score += 8
+        reasons.append("OIDC access controls not enabled")
+
     jit = manifest.get("jit_authorization", {})
     jit_enabled = bool(jit.get("enabled"))
     if jit_enabled:

@@ -1,5 +1,6 @@
 type Env = {
   AGENTID_API_KEY?: string;
+  AGENTID_DEMO_OIDC_SECRET?: string;
   AGENTID_MANIFEST_JSON?: string;
   AGENTID_MANIFESTS?: {
     get(key: string): Promise<string | null>;
@@ -20,6 +21,15 @@ type AgentIdManifest = {
 };
 
 type ToolEvent = Record<string, unknown>;
+type AuthContext = {
+  method: "api_key" | "oidc" | "none";
+  subject?: string;
+  tenant_id?: string;
+  user_id?: string;
+  agent_id?: string;
+  scopes?: string[];
+  issuer?: string;
+};
 type Grant = {
   jit_grant_id: string;
   agent_id: string;
@@ -84,16 +94,16 @@ export default {
         return empty(204);
       }
 
-      if (!authorized(request, env)) {
-        return json({ error: "unauthorized" }, 401);
-      }
-
       const url = new URL(request.url);
       const route = parseRoute(url.pathname);
       const manifest = await loadManifest(env, route.tenantId);
+      const auth = await authenticate(request, env, manifest, route.tenantId, route.endpoint);
+      if (!auth.ok) {
+        return json({ error: auth.error }, auth.status);
+      }
 
       if (request.method === "GET" && route.endpoint === "health") {
-        return json({ ok: true, agent_id: manifest.agent?.id ?? null, tenant_id: route.tenantId ?? null });
+        return json({ ok: true, agent_id: manifest.agent?.id ?? null, tenant_id: route.tenantId ?? null, auth: auth.context });
       }
 
       if (request.method === "GET" && route.endpoint === "policy") {
@@ -113,6 +123,7 @@ export default {
             findings: decision.findings,
             decision: decision.allow ? "allow" : "deny",
             event: decision.event,
+            auth: auth.context,
           },
           decision.allow ? 200 : 403,
         );
@@ -128,7 +139,9 @@ export default {
             body: JSON.stringify(grant),
           }),
         );
-        return json(await stored.json(), stored.status);
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
       }
 
       return json({ error: "not found" }, 404);
@@ -441,6 +454,139 @@ function grantTtlSeconds(manifest: AgentIdManifest, tool: Record<string, unknown
   return 300;
 }
 
+async function authenticate(
+  request: Request,
+  env: Env,
+  manifest: AgentIdManifest,
+  tenantId: string | null,
+  endpoint: string,
+): Promise<{ ok: true; context: AuthContext } | { ok: false; status: number; error: string }> {
+  const authorization = request.headers.get("authorization") || "";
+  if (env.AGENTID_API_KEY && authorization === `Bearer ${env.AGENTID_API_KEY}`) {
+    return { ok: true, context: { method: "api_key" } };
+  }
+
+  const oidc = oidcConfig(manifest);
+  if (!oidc?.enabled) {
+    if (!env.AGENTID_API_KEY) return { ok: true, context: { method: "none" } };
+    return { ok: false, status: 401, error: "unauthorized" };
+  }
+
+  const token = authorization.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
+  if (!token) return { ok: false, status: 401, error: "missing bearer token" };
+
+  let claims: Record<string, unknown>;
+  if (oidc.token_validation === "demo_hs256") {
+    if (!env.AGENTID_DEMO_OIDC_SECRET) {
+      return { ok: false, status: 500, error: "demo OIDC secret is not configured" };
+    }
+    claims = await verifyDemoJwt(token, env.AGENTID_DEMO_OIDC_SECRET);
+  } else {
+    return { ok: false, status: 501, error: "jwks OIDC validation is declared but not yet implemented in this Worker" };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (typeof claims.exp !== "number" || claims.exp <= now) {
+    return { ok: false, status: 401, error: "OIDC token is expired" };
+  }
+  if (claims.iss !== oidc.issuer) {
+    return { ok: false, status: 401, error: "OIDC issuer mismatch" };
+  }
+  if (!audienceMatches(claims.aud, oidc.audiences)) {
+    return { ok: false, status: 401, error: "OIDC audience mismatch" };
+  }
+
+  const mapping = oidc.claim_mapping || {};
+  const tokenTenant = stringValue(claims[stringValue(mapping.tenant_id)]);
+  const tokenAgent = stringValue(claims[stringValue(mapping.agent_id)]);
+  const userId = stringValue(claims[stringValue(mapping.user_id)]);
+  if (tenantId && tokenTenant && tokenTenant !== tenantId) {
+    return { ok: false, status: 403, error: "OIDC tenant claim does not match route tenant" };
+  }
+  if (manifest.agent?.id && tokenAgent && tokenAgent !== manifest.agent.id) {
+    return { ok: false, status: 403, error: "OIDC agent claim does not match manifest agent" };
+  }
+
+  const scopes = scopesFromClaims(claims);
+  const requiredScope = requiredScopeForEndpoint(oidc, endpoint);
+  if (requiredScope && !scopes.includes(requiredScope)) {
+    return { ok: false, status: 403, error: `missing required OIDC scope: ${requiredScope}` };
+  }
+
+  return {
+    ok: true,
+    context: {
+      method: "oidc",
+      subject: stringValue(claims.sub),
+      tenant_id: tokenTenant || tenantId || undefined,
+      user_id: userId || undefined,
+      agent_id: tokenAgent || undefined,
+      scopes,
+      issuer: stringValue(claims.iss),
+    },
+  };
+}
+
+function oidcConfig(manifest: AgentIdManifest): Record<string, any> | null {
+  return typeof manifest.oidc === "object" && manifest.oidc ? manifest.oidc as Record<string, any> : null;
+}
+
+function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): string {
+  const scopes = oidc.required_scopes || {};
+  if (endpoint === "authorize") return stringValue(scopes.authorize);
+  if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
+  if (endpoint === "policy") return stringValue(scopes.policy_read);
+  return "";
+}
+
+function scopesFromClaims(claims: Record<string, unknown>): string[] {
+  if (Array.isArray(claims.scope)) return claims.scope.map(String);
+  if (typeof claims.scope === "string") return claims.scope.split(" ").filter(Boolean);
+  if (Array.isArray(claims.scp)) return claims.scp.map(String);
+  return [];
+}
+
+function audienceMatches(audience: unknown, allowed: unknown): boolean {
+  const allowedValues = Array.isArray(allowed) ? allowed.map(String) : [String(allowed)];
+  const tokenValues = Array.isArray(audience) ? audience.map(String) : [String(audience)];
+  return tokenValues.some((value) => allowedValues.includes(value));
+}
+
+async function verifyDemoJwt(token: string, secret: string): Promise<Record<string, unknown>> {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("invalid OIDC token format");
+
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  const header = JSON.parse(base64UrlDecode(encodedHeader)) as Record<string, unknown>;
+  if (header.alg !== "HS256") throw new Error("unsupported demo OIDC token algorithm");
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const signature = base64UrlToBytes(encodedSignature);
+  const valid = await crypto.subtle.verify(
+    "HMAC",
+    key,
+    signature,
+    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+  );
+  if (!valid) throw new Error("invalid OIDC token signature");
+  return JSON.parse(base64UrlDecode(encodedPayload)) as Record<string, unknown>;
+}
+
+function base64UrlDecode(value: string): string {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  return atob(padded);
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  return Uint8Array.from(base64UrlDecode(value), (char) => char.charCodeAt(0));
+}
+
 async function readJson(request: Request): Promise<Record<string, unknown>> {
   try {
     const payload = await request.json();
@@ -451,11 +597,6 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   } catch (error) {
     throw new Error(`invalid JSON: ${(error as Error).message}`);
   }
-}
-
-function authorized(request: Request, env: Env): boolean {
-  if (!env.AGENTID_API_KEY) return true;
-  return request.headers.get("authorization") === `Bearer ${env.AGENTID_API_KEY}`;
 }
 
 function stringValue(value: unknown): string {

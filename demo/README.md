@@ -2,7 +2,9 @@
 
 This Cloudflare Worker hosts a small SaaS runtime demo that calls the live
 AgentID gateway through a Cloudflare Service Binding. The browser never sees the
-gateway bearer token.
+gateway bearer token. For the self-contained demo, the Worker mints a short-lived
+HS256-signed OIDC-style JWT and the gateway validates it against the tenant
+manifest.
 
 Live demo:
 
@@ -36,8 +38,10 @@ npm run deploy
 Required secret:
 
 ```bash
-npx wrangler secret put AGENTID_GATEWAY_TOKEN
+npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
 ```
 
 The deployed Worker uses `AGENTID_GATEWAY` as a Service Binding to call the
-`agentid-gateway` Worker without exposing the gateway token in frontend code.
+`agentid-gateway` Worker without exposing credentials in frontend code. For a
+production IdP, replace demo HS256 validation with JWKS validation from the
+customer OIDC issuer.

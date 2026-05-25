@@ -32,6 +32,11 @@ What is often missing is a clear answer to:
 
 AgentID turns those questions into a small manifest that can be reviewed by developers, security teams, platform teams, and product owners.
 
+AgentID can also describe how callers authenticate to a gateway. The `oidc`
+section maps customer identity-provider claims to AgentID concepts such as
+tenant, user, and agent, then declares the scopes required to authorize tool
+calls, read policies, or issue JIT grants.
+
 ---
 
 ## Important framing
@@ -81,7 +86,9 @@ The hosted refund-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
 It shows a SaaS support app consulting AgentID before refund actions, including
 customer refund-history checks, human notification for escalations, and JIT
-authority before Stripe refund execution. Demo source lives in [`demo/`](demo/).
+authority before Stripe refund execution. The demo Worker mints a short-lived
+OIDC-style JWT server-side, and the gateway validates its claims against the
+tenant manifest. Demo source lives in [`demo/`](demo/).
 
 ![AgentID Refund Control Demo](docs/AgentIDRefundControlDemo.png)
 
@@ -95,6 +102,7 @@ authority before Stripe refund execution. Demo source lives in [`demo/`](demo/).
 | `delegation` | Who or what the agent is allowed to act on behalf of |
 | `delegation_chain` | Whether the agent can call other agents |
 | `intent` | Actions that require explicit human confirmation |
+| `oidc` | Issuer, audience, claim mapping, and scopes for gateway access |
 | `jit_authorization` | Rules for issuing temporary, scoped authority at runtime |
 | `tools` | External capabilities the agent may use |
 | `auth_mode` | Whether access is `delegated`, `service`, or `just_in_time` |

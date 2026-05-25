@@ -14,6 +14,7 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     runtime = manifest.get("runtime", {})
     audit = manifest.get("audit", {})
     kill_switch = manifest.get("kill_switch", {})
+    oidc = manifest.get("oidc", {})
 
     lines: list[str] = []
 
@@ -36,6 +37,22 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
 
     if intent.get("confirmation_required_for"):
         lines.append("Intent confirmation required for: " + ", ".join(intent["confirmation_required_for"]))
+
+    lines.append("")
+    lines.append("OIDC access:")
+    lines.append(f"- Enabled: {bool(oidc.get('enabled'))}")
+    if oidc.get("issuer"):
+        lines.append(f"- Issuer: {oidc['issuer']}")
+    if oidc.get("audiences"):
+        lines.append("- Audiences: " + ", ".join(oidc["audiences"]))
+    if oidc.get("token_validation"):
+        lines.append(f"- Token validation: {oidc['token_validation']}")
+    if oidc.get("required_scopes"):
+        scopes = oidc["required_scopes"]
+        lines.append(
+            "- Required scopes: "
+            + ", ".join(f"{name}={scope}" for name, scope in scopes.items())
+        )
 
     lines.append("")
     lines.append("Just-in-time authorization:")

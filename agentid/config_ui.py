@@ -249,6 +249,18 @@ CONFIG_UI_HTML = r"""<!doctype html>
       </section>
 
       <section>
+        <h2>OIDC Access</h2>
+        <div class="grid">
+          <label><span><input id="oidcEnabled" type="checkbox" checked> Require OIDC tokens</span></label>
+          <label>Token validation<select id="oidcMode"><option value="jwks">jwks</option><option value="demo_hs256">demo_hs256</option></select></label>
+          <label>Issuer<input id="oidcIssuer" value="https://idp.example.com/oauth2/default"></label>
+          <label>Audience<input id="oidcAudience" value="agentid-gateway"></label>
+          <label>JWKS URI<input id="oidcJwks" value="https://idp.example.com/oauth2/default/v1/keys"></label>
+          <label>Tenant claim<input id="oidcTenantClaim" value="tid"></label>
+        </div>
+      </section>
+
+      <section>
         <div class="row" style="justify-content:space-between">
           <h2 style="margin:0">Tools</h2>
           <button class="icon" id="toolPlus" title="Add tool">+</button>
@@ -341,6 +353,26 @@ CONFIG_UI_HTML = r"""<!doctype html>
         },
         intent: {
           confirmation_required_for: tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name)
+        },
+        oidc: {
+          enabled: oidcEnabled.checked,
+          issuer: oidcIssuer.value.trim(),
+          audiences: [oidcAudience.value.trim()].filter(Boolean),
+          ...(oidcMode.value === "jwks" ? { jwks_uri: oidcJwks.value.trim() } : {}),
+          token_validation: oidcMode.value,
+          claim_mapping: {
+            tenant_id: oidcTenantClaim.value.trim(),
+            user_id: "sub",
+            agent_id: "agent_id",
+            groups: "groups",
+            email: "email"
+          },
+          required_scopes: {
+            authorize: "agentid.authorize",
+            policy_read: "agentid.policy.read",
+            policy_write: "agentid.policy.write",
+            jit_grant: "agentid.jit.grant"
+          }
         },
         jit_authorization: {
           enabled: tools.some((tool) => tool.auth_mode === "just_in_time"),

@@ -25,6 +25,25 @@ intent:
     - data_delete
     - permission_change
 
+oidc:
+  enabled: true
+  issuer: https://idp.example.com/oauth2/default
+  audiences:
+    - agentid-gateway
+  jwks_uri: https://idp.example.com/oauth2/default/v1/keys
+  token_validation: jwks
+  claim_mapping:
+    tenant_id: tid
+    user_id: sub
+    agent_id: agent_id
+    groups: groups
+    email: email
+  required_scopes:
+    authorize: agentid.authorize
+    policy_read: agentid.policy.read
+    policy_write: agentid.policy.write
+    jit_grant: agentid.jit.grant
+
 jit_authorization:
   enabled: true
   default_ttl_seconds: 300

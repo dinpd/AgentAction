@@ -23,6 +23,7 @@ REQUIRED_AGENT_FIELDS = ["id", "name", "owner", "environment", "purpose"]
 VALID_ACCESS = {"read", "write", "admin", "execute"}
 VALID_APPROVAL = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_AUTH_MODE = {"delegated", "service", "just_in_time"}
+VALID_OIDC_TOKEN_MODES = {"jwks", "demo_hs256"}
 
 
 def load_manifest(path: str | Path) -> dict[str, Any]:
@@ -56,6 +57,7 @@ def validate_manifest(manifest: dict[str, Any]) -> ValidationResult:
             errors.append(f"Missing required field: agent.{field}")
 
     _validate_jit_authorization(manifest, errors, warnings)
+    _validate_oidc(manifest, errors, warnings)
     _validate_tools(manifest, errors, warnings)
     _validate_delegation_chain(manifest, errors, warnings)
     _validate_intent(manifest, errors, warnings)
@@ -71,6 +73,53 @@ def validate_manifest(manifest: dict[str, Any]) -> ValidationResult:
         warnings.append("agent.expires_at is not set. Consider expiring production agent authority.")
 
     return ValidationResult(ok=not errors, errors=errors, warnings=warnings)
+
+
+def _validate_oidc(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    oidc = manifest.get("oidc")
+    if oidc is None:
+        warnings.append("oidc is not set. Gateway access may rely on static bearer secrets instead of identity claims.")
+        return
+
+    if not isinstance(oidc, dict):
+        errors.append("oidc must be an object.")
+        return
+
+    if not oidc.get("enabled"):
+        warnings.append("oidc.enabled is not true.")
+        return
+
+    issuer = oidc.get("issuer")
+    if not issuer:
+        errors.append("oidc.issuer is required when oidc.enabled is true.")
+
+    audiences = oidc.get("audiences")
+    if not isinstance(audiences, list) or not audiences:
+        errors.append("oidc.audiences must be a non-empty list when oidc.enabled is true.")
+
+    token_mode = oidc.get("token_validation", "jwks")
+    if token_mode not in VALID_OIDC_TOKEN_MODES:
+        errors.append(f"oidc.token_validation must be one of: {', '.join(sorted(VALID_OIDC_TOKEN_MODES))}.")
+    if token_mode == "jwks" and not oidc.get("jwks_uri"):
+        errors.append("oidc.jwks_uri is required when oidc.token_validation is jwks.")
+    if token_mode == "demo_hs256":
+        warnings.append("oidc.token_validation=demo_hs256 is for demos only. Use jwks for production IdPs.")
+
+    claim_mapping = oidc.get("claim_mapping")
+    if not isinstance(claim_mapping, dict):
+        errors.append("oidc.claim_mapping must be an object.")
+    else:
+        for field in ["tenant_id", "user_id", "agent_id"]:
+            if not claim_mapping.get(field):
+                errors.append(f"oidc.claim_mapping.{field} is required.")
+
+    required_scopes = oidc.get("required_scopes")
+    if not isinstance(required_scopes, dict):
+        errors.append("oidc.required_scopes must be an object.")
+    else:
+        for field in ["authorize", "policy_read", "jit_grant"]:
+            if not required_scopes.get(field):
+                warnings.append(f"oidc.required_scopes.{field} is not set.")
 
 
 def _validate_jit_authorization(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
