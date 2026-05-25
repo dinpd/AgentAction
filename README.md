@@ -92,6 +92,10 @@ jobs:
           max-risk: "75"
 ```
 
+For SaaS runtime integration, see the TypeScript helper in
+[`sdk/typescript/`](sdk/typescript/). It provides `authorizeToolCall`,
+`requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
+
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 
 | Endpoint | Purpose |

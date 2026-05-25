@@ -1,0 +1,91 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { AgentIdClient, AgentIdDeniedError, AgentIdHttpError } from "../src/index.ts";
+
+test("authorizeToolCall posts tenant authorize request with bearer token", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const client = new AgentIdClient({
+    baseUrl: "https://gateway.example.com/",
+    token: "token-1",
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init: init || {} });
+      return jsonResponse(200, { allow: true, decision: "allow", findings: [], event: {} });
+    },
+  });
+
+  const response = await client.authorizeToolCall("tenant-a", {
+    agent_id: "agent-a",
+    tool: "docs.search",
+    action: "read",
+  });
+
+  assert.equal(response.allow, true);
+  assert.equal(calls[0].url, "https://gateway.example.com/tenants/tenant-a/authorize");
+  assert.deepEqual(calls[0].init.headers, {
+    "content-type": "application/json",
+    authorization: "Bearer token-1",
+  });
+  assert.equal(JSON.parse(String(calls[0].init.body)).tool, "docs.search");
+});
+
+test("assertAllowed throws on deny decisions", async () => {
+  const client = new AgentIdClient({
+    baseUrl: "https://gateway.example.com",
+    fetch: async () => jsonResponse(403, { allow: false, decision: "deny", findings: ["blocked"], event: {} }),
+  });
+
+  await assert.rejects(
+    () => client.assertAllowed("tenant-a", { agent_id: "agent-a", tool: "x", action: "write" }),
+    AgentIdDeniedError,
+  );
+});
+
+test("requestJitGrant posts JIT grant request", async () => {
+  const client = new AgentIdClient({
+    baseUrl: "https://gateway.example.com",
+    token: async () => "token-2",
+    fetch: async (url, init) => {
+      assert.equal(String(url), "https://gateway.example.com/tenants/tenant-a/jit-grants");
+      assert.equal((init?.headers as Record<string, string>).authorization, "Bearer token-2");
+      return jsonResponse(201, {
+        jit_grant_id: "grant-1",
+        agent_id: "agent-a",
+        tool: "stripe.create_refund",
+        action: "write",
+        resource: "refund/1",
+        approval_id: "approval-1",
+        user_id: "user-1",
+        expires_at: "2026-01-01T00:00:00Z",
+        used: false,
+      });
+    },
+  });
+
+  const response = await client.requestJitGrant("tenant-a", {
+    tool: "stripe.create_refund",
+    action: "write",
+    approval_id: "approval-1",
+  });
+
+  assert.equal(response.jit_grant_id, "grant-1");
+});
+
+test("unexpected statuses throw AgentIdHttpError", async () => {
+  const client = new AgentIdClient({
+    baseUrl: "https://gateway.example.com",
+    fetch: async () => jsonResponse(500, { error: "broken" }),
+  });
+
+  await assert.rejects(
+    () => client.authorizeToolCall("tenant-a", { agent_id: "agent-a", tool: "x", action: "read" }),
+    AgentIdHttpError,
+  );
+});
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
