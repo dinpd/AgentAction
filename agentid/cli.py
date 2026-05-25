@@ -11,6 +11,7 @@ from agentid.gateway import serve
 from agentid.manifest import ManifestError, load_manifest, validate_manifest
 from agentid.policy import generate_policy
 from agentid.risk import risk_label, risk_score
+from agentid.schema import schema_json
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     policy_parser.add_argument("manifest")
     policy_parser.add_argument("--target", choices=["opa"], default="opa")
 
+    subparsers.add_parser("schema", help="Print the AgentID JSON Schema.")
+
     config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
     config_ui_parser.add_argument("--output", default="agentid-policy-builder.html")
 
@@ -47,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser.add_argument("--manifest", required=True)
 
     args = parser.parse_args(argv)
+
+    if args.command == "schema":
+        print(schema_json(), end="")
+        return 0
 
     if args.command == "config-ui":
         path = write_config_ui(args.output)

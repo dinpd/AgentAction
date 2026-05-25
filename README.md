@@ -61,11 +61,20 @@ agentid explain examples/customer-support-refund-agent.yaml
 agentid risk-score examples/customer-support-refund-agent.yaml
 agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
 agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
+agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/customer-support-refund-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 `config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
+
+The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
+and can be emitted with `agentid schema`. Add this to a manifest for editor
+validation:
+
+```yaml
+$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
+```
 
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 

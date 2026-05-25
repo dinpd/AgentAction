@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json",
+  "title": "AgentID Manifest",
+  "description": "Authority contract for an AI agent, including identity, OIDC access, tool permissions, data flows, JIT authorization, runtime expectations, audit, and kill switch controls.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["agent"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "owner", "environment", "purpose"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "environment": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "expires_at": {
+          "oneOf": [
+            { "type": "string", "format": "date" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "acts_for": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string" },
+            "required": { "type": "boolean" }
+          }
+        },
+        "allowed_subjects": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "delegation_chain": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "may_call_agents": { "type": "boolean" },
+        "allowed_agents": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "confirmation_required_for": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "issuer": { "type": "string", "minLength": 1 },
+        "audiences": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "jwks_uri": { "type": "string", "minLength": 1 },
+        "token_validation": {
+          "type": "string",
+          "enum": ["jwks", "demo_hs256"]
+        },
+        "claim_mapping": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "properties": {
+            "tenant_id": { "type": "string", "minLength": 1 },
+            "user_id": { "type": "string", "minLength": 1 },
+            "agent_id": { "type": "string", "minLength": 1 },
+            "groups": { "type": "string" },
+            "email": { "type": "string" }
+          }
+        },
+        "required_scopes": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "properties": {
+            "authorize": { "type": "string" },
+            "policy_read": { "type": "string" },
+            "policy_write": { "type": "string" },
+            "jit_grant": { "type": "string" }
+          }
+        }
+      }
+    },
+    "jit_authorization": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "default_ttl_seconds": { "type": "integer", "minimum": 1 },
+        "require_fresh_context": { "type": "boolean" },
+        "bind_token_to": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "revoke_after_use": { "type": "boolean" },
+        "max_session_extensions": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "access"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "access": {
+            "type": "string",
+            "enum": ["read", "write", "admin", "execute"]
+          },
+          "auth_mode": {
+            "type": "string",
+            "enum": ["delegated", "service", "just_in_time"]
+          },
+          "approval": {
+            "type": "string",
+            "enum": ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"]
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "token_ttl_seconds": { "type": "integer", "minimum": 1 },
+              "max_amount_usd": { "type": "number", "minimum": 0 },
+              "allowed_reasons": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "allowed_domains": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "resource": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "data_flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["from", "to", "allowed"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "allowed": { "type": "boolean" }
+        }
+      }
+    },
+    "risk_tiers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "approval": {
+            "type": "string",
+            "enum": ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"]
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enforce_manifest": { "type": "boolean" },
+        "detect_tool_drift": { "type": "boolean" },
+        "detect_new_destinations": { "type": "boolean" }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "log_prompt_summary": { "type": "boolean" },
+        "log_tool_calls": { "type": "boolean" },
+        "log_decisions": { "type": "boolean" },
+        "log_jit_grants": { "type": "boolean" },
+        "retain_days": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "kill_switch": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "revoke_on_policy_violation": { "type": "boolean" }
+      }
+    }
+  }
+}
