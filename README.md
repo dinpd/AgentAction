@@ -12,6 +12,26 @@ AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise
 
 ---
 
+## Quick Start
+
+```bash
+git clone https://github.com/dinpd/AgentID.git
+cd AgentID
+python -m pip install -e ".[dev]"
+agentid validate examples/customer-support-refund-agent.yaml
+agentid risk-score examples/customer-support-refund-agent.yaml
+agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
+```
+
+Try the hosted demo:
+
+- Refund-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
+- Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
+
+For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
+
+---
+
 ## Why this exists
 
 Most agent projects define tools and credentials in ad hoc config files.

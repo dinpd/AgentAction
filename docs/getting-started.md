@@ -1,0 +1,199 @@
+# Getting Started with AgentID
+
+This walkthrough shows how to use AgentID as an authority contract for an AI
+agent and how to put checks in front of tool execution.
+
+## 1. Install
+
+```bash
+git clone https://github.com/dinpd/AgentID.git
+cd AgentID
+python -m pip install -e ".[dev]"
+```
+
+## 2. Validate a Manifest
+
+Start with the included ecommerce-style support/refund manifest:
+
+```bash
+agentid validate examples/customer-support-refund-agent.yaml
+agentid explain examples/customer-support-refund-agent.yaml
+agentid risk-score examples/customer-support-refund-agent.yaml
+```
+
+The manifest declares:
+
+- Agent identity, owner, purpose, and expiry.
+- OIDC issuer, audiences, claim mappings, and required scopes.
+- Tools the agent may request.
+- Which tools require JIT authority and approval.
+- Allowed and blocked data flows.
+- Runtime, audit, and kill-switch expectations.
+
+## 3. Use JSON Schema in Your Editor
+
+AgentID ships a JSON Schema:
+
+```bash
+agentid schema > schema/agentid.schema.json
+```
+
+Add this to your manifest for editor validation:
+
+```yaml
+$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
+```
+
+## 4. Generate Starter Policy
+
+Generate starter OPA/Rego policy from a manifest:
+
+```bash
+agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
+```
+
+The manifest remains the portable source of truth. OPA is one target runtime
+format for teams that already use Open Policy Agent.
+
+## 5. Try the Config UI
+
+Generate the browser-based policy builder:
+
+```bash
+agentid config-ui --output agentid-policy-builder.html
+```
+
+Or use the hosted version:
+
+https://agentid-policy-builder.pages.dev
+
+The builder produces manifest YAML, starter OPA policy, and example gateway
+requests.
+
+## 6. Run the Gateway Locally
+
+```bash
+agentid gateway examples/customer-support-refund-agent.yaml --host 127.0.0.1 --port 8787
+```
+
+Then authorize a tool call:
+
+```bash
+curl -s http://127.0.0.1:8787/authorize \
+  -H 'content-type: application/json' \
+  -d '{
+    "agent_id": "customer-support-refund-agent",
+    "tool": "zendesk.search_tickets",
+    "action": "read",
+    "data_from": "zendesk",
+    "data_to": "stripe"
+  }'
+```
+
+For production, prefer the Cloudflare gateway or your own gateway integration
+with OIDC/JWKS validation.
+
+## 7. Add PR Checks
+
+Use the AgentID GitHub Action in your own repo:
+
+```yaml
+name: AgentID Check
+
+on: [pull_request]
+
+jobs:
+  agentid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dinpd/AgentID@main
+        with:
+          manifests: "agents/*.yaml"
+          max-risk: "75"
+```
+
+This validates manifests, emits PR warnings/errors, computes risk scores, and
+fails if risk exceeds the threshold.
+
+## 8. Call the Gateway from TypeScript
+
+Use the helper in `sdk/typescript`:
+
+```ts
+import { AgentIdClient } from "@agentid/client";
+
+const agentid = new AgentIdClient({
+  baseUrl: "https://agentid-gateway.example.com",
+  token: async () => getAccessTokenFromYourIdP(),
+});
+
+await agentid.assertAllowed("tenant-a", {
+  agent_id: "refund-agent",
+  tool: "zendesk.search_tickets",
+  action: "read",
+  data_from: "zendesk",
+  data_to: "agent_context",
+});
+```
+
+For sensitive actions, request a JIT grant before executing the tool:
+
+```ts
+const grant = await agentid.requestJitGrant("tenant-a", {
+  tool: "stripe.create_refund",
+  action: "write",
+  resource: "refund/case-1042",
+  approval_id: "approval-123",
+  user_id: "support-rep-17",
+});
+
+await agentid.assertAllowed("tenant-a", {
+  agent_id: "refund-agent",
+  tool: "stripe.create_refund",
+  action: "write",
+  resource: "refund/case-1042",
+  approved: true,
+  jit_grant_id: grant.jit_grant_id,
+});
+```
+
+## 9. Deploy on Cloudflare
+
+The `cloudflare/` directory contains a Workers gateway with:
+
+- Tenant manifests in KV.
+- Single-use JIT grants in Durable Objects.
+- Static API-key bootstrap support.
+- Demo HS256 JWT support.
+- Production RS256/JWKS validation path.
+
+```bash
+cd cloudflare
+npm install
+npm run deploy
+```
+
+See [`cloudflare/README.md`](../cloudflare/README.md) for details.
+
+## 10. Try the Hosted Refund Demo
+
+The hosted demo shows a SaaS support app consulting AgentID before refunds:
+
+https://agentid-refund-demo.drisw.workers.dev
+
+It illustrates:
+
+- Support context lookup.
+- Customer refund-history lookup before any refund.
+- Human notification for repeat-refund or multi-month refund scenarios.
+- JIT grant issuance before Stripe refund execution.
+- Gateway decisions with OIDC-derived auth context.
+
+## Next Steps
+
+- Replace the sample manifest with one for your agent.
+- Add OIDC issuer, audience, JWKS URI, and claim mappings for your IdP.
+- Put `assertAllowed` before every tool execution.
+- Use JIT grants for write, execute, admin, financial, external-send, and data-change actions.
+- Add the GitHub Action to enforce manifest review in pull requests.
