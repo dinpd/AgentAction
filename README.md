@@ -95,36 +95,35 @@ tenant manifest. Demo source lives in [`demo/`](demo/).
 ```mermaid
 sequenceDiagram
     participant User
-    participant App as SaaS Demo App
-    participant Demo as Demo Worker
+    participant App as SaaS App / Agent Runtime
+    participant IdP as Customer IdP
     participant Gateway as AgentID Gateway
-    participant KV as Tenant Manifest KV
-    participant DO as JIT Grant Durable Object
+    participant KV as Tenant Manifest Store
+    participant DO as JIT Grant Store
     participant Tool as SaaS Tool
 
-    User->>App: Run refund scenario
-    App->>Demo: POST /api/authorize
-    Demo->>Demo: Mint short-lived OIDC-style JWT
-    Demo->>Gateway: POST /tenants/refund-demo-agent/authorize
+    User->>App: Run agent workflow
+    App->>IdP: Obtain OIDC/OAuth access token
+    App->>Gateway: POST /tenants/:id/authorize with token
+    Gateway->>IdP: Validate token via JWKS
     Gateway->>KV: Load tenant manifest
     Gateway->>Gateway: Validate JWT claims, scopes, tenant, and agent
     Gateway->>Gateway: Evaluate tool, approval, and data-flow policy
-    Gateway-->>Demo: allow/deny + findings
-    Demo-->>App: Decision response
+    Gateway-->>App: allow/deny + findings
 
-    App->>Demo: POST /api/jit-grants
-    Demo->>Gateway: Request scoped JIT grant
+    App->>Gateway: POST /tenants/:id/jit-grants with token
     Gateway->>DO: Store grant bound to agent, user, tool, action, and resource
-    Gateway-->>Demo: JIT grant ID
-    Demo-->>App: JIT grant response
+    Gateway-->>App: JIT grant ID
 
-    App->>Demo: POST /api/authorize with grant
-    Demo->>Gateway: Authorize refund execution
+    App->>Gateway: POST /tenants/:id/authorize with grant
     Gateway->>DO: Validate and consume single-use grant
-    Gateway-->>Demo: allow
-    Demo-->>App: Tool execution authorized
-    App->>Tool: Execute refund
+    Gateway-->>App: allow
+    App->>Tool: Execute tool
 ```
+
+The hosted demo uses a Worker-minted demo JWT so it can run without an
+external identity provider. Production deployments should validate access
+tokens from the customer's OIDC provider via JWKS.
 
 ---
 
