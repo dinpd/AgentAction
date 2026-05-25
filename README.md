@@ -76,6 +76,22 @@ validation:
 $schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
 ```
 
+AgentID also ships a GitHub Action for PR checks:
+
+```yaml
+name: AgentID
+on: [pull_request]
+jobs:
+  agentid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dinpd/AgentID@main
+        with:
+          manifests: "agents/*.yaml"
+          max-risk: "75"
+```
+
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 
 | Endpoint | Purpose |

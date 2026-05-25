@@ -1,0 +1,21 @@
+name: AgentID Manifest Check
+description: Validate AgentID manifests and optionally fail above a risk threshold.
+inputs:
+  manifests:
+    description: Space-separated manifest paths or glob patterns.
+    required: false
+    default: "examples/*.yaml"
+  max-risk:
+    description: Maximum allowed AgentID risk score.
+    required: false
+    default: "100"
+runs:
+  using: composite
+  steps:
+    - name: Install AgentID
+      shell: bash
+      run: python -m pip install "${{ github.action_path }}"
+
+    - name: Check manifests
+      shell: bash
+      run: python "${{ github.action_path }}/scripts/check_manifests.py" --max-risk "${{ inputs.max-risk }}" ${{ inputs.manifests }}
