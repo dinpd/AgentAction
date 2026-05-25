@@ -116,6 +116,77 @@ def test_gateway_allows_jit_tool_with_bound_grant_once():
     assert "JIT grant was already used" in second_decision.findings
 
 
+def test_gateway_enforces_scoped_agent_delegation():
+    manifest = _manifest()
+    manifest["delegation_chain"] = {
+        "may_call_agents": True,
+        "allowed_agents": ["refund-risk-review-agent"],
+        "max_depth": 1,
+        "allowed_delegated_tools": ["billing.lookup_refunds"],
+        "requires_approval": True,
+        "approval_sources": ["human", "agent"],
+        "approval_agents": ["delegation-policy-agent"],
+        "delegation_ttl_seconds": 300,
+    }
+    gateway = AgentGateway(manifest)
+
+    decision = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "zendesk.ticket.read",
+            "action": "read",
+            "data_from": "zendesk",
+            "data_to": "agent_context",
+            "called_agent": "refund-risk-review-agent",
+            "delegated_tool": "billing.lookup_refunds",
+            "delegation_depth": 1,
+            "approved": True,
+            "approval_source": "agent",
+            "approval_agent": "delegation-policy-agent",
+        }
+    )
+
+    assert decision.allow
+
+
+def test_gateway_denies_unscoped_agent_delegation():
+    manifest = _manifest()
+    manifest["delegation_chain"] = {
+        "may_call_agents": True,
+        "allowed_agents": ["refund-risk-review-agent"],
+        "max_depth": 1,
+        "allowed_delegated_tools": ["billing.lookup_refunds"],
+        "requires_approval": True,
+        "approval_sources": ["human"],
+        "approval_agents": ["delegation-policy-agent"],
+    }
+    gateway = AgentGateway(manifest)
+
+    decision = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "zendesk.ticket.read",
+            "action": "read",
+            "data_from": "zendesk",
+            "data_to": "agent_context",
+            "called_agent": "undeclared-agent",
+            "delegated_tool": "stripe.create_refund",
+            "delegation_depth": 2,
+            "approved": True,
+            "approval_source": "agent",
+            "approval_agent": "undeclared-agent",
+        }
+    )
+
+    assert not decision.allow
+    assert "event[0]: called agent is not in allowed_agents: undeclared-agent" in decision.findings
+    assert "event[0]: approval_source is not allowed for delegation: agent" in decision.findings
+    assert "event[0]: approval_agent is not allowed for delegation: undeclared-agent" in decision.findings
+    assert "event[0]: delegation approval agent must be independent of source and target agents" in decision.findings
+    assert "event[0]: delegation depth 2 exceeds max_depth 1" in decision.findings
+    assert "event[0]: delegated tool is not allowed: stripe.create_refund" in decision.findings
+
+
 def test_config_ui_writer_creates_browser_builder(tmp_path):
     output = write_config_ui(tmp_path / "builder.html")
 

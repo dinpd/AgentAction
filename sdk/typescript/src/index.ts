@@ -14,6 +14,11 @@ export type ToolCallRequest = {
   jit_grant_id?: string;
   resource?: string;
   called_agent?: string;
+  delegated_tool?: string;
+  delegation_depth?: number;
+  delegation_grant_id?: string;
+  approval_source?: "human" | "agent" | "system" | string;
+  approval_agent?: string;
 };
 
 export type AuthorizeResponse = {

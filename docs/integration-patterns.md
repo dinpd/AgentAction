@@ -138,6 +138,7 @@ does not map to the expected tenant, agent, audience, or scopes.
 AgentID is most useful as the agent authority layer:
 
 - May this agent call this tool?
+- May this agent call another agent?
 - Is this action allowed for this agent's declared purpose?
 - Is this source-to-destination data flow allowed?
 - Does this action require approval or JIT authority?
@@ -153,6 +154,44 @@ business-object decisions:
 
 In production, use both. AgentID constrains the agent's runtime authority;
 your existing authorization system constrains the underlying business action.
+
+## Agent-to-Agent Delegation
+
+AgentID supports scoped checks for agent-to-agent calls. Use this when one
+agent may ask a specialist agent to perform a narrow part of a workflow.
+
+The important constraint is that delegation should be narrower than the source
+agent's authority. For example, a refund agent may delegate billing-history
+lookup to a risk-review agent, but not Stripe refund execution:
+
+```yaml
+delegation_chain:
+  may_call_agents: true
+  allowed_agents:
+    - refund-risk-review-agent
+  max_depth: 1
+  allowed_delegated_tools:
+    - billing.lookup_refunds
+    - zendesk.search_tickets
+  requires_approval: true
+  approval_sources:
+    - human
+    - agent
+  approval_agents:
+    - delegation-policy-agent
+  delegation_ttl_seconds: 300
+```
+
+The current gateway enforces declared `called_agent`, `delegated_tool`,
+`delegation_depth`, `approval_source`, `approval_agent`, and approval fields
+when they are present on an authorize request. This lets an app validate the
+hand-off before one agent calls another. A complete transferable-privilege
+model should add durable delegation grants, source/target manifest
+intersection, grant revocation, and delegation audit events.
+
+See [`agent-to-agent-delegation.md`](agent-to-agent-delegation.md) for the
+full model and [`../examples/customer-support-delegation-agent.yaml`](../examples/customer-support-delegation-agent.yaml)
+for a refund-case manifest.
 
 ## CI and Review
 

@@ -226,6 +226,29 @@ def _validate_delegation_chain(manifest: dict[str, Any], errors: list[str], warn
     if chain.get("may_call_agents") is True and not chain.get("allowed_agents"):
         warnings.append("delegation_chain.may_call_agents is true but allowed_agents is empty.")
 
+    max_depth = chain.get("max_depth")
+    if max_depth is not None and (not isinstance(max_depth, int) or max_depth < 1):
+        errors.append("delegation_chain.max_depth must be a positive integer.")
+
+    allowed_delegated_tools = chain.get("allowed_delegated_tools")
+    if allowed_delegated_tools is not None and not isinstance(allowed_delegated_tools, list):
+        errors.append("delegation_chain.allowed_delegated_tools must be a list.")
+
+    approval_sources = chain.get("approval_sources")
+    if approval_sources is not None and not isinstance(approval_sources, list):
+        errors.append("delegation_chain.approval_sources must be a list.")
+
+    approval_agents = chain.get("approval_agents")
+    if approval_agents is not None and not isinstance(approval_agents, list):
+        errors.append("delegation_chain.approval_agents must be a list.")
+
+    ttl_seconds = chain.get("delegation_ttl_seconds")
+    if ttl_seconds is not None and (not isinstance(ttl_seconds, int) or ttl_seconds <= 0):
+        errors.append("delegation_chain.delegation_ttl_seconds must be a positive integer.")
+
+    if chain.get("may_call_agents") is True and not chain.get("requires_approval"):
+        warnings.append("delegation_chain.requires_approval is not enabled for agent-to-agent delegation.")
+
 
 def _validate_intent(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     intent = manifest.get("intent")

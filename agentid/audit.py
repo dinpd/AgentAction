@@ -74,5 +74,28 @@ def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tupl
                 findings.append(f"{prefix}: agent-to-agent delegation is not allowed")
             elif called_agent not in allowed_agents:
                 findings.append(f"{prefix}: called agent is not in allowed_agents: {called_agent}")
+            if chain.get("requires_approval") and not event.get("approved"):
+                findings.append(f"{prefix}: agent-to-agent delegation requires approval but event is not approved")
+            approval_source = event.get("approval_source")
+            allowed_approval_sources = set(chain.get("approval_sources", []))
+            if event.get("approved") and allowed_approval_sources and approval_source not in allowed_approval_sources:
+                findings.append(f"{prefix}: approval_source is not allowed for delegation: {approval_source}")
+
+            approval_agent = event.get("approval_agent")
+            allowed_approval_agents = set(chain.get("approval_agents", []))
+            if approval_source == "agent" and allowed_approval_agents and approval_agent not in allowed_approval_agents:
+                findings.append(f"{prefix}: approval_agent is not allowed for delegation: {approval_agent}")
+            if approval_agent and approval_agent in {called_agent, event.get("agent_id")}:
+                findings.append(f"{prefix}: delegation approval agent must be independent of source and target agents")
+
+            max_depth = chain.get("max_depth")
+            depth = event.get("delegation_depth")
+            if isinstance(max_depth, int) and isinstance(depth, int) and depth > max_depth:
+                findings.append(f"{prefix}: delegation depth {depth} exceeds max_depth {max_depth}")
+
+            delegated_tool = event.get("delegated_tool")
+            allowed_delegated_tools = set(chain.get("allowed_delegated_tools", []))
+            if delegated_tool and allowed_delegated_tools and delegated_tool not in allowed_delegated_tools:
+                findings.append(f"{prefix}: delegated tool is not allowed: {delegated_tool}")
 
     return not findings, findings

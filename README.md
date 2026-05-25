@@ -30,6 +30,7 @@ Try the hosted demo:
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
+For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
 
 ---
 
@@ -185,7 +186,7 @@ tokens from the customer's OIDC provider via JWKS.
 |---|---|
 | `agent` | Unique identity, owner, purpose, environment, and expiry |
 | `delegation` | Who or what the agent is allowed to act on behalf of |
-| `delegation_chain` | Whether the agent can call other agents |
+| `delegation_chain` | Whether the agent can call other agents, and which scoped tools may be delegated |
 | `intent` | Actions that require explicit human confirmation |
 | `oidc` | Issuer, audience, claim mapping, and scopes for gateway access |
 | `jit_authorization` | Rules for issuing temporary, scoped authority at runtime |
@@ -226,6 +227,7 @@ Implemented:
 - Python authorization gateway
 - Cloudflare Workers gateway with KV tenant manifests and Durable Object JIT grants
 - OIDC claim/scopes section in manifests
+- Scoped agent-to-agent delegation checks
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
 - Hosted refund-control demo
@@ -235,6 +237,7 @@ Next:
 
 - More ecommerce manifests and audit-log examples
 - Stronger OPA policy generation and Cedar policy generation
+- Durable delegation-grant endpoint with source/target manifest intersection
 - MCP tool metadata import/export
 - OAuth scope recommendation from tool manifests
 - Risk policy profiles by environment

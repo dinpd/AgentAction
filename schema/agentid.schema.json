@@ -54,7 +54,22 @@
         "allowed_agents": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+        "max_depth": { "type": "integer", "minimum": 1 },
+        "allowed_delegated_tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requires_approval": { "type": "boolean" },
+        "approval_sources": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["human", "agent", "system"] }
+        },
+        "approval_agents": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "delegation_ttl_seconds": { "type": "integer", "minimum": 1 }
       }
     },
     "intent": {

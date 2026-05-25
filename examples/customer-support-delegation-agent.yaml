@@ -1,0 +1,134 @@
+agent:
+  id: customer-support-refund-agent
+  name: Customer Support Refund Agent
+  owner: support-platform-team
+  environment: production
+  purpose: Handles refund triage and may request scoped review from a specialist agent
+  expires_at: 2026-12-31
+
+delegation:
+  acts_for:
+    type: user
+    required: true
+  allowed_subjects:
+    - support_rep
+    - support_manager
+
+delegation_chain:
+  may_call_agents: true
+  allowed_agents:
+    - refund-risk-review-agent
+  max_depth: 1
+  allowed_delegated_tools:
+    - billing.lookup_refunds
+    - zendesk.search_tickets
+  requires_approval: true
+  approval_sources:
+    - human
+    - agent
+  approval_agents:
+    - delegation-policy-agent
+  delegation_ttl_seconds: 300
+
+intent:
+  confirmation_required_for:
+    - agent_delegation
+    - payment
+    - external_email
+
+oidc:
+  enabled: true
+  issuer: https://idp.example.com/oauth2/default
+  audiences:
+    - agentid-gateway
+  jwks_uri: https://idp.example.com/oauth2/default/v1/keys
+  token_validation: jwks
+  claim_mapping:
+    tenant_id: tid
+    user_id: sub
+    agent_id: agent_id
+    groups: groups
+    email: email
+  required_scopes:
+    authorize: agentid.authorize
+    policy_read: agentid.policy.read
+    policy_write: agentid.policy.write
+    jit_grant: agentid.jit.grant
+
+jit_authorization:
+  enabled: true
+  default_ttl_seconds: 300
+  require_fresh_context: true
+  bind_token_to:
+    - agent_id
+    - user_id
+    - tool
+    - action
+    - resource
+    - approval_id
+  revoke_after_use: true
+  max_session_extensions: 0
+
+tools:
+  - name: zendesk.search_tickets
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: agent.call.refund-risk-review-agent
+    access: execute
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: refund-case/*
+
+  - name: stripe.create_refund
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      max_amount_usd: 100
+      token_ttl_seconds: 300
+      allowed_reasons:
+        - duplicate_charge
+        - service_failure
+
+data_flows:
+  - from: zendesk
+    to: agent_context
+    allowed: true
+
+  - from: billing
+    to: refund-risk-review-agent
+    allowed: true
+
+  - from: refund-risk-review-agent
+    to: stripe
+    allowed: false
+
+risk_tiers:
+  low:
+    approval: none
+  medium:
+    approval: notify
+  high:
+    approval: human_confirm
+  critical:
+    approval: block
+
+runtime:
+  enforce_manifest: true
+  detect_tool_drift: true
+  detect_new_destinations: true
+
+audit:
+  log_prompt_summary: true
+  log_tool_calls: true
+  log_decisions: true
+  log_jit_grants: true
+  retain_days: 365
+
+kill_switch:
+  enabled: true
+  revoke_on_policy_violation: true

@@ -145,6 +145,11 @@ class AgentGateway:
             "jit_grant_id": event.get("jit_grant_id"),
             "resource": event.get("resource", ""),
             "called_agent": event.get("called_agent"),
+            "delegated_tool": event.get("delegated_tool"),
+            "delegation_depth": event.get("delegation_depth"),
+            "delegation_grant_id": event.get("delegation_grant_id"),
+            "approval_source": event.get("approval_source"),
+            "approval_agent": event.get("approval_agent"),
         }
         findings = self.grants.bind_event(self.manifest, normalized)
         ok, audit_findings = audit_events(self.manifest, [normalized])

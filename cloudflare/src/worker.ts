@@ -227,6 +227,11 @@ async function authorize(
     jit_grant_id: payload.jit_grant_id,
     resource: payload.resource ?? "",
     called_agent: payload.called_agent,
+    delegated_tool: payload.delegated_tool,
+    delegation_depth: payload.delegation_depth,
+    delegation_grant_id: payload.delegation_grant_id,
+    approval_source: payload.approval_source,
+    approval_agent: payload.approval_agent,
   };
   const findings: string[] = [];
   const tool = toolByName(manifest, stringValue(event.tool));
@@ -326,6 +331,48 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
       findings.push("event[0]: agent-to-agent delegation is not allowed");
     } else if (!allowedAgents.includes(event.called_agent)) {
       findings.push(`event[0]: called agent is not in allowed_agents: ${event.called_agent}`);
+    }
+    if (chain.requires_approval === true && event.approved !== true) {
+      findings.push("event[0]: agent-to-agent delegation requires approval but event is not approved");
+    }
+    const allowedApprovalSources = Array.isArray(chain.approval_sources) ? chain.approval_sources : [];
+    if (
+      event.approved === true &&
+      allowedApprovalSources.length > 0 &&
+      !allowedApprovalSources.includes(event.approval_source)
+    ) {
+      findings.push(`event[0]: approval_source is not allowed for delegation: ${event.approval_source}`);
+    }
+    const allowedApprovalAgents = Array.isArray(chain.approval_agents) ? chain.approval_agents : [];
+    if (
+      event.approval_source === "agent" &&
+      allowedApprovalAgents.length > 0 &&
+      !allowedApprovalAgents.includes(event.approval_agent)
+    ) {
+      findings.push(`event[0]: approval_agent is not allowed for delegation: ${event.approval_agent}`);
+    }
+    if (
+      typeof event.approval_agent === "string" &&
+      (event.approval_agent === event.called_agent || event.approval_agent === event.agent_id)
+    ) {
+      findings.push("event[0]: delegation approval agent must be independent of source and target agents");
+    }
+
+    const maxDepth = typeof chain.max_depth === "number" ? chain.max_depth : undefined;
+    const delegationDepth = typeof event.delegation_depth === "number" ? event.delegation_depth : undefined;
+    if (maxDepth !== undefined && delegationDepth !== undefined && delegationDepth > maxDepth) {
+      findings.push(`event[0]: delegation depth ${delegationDepth} exceeds max_depth ${maxDepth}`);
+    }
+
+    const allowedDelegatedTools = Array.isArray(chain.allowed_delegated_tools)
+      ? chain.allowed_delegated_tools
+      : [];
+    if (
+      typeof event.delegated_tool === "string" &&
+      allowedDelegatedTools.length > 0 &&
+      !allowedDelegatedTools.includes(event.delegated_tool)
+    ) {
+      findings.push(`event[0]: delegated tool is not allowed: ${event.delegated_tool}`);
     }
   }
 
