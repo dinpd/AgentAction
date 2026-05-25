@@ -92,6 +92,40 @@ tenant manifest. Demo source lives in [`demo/`](demo/).
 
 ![AgentID Refund Control Demo](docs/AgentIDRefundControlDemo.png)
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant App as SaaS Demo App
+    participant Demo as Demo Worker
+    participant Gateway as AgentID Gateway
+    participant KV as Tenant Manifest KV
+    participant DO as JIT Grant Durable Object
+    participant Tool as SaaS Tool
+
+    User->>App: Run refund scenario
+    App->>Demo: POST /api/authorize
+    Demo->>Demo: Mint short-lived OIDC-style JWT
+    Demo->>Gateway: POST /tenants/refund-demo-agent/authorize
+    Gateway->>KV: Load tenant manifest
+    Gateway->>Gateway: Validate JWT claims, scopes, tenant, and agent
+    Gateway->>Gateway: Evaluate tool, approval, and data-flow policy
+    Gateway-->>Demo: allow/deny + findings
+    Demo-->>App: Decision response
+
+    App->>Demo: POST /api/jit-grants
+    Demo->>Gateway: Request scoped JIT grant
+    Gateway->>DO: Store grant bound to agent, user, tool, action, and resource
+    Gateway-->>Demo: JIT grant ID
+    Demo-->>App: JIT grant response
+
+    App->>Demo: POST /api/authorize with grant
+    Demo->>Gateway: Authorize refund execution
+    Gateway->>DO: Validate and consume single-use grant
+    Gateway-->>Demo: allow
+    Demo-->>App: Tool execution authorized
+    App->>Tool: Execute refund
+```
+
 ---
 
 ## Manifest concepts
