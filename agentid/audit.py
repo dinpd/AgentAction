@@ -57,6 +57,24 @@ def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tupl
             if event.get("jit_grant_valid") is False:
                 findings.append(f"{prefix}: JIT grant is marked invalid")
 
+        job_boundary = manifest.get("job_boundary")
+        if isinstance(job_boundary, dict):
+            job_id = event.get("job_id")
+            if (job_boundary.get("required") or job_boundary.get("require_job_id")) and not job_id:
+                findings.append(f"{prefix}: job_id is required by job_boundary")
+
+            allowed_jobs = set(job_boundary.get("allowed_jobs", []))
+            if job_id and allowed_jobs and job_id not in allowed_jobs:
+                findings.append(f"{prefix}: job_id is not allowed by job_boundary: {job_id}")
+
+            out_of_scope = set(job_boundary.get("out_of_scope", []))
+            if job_id and job_id in out_of_scope:
+                findings.append(f"{prefix}: job_id is explicitly out of scope: {job_id}")
+
+            for field in job_boundary.get("bind_authorization_to", []):
+                if not event.get(field):
+                    findings.append(f"{prefix}: job_boundary binding field is missing: {field}")
+
         data_from = event.get("data_from")
         data_to = event.get("data_to")
         if data_from and data_to:

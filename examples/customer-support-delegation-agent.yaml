@@ -36,6 +36,21 @@ intent:
     - payment
     - external_email
 
+job_boundary:
+  required: true
+  allowed_jobs:
+    - refund_triage
+    - refund_status_lookup
+  out_of_scope:
+    - plan_change
+    - account_deletion
+    - collections_action
+  require_job_id: true
+  bind_authorization_to:
+    - job_id
+    - case_id
+    - customer_id
+
 oidc:
   enabled: true
   issuer: https://idp.example.com/oauth2/default

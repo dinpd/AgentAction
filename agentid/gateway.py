@@ -37,6 +37,9 @@ class JitGrant:
     approval_id: str
     user_id: str
     expires_at: datetime
+    job_id: str = ""
+    case_id: str = ""
+    customer_id: str = ""
     used: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -49,6 +52,9 @@ class JitGrant:
             "approval_id": self.approval_id,
             "user_id": self.user_id,
             "expires_at": self.expires_at.isoformat().replace("+00:00", "Z"),
+            "job_id": self.job_id,
+            "case_id": self.case_id,
+            "customer_id": self.customer_id,
             "used": self.used,
         }
 
@@ -81,6 +87,9 @@ class JitGrantStore:
             approval_id=str(request.get("approval_id", "")),
             user_id=str(request.get("user_id", "")),
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+            job_id=str(request.get("job_id", "")),
+            case_id=str(request.get("case_id", "")),
+            customer_id=str(request.get("customer_id", "")),
         )
         self._grants[grant.grant_id] = grant
         return grant
@@ -114,11 +123,20 @@ class JitGrantStore:
             findings.append("JIT grant action mismatch")
         if grant.resource and event.get("resource") and grant.resource != event.get("resource"):
             findings.append("JIT grant resource mismatch")
+        if grant.job_id and event.get("job_id") and grant.job_id != event.get("job_id"):
+            findings.append("JIT grant job_id mismatch")
+        if grant.case_id and event.get("case_id") and grant.case_id != event.get("case_id"):
+            findings.append("JIT grant case_id mismatch")
+        if grant.customer_id and event.get("customer_id") and grant.customer_id != event.get("customer_id"):
+            findings.append("JIT grant customer_id mismatch")
 
         event["jit_grant_valid"] = not findings
         event["jit_grant_agent_id"] = grant.agent_id
         event["jit_grant_tool"] = grant.tool
         event["jit_grant_action"] = grant.action
+        event["jit_grant_job_id"] = grant.job_id
+        event["jit_grant_case_id"] = grant.case_id
+        event["jit_grant_customer_id"] = grant.customer_id
 
         if not findings and manifest.get("jit_authorization", {}).get("revoke_after_use"):
             grant.used = True
@@ -150,6 +168,11 @@ class AgentGateway:
             "delegation_grant_id": event.get("delegation_grant_id"),
             "approval_source": event.get("approval_source"),
             "approval_agent": event.get("approval_agent"),
+            "tenant_id": event.get("tenant_id"),
+            "user_id": event.get("user_id"),
+            "job_id": event.get("job_id"),
+            "case_id": event.get("case_id"),
+            "customer_id": event.get("customer_id"),
         }
         findings = self.grants.bind_event(self.manifest, normalized)
         ok, audit_findings = audit_events(self.manifest, [normalized])

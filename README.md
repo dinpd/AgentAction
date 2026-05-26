@@ -30,6 +30,7 @@ Try the hosted demo:
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
+For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
 For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
 
 ---
@@ -188,6 +189,7 @@ tokens from the customer's OIDC provider via JWKS.
 | `delegation` | Who or what the agent is allowed to act on behalf of |
 | `delegation_chain` | Whether the agent can call other agents, and which scoped tools may be delegated |
 | `intent` | Actions that require explicit human confirmation |
+| `job_boundary` | Job-to-be-done, case, and customer boundaries for runtime authorization |
 | `oidc` | Issuer, audience, claim mapping, and scopes for gateway access |
 | `jit_authorization` | Rules for issuing temporary, scoped authority at runtime |
 | `tools` | External capabilities the agent may use |
@@ -228,6 +230,7 @@ Implemented:
 - Cloudflare Workers gateway with KV tenant manifests and Durable Object JIT grants
 - OIDC claim/scopes section in manifests
 - Scoped agent-to-agent delegation checks
+- Job-to-be-done boundary checks
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
 - Hosted refund-control demo

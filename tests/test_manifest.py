@@ -100,3 +100,29 @@ def test_oidc_demo_mode_warns_but_validates():
 
     assert result.ok
     assert "oidc.token_validation=demo_hs256 is for demos only. Use jwks for production IdPs." in result.warnings
+
+
+def test_job_boundary_rejects_overlapping_jobs():
+    manifest = {
+        "agent": {
+            "id": "a1",
+            "name": "Test Agent",
+            "owner": "team",
+            "environment": "dev",
+            "purpose": "test",
+        },
+        "delegation_chain": {"may_call_agents": False, "allowed_agents": []},
+        "job_boundary": {
+            "required": True,
+            "allowed_jobs": ["refund_triage"],
+            "out_of_scope": ["refund_triage"],
+            "require_job_id": True,
+            "bind_authorization_to": ["job_id"],
+        },
+        "tools": [{"name": "docs.search", "access": "read", "auth_mode": "delegated", "approval": "none"}],
+    }
+
+    result = validate_manifest(manifest)
+
+    assert not result.ok
+    assert "job_boundary allowed_jobs and out_of_scope overlap: refund_triage" in result.errors

@@ -17,6 +17,7 @@ type AgentIdManifest = {
   tools?: Array<Record<string, unknown>>;
   data_flows?: Array<Record<string, unknown>>;
   delegation_chain?: Record<string, unknown>;
+  job_boundary?: Record<string, unknown>;
   jit_authorization?: Record<string, unknown>;
 };
 
@@ -39,6 +40,9 @@ type Grant = {
   approval_id: string;
   user_id: string;
   expires_at: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
   used: boolean;
 };
 
@@ -193,11 +197,23 @@ export class AgentIdJitGrants {
       if (grant.resource && event.resource && grant.resource !== event.resource) {
         findings.push("JIT grant resource mismatch");
       }
+      if (grant.job_id && event.job_id && grant.job_id !== event.job_id) {
+        findings.push("JIT grant job_id mismatch");
+      }
+      if (grant.case_id && event.case_id && grant.case_id !== event.case_id) {
+        findings.push("JIT grant case_id mismatch");
+      }
+      if (grant.customer_id && event.customer_id && grant.customer_id !== event.customer_id) {
+        findings.push("JIT grant customer_id mismatch");
+      }
 
       event.jit_grant_valid = findings.length === 0;
       event.jit_grant_agent_id = grant.agent_id;
       event.jit_grant_tool = grant.tool;
       event.jit_grant_action = grant.action;
+      event.jit_grant_job_id = grant.job_id;
+      event.jit_grant_case_id = grant.case_id;
+      event.jit_grant_customer_id = grant.customer_id;
 
       if (findings.length === 0 && manifest.jit_authorization?.revoke_after_use === true) {
         grant.used = true;
@@ -232,6 +248,11 @@ async function authorize(
     delegation_grant_id: payload.delegation_grant_id,
     approval_source: payload.approval_source,
     approval_agent: payload.approval_agent,
+    tenant_id: payload.tenant_id,
+    user_id: payload.user_id,
+    job_id: payload.job_id,
+    case_id: payload.case_id,
+    customer_id: payload.customer_id,
   };
   const findings: string[] = [];
   const tool = toolByName(manifest, stringValue(event.tool));
@@ -276,6 +297,9 @@ function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
     approval_id: stringValue(payload.approval_id),
     user_id: stringValue(payload.user_id),
     expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+    job_id: stringValue(payload.job_id),
+    case_id: stringValue(payload.case_id),
+    customer_id: stringValue(payload.customer_id),
     used: false,
   };
 }
@@ -310,6 +334,31 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
     }
     if (event.jit_grant_valid === false) {
       findings.push("event[0]: JIT grant is marked invalid");
+    }
+  }
+
+  const jobBoundary = manifest.job_boundary;
+  if (jobBoundary && typeof jobBoundary === "object" && !Array.isArray(jobBoundary)) {
+    const jobId = event.job_id;
+    if ((jobBoundary.required === true || jobBoundary.require_job_id === true) && !jobId) {
+      findings.push("event[0]: job_id is required by job_boundary");
+    }
+
+    const allowedJobs = Array.isArray(jobBoundary.allowed_jobs) ? jobBoundary.allowed_jobs : [];
+    if (typeof jobId === "string" && allowedJobs.length > 0 && !allowedJobs.includes(jobId)) {
+      findings.push(`event[0]: job_id is not allowed by job_boundary: ${jobId}`);
+    }
+
+    const outOfScope = Array.isArray(jobBoundary.out_of_scope) ? jobBoundary.out_of_scope : [];
+    if (typeof jobId === "string" && outOfScope.includes(jobId)) {
+      findings.push(`event[0]: job_id is explicitly out of scope: ${jobId}`);
+    }
+
+    const requiredBindings = Array.isArray(jobBoundary.bind_authorization_to)
+      ? jobBoundary.bind_authorization_to
+      : [];
+    for (const field of requiredBindings) {
+      if (!event[field]) findings.push(`event[0]: job_boundary binding field is missing: ${field}`);
     }
   }
 
@@ -383,6 +432,7 @@ function generateOpaPolicy(manifest: AgentIdManifest): string {
   const agentId = stringValue(manifest.agent?.id || "unknown-agent");
   const tools = manifest.tools ?? [];
   const flows = manifest.data_flows ?? [];
+  const jobBoundary = manifest.job_boundary ?? {};
   const allowed = tools.map((tool) => `allowed_tools["${tool.name}"] := "${tool.access}"`).join("\n") || "# No tools declared.";
   const approvals =
     tools
@@ -404,6 +454,19 @@ function generateOpaPolicy(manifest: AgentIdManifest): string {
       .filter((flow) => flow.allowed === true)
       .map((flow) => `allowed_flows["${flow.from}::${flow.to}"]`)
       .join("\n") || "# No explicit allowed data flows declared.";
+  const allowedJobs =
+    Array.isArray(jobBoundary.allowed_jobs) && jobBoundary.allowed_jobs.length > 0
+      ? jobBoundary.allowed_jobs.map((job) => `allowed_jobs["${job}"]`).join("\n")
+      : "# No explicit allowed jobs declared.";
+  const blockedJobs =
+    Array.isArray(jobBoundary.out_of_scope) && jobBoundary.out_of_scope.length > 0
+      ? jobBoundary.out_of_scope.map((job) => `blocked_jobs["${job}"]`).join("\n")
+      : "# No out-of-scope jobs declared.";
+  const requiredJobBindings =
+    Array.isArray(jobBoundary.bind_authorization_to) && jobBoundary.bind_authorization_to.length > 0
+      ? jobBoundary.bind_authorization_to.map((field) => `required_job_bindings["${field}"]`).join("\n")
+      : "# No job binding fields declared.";
+  const jobRequired = jobBoundary.required === true || jobBoundary.require_job_id === true ? "true" : "false";
 
   return `package agentid
 
@@ -421,6 +484,14 @@ ${jit}
 
 ${allowedFlows}
 
+job_required := ${jobRequired}
+
+${allowedJobs}
+
+${blockedJobs}
+
+${requiredJobBindings}
+
 tool_allowed if {
     input.agent_id == agent_id
     allowed_tools[input.tool] == input.action
@@ -434,6 +505,35 @@ flow_allowed if {
 
 flow_allowed if {
     allowed_flows[concat("::", [input.data_from, input.data_to])]
+}
+
+job_allowed if {
+    not job_required
+}
+
+job_allowed if {
+    job_required
+    input.job_id != ""
+    allowed_job
+    not blocked_jobs[input.job_id]
+    job_bindings_satisfied
+}
+
+allowed_job if {
+    count(allowed_jobs) == 0
+}
+
+allowed_job if {
+    allowed_jobs[input.job_id]
+}
+
+job_bindings_satisfied if {
+    count(missing_job_bindings) == 0
+}
+
+missing_job_bindings[field] if {
+    required_job_bindings[field]
+    object.get(input, field, "") == ""
 }
 
 jit_satisfied if {
@@ -460,6 +560,7 @@ approval_satisfied if {
 allow if {
     tool_allowed
     flow_allowed
+    job_allowed
     jit_satisfied
     approval_satisfied
 }

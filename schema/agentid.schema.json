@@ -82,6 +82,26 @@
         }
       }
     },
+    "job_boundary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "required": { "type": "boolean" },
+        "allowed_jobs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "require_job_id": { "type": "boolean" },
+        "bind_authorization_to": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "oidc": {
       "type": "object",
       "additionalProperties": true,

@@ -44,11 +44,12 @@ authorization in your existing authorization layer.
 2. Add OIDC issuer, audience, JWKS URI, claim mappings, and required scopes.
 3. Store manifests in your control plane or in the Cloudflare gateway KV store.
 4. Put an AgentID check immediately before every tool call.
-5. Require JIT grants for writes, external sends, financial operations, admin
+5. Include `job_id` and case context when the manifest declares a job boundary.
+6. Require JIT grants for writes, external sends, financial operations, admin
    actions, destructive changes, and high-risk data movement.
-6. Log every decision, denial, JIT issuance, JIT consumption, and downstream
+7. Log every decision, denial, JIT issuance, JIT consumption, and downstream
    tool execution.
-7. Validate manifests in CI with the AgentID GitHub Action.
+8. Validate manifests in CI with the AgentID GitHub Action.
 
 ## Enforcement Point
 
@@ -57,6 +58,9 @@ The best enforcement point is the code path that already invokes tools:
 ```ts
 await agentid.assertAllowed(tenantId, {
   agent_id: "refund-agent",
+  job_id: "refund_triage",
+  case_id: "case-1042",
+  customer_id: "cus_123",
   tool: "zendesk.search_tickets",
   action: "read",
   data_from: "zendesk",
@@ -82,6 +86,9 @@ const grant = await agentid.requestJitGrant(tenantId, {
   tool: "stripe.create_refund",
   action: "write",
   resource: "refund/case-1042",
+  job_id: "refund_triage",
+  case_id: "case-1042",
+  customer_id: "cus_123",
   approval_id: "approval-123",
   user_id: "support-rep-17",
 });
@@ -91,6 +98,9 @@ await agentid.assertAllowed(tenantId, {
   tool: "stripe.create_refund",
   action: "write",
   resource: "refund/case-1042",
+  job_id: "refund_triage",
+  case_id: "case-1042",
+  customer_id: "cus_123",
   approved: true,
   jit_grant_id: grant.jit_grant_id,
 });
@@ -99,7 +109,34 @@ await stripe.refunds.create({ charge: chargeId, amount: 8700 });
 ```
 
 JIT grants should be short-lived, single-use, and bound to agent, user, tool,
-action, resource, approval, and tenant.
+action, resource, approval, tenant, job, case, and customer when those fields
+are part of the manifest boundary.
+
+## Job Boundaries
+
+Use `job_boundary` to constrain an agent to the current job-to-be-done:
+
+```yaml
+job_boundary:
+  required: true
+  allowed_jobs:
+    - refund_triage
+    - refund_status_lookup
+  out_of_scope:
+    - plan_change
+    - account_deletion
+    - collections_action
+  require_job_id: true
+  bind_authorization_to:
+    - job_id
+    - case_id
+    - customer_id
+```
+
+This lets the gateway deny scope drift: a tool may be generally available to
+the agent, but still invalid for the current customer case or job.
+
+See [`job-boundaries.md`](job-boundaries.md) for details.
 
 ## Multi-Tenant SaaS Pattern
 
@@ -139,6 +176,7 @@ AgentID is most useful as the agent authority layer:
 
 - May this agent call this tool?
 - May this agent call another agent?
+- Is this call inside the current job boundary?
 - Is this action allowed for this agent's declared purpose?
 - Is this source-to-destination data flow allowed?
 - Does this action require approval or JIT authority?

@@ -11,12 +11,16 @@ def generate_opa_policy(manifest: dict[str, Any]) -> str:
     agent_id = manifest.get("agent", {}).get("id", "unknown-agent")
     tools = manifest.get("tools", [])
     flows = manifest.get("data_flows", [])
+    job_boundary = manifest.get("job_boundary", {})
 
     allowed_rules: list[str] = []
     approval_rules: list[str] = []
     blocked_rules: list[str] = []
     jit_rules: list[str] = []
     flow_rules: list[str] = []
+    allowed_job_rules: list[str] = []
+    blocked_job_rules: list[str] = []
+    required_binding_rules: list[str] = []
 
     for tool in tools:
         name = tool.get("name")
@@ -39,11 +43,23 @@ def generate_opa_policy(manifest: dict[str, Any]) -> str:
         if source and dest and flow.get("allowed") is True:
             flow_rules.append(f'allowed_flows["{source}::{dest}"]')
 
+    if isinstance(job_boundary, dict):
+        for job in job_boundary.get("allowed_jobs", []):
+            allowed_job_rules.append(f'allowed_jobs["{job}"]')
+        for job in job_boundary.get("out_of_scope", []):
+            blocked_job_rules.append(f'blocked_jobs["{job}"]')
+        for field in job_boundary.get("bind_authorization_to", []):
+            required_binding_rules.append(f'required_job_bindings["{field}"]')
+
     allowed_block = "\n".join(allowed_rules) or "# No tools declared."
     approval_block = "\n".join(approval_rules) or "# No approval-required tools declared."
     blocked_block = "\n".join(blocked_rules) or "# No blocked tools declared."
     jit_block = "\n".join(jit_rules) or "# No JIT-required tools declared."
     flow_block = "\n".join(flow_rules) or "# No explicit allowed data flows declared."
+    allowed_job_block = "\n".join(allowed_job_rules) or "# No explicit allowed jobs declared."
+    blocked_job_block = "\n".join(blocked_job_rules) or "# No out-of-scope jobs declared."
+    required_binding_block = "\n".join(required_binding_rules) or "# No job binding fields declared."
+    job_required = "true" if isinstance(job_boundary, dict) and (job_boundary.get("required") or job_boundary.get("require_job_id")) else "false"
 
     return f"""package agentid
 
@@ -61,6 +77,14 @@ agent_id := "{agent_id}"
 
 {flow_block}
 
+job_required := {job_required}
+
+{allowed_job_block}
+
+{blocked_job_block}
+
+{required_binding_block}
+
 tool_allowed if {{
     input.agent_id == agent_id
     allowed_tools[input.tool] == input.action
@@ -74,6 +98,35 @@ flow_allowed if {{
 
 flow_allowed if {{
     allowed_flows[concat("::", [input.data_from, input.data_to])]
+}}
+
+job_allowed if {{
+    not job_required
+}}
+
+job_allowed if {{
+    job_required
+    input.job_id != ""
+    allowed_job
+    not blocked_jobs[input.job_id]
+    job_bindings_satisfied
+}}
+
+allowed_job if {{
+    count(allowed_jobs) == 0
+}}
+
+allowed_job if {{
+    allowed_jobs[input.job_id]
+}}
+
+job_bindings_satisfied if {{
+    count(missing_job_bindings) == 0
+}}
+
+missing_job_bindings[field] if {{
+    required_job_bindings[field]
+    object.get(input, field, "") == ""
 }}
 
 jit_satisfied if {{
@@ -100,6 +153,7 @@ approval_satisfied if {{
 allow if {{
     tool_allowed
     flow_allowed
+    job_allowed
     jit_satisfied
     approval_satisfied
 }}

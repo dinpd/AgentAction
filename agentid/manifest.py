@@ -60,6 +60,7 @@ def validate_manifest(manifest: dict[str, Any]) -> ValidationResult:
     _validate_oidc(manifest, errors, warnings)
     _validate_tools(manifest, errors, warnings)
     _validate_delegation_chain(manifest, errors, warnings)
+    _validate_job_boundary(manifest, errors, warnings)
     _validate_intent(manifest, errors, warnings)
     _validate_data_flows(manifest, errors, warnings)
     _validate_runtime(manifest, errors, warnings)
@@ -248,6 +249,34 @@ def _validate_delegation_chain(manifest: dict[str, Any], errors: list[str], warn
 
     if chain.get("may_call_agents") is True and not chain.get("requires_approval"):
         warnings.append("delegation_chain.requires_approval is not enabled for agent-to-agent delegation.")
+
+
+def _validate_job_boundary(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    boundary = manifest.get("job_boundary")
+    if boundary is None:
+        return
+
+    if not isinstance(boundary, dict):
+        errors.append("job_boundary must be an object.")
+        return
+
+    for field in ["allowed_jobs", "out_of_scope", "bind_authorization_to"]:
+        value = boundary.get(field)
+        if value is not None and not isinstance(value, list):
+            errors.append(f"job_boundary.{field} must be a list.")
+
+    if boundary.get("required") and not boundary.get("require_job_id"):
+        warnings.append("job_boundary.required is true but require_job_id is not enabled.")
+
+    allowed_jobs = set(boundary.get("allowed_jobs", []))
+    out_of_scope = set(boundary.get("out_of_scope", []))
+    overlap = allowed_jobs & out_of_scope
+    if overlap:
+        errors.append("job_boundary allowed_jobs and out_of_scope overlap: " + ", ".join(sorted(overlap)))
+
+    bindings = set(boundary.get("bind_authorization_to", []))
+    if boundary.get("required") and "job_id" not in bindings:
+        warnings.append("job_boundary.bind_authorization_to should include job_id.")
 
 
 def _validate_intent(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:

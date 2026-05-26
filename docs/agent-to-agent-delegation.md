@@ -21,6 +21,26 @@ to check billing history before a refund. The support agent should not delegate
 Stripe refund authority. It should delegate only the narrow lookup authority
 needed for the review.
 
+Pair delegation with a job boundary so the hand-off is tied to the current
+refund case:
+
+```yaml
+job_boundary:
+  required: true
+  allowed_jobs:
+    - refund_triage
+    - refund_status_lookup
+  out_of_scope:
+    - plan_change
+    - account_deletion
+    - collections_action
+  require_job_id: true
+  bind_authorization_to:
+    - job_id
+    - case_id
+    - customer_id
+```
+
 ```yaml
 delegation_chain:
   may_call_agents: true
@@ -50,6 +70,9 @@ delegation:
   "called_agent": "refund-risk-review-agent",
   "delegated_tool": "billing.lookup_refunds",
   "delegation_depth": 1,
+  "job_id": "refund_triage",
+  "case_id": "case-1042",
+  "customer_id": "cus_123",
   "approved": true,
   "approval_source": "agent",
   "approval_agent": "delegation-policy-agent"
@@ -64,6 +87,7 @@ The gateway should deny attempts such as:
 - Calling an undeclared target agent.
 - Delegating a tool outside `allowed_delegated_tools`.
 - Delegating beyond `max_depth`.
+- Delegating outside the current `job_id`, `case_id`, or `customer_id`.
 - Delegating without approval when `requires_approval` is true.
 - Using an approval source outside `approval_sources`.
 - Using an approval agent outside `approval_agents`.

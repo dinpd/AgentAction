@@ -19,6 +19,11 @@ export type ToolCallRequest = {
   delegation_grant_id?: string;
   approval_source?: "human" | "agent" | "system" | string;
   approval_agent?: string;
+  tenant_id?: string;
+  user_id?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
 };
 
 export type AuthorizeResponse = {
@@ -35,6 +40,9 @@ export type JitGrantRequest = {
   resource?: string;
   approval_id?: string;
   user_id?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
 };
 
 export type JitGrantResponse = {
@@ -45,6 +53,9 @@ export type JitGrantResponse = {
   resource: string;
   approval_id: string;
   user_id: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
   expires_at: string;
   used: boolean;
   auth?: Record<string, unknown>;

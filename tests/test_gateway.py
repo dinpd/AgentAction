@@ -187,6 +187,88 @@ def test_gateway_denies_unscoped_agent_delegation():
     assert "event[0]: delegated tool is not allowed: stripe.create_refund" in decision.findings
 
 
+def test_gateway_enforces_job_boundary():
+    manifest = _manifest()
+    manifest["job_boundary"] = {
+        "required": True,
+        "allowed_jobs": ["refund_triage"],
+        "out_of_scope": ["plan_change"],
+        "require_job_id": True,
+        "bind_authorization_to": ["job_id", "case_id", "customer_id"],
+    }
+    gateway = AgentGateway(manifest)
+
+    allowed = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "zendesk.ticket.read",
+            "action": "read",
+            "data_from": "zendesk",
+            "data_to": "agent_context",
+            "job_id": "refund_triage",
+            "case_id": "case-1042",
+            "customer_id": "cus_123",
+        }
+    )
+    denied = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "zendesk.ticket.read",
+            "action": "read",
+            "data_from": "zendesk",
+            "data_to": "agent_context",
+            "job_id": "plan_change",
+            "case_id": "case-1042",
+        }
+    )
+
+    assert allowed.allow
+    assert not denied.allow
+    assert "event[0]: job_id is not allowed by job_boundary: plan_change" in denied.findings
+    assert "event[0]: job_id is explicitly out of scope: plan_change" in denied.findings
+    assert "event[0]: job_boundary binding field is missing: customer_id" in denied.findings
+
+
+def test_gateway_binds_jit_grant_to_job_boundary_fields():
+    manifest = _manifest()
+    manifest["job_boundary"] = {
+        "required": True,
+        "allowed_jobs": ["refund_triage"],
+        "require_job_id": True,
+        "bind_authorization_to": ["job_id", "case_id", "customer_id"],
+    }
+    gateway = AgentGateway(manifest)
+    grant = gateway.create_jit_grant(
+        {
+            "tool": "zendesk.ticket.update",
+            "action": "write",
+            "resource": "tickets/123",
+            "job_id": "refund_triage",
+            "case_id": "case-1042",
+            "customer_id": "cus_123",
+            "approval_id": "approval-1",
+            "user_id": "user-1",
+        }
+    )
+
+    decision = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "zendesk.ticket.update",
+            "action": "write",
+            "resource": "tickets/123",
+            "job_id": "refund_triage",
+            "case_id": "case-9999",
+            "customer_id": "cus_123",
+            "approved": True,
+            "jit_grant_id": grant.grant_id,
+        }
+    )
+
+    assert not decision.allow
+    assert "JIT grant case_id mismatch" in decision.findings
+
+
 def test_config_ui_writer_creates_browser_builder(tmp_path):
     output = write_config_ui(tmp_path / "builder.html")
 
