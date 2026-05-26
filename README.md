@@ -6,7 +6,7 @@ It helps teams declare, validate, and enforce what agents are allowed to do
 across SaaS apps, internal systems, cloud control planes, databases,
 provider-hosted tools, and MCP gateways.
 
-![AI Agents Need Eligibility Contracts](docs/AIAgentsNeedEligibilityContracts.png)
+![AgentID authorization for AI agent tool calls](docs/AIAgentsNeedEligibilityContracts.png)
 
 The core idea is simple:
 
