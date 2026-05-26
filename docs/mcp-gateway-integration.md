@@ -175,7 +175,8 @@ gateway; internal systems and providers still enforce their own platform rules.
 
 ## Reference Adapter Scope
 
-A minimal reference MCP gateway adapter should:
+The repository includes a minimal reference adapter in
+[`../mcp-gateway-adapter/`](../mcp-gateway-adapter/). It:
 
 - Proxy `tools/list` from a downstream MCP server.
 - Intercept `tools/call`.
@@ -183,9 +184,7 @@ A minimal reference MCP gateway adapter should:
 - Call AgentID `/authorize`.
 - Return an MCP tool error on deny.
 - Forward the call to the downstream MCP server on allow.
-- Support JIT grants for sensitive tools.
-- Log AgentID decisions and provider tool results.
 
 Production hardening should add authentication, transport variants, streaming,
-cancellation, retries, richer MCP errors, provider-specific argument mappers,
-and tool drift detection.
+cancellation, retries, richer MCP errors, JIT grant issuance, audit logging,
+provider-specific argument mappers, and tool drift detection.

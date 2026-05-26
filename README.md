@@ -173,6 +173,7 @@ For architecture guidance, see
 [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP server calls, including internal and provider-hosted servers, see
 [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
+For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
 
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 
@@ -287,6 +288,7 @@ Implemented:
 - Job-to-be-done boundary checks
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
+- Reference MCP gateway adapter for `tools/list` and `tools/call`
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted refund-control demo
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
@@ -294,7 +296,6 @@ Implemented:
 Next:
 
 - More ecommerce manifests and audit-log examples
-- Reference MCP gateway adapter for `tools/list` and `tools/call`
 - MCP tool metadata import/export
 - Stronger OPA policy generation and Cedar policy generation
 - Durable delegation-grant endpoint with source/target manifest intersection

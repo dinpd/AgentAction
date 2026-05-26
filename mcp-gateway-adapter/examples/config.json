@@ -1,0 +1,40 @@
+{
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 8788
+  },
+  "agentid": {
+    "base_url": "http://127.0.0.1:8787",
+    "tenant_id": "tenant-a",
+    "token": "dev-token"
+  },
+  "downstream": {
+    "url": "http://127.0.0.1:8790/mcp"
+  },
+  "agent": {
+    "id": "enterprise-support-agent"
+  },
+  "filter_tools_list": true,
+  "tools": {
+    "provider.crm.search_customer": {
+      "action": "read",
+      "data_from": "provider_crm",
+      "data_to": "agent_context",
+      "resource_arg": "customer_id",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id"
+    },
+    "provider.crm.update_customer": {
+      "action": "write",
+      "data_from": "enterprise_crm",
+      "data_to": "provider_crm",
+      "resource_template": "provider/customer/{customer_id}",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id"
+    }
+  }
+}
