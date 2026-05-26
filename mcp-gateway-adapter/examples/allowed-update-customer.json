@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "provider.crm.update_customer",
+    "arguments": {
+      "customer_id": "cus_123",
+      "job_id": "support_case_resolution",
+      "case_id": "case-1042",
+      "approved": true,
+      "jit_grant_id": "replace-with-issued-grant-id"
+    }
+  }
+}

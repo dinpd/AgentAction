@@ -212,6 +212,7 @@ npm run build
 ```
 
 See [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md) and
+[`docs/mcp-gateway-demo.md`](docs/mcp-gateway-demo.md) and
 [`examples/provider-mcp-support-agent.yaml`](examples/provider-mcp-support-agent.yaml)
 for the enterprise gateway pattern.
 

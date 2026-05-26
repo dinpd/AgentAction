@@ -63,7 +63,7 @@ export type AdapterConfig = {
   };
   agentid: {
     base_url: string;
-    tenant_id: string;
+    tenant_id?: string;
     token?: string;
   };
   downstream: {

@@ -47,6 +47,9 @@ npm run dev
 The example config listens on `http://127.0.0.1:8788` and forwards allowed MCP
 requests to `http://127.0.0.1:8790/mcp`.
 
+For a complete local demo with a mock provider MCP server and sample JSON-RPC
+requests, see [`../docs/mcp-gateway-demo.md`](../docs/mcp-gateway-demo.md).
+
 ## Config
 
 See [`examples/config.json`](examples/config.json).

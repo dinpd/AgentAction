@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "provider.crm.search_customer",
+    "arguments": {
+      "customer_id": "cus_123",
+      "job_id": "support_case_resolution",
+      "case_id": "case-1042"
+    }
+  }
+}

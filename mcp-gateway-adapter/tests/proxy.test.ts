@@ -99,6 +99,33 @@ test("forwards tools/call when AgentID allows", async () => {
   assert.deepEqual(response, { jsonrpc: "2.0", id: 3, result: { content: [] } });
 });
 
+test("uses local /authorize endpoint when tenant_id is omitted", async () => {
+  const calls: string[] = [];
+  const response = await handleJsonRpc(
+    {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "provider.crm.search_customer",
+        arguments: { customer_id: "cus_123", job_id: "support_case_resolution" },
+      },
+    },
+    { ...config, agentid: { base_url: "https://agentid.example.com" } },
+    {},
+    async (url) => {
+      calls.push(String(url));
+      if (String(url).endsWith("/authorize")) {
+        return jsonResponse({ allow: true, decision: "allow", findings: [], event: {} });
+      }
+      return jsonResponse({ jsonrpc: "2.0", id: 4, result: { content: [] } });
+    },
+  );
+
+  assert.equal(calls[0], "https://agentid.example.com/authorize");
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 4, result: { content: [] } });
+});
+
 const config: AdapterConfig = {
   agentid: { base_url: "https://agentid.example.com", tenant_id: "tenant-a" },
   downstream: { url: "https://mcp.example.com" },

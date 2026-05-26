@@ -5,7 +5,6 @@
   },
   "agentid": {
     "base_url": "http://127.0.0.1:8787",
-    "tenant_id": "tenant-a",
     "token": "dev-token"
   },
   "downstream": {

@@ -14,8 +14,10 @@ export class AgentIdClient {
     if (this.config.token) headers.authorization = `Bearer ${this.config.token}`;
 
     const baseUrl = this.config.base_url.replace(/\/+$/, "");
-    const tenant = encodeURIComponent(this.config.tenant_id);
-    const response = await this.fetchImpl(`${baseUrl}/tenants/${tenant}/authorize`, {
+    const path = this.config.tenant_id
+      ? `/tenants/${encodeURIComponent(this.config.tenant_id)}/authorize`
+      : "/authorize";
+    const response = await this.fetchImpl(`${baseUrl}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
