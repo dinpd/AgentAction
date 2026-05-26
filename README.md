@@ -190,6 +190,33 @@ For edge deployment, see [`cloudflare/`](cloudflare/) for a Cloudflare Workers
 gateway with Durable Object-backed JIT grants and a GitHub Actions deployment
 workflow.
 
+## MCP Gateway Adapter
+
+The reference adapter in [`mcp-gateway-adapter/`](mcp-gateway-adapter/) shows
+how an enterprise MCP gateway can enforce AgentID before forwarding tool calls:
+
+```text
+MCP client -> MCP gateway adapter -> AgentID /authorize -> downstream MCP server
+```
+
+It accepts HTTP JSON-RPC requests, filters `tools/list`, intercepts
+`tools/call`, maps MCP tool arguments to AgentID fields such as `job_id`,
+`case_id`, `customer_id`, `resource`, `data_from`, and `data_to`, then returns
+an MCP error on deny or forwards the call on allow.
+
+```bash
+cd mcp-gateway-adapter
+npm install
+npm test
+npm run build
+```
+
+See [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md) and
+[`examples/provider-mcp-support-agent.yaml`](examples/provider-mcp-support-agent.yaml)
+for the enterprise gateway pattern.
+
+---
+
 The hosted refund-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
 It shows a SaaS support app consulting AgentID before refund actions, including
