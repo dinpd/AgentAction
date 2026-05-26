@@ -29,9 +29,9 @@ Enterprise Agent -> Enterprise Gateway -> AgentID Check -> Internal or External 
 git clone https://github.com/dinpd/AgentID.git
 cd AgentID
 python -m pip install -e ".[dev]"
-agentid validate examples/customer-support-refund-agent.yaml
-agentid risk-score examples/customer-support-refund-agent.yaml
-agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
+agentid validate examples/provider-mcp-support-agent.yaml
+agentid risk-score examples/provider-mcp-support-agent.yaml
+agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
 Try the hosted demo:
@@ -211,8 +211,8 @@ npm test
 npm run build
 ```
 
-See [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md) and
-[`docs/mcp-gateway-demo.md`](docs/mcp-gateway-demo.md) and
+See [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md),
+[`docs/mcp-gateway-demo.md`](docs/mcp-gateway-demo.md), and
 [`examples/provider-mcp-support-agent.yaml`](examples/provider-mcp-support-agent.yaml)
 for the enterprise gateway pattern.
 
@@ -248,7 +248,7 @@ sequenceDiagram
     Gateway-->>App: allow/deny + findings
 
     App->>Gateway: POST /tenants/:id/jit-grants with token
-    Gateway->>DO: Store grant bound to agent, user, tool, action, and resource
+    Gateway->>DO: Store grant bound to agent, user, tool, action, resource, job, case, and customer
     Gateway-->>App: JIT grant ID
 
     App->>Gateway: POST /tenants/:id/authorize with grant
@@ -317,6 +317,7 @@ Implemented:
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
 - Reference MCP gateway adapter for `tools/list` and `tools/call`
+- MCP gateway adapter demo with mock provider server
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted refund-control demo
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
