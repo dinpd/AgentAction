@@ -2,6 +2,9 @@
 
 **AgentID** is a lightweight open-source toolkit for declaring, validating, reviewing, and auditing AI agent authority.
 
+The primary use case is an enterprise-owned authorization boundary for agents
+calling tools, including provider-hosted MCP servers.
+
 ![AI Agents Need Eligibility Contracts](docs/AIAgentsNeedEligibilityContracts.png)
 
 The core idea is simple:
@@ -9,6 +12,13 @@ The core idea is simple:
 > Every production agent should have an authority contract that says who it is, who owns it, what it can request, when authority should be issued just in time, where data can flow, when it needs approval, and how it can be stopped.
 
 AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable declaration format for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
+
+For MCP deployments, AgentID is meant to run on the enterprise side of the
+boundary:
+
+```text
+Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Provider MCP Server
+```
 
 ---
 
@@ -30,6 +40,7 @@ Try the hosted demo:
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
+For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
 For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
 
@@ -38,6 +49,9 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 ## Why this exists
 
 Most agent projects define tools and credentials in ad hoc config files.
+Provider-hosted MCP servers make this sharper: an enterprise agent can suddenly
+call vendor tools outside the enterprise boundary unless there is a local
+policy checkpoint.
 
 What is often missing is a clear answer to:
 
@@ -94,7 +108,9 @@ flowchart LR
 ```
 
 At runtime, a SaaS app or agent runtime asks the AgentID gateway before tool
-execution. The gateway evaluates:
+execution. In MCP deployments, the enterprise MCP gateway performs this check
+before forwarding a `tools/call` request to a provider MCP server. The gateway
+evaluates:
 
 - **Identity:** the caller token maps to the expected tenant, user, and agent.
 - **Job boundary:** the request belongs to an allowed job, case, and customer.
@@ -153,6 +169,8 @@ For SaaS runtime integration, see the TypeScript helper in
 `requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
 For architecture guidance, see
 [`docs/integration-patterns.md`](docs/integration-patterns.md).
+For provider-hosted MCP server calls, see
+[`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
 
@@ -232,6 +250,7 @@ tokens from the customer's OIDC provider via JWKS.
 | `data_flows` | Allowed or blocked source-to-destination flows |
 | `risk_tiers` | Default approval rules by risk category |
 | `runtime` | Runtime enforcement and drift-detection expectations |
+| `mcp_gateway` | Mapping rules for provider MCP tools and argument-derived context |
 | `audit` | What must be logged and retained |
 | `kill_switch` | Whether policy violations should revoke or suspend authority |
 
@@ -266,15 +285,17 @@ Implemented:
 - Job-to-be-done boundary checks
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
+- MCP gateway integration guide and provider MCP example manifest
 - Hosted refund-control demo
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
 Next:
 
 - More ecommerce manifests and audit-log examples
+- Reference MCP gateway adapter for `tools/list` and `tools/call`
+- MCP tool metadata import/export
 - Stronger OPA policy generation and Cedar policy generation
 - Durable delegation-grant endpoint with source/target manifest intersection
-- MCP tool metadata import/export
 - OAuth scope recommendation from tool manifests
 - Risk policy profiles by environment
 - Audit log normalization and versioned event spec

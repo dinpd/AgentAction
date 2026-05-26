@@ -1,0 +1,191 @@
+# MCP Gateway Integration
+
+AgentID is a natural fit for enterprise-controlled MCP gateways. The gateway
+already sits between an agent and tools, so it is the right place to ask whether
+a tool call should leave the enterprise boundary.
+
+```text
+Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Provider MCP Server
+```
+
+The enterprise owns the gateway and the AgentID manifest. The provider owns the
+downstream MCP server and tool implementation.
+
+## Why This Matters
+
+Provider MCP servers make tools easy to expose, but enterprises still need a
+local control point for:
+
+- Which agents may call which provider tools.
+- Which jobs, cases, customers, and resources those calls may touch.
+- Which data may leave enterprise systems for a provider.
+- Which writes, sends, deploys, payments, or admin actions require approval.
+- Which sensitive calls require short-lived JIT grants.
+- Which provider tool changes count as unreviewed drift.
+- Which audit events the enterprise keeps independently of the provider.
+
+AgentID supplies the reviewable authority contract and runtime check for that
+control point.
+
+## Request Flow
+
+```mermaid
+sequenceDiagram
+    participant Agent as Enterprise Agent
+    participant MCP as Enterprise MCP Gateway
+    participant AgentID as AgentID Gateway
+    participant Provider as Provider MCP Server
+    participant Tool as Provider Tool
+
+    Agent->>MCP: MCP tools/call
+    MCP->>MCP: Map tool name and arguments to AgentID event
+    MCP->>AgentID: POST /tenants/:id/authorize
+    AgentID-->>MCP: allow/deny + findings
+    alt allowed
+        MCP->>Provider: Forward MCP tools/call
+        Provider->>Tool: Execute provider tool
+        Provider-->>MCP: Tool result
+        MCP-->>Agent: Tool result
+    else denied
+        MCP-->>Agent: MCP tool error with AgentID findings
+    end
+```
+
+For sensitive calls, the gateway should request or require a JIT grant before
+forwarding the provider call:
+
+```text
+MCP Gateway -> AgentID /jit-grants -> AgentID /authorize with jit_grant_id -> Provider MCP Server
+```
+
+## Mapping MCP Calls to AgentID
+
+An MCP `tools/call` request has a tool name and arguments. The gateway maps
+those into an AgentID authorization event:
+
+```json
+{
+  "agent_id": "enterprise-support-agent",
+  "tool": "provider.crm.update_customer",
+  "action": "write",
+  "job_id": "support_case_resolution",
+  "case_id": "case-1042",
+  "customer_id": "cus_123",
+  "resource": "provider/customer/cus_123",
+  "data_from": "enterprise_crm",
+  "data_to": "provider_crm",
+  "approved": true,
+  "jit_grant_id": "grant-123"
+}
+```
+
+The gateway can derive these fields from:
+
+- MCP tool name.
+- MCP tool arguments.
+- Enterprise session context.
+- OIDC claims.
+- The current job or workflow state.
+- A per-tool mapping config.
+
+## Example Mapping Config
+
+```yaml
+provider: example-crm
+server: provider-crm-mcp
+
+tools:
+  provider.crm.search_customer:
+    action: read
+    data_from: provider_crm
+    data_to: agent_context
+    resource_arg: customer_id
+    job_id_arg: job_id
+    case_id_arg: case_id
+    customer_id_arg: customer_id
+
+  provider.crm.update_customer:
+    action: write
+    data_from: enterprise_crm
+    data_to: provider_crm
+    resource_template: provider/customer/{customer_id}
+    job_id_arg: job_id
+    case_id_arg: case_id
+    customer_id_arg: customer_id
+    requires_jit: true
+```
+
+This config is not required by the current gateway, but it is the shape a
+reference MCP gateway adapter should support.
+
+## Manifest Pattern
+
+The corresponding AgentID manifest should declare provider tools explicitly:
+
+```yaml
+tools:
+  - name: provider.crm.search_customer
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: provider.crm.update_customer
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: provider/customer/*
+
+data_flows:
+  - from: enterprise_crm
+    to: provider_crm
+    allowed: true
+
+  - from: customer_records
+    to: provider_external_email
+    allowed: false
+```
+
+See [`../examples/provider-mcp-support-agent.yaml`](../examples/provider-mcp-support-agent.yaml)
+for a complete example.
+
+## Boundary of Responsibility
+
+AgentID controls the enterprise-side decision before forwarding the call:
+
+- Agent identity.
+- Job boundary.
+- Tool/action allowlist.
+- Data-flow policy.
+- Approval and JIT requirements.
+- Agent-to-agent hand-off policy.
+- Enterprise audit trail.
+
+The provider MCP server still controls provider-side behavior:
+
+- Provider authentication.
+- Provider business authorization.
+- Provider rate limits.
+- Tool implementation.
+- Provider audit and retention.
+
+Use both. AgentID prevents unapproved outbound calls from the enterprise
+gateway; the provider still enforces its own platform rules.
+
+## Reference Adapter Scope
+
+A minimal reference MCP gateway adapter should:
+
+- Proxy `tools/list` from a downstream provider MCP server.
+- Intercept `tools/call`.
+- Map tool name and arguments to an AgentID authorization event.
+- Call AgentID `/authorize`.
+- Return an MCP tool error on deny.
+- Forward the call to the provider MCP server on allow.
+- Support JIT grants for sensitive tools.
+- Log AgentID decisions and provider tool results.
+
+Production hardening should add authentication, transport variants, streaming,
+cancellation, retries, richer MCP errors, provider-specific argument mappers,
+and tool drift detection.

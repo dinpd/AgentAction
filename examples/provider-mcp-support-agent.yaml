@@ -1,0 +1,179 @@
+agent:
+  id: enterprise-support-agent
+  name: Enterprise Support Agent
+  owner: enterprise-ai-platform
+  environment: production
+  purpose: Resolves customer support cases by calling approved provider MCP tools
+  expires_at: 2026-12-31
+
+delegation:
+  acts_for:
+    type: user
+    required: true
+  allowed_subjects:
+    - support_rep
+    - support_manager
+
+delegation_chain:
+  may_call_agents: true
+  allowed_agents:
+    - provider-risk-review-agent
+  max_depth: 1
+  allowed_delegated_tools:
+    - provider.crm.search_customer
+    - provider.billing.lookup_invoices
+  requires_approval: true
+  approval_sources:
+    - human
+    - agent
+  approval_agents:
+    - enterprise-delegation-policy-agent
+  delegation_ttl_seconds: 300
+
+intent:
+  confirmation_required_for:
+    - external_provider_write
+    - payment
+    - account_update
+    - agent_delegation
+
+job_boundary:
+  required: true
+  allowed_jobs:
+    - support_case_resolution
+    - refund_triage
+    - customer_status_lookup
+  out_of_scope:
+    - account_deletion
+    - collections_action
+    - contract_negotiation
+  require_job_id: true
+  bind_authorization_to:
+    - job_id
+    - case_id
+    - customer_id
+
+oidc:
+  enabled: true
+  issuer: https://idp.enterprise.example.com/oauth2/default
+  audiences:
+    - agentid-gateway
+  jwks_uri: https://idp.enterprise.example.com/oauth2/default/v1/keys
+  token_validation: jwks
+  claim_mapping:
+    tenant_id: tid
+    user_id: sub
+    agent_id: agent_id
+    groups: groups
+    email: email
+  required_scopes:
+    authorize: agentid.authorize
+    policy_read: agentid.policy.read
+    policy_write: agentid.policy.write
+    jit_grant: agentid.jit.grant
+
+jit_authorization:
+  enabled: true
+  default_ttl_seconds: 300
+  require_fresh_context: true
+  bind_token_to:
+    - agent_id
+    - user_id
+    - tool
+    - action
+    - resource
+    - approval_id
+    - job_id
+    - case_id
+    - customer_id
+  revoke_after_use: true
+  max_session_extensions: 0
+
+mcp_gateway:
+  mode: enterprise_proxy
+  provider: example-crm
+  downstream_server: provider-crm-mcp
+  tool_argument_mapping:
+    provider.crm.search_customer:
+      action: read
+      resource_arg: customer_id
+      job_id_arg: job_id
+      case_id_arg: case_id
+      customer_id_arg: customer_id
+    provider.crm.update_customer:
+      action: write
+      resource_template: provider/customer/{customer_id}
+      job_id_arg: job_id
+      case_id_arg: case_id
+      customer_id_arg: customer_id
+
+tools:
+  - name: provider.crm.search_customer
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: provider.billing.lookup_invoices
+    access: read
+    auth_mode: delegated
+    approval: notify
+
+  - name: provider.crm.update_customer
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: provider/customer/*
+
+  - name: provider.billing.issue_credit
+    access: write
+    auth_mode: just_in_time
+    approval: manager
+    constraints:
+      max_amount_usd: 100
+      token_ttl_seconds: 180
+      resource: provider/billing/customer/*
+
+data_flows:
+  - from: enterprise_crm
+    to: provider_crm
+    allowed: true
+
+  - from: provider_crm
+    to: agent_context
+    allowed: true
+
+  - from: provider_billing
+    to: agent_context
+    allowed: true
+
+  - from: customer_records
+    to: provider_external_email
+    allowed: false
+
+risk_tiers:
+  low:
+    approval: none
+  medium:
+    approval: notify
+  high:
+    approval: human_confirm
+  critical:
+    approval: block
+
+runtime:
+  enforce_manifest: true
+  detect_tool_drift: true
+  detect_new_destinations: true
+
+audit:
+  log_prompt_summary: true
+  log_tool_calls: true
+  log_decisions: true
+  log_jit_grants: true
+  retain_days: 365
+
+kill_switch:
+  enabled: true
+  revoke_on_policy_violation: true
