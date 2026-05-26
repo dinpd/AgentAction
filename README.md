@@ -1,10 +1,10 @@
 # AgentID
 
-**AgentID** is a lightweight open-source toolkit for declaring, validating, reviewing, and auditing AI agent authority.
+**AgentID** is an open-source authorization layer for AI agent tool calls.
 
-The primary use case is an enterprise-owned authorization boundary for agent
-tool calls across internal systems, SaaS APIs, MCP servers, cloud control
-planes, databases, and provider-hosted tools.
+It helps teams declare, validate, and enforce what agents are allowed to do
+across SaaS apps, internal systems, cloud control planes, databases,
+provider-hosted tools, and MCP gateways.
 
 ![AI Agents Need Eligibility Contracts](docs/AIAgentsNeedEligibilityContracts.png)
 
@@ -12,13 +12,13 @@ The core idea is simple:
 
 > Every production agent should have an authority contract that says who it is, who owns it, what it can request, when authority should be issued just in time, where data can flow, when it needs approval, and how it can be stopped.
 
-AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable declaration format for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
+AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
 For gateway deployments, AgentID is meant to run at an enterprise-controlled
 boundary:
 
 ```text
-Enterprise Agent -> Enterprise Gateway -> AgentID Check -> Internal or External Tool
+Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentID Check -> Internal, SaaS, or MCP Tool
 ```
 
 ---
@@ -49,10 +49,10 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 
 ## Why this exists
 
-Most agent projects define tools and credentials in ad hoc config files.
-MCP servers and tool APIs make this sharper: an enterprise agent can suddenly
-call internal systems, SaaS APIs, cloud control planes, databases, or provider
-tools unless there is a local policy checkpoint.
+Most agent projects define tools and credentials in ad hoc config files. As
+agents move into production, those tools span internal services, SaaS APIs, MCP
+servers, cloud control planes, databases, and provider-hosted capabilities.
+AgentID gives teams a local policy checkpoint before those calls execute.
 
 What is often missing is a clear answer to:
 
@@ -130,14 +130,14 @@ the tool.
 ## CLI
 
 ```bash
-agentid validate examples/customer-support-refund-agent.yaml
-agentid explain examples/customer-support-refund-agent.yaml
-agentid risk-score examples/customer-support-refund-agent.yaml
-agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
+agentid validate examples/provider-mcp-support-agent.yaml
+agentid explain examples/provider-mcp-support-agent.yaml
+agentid risk-score examples/provider-mcp-support-agent.yaml
+agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
 agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
-agentid gateway examples/customer-support-refund-agent.yaml --host 127.0.0.1 --port 8787
+agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 `config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
@@ -166,7 +166,7 @@ jobs:
           max-risk: "75"
 ```
 
-For SaaS runtime integration, see the TypeScript helper in
+For application and gateway runtime integration, see the TypeScript helper in
 [`sdk/typescript/`](sdk/typescript/). It provides `authorizeToolCall`,
 `requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
 For architecture guidance, see
@@ -175,7 +175,8 @@ For MCP server calls, including internal and provider-hosted servers, see
 [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
 
-`gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
+`gateway` starts a lightweight HTTP authorization gateway for agent tool-call
+integration. The gateway exposes:
 
 | Endpoint | Purpose |
 |---|---|
@@ -220,25 +221,25 @@ for the enterprise gateway pattern.
 
 The hosted gateway-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
-It shows a SaaS support app consulting AgentID before refund actions, including
-customer refund-history checks, human notification for escalations, and JIT
-authority before Stripe refund execution. It also includes a visible MCP
-gateway flow that filters provider tools, allows a declared CRM read, denies a
-CRM write without JIT, and then allows the write after a scoped grant. The demo
-Worker mints a short-lived OIDC-style JWT server-side, and the gateway validates
-its claims against the tenant manifest. Demo source lives in [`demo/`](demo/).
+It shows the broader AgentID model in two concrete flows: a SaaS support app
+consulting AgentID before refund actions, and an MCP gateway checking provider
+CRM tool calls before forwarding them. The MCP flow filters provider tools,
+allows a declared CRM read, denies a CRM write without JIT, and then allows the
+write after a scoped grant. The demo Worker mints a short-lived OIDC-style JWT
+server-side, and the gateway validates its claims against the tenant manifest.
+Demo source lives in [`demo/`](demo/).
 
-![AgentID Refund Control Demo](docs/AgentIDRefundControlDemo.png)
+![AgentID Gateway Control Demo](docs/AgentIDRefundControlDemo.png)
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant App as SaaS App / Agent Runtime
+    participant App as App / Agent Runtime / MCP Gateway
     participant IdP as Customer IdP
     participant Gateway as AgentID Gateway
     participant KV as Tenant Manifest Store
     participant DO as JIT Grant Store
-    participant Tool as SaaS Tool
+    participant Tool as Downstream Tool
 
     User->>App: Run agent workflow
     App->>IdP: Obtain OIDC/OAuth access token
@@ -321,7 +322,7 @@ Implemented:
 - Reference MCP gateway adapter for `tools/list` and `tools/call`
 - MCP gateway adapter demo with mock provider server
 - MCP gateway integration guide and enterprise/provider MCP example manifest
-- Hosted refund-control demo
+- Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
 Next:

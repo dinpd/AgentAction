@@ -1,7 +1,8 @@
 # Getting Started with AgentID
 
-This walkthrough shows how to use AgentID as an authority contract for an AI
-agent and how to put checks in front of tool execution.
+This walkthrough shows how to use AgentID as an authorization contract for AI
+agent tool calls across app runtimes, internal systems, SaaS APIs, and MCP
+gateways.
 
 ## 1. Install
 
@@ -13,12 +14,12 @@ python -m pip install -e ".[dev]"
 
 ## 2. Validate a Manifest
 
-Start with the included ecommerce-style support/refund manifest:
+Start with the included provider MCP support manifest:
 
 ```bash
-agentid validate examples/customer-support-refund-agent.yaml
-agentid explain examples/customer-support-refund-agent.yaml
-agentid risk-score examples/customer-support-refund-agent.yaml
+agentid validate examples/provider-mcp-support-agent.yaml
+agentid explain examples/provider-mcp-support-agent.yaml
+agentid risk-score examples/provider-mcp-support-agent.yaml
 ```
 
 The manifest declares:
@@ -49,7 +50,7 @@ $schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.sch
 Generate starter OPA/Rego policy from a manifest:
 
 ```bash
-agentid generate-policy examples/customer-support-refund-agent.yaml --target opa
+agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
 The manifest remains the portable source of truth. OPA is one target runtime
@@ -73,7 +74,7 @@ requests.
 ## 6. Run the Gateway Locally
 
 ```bash
-agentid gateway examples/customer-support-refund-agent.yaml --host 127.0.0.1 --port 8787
+agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 Then authorize a tool call:
@@ -82,11 +83,15 @@ Then authorize a tool call:
 curl -s http://127.0.0.1:8787/authorize \
   -H 'content-type: application/json' \
   -d '{
-    "agent_id": "customer-support-refund-agent",
-    "tool": "zendesk.search_tickets",
+    "agent_id": "enterprise-support-agent",
+    "job_id": "support_case_resolution",
+    "case_id": "case-1042",
+    "customer_id": "cus_123",
+    "tool": "provider.crm.search_customer",
     "action": "read",
-    "data_from": "zendesk",
-    "data_to": "stripe"
+    "resource": "provider/customer/cus_123",
+    "data_from": "provider_crm",
+    "data_to": "agent_context"
   }'
 ```
 
@@ -129,10 +134,14 @@ const agentid = new AgentIdClient({
 });
 
 await agentid.assertAllowed("tenant-a", {
-  agent_id: "refund-agent",
-  tool: "zendesk.search_tickets",
+  agent_id: "enterprise-support-agent",
+  job_id: "support_case_resolution",
+  case_id: "case-1042",
+  customer_id: "cus_123",
+  tool: "provider.crm.search_customer",
   action: "read",
-  data_from: "zendesk",
+  resource: "provider/customer/cus_123",
+  data_from: "provider_crm",
   data_to: "agent_context",
 });
 ```
@@ -141,18 +150,24 @@ For sensitive actions, request a JIT grant before executing the tool:
 
 ```ts
 const grant = await agentid.requestJitGrant("tenant-a", {
-  tool: "stripe.create_refund",
+  tool: "provider.crm.update_customer",
   action: "write",
-  resource: "refund/case-1042",
+  resource: "provider/customer/cus_123",
+  job_id: "support_case_resolution",
+  case_id: "case-1042",
+  customer_id: "cus_123",
   approval_id: "approval-123",
   user_id: "support-rep-17",
 });
 
 await agentid.assertAllowed("tenant-a", {
-  agent_id: "refund-agent",
-  tool: "stripe.create_refund",
+  agent_id: "enterprise-support-agent",
+  tool: "provider.crm.update_customer",
   action: "write",
-  resource: "refund/case-1042",
+  resource: "provider/customer/cus_123",
+  job_id: "support_case_resolution",
+  case_id: "case-1042",
+  customer_id: "cus_123",
   approved: true,
   jit_grant_id: grant.jit_grant_id,
 });

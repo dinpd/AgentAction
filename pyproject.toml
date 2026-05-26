@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentid"
 version = "0.1.2"
-description = "A lightweight manifest and CLI for AI agent identity, JIT authority, policy, and audit."
+description = "A manifest, gateway, and CLI for AI agent tool-call authorization across SaaS, internal systems, and MCP gateways."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

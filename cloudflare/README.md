@@ -1,6 +1,8 @@
 # AgentID Cloudflare Gateway
 
-This Worker exposes the AgentID gateway API on Cloudflare Workers:
+This Worker exposes the AgentID gateway API on Cloudflare Workers. It can sit
+behind a SaaS app, internal agent platform, or MCP gateway and return
+allow/deny/JIT decisions before tool execution:
 
 | Endpoint | Purpose |
 |---|---|
@@ -57,8 +59,9 @@ RS256 JWT signatures against the matching JWKS `kid`, then enforces issuer,
 audience, tenant, agent, and scope checks from the manifest.
 
 For a single-tenant deployment, set `AGENTID_MANIFEST_JSON` as a Worker variable.
-For SaaS multi-tenancy, bind a KV namespace named `AGENTID_MANIFESTS` and store
-each tenant manifest as JSON under the tenant ID used in `/tenants/<tenant-id>/...`.
+For multi-tenant SaaS, internal platform, or MCP gateway deployments, bind a KV
+namespace named `AGENTID_MANIFESTS` and store each tenant or environment
+manifest as JSON under the ID used in `/tenants/<tenant-id>/...`.
 
 ## GitHub Actions
 

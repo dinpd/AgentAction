@@ -1,10 +1,11 @@
 # AgentID Gateway Control Demo
 
-This Cloudflare Worker hosts a small SaaS runtime demo that calls the live
-AgentID gateway through a Cloudflare Service Binding. The browser never sees the
-gateway bearer token. For the self-contained demo, the Worker mints a short-lived
-HS256-signed OIDC-style JWT and the gateway validates it against the tenant
-manifest.
+This Cloudflare Worker hosts a small gateway-control demo that calls the live
+AgentID gateway through a Cloudflare Service Binding. It shows AgentID
+authorizing both a SaaS refund workflow and an MCP provider-tool workflow before
+tool execution. The browser never sees the gateway bearer token. For the
+self-contained demo, the Worker mints a short-lived HS256-signed OIDC-style JWT
+and the gateway validates it against the tenant manifest.
 
 Live demo:
 

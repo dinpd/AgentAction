@@ -1,5 +1,5 @@
 name: AgentID Manifest Check
-description: Validate AgentID manifests and optionally fail above a risk threshold.
+description: Validate AgentID agent tool-call authorization manifests and optionally fail above a risk threshold.
 inputs:
   manifests:
     description: Space-separated manifest paths or glob patterns.

@@ -1,4 +1,4 @@
-# SaaS Integration Patterns
+# Agent Tool-Call Integration Patterns
 
 AgentID is intended to sit in the narrow path between an agent runtime and the
 tools it wants to call. It should answer one runtime question:
@@ -15,13 +15,13 @@ systems a shared authority contract for agent behavior.
 ```mermaid
 flowchart LR
     User["User"]
-    App["SaaS App / Agent Runtime"]
+    App["App / Agent Runtime / MCP Gateway"]
     IdP["Customer IdP"]
     AgentID["AgentID Gateway"]
     Manifest["Tenant Manifest Store"]
     JIT["JIT Grant Store"]
     Authz["Business Authz / OPA / OpenFGA / Cedar"]
-    Tool["SaaS Tool"]
+    Tool["Internal, SaaS, Cloud, or MCP Tool"]
     Audit["Audit Log"]
 
     User --> App
@@ -57,17 +57,18 @@ The best enforcement point is the code path that already invokes tools:
 
 ```ts
 await agentid.assertAllowed(tenantId, {
-  agent_id: "refund-agent",
-  job_id: "refund_triage",
+  agent_id: "enterprise-support-agent",
+  job_id: "support_case_resolution",
   case_id: "case-1042",
   customer_id: "cus_123",
-  tool: "zendesk.search_tickets",
+  tool: "provider.crm.search_customer",
   action: "read",
-  data_from: "zendesk",
+  resource: "provider/customer/cus_123",
+  data_from: "provider_crm",
   data_to: "agent_context",
 });
 
-const tickets = await zendesk.searchTickets(query);
+const customer = await providerCrm.searchCustomer(customerId);
 ```
 
 Do not put the check only at login or session creation. A valid identity token
@@ -83,10 +84,10 @@ For sensitive actions, split the workflow into two checks:
 
 ```ts
 const grant = await agentid.requestJitGrant(tenantId, {
-  tool: "stripe.create_refund",
+  tool: "provider.crm.update_customer",
   action: "write",
-  resource: "refund/case-1042",
-  job_id: "refund_triage",
+  resource: "provider/customer/cus_123",
+  job_id: "support_case_resolution",
   case_id: "case-1042",
   customer_id: "cus_123",
   approval_id: "approval-123",
@@ -94,18 +95,18 @@ const grant = await agentid.requestJitGrant(tenantId, {
 });
 
 await agentid.assertAllowed(tenantId, {
-  agent_id: "refund-agent",
-  tool: "stripe.create_refund",
+  agent_id: "enterprise-support-agent",
+  tool: "provider.crm.update_customer",
   action: "write",
-  resource: "refund/case-1042",
-  job_id: "refund_triage",
+  resource: "provider/customer/cus_123",
+  job_id: "support_case_resolution",
   case_id: "case-1042",
   customer_id: "cus_123",
   approved: true,
   jit_grant_id: grant.jit_grant_id,
 });
 
-await stripe.refunds.create({ charge: chargeId, amount: 8700 });
+await providerCrm.updateCustomer(customerId, patch);
 ```
 
 JIT grants should be short-lived, single-use, and bound to agent, user, tool,
@@ -138,16 +139,18 @@ the agent, but still invalid for the current customer case or job.
 
 See [`job-boundaries.md`](job-boundaries.md) for details.
 
-## Multi-Tenant SaaS Pattern
+## Multi-Tenant and Platform Pattern
 
-For a SaaS product, treat the tenant manifest as customer configuration:
+For a SaaS product, internal platform, or MCP gateway, treat the tenant manifest
+as customer or environment configuration:
 
-- Customer chooses or reviews the agent manifest.
-- Your app stores the manifest under the tenant ID.
+- Customer or platform owner chooses or reviews the agent manifest.
+- Your app, gateway, or control plane stores the manifest under the tenant ID.
 - The gateway validates the caller token against the tenant manifest.
 - The gateway enforces tenant, user, agent, audience, scope, tool, approval,
   JIT, and data-flow constraints.
-- Your app executes the tool only after an allow decision.
+- Your app or MCP gateway executes or forwards the tool only after an allow
+  decision.
 
 With the Cloudflare gateway, store each tenant manifest as JSON in the
 `AGENTID_MANIFESTS` KV namespace under the tenant ID used in:
