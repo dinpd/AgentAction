@@ -76,6 +76,39 @@ For sensitive actions, actual authority should be issued **just in time** and bo
 
 ---
 
+## Authority model
+
+AgentID models agent authority as a runtime decision, not a static role.
+
+```mermaid
+flowchart LR
+    Identity["Identity\nWho is calling?"]
+    Job["Job boundary\nWhat task is this for?"]
+    Tool["Tool/action\nWhat is being requested?"]
+    Flow["Data flow\nWhere does data move?"]
+    Approval["Approval/JIT\nIs scoped authority present?"]
+    Delegation["Delegation\nIs another agent involved?"]
+    Decision["Allow or deny"]
+
+    Identity --> Job --> Tool --> Flow --> Approval --> Delegation --> Decision
+```
+
+At runtime, a SaaS app or agent runtime asks the AgentID gateway before tool
+execution. The gateway evaluates:
+
+- **Identity:** the caller token maps to the expected tenant, user, and agent.
+- **Job boundary:** the request belongs to an allowed job, case, and customer.
+- **Tool/action:** the requested tool and action are declared in the manifest.
+- **Data flow:** source and destination are allowed for this agent.
+- **Approval/JIT:** sensitive actions have approval and a scoped, valid grant.
+- **Delegation:** agent hand-offs stay within allowed targets, depth, approval,
+  and delegated tool boundaries.
+
+The result is an eligibility decision. The downstream application should still
+perform its normal business authorization checks before executing the tool.
+
+---
+
 ## CLI
 
 ```bash
