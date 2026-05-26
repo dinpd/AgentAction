@@ -2,26 +2,26 @@
 
 AgentID is a natural fit for enterprise-controlled MCP gateways. The gateway
 already sits between an agent and tools, so it is the right place to ask whether
-a tool call should leave the enterprise boundary.
+a tool call should proceed.
 
 ```text
-Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Provider MCP Server
+Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Internal or Provider MCP Server
 ```
 
-The enterprise owns the gateway and the AgentID manifest. The provider owns the
-downstream MCP server and tool implementation.
+The enterprise owns the gateway and the AgentID manifest. The downstream MCP
+server may be an internal enterprise server or a provider-hosted server.
 
 ## Why This Matters
 
-Provider MCP servers make tools easy to expose, but enterprises still need a
-local control point for:
+MCP servers make tools easy to expose, but enterprises still need a local
+control point for:
 
-- Which agents may call which provider tools.
+- Which agents may call which internal or provider tools.
 - Which jobs, cases, customers, and resources those calls may touch.
-- Which data may leave enterprise systems for a provider.
+- Which data may move between enterprise systems, SaaS APIs, and providers.
 - Which writes, sends, deploys, payments, or admin actions require approval.
 - Which sensitive calls require short-lived JIT grants.
-- Which provider tool changes count as unreviewed drift.
+- Which tool changes count as unreviewed drift.
 - Which audit events the enterprise keeps independently of the provider.
 
 AgentID supplies the reviewable authority contract and runtime check for that
@@ -34,17 +34,17 @@ sequenceDiagram
     participant Agent as Enterprise Agent
     participant MCP as Enterprise MCP Gateway
     participant AgentID as AgentID Gateway
-    participant Provider as Provider MCP Server
-    participant Tool as Provider Tool
+    participant Server as MCP Server
+    participant Tool as Tool
 
     Agent->>MCP: MCP tools/call
     MCP->>MCP: Map tool name and arguments to AgentID event
     MCP->>AgentID: POST /tenants/:id/authorize
     AgentID-->>MCP: allow/deny + findings
     alt allowed
-        MCP->>Provider: Forward MCP tools/call
-        Provider->>Tool: Execute provider tool
-        Provider-->>MCP: Tool result
+        MCP->>Server: Forward MCP tools/call
+        Server->>Tool: Execute tool
+        Server-->>MCP: Tool result
         MCP-->>Agent: Tool result
     else denied
         MCP-->>Agent: MCP tool error with AgentID findings
@@ -52,10 +52,10 @@ sequenceDiagram
 ```
 
 For sensitive calls, the gateway should request or require a JIT grant before
-forwarding the provider call:
+forwarding the MCP call:
 
 ```text
-MCP Gateway -> AgentID /jit-grants -> AgentID /authorize with jit_grant_id -> Provider MCP Server
+MCP Gateway -> AgentID /jit-grants -> AgentID /authorize with jit_grant_id -> MCP Server
 ```
 
 ## Mapping MCP Calls to AgentID
@@ -120,7 +120,7 @@ reference MCP gateway adapter should support.
 
 ## Manifest Pattern
 
-The corresponding AgentID manifest should declare provider tools explicitly:
+The corresponding AgentID manifest should declare downstream MCP tools explicitly:
 
 ```yaml
 tools:
@@ -162,27 +162,27 @@ AgentID controls the enterprise-side decision before forwarding the call:
 - Agent-to-agent hand-off policy.
 - Enterprise audit trail.
 
-The provider MCP server still controls provider-side behavior:
+The downstream MCP server still controls its own behavior:
 
-- Provider authentication.
-- Provider business authorization.
-- Provider rate limits.
+- Server authentication.
+- Business authorization.
+- Rate limits.
 - Tool implementation.
-- Provider audit and retention.
+- Server audit and retention.
 
 Use both. AgentID prevents unapproved outbound calls from the enterprise
-gateway; the provider still enforces its own platform rules.
+gateway; internal systems and providers still enforce their own platform rules.
 
 ## Reference Adapter Scope
 
 A minimal reference MCP gateway adapter should:
 
-- Proxy `tools/list` from a downstream provider MCP server.
+- Proxy `tools/list` from a downstream MCP server.
 - Intercept `tools/call`.
 - Map tool name and arguments to an AgentID authorization event.
 - Call AgentID `/authorize`.
 - Return an MCP tool error on deny.
-- Forward the call to the provider MCP server on allow.
+- Forward the call to the downstream MCP server on allow.
 - Support JIT grants for sensitive tools.
 - Log AgentID decisions and provider tool results.
 

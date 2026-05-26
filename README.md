@@ -2,8 +2,9 @@
 
 **AgentID** is a lightweight open-source toolkit for declaring, validating, reviewing, and auditing AI agent authority.
 
-The primary use case is an enterprise-owned authorization boundary for agents
-calling tools, including provider-hosted MCP servers.
+The primary use case is an enterprise-owned authorization boundary for agent
+tool calls across internal systems, SaaS APIs, MCP servers, cloud control
+planes, databases, and provider-hosted tools.
 
 ![AI Agents Need Eligibility Contracts](docs/AIAgentsNeedEligibilityContracts.png)
 
@@ -13,11 +14,11 @@ The core idea is simple:
 
 AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable declaration format for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
-For MCP deployments, AgentID is meant to run on the enterprise side of the
+For gateway deployments, AgentID is meant to run at an enterprise-controlled
 boundary:
 
 ```text
-Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Provider MCP Server
+Enterprise Agent -> Enterprise Gateway -> AgentID Check -> Internal or External Tool
 ```
 
 ---
@@ -49,9 +50,9 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 ## Why this exists
 
 Most agent projects define tools and credentials in ad hoc config files.
-Provider-hosted MCP servers make this sharper: an enterprise agent can suddenly
-call vendor tools outside the enterprise boundary unless there is a local
-policy checkpoint.
+MCP servers and tool APIs make this sharper: an enterprise agent can suddenly
+call internal systems, SaaS APIs, cloud control planes, databases, or provider
+tools unless there is a local policy checkpoint.
 
 What is often missing is a clear answer to:
 
@@ -107,10 +108,10 @@ flowchart LR
     Identity --> Job --> Tool --> Flow --> Approval --> Delegation --> Decision
 ```
 
-At runtime, a SaaS app or agent runtime asks the AgentID gateway before tool
-execution. In MCP deployments, the enterprise MCP gateway performs this check
-before forwarding a `tools/call` request to a provider MCP server. The gateway
-evaluates:
+At runtime, a SaaS app, agent runtime, or enterprise gateway asks the AgentID
+gateway before tool execution. In MCP deployments, the enterprise MCP gateway
+performs this check before forwarding a `tools/call` request to an internal or
+provider MCP server. The gateway evaluates:
 
 - **Identity:** the caller token maps to the expected tenant, user, and agent.
 - **Job boundary:** the request belongs to an allowed job, case, and customer.
@@ -120,8 +121,9 @@ evaluates:
 - **Delegation:** agent hand-offs stay within allowed targets, depth, approval,
   and delegated tool boundaries.
 
-The result is an eligibility decision. The downstream application should still
-perform its normal business authorization checks before executing the tool.
+The result is an eligibility decision. The downstream application or provider
+should still perform its normal business authorization checks before executing
+the tool.
 
 ---
 
@@ -169,7 +171,7 @@ For SaaS runtime integration, see the TypeScript helper in
 `requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
 For architecture guidance, see
 [`docs/integration-patterns.md`](docs/integration-patterns.md).
-For provider-hosted MCP server calls, see
+For MCP server calls, including internal and provider-hosted servers, see
 [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 
 `gateway` starts a lightweight HTTP authorization gateway for SaaS integration. The gateway exposes:
@@ -250,7 +252,7 @@ tokens from the customer's OIDC provider via JWKS.
 | `data_flows` | Allowed or blocked source-to-destination flows |
 | `risk_tiers` | Default approval rules by risk category |
 | `runtime` | Runtime enforcement and drift-detection expectations |
-| `mcp_gateway` | Mapping rules for provider MCP tools and argument-derived context |
+| `mcp_gateway` | Mapping rules for MCP tools and argument-derived context |
 | `audit` | What must be logged and retained |
 | `kill_switch` | Whether policy violations should revoke or suspend authority |
 
@@ -285,7 +287,7 @@ Implemented:
 - Job-to-be-done boundary checks
 - Demo OIDC JWT flow and production JWKS validation path
 - TypeScript gateway client helper
-- MCP gateway integration guide and provider MCP example manifest
+- MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted refund-control demo
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
