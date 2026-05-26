@@ -200,6 +200,12 @@ CONFIG_UI_HTML = r"""<!doctype html>
       min-height: 18px;
     }
 
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
     .toolbar {
       display: flex;
       gap: 8px;
@@ -238,14 +244,14 @@ CONFIG_UI_HTML = r"""<!doctype html>
       <section>
         <h2>Agent</h2>
         <div class="grid">
-          <label>ID<input id="agentId" value="support-copilot-prod"></label>
-          <label>Name<input id="agentName" value="Support Copilot"></label>
-          <label>Owner<input id="owner" value="support-platform"></label>
+          <label>ID<input id="agentId" value="enterprise-support-agent"></label>
+          <label>Name<input id="agentName" value="Enterprise Support Agent"></label>
+          <label>Owner<input id="owner" value="enterprise-ai-platform"></label>
           <label>Environment<select id="environment"><option>production</option><option>staging</option><option>development</option></select></label>
           <label>Expires at<input id="expiresAt" type="date"></label>
           <label>Default JIT TTL<input id="jitTtl" type="number" min="30" max="3600" value="300"></label>
         </div>
-        <label style="margin-top:12px">Purpose<textarea id="purpose">Answer customer-support questions and update ticket metadata within approved workflows.</textarea></label>
+        <label style="margin-top:12px">Purpose<textarea id="purpose">Resolve customer support cases by calling approved internal and provider MCP tools.</textarea></label>
       </section>
 
       <section>
@@ -257,6 +263,41 @@ CONFIG_UI_HTML = r"""<!doctype html>
           <label>Audience<input id="oidcAudience" value="agentid-gateway"></label>
           <label>JWKS URI<input id="oidcJwks" value="https://idp.example.com/oauth2/default/v1/keys"></label>
           <label>Tenant claim<input id="oidcTenantClaim" value="tid"></label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Job Boundary</h2>
+        <div class="grid">
+          <label><span><input id="jobRequired" type="checkbox" checked> Require job boundary</span></label>
+          <label><span><input id="requireJobId" type="checkbox" checked> Require job_id</span></label>
+          <label>Allowed jobs<input id="allowedJobs" value="support_case_resolution, refund_triage, customer_status_lookup"></label>
+          <label>Out of scope<input id="outOfScopeJobs" value="account_deletion, collections_action, contract_negotiation"></label>
+          <label>Bind fields<input id="jobBindings" value="job_id, case_id, customer_id"></label>
+        </div>
+        <p class="hint">Job boundaries prevent scope drift when a tool is allowed in general but not for this case or customer.</p>
+      </section>
+
+      <section>
+        <h2>MCP Gateway</h2>
+        <div class="grid">
+          <label><span><input id="mcpEnabled" type="checkbox" checked> Include MCP gateway mapping</span></label>
+          <label>Mode<select id="mcpMode"><option value="enterprise_proxy">enterprise_proxy</option><option value="internal_proxy">internal_proxy</option></select></label>
+          <label>Provider<input id="mcpProvider" value="example-crm"></label>
+          <label>Downstream server<input id="mcpServer" value="provider-crm-mcp"></label>
+        </div>
+        <p class="hint">The generated mapping derives AgentID fields from MCP tool arguments such as job_id, case_id, and customer_id.</p>
+      </section>
+
+      <section>
+        <h2>Agent Delegation</h2>
+        <div class="grid">
+          <label><span><input id="mayCallAgents" type="checkbox" checked> May call agents</span></label>
+          <label><span><input id="delegationRequiresApproval" type="checkbox" checked> Require approval</span></label>
+          <label>Allowed agents<input id="allowedAgents" value="provider-risk-review-agent"></label>
+          <label>Delegated tools<input id="allowedDelegatedTools" value="provider.crm.search_customer, provider.billing.lookup_invoices"></label>
+          <label>Max depth<input id="delegationDepth" type="number" min="1" max="5" value="1"></label>
+          <label>Approval agents<input id="approvalAgents" value="enterprise-delegation-policy-agent"></label>
         </div>
       </section>
 
@@ -286,7 +327,6 @@ CONFIG_UI_HTML = r"""<!doctype html>
           <label><span><input id="logToolCalls" type="checkbox" checked> Log tool calls</span></label>
           <label><span><input id="logDecisions" type="checkbox" checked> Log decisions</span></label>
           <label><span><input id="logJitGrants" type="checkbox" checked> Log JIT grants</span></label>
-          <label><span><input id="mayCallAgents" type="checkbox"> May call agents</span></label>
         </div>
       </section>
     </div>
@@ -306,18 +346,24 @@ CONFIG_UI_HTML = r"""<!doctype html>
     const state = {
       tab: "yaml",
       tools: [
-        { name: "zendesk.ticket.read", access: "read", approval: "none", auth_mode: "delegated", resource: "tickets/*", ttl: "" },
-        { name: "zendesk.ticket.update", access: "write", approval: "human_confirm", auth_mode: "just_in_time", resource: "tickets/*", ttl: "300" }
+        { name: "provider.crm.search_customer", access: "read", approval: "none", auth_mode: "delegated", resource: "provider/customer/*", ttl: "" },
+        { name: "provider.crm.update_customer", access: "write", approval: "human_confirm", auth_mode: "just_in_time", resource: "provider/customer/*", ttl: "300" },
+        { name: "provider.billing.lookup_invoices", access: "read", approval: "notify", auth_mode: "delegated", resource: "provider/billing/customer/*", ttl: "" }
       ],
       flows: [
-        { from: "zendesk", to: "agent_context", allowed: true },
-        { from: "agent_context", to: "external_email", allowed: false }
+        { from: "enterprise_crm", to: "provider_crm", allowed: true },
+        { from: "provider_crm", to: "agent_context", allowed: true },
+        { from: "customer_records", to: "provider_external_email", allowed: false }
       ]
     };
 
     const accessOptions = ["read", "write", "execute", "admin"];
     const approvalOptions = ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"];
     const authOptions = ["delegated", "service", "just_in_time"];
+
+    function csv(value) {
+      return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+    }
 
     function yamlScalar(value) {
       const text = String(value ?? "");
@@ -349,7 +395,20 @@ CONFIG_UI_HTML = r"""<!doctype html>
         },
         delegation_chain: {
           may_call_agents: mayCallAgents.checked,
-          allowed_agents: []
+          allowed_agents: csv(allowedAgents.value),
+          max_depth: Number(delegationDepth.value || 1),
+          allowed_delegated_tools: csv(allowedDelegatedTools.value),
+          requires_approval: delegationRequiresApproval.checked,
+          approval_sources: ["human", "agent"],
+          approval_agents: csv(approvalAgents.value),
+          delegation_ttl_seconds: Number(jitTtl.value || 300)
+        },
+        job_boundary: {
+          required: jobRequired.checked,
+          allowed_jobs: csv(allowedJobs.value),
+          out_of_scope: csv(outOfScopeJobs.value),
+          require_job_id: requireJobId.checked,
+          bind_authorization_to: csv(jobBindings.value)
         },
         intent: {
           confirmation_required_for: tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name)
@@ -377,9 +436,22 @@ CONFIG_UI_HTML = r"""<!doctype html>
         jit_authorization: {
           enabled: tools.some((tool) => tool.auth_mode === "just_in_time"),
           default_ttl_seconds: Number(jitTtl.value || 300),
-          bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+          bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id", "job_id", "case_id", "customer_id"],
           revoke_after_use: true
         },
+        ...(mcpEnabled.checked ? { mcp_gateway: {
+          mode: mcpMode.value,
+          provider: mcpProvider.value.trim(),
+          downstream_server: mcpServer.value.trim(),
+          tool_argument_mapping: Object.fromEntries(tools.map((tool) => [tool.name, {
+            action: tool.access,
+            ...(tool.constraints?.resource ? { resource_template: tool.constraints.resource.replace("*", "{customer_id}") } : { resource_arg: "customer_id" }),
+            job_id_arg: "job_id",
+            case_id_arg: "case_id",
+            customer_id_arg: "customer_id",
+            ...(tool.auth_mode === "just_in_time" ? { approved_arg: "approved", jit_grant_id_arg: "jit_grant_id" } : {})
+          }]))
+        } } : {}),
         tools,
         data_flows: state.flows.map((flow) => ({ from: flow.from.trim(), to: flow.to.trim(), allowed: Boolean(flow.allowed) })).filter((flow) => flow.from && flow.to),
         runtime: {
@@ -493,10 +565,13 @@ allow if {
     function curlExample(data) {
       const event = {
         agent_id: data.agent.id,
+        job_id: data.job_boundary?.allowed_jobs?.[0] || "support_case_resolution",
+        case_id: "case-1042",
+        customer_id: "cus_123",
         tool: data.tools[0]?.name || "tool.name",
         action: data.tools[0]?.access || "read",
-        data_from: "",
-        data_to: "",
+        data_from: data.data_flows[0]?.from || "",
+        data_to: data.data_flows[0]?.to || "",
         approved: false
       };
       return `curl -s http://localhost:8787/authorize \\

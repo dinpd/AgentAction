@@ -7,6 +7,7 @@ preview_urls = true
 [vars]
 AGENTID_GATEWAY_URL = "https://agentid-gateway.drisw.workers.dev"
 AGENTID_TENANT_ID = "refund-demo-agent"
+AGENTID_MCP_TENANT_ID = "provider-mcp-support-agent"
 AGENTID_OIDC_ISSUER = "https://demo.agentid.local"
 AGENTID_OIDC_AUDIENCE = "agentid-gateway"
 

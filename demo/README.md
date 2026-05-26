@@ -1,4 +1,4 @@
-# AgentID Refund Demo
+# AgentID Gateway Control Demo
 
 This Cloudflare Worker hosts a small SaaS runtime demo that calls the live
 AgentID gateway through a Cloudflare Service Binding. The browser never sees the
@@ -19,6 +19,9 @@ The demo illustrates:
 - Three-month refund after customer escalation requiring human notification.
 - JIT grant issuance before Stripe refund execution.
 - Single-use JIT grant consumption by the gateway.
+- MCP gateway tool filtering before provider tool exposure.
+- MCP provider CRM read allow, write denial without JIT, and write allow after a
+  scoped JIT grant.
 
 ## Local development
 

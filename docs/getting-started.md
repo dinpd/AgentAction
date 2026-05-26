@@ -176,9 +176,10 @@ npm run deploy
 
 See [`cloudflare/README.md`](../cloudflare/README.md) for details.
 
-## 10. Try the Hosted Refund Demo
+## 10. Try the Hosted Gateway Demo
 
-The hosted demo shows a SaaS support app consulting AgentID before refunds:
+The hosted demo shows a SaaS support app and MCP gateway consulting AgentID
+before tool execution:
 
 https://agentid-refund-demo.drisw.workers.dev
 
@@ -188,6 +189,8 @@ It illustrates:
 - Customer refund-history lookup before any refund.
 - Human notification for repeat-refund or multi-month refund scenarios.
 - JIT grant issuance before Stripe refund execution.
+- MCP provider tool filtering, read authorization, write denial without JIT, and
+  write authorization after a scoped grant.
 - Gateway decisions with OIDC-derived auth context.
 
 ## Next Steps

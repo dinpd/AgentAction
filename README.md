@@ -36,7 +36,7 @@ agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 
 Try the hosted demo:
 
-- Refund-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
+- Gateway-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
@@ -218,13 +218,15 @@ for the enterprise gateway pattern.
 
 ---
 
-The hosted refund-control demo is available at
+The hosted gateway-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
 It shows a SaaS support app consulting AgentID before refund actions, including
 customer refund-history checks, human notification for escalations, and JIT
-authority before Stripe refund execution. The demo Worker mints a short-lived
-OIDC-style JWT server-side, and the gateway validates its claims against the
-tenant manifest. Demo source lives in [`demo/`](demo/).
+authority before Stripe refund execution. It also includes a visible MCP
+gateway flow that filters provider tools, allows a declared CRM read, denies a
+CRM write without JIT, and then allows the write after a scoped grant. The demo
+Worker mints a short-lived OIDC-style JWT server-side, and the gateway validates
+its claims against the tenant manifest. Demo source lives in [`demo/`](demo/).
 
 ![AgentID Refund Control Demo](docs/AgentIDRefundControlDemo.png)
 

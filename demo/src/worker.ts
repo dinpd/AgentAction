@@ -5,6 +5,7 @@ type Env = {
   AGENTID_OIDC_ISSUER: string;
   AGENTID_OIDC_AUDIENCE: string;
   AGENTID_TENANT_ID: string;
+  AGENTID_MCP_TENANT_ID?: string;
   AGENTID_GATEWAY?: { fetch(request: Request): Promise<Response> };
 };
 
@@ -22,7 +23,7 @@ const HTML = String.raw`<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentID Refund Control Demo</title>
+  <title>AgentID Gateway Control Demo</title>
   <style>
     :root {
       color-scheme: light;
@@ -310,8 +311,8 @@ const HTML = String.raw`<!doctype html>
 <body>
   <header>
     <div>
-      <h1>AgentID Refund Control Demo</h1>
-      <p style="color:var(--muted);font-size:13px;margin-top:3px">SaaS runtime checks agent authority before tool execution.</p>
+      <h1>AgentID Gateway Control Demo</h1>
+      <p style="color:var(--muted);font-size:13px;margin-top:3px">Runtime and MCP gateway checks before agent tool execution.</p>
     </div>
     <div class="toolbar">
       <span class="pill">Gateway: Cloudflare Worker</span>
@@ -348,7 +349,7 @@ const HTML = String.raw`<!doctype html>
         <button class="primary" id="run">Run Scenario</button>
         <button id="reset">Reset</button>
       </div>
-      <div id="status" class="status">Ready to run policy-backed refund flow.</div>
+      <div id="status" class="status">Ready to run policy-backed refund or MCP gateway flow.</div>
     </section>
 
     <section>
@@ -364,6 +365,16 @@ const HTML = String.raw`<!doctype html>
       <div>
         <h2>Gateway Response</h2>
         <pre id="response">{}</pre>
+      </div>
+      <div>
+        <h2>MCP Gateway Demo</h2>
+        <div class="use-cases" style="margin-bottom:12px">
+          <div class="use-case">
+            <strong>Provider CRM tool call</strong>
+            <span>Filter MCP tools/list, allow a read, deny a write without JIT, then allow the write with a scoped grant.</span>
+          </div>
+        </div>
+        <button class="primary" id="runMcp">Run MCP Demo</button>
       </div>
       <div>
         <h2>Other Demo Use Cases</h2>
@@ -385,6 +396,7 @@ const HTML = String.raw`<!doctype html>
       priorRefundMetric: document.getElementById("priorRefundMetric"),
       run: document.getElementById("run"),
       reset: document.getElementById("reset"),
+      runMcp: document.getElementById("runMcp"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
       payload: document.getElementById("payload"),
@@ -430,7 +442,7 @@ const HTML = String.raw`<!doctype html>
       renderSteps();
       els.payload.textContent = "{}";
       els.response.textContent = "{}";
-      setStatus("Ready to run policy-backed refund flow.");
+      setStatus("Ready to run policy-backed refund or MCP gateway flow.");
     }
 
     async function api(path, body) {
@@ -589,6 +601,132 @@ const HTML = String.raw`<!doctype html>
       }
     }
 
+    async function runMcpDemo() {
+      reset();
+      els.run.disabled = true;
+      els.runMcp.disabled = true;
+      try {
+        addStep({
+          id: "mcp-list",
+          title: "Filter MCP tools/list",
+          detail: "The enterprise MCP gateway exposes only provider tools mapped to AgentID policy.",
+          status: "running"
+        });
+        const toolsListPayload = { jsonrpc: "2.0", id: 1, method: "tools/list" };
+        const toolsListResponse = {
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            tools: [
+              { name: "provider.crm.search_customer" },
+              { name: "provider.crm.update_customer" }
+            ]
+          }
+        };
+        addStep({
+          id: "mcp-list-result",
+          title: "Unsafe provider admin tool hidden",
+          detail: "A mock provider admin delete tool is not mapped, so the gateway does not expose it to the agent.",
+          status: "allow",
+          payload: toolsListPayload,
+          response: toolsListResponse
+        });
+
+        const readPayload = {
+          agent_id: "enterprise-support-agent",
+          job_id: "support_case_resolution",
+          case_id: "case-1042",
+          customer_id: "cus_123",
+          tool: "provider.crm.search_customer",
+          action: "read",
+          resource: "provider/customer/cus_123",
+          data_from: "provider_crm",
+          data_to: "agent_context"
+        };
+        addStep({
+          id: "mcp-read",
+          title: "Authorize provider CRM read",
+          detail: "The adapter maps MCP tool arguments into AgentID job, case, customer, resource, and data-flow fields.",
+          status: "running",
+          payload: readPayload
+        });
+        const read = await api("/api/mcp/authorize", readPayload);
+        addStep({
+          id: "mcp-read-result",
+          title: read.body.allow ? "Provider CRM read allowed" : "Provider CRM read denied",
+          detail: read.body.allow ? "The read tool is declared and stays inside the support-case job boundary." : read.body.findings.join("; "),
+          status: read.body.allow ? "allow" : "deny",
+          payload: readPayload,
+          response: read.body
+        });
+        if (!read.body.allow) return setStatus("MCP demo stopped: provider CRM read denied.", "deny");
+
+        const deniedWritePayload = {
+          agent_id: "enterprise-support-agent",
+          job_id: "support_case_resolution",
+          case_id: "case-1042",
+          customer_id: "cus_123",
+          tool: "provider.crm.update_customer",
+          action: "write",
+          resource: "provider/customer/cus_123",
+          data_from: "enterprise_crm",
+          data_to: "provider_crm"
+        };
+        const deniedWrite = await api("/api/mcp/authorize", deniedWritePayload);
+        addStep({
+          id: "mcp-write-denied",
+          title: deniedWrite.body.allow ? "Provider CRM write unexpectedly allowed" : "Provider CRM write denied without JIT",
+          detail: deniedWrite.body.allow ? "The policy allowed the write." : "The write requires approval and a scoped JIT grant before the provider MCP call can be forwarded.",
+          status: deniedWrite.body.allow ? "allow" : "deny",
+          payload: deniedWritePayload,
+          response: deniedWrite.body
+        });
+
+        const grantPayload = {
+          tool: "provider.crm.update_customer",
+          action: "write",
+          resource: "provider/customer/cus_123",
+          job_id: "support_case_resolution",
+          case_id: "case-1042",
+          customer_id: "cus_123",
+          approval_id: "approval-123",
+          user_id: "support-rep-17"
+        };
+        const grant = await api("/api/mcp/jit-grants", grantPayload);
+        addStep({
+          id: "mcp-grant",
+          title: grant.status === 201 ? "JIT grant issued for provider write" : "JIT grant denied",
+          detail: grant.status === 201 ? "The grant is bound to the provider tool, resource, job, case, customer, user, and approval." : grant.body.error,
+          status: grant.status === 201 ? "allow" : "deny",
+          payload: grantPayload,
+          response: grant.body
+        });
+        if (grant.status !== 201) return setStatus("MCP demo stopped: JIT grant failed.", "deny");
+
+        const allowedWritePayload = {
+          ...deniedWritePayload,
+          approved: true,
+          jit_grant_id: grant.body.jit_grant_id
+        };
+        const allowedWrite = await api("/api/mcp/authorize", allowedWritePayload);
+        addStep({
+          id: "mcp-write-allowed",
+          title: allowedWrite.body.allow ? "Provider CRM write allowed" : "Provider CRM write denied",
+          detail: allowedWrite.body.allow ? "The MCP gateway may now forward the provider tool call. The JIT grant is consumed." : allowedWrite.body.findings.join("; "),
+          status: allowedWrite.body.allow ? "allow" : "deny",
+          payload: allowedWritePayload,
+          response: allowedWrite.body
+        });
+
+        setStatus(allowedWrite.body.allow ? "MCP gateway demo complete: read allowed, unsafe write denied, approved JIT write allowed." : "MCP gateway demo ended with denial.", allowedWrite.body.allow ? "allow" : "deny");
+      } catch (error) {
+        setStatus("MCP demo error: " + error.message, "deny");
+      } finally {
+        els.run.disabled = false;
+        els.runMcp.disabled = false;
+      }
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
@@ -602,6 +740,7 @@ const HTML = String.raw`<!doctype html>
     els.scenario.addEventListener("change", syncScenario);
     els.months.addEventListener("input", () => els.amount.value = money(els.months.value));
     els.run.addEventListener("click", runScenario);
+    els.runMcp.addEventListener("click", runMcpDemo);
     els.reset.addEventListener("click", reset);
     syncScenario();
     reset();
@@ -622,18 +761,30 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/jit-grants") {
       return proxyGateway(request, env, "jit-grants");
     }
+    if (request.method === "POST" && url.pathname === "/api/mcp/authorize") {
+      return proxyGateway(request, env, "authorize", mcpTenant(env), "enterprise-support-agent");
+    }
+    if (request.method === "POST" && url.pathname === "/api/mcp/jit-grants") {
+      return proxyGateway(request, env, "jit-grants", mcpTenant(env), "enterprise-support-agent");
+    }
     return json({ error: "not found" }, 404);
   },
 };
 
-async function proxyGateway(request: Request, env: Env, endpoint: string): Promise<Response> {
+async function proxyGateway(
+  request: Request,
+  env: Env,
+  endpoint: string,
+  tenantId = env.AGENTID_TENANT_ID,
+  agentId = "refund-demo-agent",
+): Promise<Response> {
   const payload = await request.text();
-  const path = `/tenants/${env.AGENTID_TENANT_ID}/${endpoint}`;
+  const path = `/tenants/${tenantId}/${endpoint}`;
   const target = env.AGENTID_GATEWAY
     ? `https://agentid-gateway${path}`
     : `${env.AGENTID_GATEWAY_URL}${path}`;
   const bearerToken = env.AGENTID_DEMO_OIDC_SECRET
-    ? await createDemoOidcToken(env, endpoint)
+    ? await createDemoOidcToken(env, endpoint, tenantId, agentId)
     : env.AGENTID_GATEWAY_TOKEN;
   if (!bearerToken) {
     return json({ error: "demo auth token is not configured" }, 500);
@@ -655,7 +806,11 @@ async function proxyGateway(request: Request, env: Env, endpoint: string): Promi
   });
 }
 
-async function createDemoOidcToken(env: Env, endpoint: string): Promise<string> {
+function mcpTenant(env: Env): string {
+  return env.AGENTID_MCP_TENANT_ID || "provider-mcp-support-agent";
+}
+
+async function createDemoOidcToken(env: Env, endpoint: string, tenantId: string, agentId: string): Promise<string> {
   if (!env.AGENTID_DEMO_OIDC_SECRET) throw new Error("AGENTID_DEMO_OIDC_SECRET is not configured");
   const now = Math.floor(Date.now() / 1000);
   const scopes = ["agentid.authorize"];
@@ -665,8 +820,8 @@ async function createDemoOidcToken(env: Env, endpoint: string): Promise<string> 
     iss: env.AGENTID_OIDC_ISSUER,
     aud: env.AGENTID_OIDC_AUDIENCE,
     sub: "support-rep-17",
-    tid: env.AGENTID_TENANT_ID,
-    agent_id: "refund-demo-agent",
+    tid: tenantId,
+    agent_id: agentId,
     email: "support-rep-17@example.com",
     scope: scopes.join(" "),
     iat: now,
