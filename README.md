@@ -330,6 +330,15 @@ Next:
 - More ecommerce manifests and audit-log examples
 - MCP tool metadata import/export and tool drift detection for `tools/list`
   changes, schema changes, and newly exposed write/admin tools
+- MCP blast-radius analyzer for scoring tool capability risk, authorization
+  posture, sensitive arguments, data-flow exposure, and remediation steps from
+  saved `tools/list` output or live gateway metadata
+- Browser/local UI for MCP analysis with scorecards, tool tables, drift views,
+  blast-radius summaries, remediation checklists, and generated AgentID
+  manifest snippets
+- Hosted MCP analyzer demo after the local/browser workflow is useful, with a
+  privacy-preserving mode that can analyze pasted tool metadata in the browser
+  without uploading internal server details by default
 - Stronger policy backend support, including OPA improvements, Cedar policy
   generation, and CEL examples for gateway-side authorization
 - Durable delegation-grant endpoint with source/target manifest intersection
