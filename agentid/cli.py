@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -9,6 +10,15 @@ from agentid.config_ui import write_config_ui
 from agentid.explain import explain_manifest
 from agentid.gateway import serve
 from agentid.manifest import ManifestError, load_manifest, validate_manifest
+from agentid.mcp import (
+    analysis_to_dict,
+    analyze_tools,
+    diff_to_dict,
+    diff_tools,
+    format_analysis,
+    format_diff,
+    load_tools_list,
+)
 from agentid.policy import generate_policy
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
@@ -49,6 +59,16 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser.add_argument("audit_log")
     audit_parser.add_argument("--manifest", required=True)
 
+    mcp_parser = subparsers.add_parser("mcp", help="Analyze MCP tool surfaces.")
+    mcp_subparsers = mcp_parser.add_subparsers(dest="mcp_command", required=True)
+    mcp_analyze_parser = mcp_subparsers.add_parser("analyze", help="Score an MCP tools/list response.")
+    mcp_analyze_parser.add_argument("tools_list")
+    mcp_analyze_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    mcp_diff_parser = mcp_subparsers.add_parser("diff", help="Compare two MCP tools/list responses for drift.")
+    mcp_diff_parser.add_argument("before")
+    mcp_diff_parser.add_argument("after")
+    mcp_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+
     args = parser.parse_args(argv)
 
     if args.command == "schema":
@@ -67,6 +87,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
         return 0
+
+    if args.command == "mcp":
+        try:
+            if args.mcp_command == "analyze":
+                analysis = analyze_tools(load_tools_list(args.tools_list))
+                if args.json:
+                    print(json.dumps(analysis_to_dict(analysis), indent=2))
+                else:
+                    print(format_analysis(analysis), end="")
+                return 0
+            if args.mcp_command == "diff":
+                diff = diff_tools(load_tools_list(args.before), load_tools_list(args.after))
+                if args.json:
+                    print(json.dumps(diff_to_dict(diff), indent=2))
+                else:
+                    print(format_diff(diff), end="")
+                return 0
+        except Exception as exc:
+            print(f"ERROR: failed to analyze MCP tools: {exc}", file=sys.stderr)
+            return 2
 
     try:
         manifest = load_manifest(args.manifest)

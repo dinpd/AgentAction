@@ -1,0 +1,44 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "crm.search_customer",
+        "description": "Search customer records in the CRM.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "customer_id": { "type": "string" }
+          },
+          "required": ["customer_id"]
+        }
+      },
+      {
+        "name": "crm.update_customer",
+        "description": "Update customer records in the CRM.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "customer_id": { "type": "string" },
+            "email": { "type": "string" },
+            "role": { "type": "string" }
+          },
+          "required": ["customer_id"]
+        }
+      },
+      {
+        "name": "shell.execute_command",
+        "description": "Execute a shell command on the host.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "working_directory": { "type": "string" }
+          },
+          "required": ["command"]
+        }
+      }
+    ]
+  }
+}

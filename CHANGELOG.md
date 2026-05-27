@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added `agentid mcp analyze` for scoring saved MCP `tools/list` output.
+- Added `agentid mcp diff` for detecting newly exposed tools and tool schema drift.
+- Added a sample MCP `tools/list` response for analyzer testing.
+
 ## 0.1.2
 
 - Added first-class just-in-time authorization support.

@@ -135,12 +135,20 @@ agentid explain examples/provider-mcp-support-agent.yaml
 agentid risk-score examples/provider-mcp-support-agent.yaml
 agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
+agentid mcp analyze examples/mcp-tools-list-risky.json
+agentid mcp analyze examples/mcp-tools-list-risky.json --json
+agentid mcp diff old-tools-list.json new-tools-list.json
 agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 `config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
+
+`mcp analyze` scores a saved MCP `tools/list` response for tool capability
+risk, sensitive arguments, likely blast radius, and remediation steps. `mcp
+diff` compares two saved `tools/list` responses to detect newly exposed tools,
+schema changes, and increased tool risk.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -321,6 +329,8 @@ Implemented:
 - TypeScript gateway client helper
 - Reference MCP gateway adapter for `tools/list` and `tools/call`
 - MCP gateway adapter demo with mock provider server
+- MCP blast-radius analyzer CLI for saved `tools/list` output
+- MCP tool drift diff for newly exposed tools and schema changes
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
@@ -330,9 +340,8 @@ Next:
 - More ecommerce manifests and audit-log examples
 - MCP tool metadata import/export and tool drift detection for `tools/list`
   changes, schema changes, and newly exposed write/admin tools
-- MCP blast-radius analyzer for scoring tool capability risk, authorization
-  posture, sensitive arguments, data-flow exposure, and remediation steps from
-  saved `tools/list` output or live gateway metadata
+- MCP blast-radius analyzer improvements for authorization posture, data-flow
+  exposure, manifest snippet generation, and live gateway metadata
 - Browser/local UI for MCP analysis with scorecards, tool tables, drift views,
   blast-radius summaries, remediation checklists, and generated AgentID
   manifest snippets
