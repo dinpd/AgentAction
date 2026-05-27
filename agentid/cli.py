@@ -19,6 +19,7 @@ from agentid.mcp import (
     format_diff,
     load_tools_list,
 )
+from agentid.mcp_ui import write_mcp_ui
 from agentid.policy import generate_policy
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
@@ -68,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     mcp_diff_parser.add_argument("before")
     mcp_diff_parser.add_argument("after")
     mcp_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    mcp_ui_parser = mcp_subparsers.add_parser("ui", help="Write the browser-based MCP analyzer UI.")
+    mcp_ui_parser.add_argument("--output", default="agentid-mcp-analyzer.html")
 
     args = parser.parse_args(argv)
 
@@ -103,6 +106,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(diff_to_dict(diff), indent=2))
                 else:
                     print(format_diff(diff), end="")
+                return 0
+            if args.mcp_command == "ui":
+                path = write_mcp_ui(args.output)
+                print(f"Wrote MCP analyzer UI: {path}")
                 return 0
         except Exception as exc:
             print(f"ERROR: failed to analyze MCP tools: {exc}", file=sys.stderr)

@@ -138,6 +138,7 @@ agentid audit examples/sample-tool-log.json --manifest examples/customer-support
 agentid mcp analyze examples/mcp-tools-list-risky.json
 agentid mcp analyze examples/mcp-tools-list-risky.json --json
 agentid mcp diff old-tools-list.json new-tools-list.json
+agentid mcp ui --output agentid-mcp-analyzer.html
 agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
@@ -148,7 +149,9 @@ agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port
 `mcp analyze` scores a saved MCP `tools/list` response for tool capability
 risk, sensitive arguments, likely blast radius, and remediation steps. `mcp
 diff` compares two saved `tools/list` responses to detect newly exposed tools,
-schema changes, and increased tool risk.
+schema changes, and increased tool risk. `mcp ui` writes a self-contained
+browser analyzer that can inspect pasted or uploaded `tools/list` JSON locally
+in the browser.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -331,6 +334,7 @@ Implemented:
 - MCP gateway adapter demo with mock provider server
 - MCP blast-radius analyzer CLI for saved `tools/list` output
 - MCP tool drift diff for newly exposed tools and schema changes
+- Browser/local MCP analyzer UI for pasted or uploaded `tools/list` JSON
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
@@ -342,9 +346,8 @@ Next:
   changes, schema changes, and newly exposed write/admin tools
 - MCP blast-radius analyzer improvements for authorization posture, data-flow
   exposure, manifest snippet generation, and live gateway metadata
-- Browser/local UI for MCP analysis with scorecards, tool tables, drift views,
-  blast-radius summaries, remediation checklists, and generated AgentID
-  manifest snippets
+- Browser/local MCP analyzer UI improvements for compare mode, drift views,
+  richer blast-radius summaries, and generated AgentID manifest snippets
 - Hosted MCP analyzer demo after the local/browser workflow is useful, with a
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default

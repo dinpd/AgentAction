@@ -2,6 +2,7 @@ import json
 
 from agentid.cli import main
 from agentid.mcp import analyze_tools, diff_tools, tools_from_payload
+from agentid.mcp_ui import write_mcp_ui
 
 
 def test_tools_from_json_rpc_response():
@@ -134,3 +135,22 @@ def test_cli_mcp_diff(tmp_path, capsys):
     assert "Added tools: 1" in output
     assert "- deploy.run" in output
     assert "new high-risk tool: deploy.run" in output
+
+
+def test_mcp_ui_writer_creates_browser_analyzer(tmp_path):
+    output = write_mcp_ui(tmp_path / "mcp-analyzer.html")
+    html = output.read_text(encoding="utf-8")
+
+    assert "AgentID MCP Analyzer" in html
+    assert "Analysis runs in this browser tab" in html
+    assert "manifestSnippet" in html
+
+
+def test_cli_mcp_ui(tmp_path, capsys):
+    output = tmp_path / "ui.html"
+
+    code = main(["mcp", "ui", "--output", str(output)])
+
+    assert code == 0
+    assert "Wrote MCP analyzer UI" in capsys.readouterr().out
+    assert "AgentID MCP Analyzer" in output.read_text(encoding="utf-8")
