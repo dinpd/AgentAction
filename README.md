@@ -42,7 +42,6 @@ Try the hosted demo:
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
-For upstream MCP target ideas, see [`docs/upstream-targets.md`](docs/upstream-targets.md).
 For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
 For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
 
