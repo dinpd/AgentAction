@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `agentid mcp fetch` for fetching `tools/list` from HTTP MCP servers.
 - Added `agentid mcp analyze` for scoring saved MCP `tools/list` output.
 - Added `agentid mcp diff` for detecting newly exposed tools and tool schema drift.
 - Added `agentid mcp ui` for writing a self-contained browser MCP analyzer.

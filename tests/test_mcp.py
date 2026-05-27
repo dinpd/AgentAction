@@ -1,7 +1,7 @@
 import json
 
 from agentid.cli import main
-from agentid.mcp import analyze_tools, diff_tools, tools_from_payload
+from agentid.mcp import analyze_tools, diff_tools, fetch_tools_list, parse_json_or_sse, tools_from_payload
 from agentid.mcp_ui import write_mcp_ui
 
 
@@ -154,3 +154,102 @@ def test_cli_mcp_ui(tmp_path, capsys):
     assert code == 0
     assert "Wrote MCP analyzer UI" in capsys.readouterr().out
     assert "AgentID MCP Analyzer" in output.read_text(encoding="utf-8")
+
+
+def test_fetch_tools_list_initializes_and_lists_tools():
+    calls = []
+
+    def fake_post(url, payload, headers, timeout):
+        calls.append((url, payload, headers, timeout))
+        if payload["method"] == "initialize":
+            return (
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {"tools": {"listChanged": True}},
+                        "serverInfo": {"name": "test", "version": "1"},
+                    },
+                },
+                {"mcp-session-id": "session-1"},
+            )
+        if payload["method"] == "notifications/initialized":
+            return None, {}
+        return (
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {
+                    "tools": [
+                        {
+                            "name": "docs.search",
+                            "description": "Search docs",
+                            "inputSchema": {"properties": {"query": {"type": "string"}}},
+                        }
+                    ]
+                },
+            },
+            {},
+        )
+
+    result = fetch_tools_list("https://mcp.example.com/mcp", headers={"Authorization": "Bearer token"}, post_json=fake_post)
+
+    assert result.protocol_version == "2025-11-25"
+    assert result.session_id == "session-1"
+    assert result.payload["result"]["tools"][0]["name"] == "docs.search"
+    assert [call[1]["method"] for call in calls] == ["initialize", "notifications/initialized", "tools/list"]
+    assert calls[1][2]["Mcp-Session-Id"] == "session-1"
+    assert calls[2][2]["MCP-Protocol-Version"] == "2025-11-25"
+    assert calls[0][2]["Authorization"] == "Bearer token"
+
+
+def test_fetch_tools_list_can_skip_initialize():
+    calls = []
+
+    def fake_post(url, payload, headers, timeout):
+        calls.append(payload["method"])
+        return {"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}, {}
+
+    result = fetch_tools_list("https://mcp.example.com/mcp", initialize=False, post_json=fake_post)
+
+    assert result.payload["result"]["tools"] == []
+    assert calls == ["tools/list"]
+
+
+def test_parse_json_or_sse():
+    payload = parse_json_or_sse('event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"tools":[]}}\n\n')
+
+    assert payload["result"]["tools"] == []
+
+
+def test_cli_mcp_fetch_writes_output(tmp_path, monkeypatch, capsys):
+    output = tmp_path / "tools.json"
+
+    def fake_fetch_tools_list(url, headers=None, timeout=20, protocol_version="2025-11-25", initialize=True):
+        assert url == "https://mcp.example.com/mcp"
+        assert headers == {"Authorization": "Bearer token"}
+        assert initialize is True
+
+        class Result:
+            payload = {"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}
+
+        return Result()
+
+    monkeypatch.setattr("agentid.cli.fetch_tools_list", fake_fetch_tools_list)
+
+    code = main(
+        [
+            "mcp",
+            "fetch",
+            "https://mcp.example.com/mcp",
+            "--header",
+            "Authorization: Bearer token",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert code == 0
+    assert "Wrote MCP tools/list" in capsys.readouterr().out
+    assert json.loads(output.read_text(encoding="utf-8"))["result"]["tools"] == []

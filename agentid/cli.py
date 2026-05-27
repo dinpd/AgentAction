@@ -15,6 +15,7 @@ from agentid.mcp import (
     analyze_tools,
     diff_to_dict,
     diff_tools,
+    fetch_tools_list,
     format_analysis,
     format_diff,
     load_tools_list,
@@ -71,6 +72,13 @@ def main(argv: list[str] | None = None) -> int:
     mcp_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mcp_ui_parser = mcp_subparsers.add_parser("ui", help="Write the browser-based MCP analyzer UI.")
     mcp_ui_parser.add_argument("--output", default="agentid-mcp-analyzer.html")
+    mcp_fetch_parser = mcp_subparsers.add_parser("fetch", help="Fetch tools/list from an HTTP MCP server.")
+    mcp_fetch_parser.add_argument("url")
+    mcp_fetch_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
+    mcp_fetch_parser.add_argument("--header", action="append", default=[], help="HTTP header as 'Name: value'. Can be repeated.")
+    mcp_fetch_parser.add_argument("--timeout", type=float, default=20)
+    mcp_fetch_parser.add_argument("--protocol-version", default="2025-11-25")
+    mcp_fetch_parser.add_argument("--no-initialize", action="store_true", help="Skip initialize and call tools/list directly.")
 
     args = parser.parse_args(argv)
 
@@ -110,6 +118,22 @@ def main(argv: list[str] | None = None) -> int:
             if args.mcp_command == "ui":
                 path = write_mcp_ui(args.output)
                 print(f"Wrote MCP analyzer UI: {path}")
+                return 0
+            if args.mcp_command == "fetch":
+                fetch_result = fetch_tools_list(
+                    args.url,
+                    headers=parse_headers(args.header),
+                    timeout=args.timeout,
+                    protocol_version=args.protocol_version,
+                    initialize=not args.no_initialize,
+                )
+                output = json.dumps(fetch_result.payload, indent=2)
+                if args.output == "-":
+                    print(output)
+                else:
+                    with open(args.output, "w", encoding="utf-8") as handle:
+                        handle.write(output + "\n")
+                    print(f"Wrote MCP tools/list: {args.output}")
                 return 0
         except Exception as exc:
             print(f"ERROR: failed to analyze MCP tools: {exc}", file=sys.stderr)
@@ -184,6 +208,19 @@ def _print_validation(result, include_success: bool = True) -> None:
         print("Warnings:")
         for warning in result.warnings:
             print(f"- {warning}")
+
+
+def parse_headers(values: list[str]) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for value in values:
+        if ":" not in value:
+            raise ValueError(f"header must be formatted as 'Name: value': {value}")
+        name, header_value = value.split(":", 1)
+        name = name.strip()
+        if not name:
+            raise ValueError(f"header name is empty: {value}")
+        headers[name] = header_value.strip()
+    return headers
 
 
 if __name__ == "__main__":

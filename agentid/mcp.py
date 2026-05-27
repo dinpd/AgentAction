@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from urllib import request
 
 
 RISKY_NAME_KEYWORDS: dict[str, tuple[str, int]] = {
@@ -72,6 +73,7 @@ SENSITIVE_ARGUMENTS: dict[str, tuple[str, int]] = {
 WRITE_HINTS = {"write", "update", "create", "insert", "send", "post", "put", "patch", "delete", "remove", "destroy"}
 ADMIN_HINTS = {"admin", "permission", "policy", "role", "token", "secret", "key"}
 EXECUTE_HINTS = {"exec", "execute", "shell", "command", "run", "deploy"}
+DEFAULT_PROTOCOL_VERSION = "2025-11-25"
 
 
 @dataclass(frozen=True)
@@ -104,9 +106,132 @@ class McpDiff:
     findings: list[str]
 
 
+@dataclass(frozen=True)
+class FetchResult:
+    payload: dict[str, Any]
+    protocol_version: str
+    session_id: str | None = None
+
+
+PostJson = Callable[[str, dict[str, Any], dict[str, str], float], tuple[dict[str, Any] | None, dict[str, str]]]
+
+
 def load_tools_list(path: str | Path) -> list[dict[str, Any]]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return tools_from_payload(payload)
+
+
+def fetch_tools_list(
+    url: str,
+    headers: dict[str, str] | None = None,
+    timeout: float = 20,
+    protocol_version: str = DEFAULT_PROTOCOL_VERSION,
+    initialize: bool = True,
+    post_json: PostJson | None = None,
+) -> FetchResult:
+    post = post_json or http_post_json
+    request_headers = {
+        "accept": "application/json, text/event-stream",
+        "content-type": "application/json",
+        **(headers or {}),
+    }
+    negotiated_version = protocol_version
+    session_id: str | None = None
+
+    if initialize:
+        init_payload, init_headers = post(
+            url,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": protocol_version,
+                    "capabilities": {},
+                    "clientInfo": {"name": "agentid", "version": "0.1.2"},
+                },
+            },
+            request_headers,
+            timeout,
+        )
+        if not init_payload:
+            raise ValueError("initialize did not return a JSON-RPC response")
+        raise_for_json_rpc_error(init_payload)
+        result = init_payload.get("result")
+        if isinstance(result, dict) and isinstance(result.get("protocolVersion"), str):
+            negotiated_version = result["protocolVersion"]
+        session_id = header_value(init_headers, "mcp-session-id")
+
+        operation_headers = {**request_headers, "MCP-Protocol-Version": negotiated_version}
+        if session_id:
+            operation_headers["Mcp-Session-Id"] = session_id
+        post(
+            url,
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            operation_headers,
+            timeout,
+        )
+    else:
+        operation_headers = {**request_headers, "MCP-Protocol-Version": negotiated_version}
+
+    tools_payload, _headers = post(
+        url,
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        operation_headers,
+        timeout,
+    )
+    if not tools_payload:
+        raise ValueError("tools/list did not return a JSON-RPC response")
+    raise_for_json_rpc_error(tools_payload)
+    tools_from_payload(tools_payload)
+    return FetchResult(payload=tools_payload, protocol_version=negotiated_version, session_id=session_id)
+
+
+def http_post_json(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: float,
+) -> tuple[dict[str, Any] | None, dict[str, str]]:
+    body = json.dumps(payload).encode("utf-8")
+    req = request.Request(url, data=body, headers=headers, method="POST")
+    with request.urlopen(req, timeout=timeout) as response:
+        raw = response.read().decode("utf-8")
+        response_headers = {key.lower(): value for key, value in response.headers.items()}
+        if not raw.strip():
+            return None, response_headers
+        return parse_json_or_sse(raw), response_headers
+
+
+def parse_json_or_sse(raw: str) -> dict[str, Any]:
+    stripped = raw.strip()
+    if stripped.startswith("{"):
+        payload = json.loads(stripped)
+        if not isinstance(payload, dict):
+            raise ValueError("JSON-RPC response must be an object")
+        return payload
+
+    data_lines: list[str] = []
+    for line in raw.splitlines():
+        if line.startswith("data:"):
+            data_lines.append(line[5:].strip())
+    if data_lines:
+        payload = json.loads("\n".join(data_lines))
+        if not isinstance(payload, dict):
+            raise ValueError("SSE data payload must be a JSON object")
+        return payload
+    raise ValueError("response was not JSON or JSON-bearing SSE")
+
+
+def raise_for_json_rpc_error(payload: dict[str, Any]) -> None:
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = error.get("message") or error
+        raise ValueError(f"MCP JSON-RPC error: {message}")
+
+
+def header_value(headers: dict[str, str], name: str) -> str | None:
+    return headers.get(name.lower())
 
 
 def tools_from_payload(payload: Any) -> list[dict[str, Any]]:

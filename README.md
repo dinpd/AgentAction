@@ -137,6 +137,7 @@ agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
 agentid mcp analyze examples/mcp-tools-list-risky.json
 agentid mcp analyze examples/mcp-tools-list-risky.json --json
+agentid mcp fetch https://mcp.example.com/mcp --output tools-list.json
 agentid mcp diff old-tools-list.json new-tools-list.json
 agentid mcp ui --output agentid-mcp-analyzer.html
 agentid schema > schema/agentid.schema.json
@@ -146,12 +147,13 @@ agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port
 
 `config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
 
-`mcp analyze` scores a saved MCP `tools/list` response for tool capability
-risk, sensitive arguments, likely blast radius, and remediation steps. `mcp
-diff` compares two saved `tools/list` responses to detect newly exposed tools,
-schema changes, and increased tool risk. `mcp ui` writes a self-contained
-browser analyzer that can inspect pasted or uploaded `tools/list` JSON locally
-in the browser.
+`mcp fetch` connects to an HTTP MCP server, performs the MCP initialize flow,
+calls `tools/list`, and writes the JSON response for analysis. `mcp analyze`
+scores a saved MCP `tools/list` response for tool capability risk, sensitive
+arguments, likely blast radius, and remediation steps. `mcp diff` compares two
+saved `tools/list` responses to detect newly exposed tools, schema changes, and
+increased tool risk. `mcp ui` writes a self-contained browser analyzer that can
+inspect pasted or uploaded `tools/list` JSON locally in the browser.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
