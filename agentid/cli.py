@@ -21,6 +21,7 @@ from agentid.mcp import (
     load_tools_list,
 )
 from agentid.mcp_ui import write_mcp_ui
+from agentid.mcp_ui_server import serve_mcp_ui
 from agentid.policy import generate_policy
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
@@ -79,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     mcp_fetch_parser.add_argument("--timeout", type=float, default=20)
     mcp_fetch_parser.add_argument("--protocol-version", default="2025-11-25")
     mcp_fetch_parser.add_argument("--no-initialize", action="store_true", help="Skip initialize and call tools/list directly.")
+    mcp_serve_ui_parser = mcp_subparsers.add_parser("serve-ui", help="Serve the MCP analyzer UI with local fetch support.")
+    mcp_serve_ui_parser.add_argument("--host", default="127.0.0.1")
+    mcp_serve_ui_parser.add_argument("--port", type=int, default=8799)
 
     args = parser.parse_args(argv)
 
@@ -134,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
                     with open(args.output, "w", encoding="utf-8") as handle:
                         handle.write(output + "\n")
                     print(f"Wrote MCP tools/list: {args.output}")
+                return 0
+            if args.mcp_command == "serve-ui":
+                serve_mcp_ui(args.host, args.port)
                 return 0
         except Exception as exc:
             print(f"ERROR: failed to analyze MCP tools: {exc}", file=sys.stderr)

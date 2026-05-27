@@ -96,12 +96,23 @@ MCP_UI_HTML = r"""<!doctype html>
       background: #fff;
     }
 
-    input[type="file"] {
+    textarea.compact {
+      min-height: 78px;
+    }
+
+    input[type="file"], input[type="url"] {
       width: 100%;
       border: 1px dashed var(--line);
       border-radius: 8px;
       padding: 12px;
       background: #fff;
+    }
+
+    input[type="url"] {
+      border-style: solid;
+      min-height: 38px;
+      font: inherit;
+      color: var(--ink);
     }
 
     button {
@@ -313,6 +324,15 @@ MCP_UI_HTML = r"""<!doctype html>
         <h2>Input</h2>
         <input id="fileInput" type="file" accept="application/json,.json">
         <p class="hint">Paste or upload a saved MCP <code>tools/list</code> response. Analysis runs in this browser tab.</p>
+      </div>
+      <div>
+        <h2>Remote MCP</h2>
+        <input id="remoteUrl" type="url" placeholder="https://mcp.example.com/mcp">
+        <textarea id="remoteHeaders" class="compact" spellcheck="false" placeholder="Authorization: Bearer ..."></textarea>
+        <div class="row">
+          <button id="fetchRemote">Fetch tools</button>
+        </div>
+        <p class="hint">Remote fetch requires <code>agentid mcp serve-ui</code>. Headers stay on localhost.</p>
       </div>
       <textarea id="input" spellcheck="false" placeholder='{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'></textarea>
       <div class="row">
@@ -703,6 +723,18 @@ MCP_UI_HTML = r"""<!doctype html>
       return "critical";
     }
 
+    function parseHeaderLines(value) {
+      const headers = {};
+      for (const line of value.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const index = trimmed.indexOf(":");
+        if (index <= 0) throw new Error(`Invalid header line: ${trimmed}`);
+        headers[trimmed.slice(0, index).trim()] = trimmed.slice(index + 1).trim();
+      }
+      return headers;
+    }
+
     function plural(word, count) {
       return count === 1 ? word : `${word}s`;
     }
@@ -742,6 +774,28 @@ MCP_UI_HTML = r"""<!doctype html>
       if (!file) return;
       input.value = await file.text();
       document.getElementById("analyze").click();
+    });
+
+    document.getElementById("fetchRemote").addEventListener("click", async () => {
+      try {
+        error.textContent = "";
+        const url = document.getElementById("remoteUrl").value.trim();
+        if (!url) throw new Error("Enter a remote MCP URL.");
+        const response = await fetch("/api/fetch-tools", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            url,
+            headers: parseHeaderLines(document.getElementById("remoteHeaders").value)
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Remote fetch failed.");
+        input.value = JSON.stringify(payload.tools_list, null, 2);
+        render(analyzeTools(toolsFromPayload(payload.tools_list)));
+      } catch (err) {
+        error.textContent = `${err.message} If this is the static HTML file, run agentid mcp serve-ui and open that local URL.`;
+      }
     });
 
     exportJson.addEventListener("click", async () => {

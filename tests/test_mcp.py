@@ -1,8 +1,10 @@
 import json
 
 from agentid.cli import main
+from agentid.mcp import FetchResult
 from agentid.mcp import analyze_tools, diff_tools, fetch_tools_list, parse_json_or_sse, tools_from_payload
 from agentid.mcp_ui import write_mcp_ui
+from agentid.mcp_ui_server import fetch_tools_response
 
 
 def test_tools_from_json_rpc_response():
@@ -253,3 +255,34 @@ def test_cli_mcp_fetch_writes_output(tmp_path, monkeypatch, capsys):
     assert code == 0
     assert "Wrote MCP tools/list" in capsys.readouterr().out
     assert json.loads(output.read_text(encoding="utf-8"))["result"]["tools"] == []
+
+
+def test_mcp_ui_server_fetch_response(monkeypatch):
+    def fake_fetch_tools_list(url, headers=None, timeout=20, protocol_version="2025-11-25", initialize=True):
+        assert url == "https://mcp.example.com/mcp"
+        assert headers == {"Authorization": "Bearer token"}
+        return FetchResult(
+            payload={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {
+                    "tools": [
+                        {
+                            "name": "email.send_message",
+                            "description": "Send an email",
+                            "inputSchema": {"properties": {"recipient": {"type": "string"}}},
+                        }
+                    ]
+                },
+            },
+            protocol_version="2025-11-25",
+            session_id="session-1",
+        )
+
+    monkeypatch.setattr("agentid.mcp_ui_server.fetch_tools_list", fake_fetch_tools_list)
+
+    payload = fetch_tools_response("https://mcp.example.com/mcp", {"Authorization": "Bearer token"})
+
+    assert payload["tools_list"]["result"]["tools"][0]["name"] == "email.send_message"
+    assert payload["analysis"]["tool_count"] == 1
+    assert payload["session_id"] == "session-1"
