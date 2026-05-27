@@ -23,7 +23,10 @@ const server = createServer(async (request, response) => {
 
   try {
     const body = JSON.parse(await readBody(request));
-    const result = await handleJsonRpc(body, config, contextFromHeaders(request.headers));
+    const result = await handleJsonRpc(body, config, {
+      ...contextFromHeaders(request.headers),
+      logger: (entry) => console.log(JSON.stringify(entry)),
+    });
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify(result));
   } catch (error) {

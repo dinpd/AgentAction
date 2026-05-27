@@ -18,6 +18,7 @@ without trying to be a production MCP gateway.
 - Intercepts `tools/call`.
 - Maps MCP tool name and arguments to an AgentID authorization event.
 - Calls AgentID `/authorize`.
+- Logs each AgentID authorization decision as a structured JSON line.
 - Returns a JSON-RPC error when AgentID denies the call.
 - Forwards allowed calls to the downstream MCP server.
 
@@ -87,3 +88,33 @@ This adapter is not a full production MCP gateway. It does not yet implement:
 - tool drift reporting.
 
 Those are the next pieces to add around this reference enforcement path.
+
+## Decision Logs
+
+The adapter writes one structured JSON log line for each intercepted
+`tools/call` authorization decision:
+
+```json
+{
+  "event": "agentid.mcp.authorization",
+  "agent_id": "enterprise-support-agent",
+  "tenant_id": "tenant-a",
+  "tool": "provider.crm.update_customer",
+  "action": "write",
+  "resource": "provider/customer/cus_123",
+  "job_id": "support_case_resolution",
+  "case_id": "case-1042",
+  "customer_id": "cus_123",
+  "allowed": false,
+  "decision": "deny",
+  "findings": [
+    "missing jit_grant_id",
+    "event[0]: provider.crm.update_customer requires approval but event is not approved",
+    "event[0]: provider.crm.update_customer requires JIT authorization but no jit_grant_id is present",
+    "event[0]: JIT grant is marked invalid"
+  ]
+}
+```
+
+This makes the local demo easier to evaluate and gives upstream gateway
+maintainers a concrete audit shape to review.

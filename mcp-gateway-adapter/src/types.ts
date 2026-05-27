@@ -76,8 +76,25 @@ export type AdapterConfig = {
   filter_tools_list?: boolean;
 };
 
+export type AuthorizationDecisionLog = {
+  event: "agentid.mcp.authorization";
+  agent_id: string;
+  tenant_id?: string;
+  user_id?: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  allowed: boolean;
+  decision: AgentIdAuthorizeResponse["decision"];
+  findings: string[];
+};
+
 export type RequestContext = {
   agentId?: string;
   tenantId?: string;
   userId?: string;
+  logger?: (entry: AuthorizationDecisionLog) => void;
 };

@@ -1,6 +1,14 @@
 import { AgentIdClient } from "./agentid.js";
 import { mapToolCallToAuthorize } from "./mapper.js";
-import type { AdapterConfig, JsonRpcRequest, JsonRpcResponse, RequestContext } from "./types.js";
+import type {
+  AdapterConfig,
+  AgentIdAuthorizeRequest,
+  AgentIdAuthorizeResponse,
+  AuthorizationDecisionLog,
+  JsonRpcRequest,
+  JsonRpcResponse,
+  RequestContext,
+} from "./types.js";
 
 const DENIED = -32003;
 const BAD_REQUEST = -32600;
@@ -53,6 +61,7 @@ async function handleSingle(
 
   const agentid = new AgentIdClient(config.agentid, fetchImpl);
   const decision = await agentid.authorize(authorizePayload);
+  context.logger?.(authorizationLog(authorizePayload, decision));
   if (!decision.allow) {
     return errorResponse(request.id, DENIED, "AgentID denied MCP tool call", {
       findings: decision.findings,
@@ -61,6 +70,31 @@ async function handleSingle(
   }
 
   return forward(request as JsonRpcRequest, config, fetchImpl);
+}
+
+function authorizationLog(
+  payload: AgentIdAuthorizeRequest,
+  decision: AgentIdAuthorizeResponse,
+): AuthorizationDecisionLog {
+  return compactLog({
+    event: "agentid.mcp.authorization",
+    agent_id: payload.agent_id,
+    tenant_id: payload.tenant_id,
+    user_id: payload.user_id,
+    tool: payload.tool,
+    action: payload.action,
+    resource: payload.resource,
+    job_id: payload.job_id,
+    case_id: payload.case_id,
+    customer_id: payload.customer_id,
+    allowed: decision.allow,
+    decision: decision.decision,
+    findings: decision.findings,
+  });
+}
+
+function compactLog(entry: AuthorizationDecisionLog): AuthorizationDecisionLog {
+  return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as AuthorizationDecisionLog;
 }
 
 async function forward(request: JsonRpcRequest, config: AdapterConfig, fetchImpl: typeof fetch): Promise<JsonRpcResponse> {
