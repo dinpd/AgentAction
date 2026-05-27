@@ -328,14 +328,23 @@ Implemented:
 Next:
 
 - More ecommerce manifests and audit-log examples
-- MCP tool metadata import/export
-- Stronger OPA policy generation and Cedar policy generation
+- MCP tool metadata import/export and tool drift detection for `tools/list`
+  changes, schema changes, and newly exposed write/admin tools
+- Stronger policy backend support, including OPA improvements, Cedar policy
+  generation, and CEL examples for gateway-side authorization
 - Durable delegation-grant endpoint with source/target manifest intersection
 - OAuth scope recommendation from tool manifests
 - Risk policy profiles by environment
-- Audit log normalization and versioned event spec
+- Audit log normalization and a versioned decision-event spec for agent ID,
+  user ID, tool, action, resource, job boundary, decision, findings, and JIT
+  grant metadata
+- Richer JIT approval flow with approval request objects, revocation, webhook
+  callbacks, and approval audit trail
+- Additional SDK and middleware helpers for Python, MCP gateways, HTTP apps, and
+  Cloudflare Workers
 - Delegation-chain visualization
-- DevOps examples for deploys, secret access, database writes, and incident response
+- Real-use-case examples for support refunds, CRM updates, GitHub automation,
+  deploys, secret access, database writes, email sends, and incident response
 
 ---
 
