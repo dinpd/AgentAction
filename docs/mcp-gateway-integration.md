@@ -173,6 +173,19 @@ The downstream MCP server still controls its own behavior:
 Use both. AgentID prevents unapproved outbound calls from the enterprise
 gateway; internal systems and providers still enforce their own platform rules.
 
+For provider-hosted MCP servers, there is a second useful enforcement point: the
+provider can verify that forwarded calls include a scoped enterprise
+authorization receipt before executing sensitive tools. See
+[`provider-mcp-authorization.md`](provider-mcp-authorization.md) for the
+provider-side contract, grounded CRM/billing use case, and execution plan.
+
+For these provider-hosted tools, the base authorization contract should start
+with the provider: tool semantics, protected-resource mappings, required
+authorization context, blast-radius classification, JIT expectations, and
+receipt requirements. The enterprise gateway should consume that contract and
+add tenant-specific agent, job, approval, and data-flow policy before forwarding
+calls.
+
 ## Reference Adapter Scope
 
 The repository includes a minimal reference adapter in

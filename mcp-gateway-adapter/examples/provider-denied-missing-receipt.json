@@ -1,6 +1,6 @@
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 7,
   "method": "tools/call",
   "params": {
     "name": "provider.crm.update_customer",
@@ -9,11 +9,8 @@
       "job_id": "support_case_resolution",
       "case_id": "case-1042",
       "approved": true,
-      "jit_grant_id": "replace-with-issued-grant-id",
-      "approval_id": "approval-123",
-      "patch": {
-        "billing_email": "new@example.com"
-      }
+      "jit_grant_id": "grant-123",
+      "approval_id": "approval-123"
     }
   }
 }

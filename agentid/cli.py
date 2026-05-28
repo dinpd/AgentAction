@@ -24,6 +24,18 @@ from agentid.mcp import (
 from agentid.mcp_ui import write_mcp_ui
 from agentid.mcp_ui_server import serve_mcp_ui
 from agentid.policy import generate_policy
+from agentid.provider import (
+    ProviderContractError,
+    diff_provider_contracts,
+    format_provider_diff,
+    import_provider_contract,
+    load_provider_contract,
+    provider_contract_from_openapi,
+    provider_contract_yaml,
+    provider_diff_to_dict,
+    provider_manifest_yaml,
+    validate_provider_contract,
+)
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
 
@@ -90,6 +102,28 @@ def main(argv: list[str] | None = None) -> int:
     mcp_serve_ui_parser = mcp_subparsers.add_parser("serve-ui", help="Serve the MCP analyzer UI with local fetch support.")
     mcp_serve_ui_parser.add_argument("--host", default="127.0.0.1")
     mcp_serve_ui_parser.add_argument("--port", type=int, default=8799)
+
+    provider_parser = subparsers.add_parser("provider", help="Work with provider-published MCP authorization contracts.")
+    provider_subparsers = provider_parser.add_subparsers(dest="provider_command", required=True)
+    provider_validate_parser = provider_subparsers.add_parser("validate", help="Validate a provider MCP authorization contract.")
+    provider_validate_parser.add_argument("contract")
+    provider_diff_parser = provider_subparsers.add_parser("diff", help="Compare two provider MCP authorization contracts.")
+    provider_diff_parser.add_argument("before")
+    provider_diff_parser.add_argument("after")
+    provider_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    provider_import_parser = provider_subparsers.add_parser("import", help="Generate a reviewable AgentID manifest from a provider contract.")
+    provider_import_parser.add_argument("contract")
+    provider_import_parser.add_argument("--agent", required=True, help="Agent ID for the generated manifest.")
+    provider_import_parser.add_argument("--name", help="Agent display name for the generated manifest.")
+    provider_import_parser.add_argument("--owner", default="enterprise-ai-platform")
+    provider_import_parser.add_argument("--environment", default="production")
+    provider_import_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
+    provider_openapi_parser = provider_subparsers.add_parser("from-openapi", help="Generate a provider MCP authorization contract from an OpenAPI document.")
+    provider_openapi_parser.add_argument("openapi")
+    provider_openapi_parser.add_argument("--provider", help="Provider key for generated resources and contract metadata.")
+    provider_openapi_parser.add_argument("--mcp-server", help="MCP server key for generated contract metadata.")
+    provider_openapi_parser.add_argument("--tool-prefix", help="Tool name prefix. Defaults to provider key.")
+    provider_openapi_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
 
     args = parser.parse_args(argv)
 
@@ -178,6 +212,72 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             print(f"ERROR: failed to analyze MCP tools: {exc}", file=sys.stderr)
             return 2
+
+    if args.command == "provider":
+        try:
+            if args.provider_command == "validate":
+                contract = load_provider_contract(args.contract)
+            else:
+                contract = None
+        except ProviderContractError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        if args.provider_command == "validate":
+            result = validate_provider_contract(contract)
+            if result.ok:
+                print("Provider MCP contract is valid.")
+            _print_validation(result, include_success=False)
+            return 0 if result.ok else 1
+        if args.provider_command == "diff":
+            try:
+                diff = diff_provider_contracts(load_provider_contract(args.before), load_provider_contract(args.after))
+            except ProviderContractError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(provider_diff_to_dict(diff), indent=2))
+            else:
+                print(format_provider_diff(diff), end="")
+            return 0
+        if args.provider_command == "import":
+            try:
+                manifest = import_provider_contract(
+                    load_provider_contract(args.contract),
+                    args.agent,
+                    agent_name=args.name,
+                    owner=args.owner,
+                    environment=args.environment,
+                )
+            except ProviderContractError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                return 2
+            output = provider_manifest_yaml(manifest)
+            if args.output == "-":
+                print(output, end="")
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(output)
+                print(f"Wrote AgentID manifest: {args.output}")
+            return 0
+        if args.provider_command == "from-openapi":
+            try:
+                contract = provider_contract_from_openapi(
+                    load_provider_contract(args.openapi),
+                    provider=args.provider,
+                    mcp_server=args.mcp_server,
+                    tool_prefix=args.tool_prefix,
+                )
+            except ProviderContractError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                return 2
+            output = provider_contract_yaml(contract)
+            if args.output == "-":
+                print(output, end="")
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(output)
+                print(f"Wrote provider MCP contract: {args.output}")
+            return 0
 
     try:
         manifest = load_manifest(args.manifest)

@@ -3,6 +3,9 @@
 This demo shows the reference MCP gateway adapter enforcing AgentID before
 forwarding tool calls to a mock provider MCP server.
 
+For the companion provider-side receipt verification flow, see
+[`provider-mcp-demo.md`](provider-mcp-demo.md).
+
 The flow is:
 
 ```text
@@ -76,7 +79,8 @@ Expected shape, trimmed to the tool names:
   "result": {
     "tools": [
       { "name": "provider.crm.search_customer" },
-      { "name": "provider.crm.update_customer" }
+      { "name": "provider.crm.update_customer" },
+      { "name": "provider.billing.issue_credit" }
     ]
   }
 }

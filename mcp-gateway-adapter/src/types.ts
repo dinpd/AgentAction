@@ -54,6 +54,10 @@ export type ToolMapping = {
   user_id_arg?: string;
   approved_arg?: string;
   jit_grant_id_arg?: string;
+  approval_id_arg?: string;
+  amount_arg?: string;
+  receipt_required?: boolean;
+  receipt_ttl_seconds?: number;
 };
 
 export type AdapterConfig = {
@@ -71,6 +75,10 @@ export type AdapterConfig = {
   };
   agent: {
     id: string;
+  };
+  provider_receipts?: {
+    tenant_id?: string;
+    hmac_secret?: string;
   };
   tools: Record<string, ToolMapping>;
   filter_tools_list?: boolean;
@@ -90,6 +98,30 @@ export type AuthorizationDecisionLog = {
   allowed: boolean;
   decision: AgentIdAuthorizeResponse["decision"];
   findings: string[];
+};
+
+export type ProviderAuthorizationReceipt = {
+  decision_id: string;
+  tenant_id?: string;
+  agent_id: string;
+  user_id?: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  approval_id?: string;
+  jit_grant_id?: string;
+  amount?: string;
+  issued_at: string;
+  expires_at: string;
+};
+
+export type SignedProviderAuthorizationReceipt = {
+  alg: "HS256";
+  payload: ProviderAuthorizationReceipt;
+  signature: string;
 };
 
 export type RequestContext = {

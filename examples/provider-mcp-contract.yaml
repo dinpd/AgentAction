@@ -1,0 +1,154 @@
+provider_agentid:
+  provider: example-crm
+  mcp_server: provider-crm-mcp
+  version: 2026-05-28
+  receipt_transport:
+    local_demo_field: _agentid_receipt
+    production_options:
+      - signed_jws
+      - introspection
+
+  tools:
+    provider.crm.search_customer:
+      action: read
+      risk: low
+      resource_template: provider/customer/{customer_id}
+      data_from: provider_crm
+      data_to: agent_context
+      requires_jit: false
+      receipt_required: false
+      input_schema:
+        type: object
+        required:
+          - customer_id
+          - job_id
+          - case_id
+        properties:
+          customer_id:
+            type: string
+          job_id:
+            type: string
+          case_id:
+            type: string
+
+    provider.crm.update_customer:
+      action: write
+      risk: high
+      resource_template: provider/customer/{customer_id}
+      data_from: enterprise_crm
+      data_to: provider_crm
+      requires_jit: true
+      approval: human_confirm
+      receipt_required: true
+      input_schema:
+        type: object
+        required:
+          - customer_id
+          - job_id
+          - case_id
+          - approved
+          - jit_grant_id
+          - approval_id
+        properties:
+          customer_id:
+            type: string
+          job_id:
+            type: string
+          case_id:
+            type: string
+          approved:
+            type: boolean
+          jit_grant_id:
+            type: string
+          approval_id:
+            type: string
+          patch:
+            type: object
+      authorization_requirements:
+        required_context:
+          - tenant_id
+          - agent_id
+          - user_id
+          - job_id
+          - case_id
+          - customer_id
+          - approval_id
+        bind_receipt_to:
+          - tenant_id
+          - agent_id
+          - user_id
+          - tool
+          - action
+          - resource
+          - job_id
+          - case_id
+          - customer_id
+          - approval_id
+          - jit_grant_id
+        resource_arg: customer_id
+        receipt_ttl_seconds: 300
+        single_use: true
+
+    provider.billing.issue_credit:
+      action: write
+      risk: high
+      resource_template: provider/billing/customer/{customer_id}
+      data_from: enterprise_billing_context
+      data_to: provider_billing
+      requires_jit: true
+      approval: manager
+      receipt_required: true
+      constraints:
+        max_amount_usd: 100
+      input_schema:
+        type: object
+        required:
+          - customer_id
+          - job_id
+          - case_id
+          - amount_usd
+          - approved
+          - jit_grant_id
+          - approval_id
+        properties:
+          customer_id:
+            type: string
+          job_id:
+            type: string
+          case_id:
+            type: string
+          amount_usd:
+            type: number
+          reason:
+            type: string
+          approved:
+            type: boolean
+          jit_grant_id:
+            type: string
+          approval_id:
+            type: string
+      authorization_requirements:
+        required_context:
+          - tenant_id
+          - agent_id
+          - user_id
+          - job_id
+          - case_id
+          - customer_id
+          - approval_id
+        bind_receipt_to:
+          - tenant_id
+          - agent_id
+          - user_id
+          - tool
+          - action
+          - resource
+          - job_id
+          - case_id
+          - customer_id
+          - approval_id
+          - jit_grant_id
+        resource_arg: customer_id
+        amount_arg: amount_usd
+        receipt_ttl_seconds: 180
+        single_use: true

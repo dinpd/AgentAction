@@ -1,5 +1,6 @@
 import { AgentIdClient } from "./agentid.js";
 import { mapToolCallToAuthorize } from "./mapper.js";
+import { signProviderReceipt } from "./receipts.js";
 import type {
   AdapterConfig,
   AgentIdAuthorizeRequest,
@@ -7,7 +8,10 @@ import type {
   AuthorizationDecisionLog,
   JsonRpcRequest,
   JsonRpcResponse,
+  ProviderAuthorizationReceipt,
   RequestContext,
+  SignedProviderAuthorizationReceipt,
+  ToolMapping,
 } from "./types.js";
 
 const DENIED = -32003;
@@ -69,7 +73,12 @@ async function handleSingle(
     });
   }
 
-  return forward(request as JsonRpcRequest, config, fetchImpl);
+  const mapped = config.tools[toolName];
+  const downstreamRequest =
+    mapped.receipt_required === true
+      ? withProviderReceipt(request as JsonRpcRequest, authorizePayload, decision, mapped, args, config)
+      : (request as JsonRpcRequest);
+  return forward(downstreamRequest, config, fetchImpl);
 }
 
 function authorizationLog(
@@ -104,6 +113,89 @@ async function forward(request: JsonRpcRequest, config: AdapterConfig, fetchImpl
     body: JSON.stringify(request),
   });
   return (await response.json()) as JsonRpcResponse;
+}
+
+function withProviderReceipt(
+  request: JsonRpcRequest,
+  payload: AgentIdAuthorizeRequest,
+  decision: AgentIdAuthorizeResponse,
+  mapping: ToolMapping,
+  args: Record<string, unknown>,
+  config: AdapterConfig,
+): JsonRpcRequest {
+  const params = isRecord(request.params) ? request.params : {};
+  const currentArgs = isRecord(params.arguments) ? params.arguments : {};
+  return {
+    ...request,
+    params: {
+      ...params,
+      arguments: {
+        ...currentArgs,
+        _agentid_receipt: maybeSignReceipt(providerReceipt(request, payload, decision, mapping, args, config), config),
+      },
+    },
+  };
+}
+
+function providerReceipt(
+  request: JsonRpcRequest,
+  payload: AgentIdAuthorizeRequest,
+  decision: AgentIdAuthorizeResponse,
+  mapping: ToolMapping,
+  args: Record<string, unknown>,
+  config: AdapterConfig,
+): ProviderAuthorizationReceipt {
+  const now = new Date();
+  const ttlSeconds = mapping.receipt_ttl_seconds || 300;
+  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+  return compactReceipt({
+    decision_id: decisionId(request, payload, decision),
+    tenant_id: payload.tenant_id || config.provider_receipts?.tenant_id,
+    agent_id: payload.agent_id,
+    user_id: payload.user_id,
+    tool: payload.tool,
+    action: payload.action,
+    resource: payload.resource,
+    job_id: payload.job_id,
+    case_id: payload.case_id,
+    customer_id: payload.customer_id,
+    approval_id: stringFromArg(args, mapping.approval_id_arg),
+    jit_grant_id: payload.jit_grant_id,
+    amount: stringFromArg(args, mapping.amount_arg),
+    issued_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+  });
+}
+
+function decisionId(
+  request: JsonRpcRequest,
+  payload: AgentIdAuthorizeRequest,
+  decision: AgentIdAuthorizeResponse,
+): string {
+  const event = decision.event;
+  if (typeof event.decision_id === "string") return event.decision_id;
+  if (typeof payload.jit_grant_id === "string" && payload.jit_grant_id) return payload.jit_grant_id;
+  return `${payload.agent_id}:${payload.tool}:${payload.resource || "resource"}:${String(request.id ?? "notification")}`;
+}
+
+function compactReceipt(receipt: ProviderAuthorizationReceipt): ProviderAuthorizationReceipt {
+  return Object.fromEntries(Object.entries(receipt).filter(([, value]) => value !== undefined)) as ProviderAuthorizationReceipt;
+}
+
+function maybeSignReceipt(
+  receipt: ProviderAuthorizationReceipt,
+  config: AdapterConfig,
+): ProviderAuthorizationReceipt | SignedProviderAuthorizationReceipt {
+  const secret = config.provider_receipts?.hmac_secret;
+  if (!secret) return receipt;
+  return signProviderReceipt(receipt, secret);
+}
+
+function stringFromArg(args: Record<string, unknown>, key: string | undefined): string | undefined {
+  if (!key) return undefined;
+  const value = args[key];
+  if (value === undefined || value === null) return undefined;
+  return String(value);
 }
 
 function filterToolsList(response: JsonRpcResponse, config: AdapterConfig): JsonRpcResponse {

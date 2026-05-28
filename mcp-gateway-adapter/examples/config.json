@@ -13,6 +13,10 @@
   "agent": {
     "id": "enterprise-support-agent"
   },
+  "provider_receipts": {
+    "tenant_id": "tenant-a",
+    "hmac_secret": "dev-provider-receipt-secret"
+  },
   "filter_tools_list": true,
   "tools": {
     "provider.crm.search_customer": {
@@ -33,7 +37,25 @@
       "case_id_arg": "case_id",
       "customer_id_arg": "customer_id",
       "approved_arg": "approved",
-      "jit_grant_id_arg": "jit_grant_id"
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 300
+    },
+    "provider.billing.issue_credit": {
+      "action": "write",
+      "data_from": "enterprise_billing_context",
+      "data_to": "provider_billing",
+      "resource_template": "provider/billing/customer/{customer_id}",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "amount_arg": "amount_usd",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 180
     }
   }
 }

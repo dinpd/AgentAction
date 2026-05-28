@@ -21,6 +21,13 @@ boundary:
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentID Check -> Internal, SaaS, or MCP Tool
 ```
 
+For providers turning APIs into MCP servers, AgentID also defines an
+auth-first pattern: publish a provider MCP authorization contract, let
+enterprises review and overlay local agent policy, require scoped receipts for
+high-blast-radius actions, and keep provider business authorization in the
+execution path. See [Two-sided MCP authorization](#two-sided-mcp-authorization)
+and [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
+
 ---
 
 ## Quick Start
@@ -42,6 +49,10 @@ Try the hosted demo:
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
+For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
+For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
+For the API-to-MCP article draft, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
+For the provider MCP authorization demo, see [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md).
 For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
 For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
 
@@ -127,6 +138,69 @@ the tool.
 
 ---
 
+## Two-sided MCP authorization
+
+For provider-hosted MCP tools, AgentID supports a two-sided authorization
+pattern:
+
+```text
+Enterprise Agent
+  -> Enterprise MCP Gateway
+  -> AgentID enterprise authorization
+  -> Provider MCP Server
+  -> Provider receipt verification
+  -> Provider business authorization
+  -> Tool execution
+```
+
+The enterprise gateway decides whether its agent may attempt a provider tool
+call for the current job, case, customer, data flow, approval, and JIT grant.
+The provider MCP server then verifies that the forwarded call carries a scoped
+authorization receipt before applying its own tenant isolation, delegated-user
+authorization, product rules, and audit controls.
+
+For provider-hosted tools, the base authorization contract should start with the
+provider. The provider is the source of truth for tool semantics, protected
+resource mappings, required context, blast radius, and receipt requirements. The
+enterprise imports or reviews that contract, then overlays local agent, user,
+job, approval, JIT, and data-flow policy.
+
+Provider-side receipt verification is useful as an audit and interoperability
+layer for many tools, and should be treated as an execution precondition for
+tools with meaningful blast radius: durable writes, financial actions, external
+sends, identity or permission changes, bulk export, deletion, code execution,
+or regulated data access.
+
+Providers should publish authorization requirements alongside their MCP tool
+schemas so enterprise gateways know which context fields are required, which
+tool arguments map to protected resources, and which fields must be bound into
+the forwarded authorization receipt.
+
+This fills a gap between existing standards: MCP OAuth secures access to the MCP
+server, MCP tool schemas describe execution inputs, MCP annotations provide
+behavioral hints, and OAuth Rich Authorization Requests can carry structured
+authorization details. None of those currently define a provider-originated
+per-tool contract for resource binding, JIT approval, receipt verification,
+blast-radius classification, and shared execution audit.
+
+A grounded example is a provider-hosted CRM and billing MCP server for customer
+support agents:
+
+- `provider.crm.search_customer` can be allowed as a scoped read.
+- `provider.crm.update_customer` should require approval and JIT authority.
+- `provider.billing.issue_credit` should require stronger approval, amount
+  limits, and provider-side business checks.
+
+This keeps the enterprise and provider responsibilities separate: AgentID
+proves the enterprise authorized the agent-originated request, while the
+provider still decides whether the underlying business operation may execute.
+See [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
+for the receipt contract and execution plan, and
+[`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md) for the
+adoption narrative around auth-first MCP provider tools.
+
+---
+
 ## CLI
 
 ```bash
@@ -142,6 +216,10 @@ agentid mcp check tools-list.json --max-risk high
 agentid mcp diff old-tools-list.json new-tools-list.json
 agentid mcp ui --output agentid-mcp-analyzer.html
 agentid mcp serve-ui --host 127.0.0.1 --port 8799
+agentid provider validate examples/provider-mcp-contract.yaml
+agentid provider diff old-provider-contract.yaml new-provider-contract.yaml
+agentid provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
+agentid provider from-openapi openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
 agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
@@ -161,6 +239,20 @@ analysis, compare mode, Markdown reports, JSON export, and starter manifest
 exports. `mcp serve-ui` serves the same analyzer on localhost with a local-only
 fetch endpoint, so the UI can ask the AgentID CLI process to fetch a remote MCP
 server without sending credentials to a hosted page.
+
+`provider validate` checks provider-published MCP authorization contracts for
+the fields needed to safely expose high-blast-radius tools: action and risk
+classification, protected-resource mapping, required authorization context,
+receipt binding fields, JIT and approval expectations, receipt TTL, and
+single-use requirements. `provider diff` compares two provider contracts for
+added, removed, and changed tools, including risk increases, changed protected
+resources, changed receipt bindings, changed TTLs, and input-schema drift.
+`provider import` turns a provider contract into a reviewable AgentID manifest
+starter that enterprises can tighten with local agent, job, approval, OIDC, and
+data-flow policy. `provider from-openapi` creates a provider MCP authorization
+contract starter from an OpenAPI document, inferring operation names, resource
+templates, input schemas, and conservative risk/JIT/receipt requirements for
+write, delete, admin, and financial-looking operations.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -193,6 +285,9 @@ For architecture guidance, see
 [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP server calls, including internal and provider-hosted servers, see
 [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
+For the provider side of that boundary, including authorization receipts and
+provider execution receipts, see
+[`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
 
 `gateway` starts a lightweight HTTP authorization gateway for agent tool-call
@@ -233,9 +328,11 @@ npm run build
 ```
 
 See [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md),
+[`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md),
+[`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md),
 [`docs/mcp-gateway-demo.md`](docs/mcp-gateway-demo.md), and
 [`examples/provider-mcp-support-agent.yaml`](examples/provider-mcp-support-agent.yaml)
-for the enterprise gateway pattern.
+for the enterprise gateway and provider-side authorization patterns.
 
 ---
 
@@ -348,6 +445,17 @@ Implemented:
   Markdown reports, JSON export, and starter AgentID manifest export
 - Local MCP analyzer UI server with localhost remote-fetch support
 - MCP gateway integration guide and enterprise/provider MCP example manifest
+- Provider-side MCP authorization guide with CRM/billing use case, receipt
+  contract, and execution plan
+- Provider MCP positioning guide for auth-first API-to-MCP adoption
+- Draft article: "Turn Your API Into MCP, Safely"
+- Provider MCP authorization demo with local receipt verification
+- Provider MCP contract validator for high-blast-radius tool requirements
+- Provider MCP contract diff for tool, risk, schema, receipt, and constraint
+  drift
+- Provider MCP contract import flow for generated, reviewable enterprise
+  manifest starters
+- OpenAPI-to-provider-contract bridge for auth-first API-to-MCP onboarding
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
@@ -363,6 +471,10 @@ Next:
 - Hosted MCP analyzer demo after the local/browser workflow is useful, with a
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default
+- Provider-side MCP receipt verification in the mock provider and reference
+  adapter demo
+- Signed receipt/introspection production path and "Turn Your API Into MCP,
+  Safely" article/demo package
 - Stronger policy backend support, including OPA improvements, Cedar policy
   generation, and CEL examples for gateway-side authorization
 - Durable delegation-grant endpoint with source/target manifest intersection

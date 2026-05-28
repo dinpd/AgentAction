@@ -1,0 +1,30 @@
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "tools/call",
+  "params": {
+    "name": "provider.crm.update_customer",
+    "arguments": {
+      "customer_id": "cus_123",
+      "job_id": "support_case_resolution",
+      "case_id": "case-1042",
+      "approved": true,
+      "jit_grant_id": "grant-123",
+      "approval_id": "approval-123",
+      "_agentid_receipt": {
+        "decision_id": "dec-mismatch",
+        "tenant_id": "tenant-a",
+        "agent_id": "enterprise-support-agent",
+        "tool": "provider.crm.update_customer",
+        "action": "write",
+        "resource": "provider/customer/cus_999",
+        "job_id": "support_case_resolution",
+        "case_id": "case-1042",
+        "customer_id": "cus_123",
+        "approval_id": "approval-123",
+        "jit_grant_id": "grant-123",
+        "expires_at": "2099-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}
