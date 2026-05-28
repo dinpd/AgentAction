@@ -5,6 +5,8 @@ import json
 import os
 import sys
 
+import yaml
+
 from agentid.audit import audit_events, load_audit_log
 from agentid.config_ui import write_config_ui
 from agentid.explain import explain_manifest
@@ -34,7 +36,9 @@ from agentid.provider import (
     provider_contract_yaml,
     provider_diff_to_dict,
     provider_manifest_yaml,
+    provider_schema_json,
     validate_provider_contract,
+    verify_provider_receipt,
 )
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
@@ -105,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
 
     provider_parser = subparsers.add_parser("provider", help="Work with provider-published MCP authorization contracts.")
     provider_subparsers = provider_parser.add_subparsers(dest="provider_command", required=True)
+    provider_subparsers.add_parser("schema", help="Print the provider MCP authorization contract JSON Schema.")
     provider_validate_parser = provider_subparsers.add_parser("validate", help="Validate a provider MCP authorization contract.")
     provider_validate_parser.add_argument("contract")
     provider_diff_parser = provider_subparsers.add_parser("diff", help="Compare two provider MCP authorization contracts.")
@@ -124,6 +129,23 @@ def main(argv: list[str] | None = None) -> int:
     provider_openapi_parser.add_argument("--mcp-server", help="MCP server key for generated contract metadata.")
     provider_openapi_parser.add_argument("--tool-prefix", help="Tool name prefix. Defaults to provider key.")
     provider_openapi_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
+    provider_receipt_parser = provider_subparsers.add_parser("verify-receipt", help="Verify a provider authorization receipt.")
+    provider_receipt_parser.add_argument("receipt", help="YAML or JSON receipt payload, or '-' for stdin.")
+    provider_receipt_parser.add_argument("--secret", help="HMAC secret for signed receipts.")
+    provider_receipt_parser.add_argument("--secret-env", help="Environment variable containing the HMAC secret.")
+    provider_receipt_parser.add_argument("--require-signed", action="store_true", help="Fail if the receipt is not signed.")
+    provider_receipt_parser.add_argument("--tenant", help="Expected tenant_id.")
+    provider_receipt_parser.add_argument("--agent", help="Expected agent_id.")
+    provider_receipt_parser.add_argument("--tool", help="Expected tool.")
+    provider_receipt_parser.add_argument("--action", help="Expected action.")
+    provider_receipt_parser.add_argument("--resource", help="Expected resource.")
+    provider_receipt_parser.add_argument("--job", help="Expected job_id.")
+    provider_receipt_parser.add_argument("--case", help="Expected case_id.")
+    provider_receipt_parser.add_argument("--customer", help="Expected customer_id.")
+    provider_receipt_parser.add_argument("--approval", help="Expected approval_id.")
+    provider_receipt_parser.add_argument("--jit-grant", help="Expected jit_grant_id.")
+    provider_receipt_parser.add_argument("--amount", help="Expected amount.")
+    provider_receipt_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
 
     args = parser.parse_args(argv)
 
@@ -214,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     if args.command == "provider":
+        if args.provider_command == "schema":
+            print(provider_schema_json(), end="")
+            return 0
         try:
             if args.provider_command == "validate":
                 contract = load_provider_contract(args.contract)
@@ -278,6 +303,43 @@ def main(argv: list[str] | None = None) -> int:
                     handle.write(output)
                 print(f"Wrote provider MCP contract: {args.output}")
             return 0
+        if args.provider_command == "verify-receipt":
+            try:
+                receipt = load_yaml_object(args.receipt, "receipt")
+            except ProviderContractError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                return 2
+            secret = args.secret
+            if args.secret_env:
+                secret = os.environ.get(args.secret_env)
+                if not secret:
+                    print(f"ERROR: environment variable is not set: {args.secret_env}", file=sys.stderr)
+                    return 2
+            result = verify_provider_receipt(
+                receipt,
+                secret=secret,
+                require_signed=args.require_signed,
+                expected_tenant=args.tenant,
+                expected_agent=args.agent,
+                expected_tool=args.tool,
+                expected_action=args.action,
+                expected_resource=args.resource,
+                expected_job=args.job,
+                expected_case=args.case,
+                expected_customer=args.customer,
+                expected_approval=args.approval,
+                expected_jit_grant=args.jit_grant,
+                expected_amount=args.amount,
+            )
+            if args.json:
+                print(json.dumps({"ok": result.ok, "findings": result.findings, "receipt": result.receipt}, indent=2))
+            elif result.ok:
+                print("Provider authorization receipt is valid.")
+            else:
+                print("Provider authorization receipt is invalid:")
+                for finding in result.findings:
+                    print(f"- {finding}")
+            return 0 if result.ok else 1
 
     try:
         manifest = load_manifest(args.manifest)
@@ -361,6 +423,22 @@ def parse_headers(values: list[str]) -> dict[str, str]:
             raise ValueError(f"header name is empty: {value}")
         headers[name] = header_value.strip()
     return headers
+
+
+def load_yaml_object(path: str, label: str) -> dict:
+    try:
+        if path == "-":
+            data = yaml.safe_load(sys.stdin.read()) or {}
+        else:
+            with open(path, encoding="utf-8") as handle:
+                data = yaml.safe_load(handle) or {}
+    except OSError as exc:
+        raise ProviderContractError(f"Failed to load {label}: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise ProviderContractError(f"Invalid YAML {label}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ProviderContractError(f"{label} root must be a mapping/object.")
+    return data
 
 
 if __name__ == "__main__":

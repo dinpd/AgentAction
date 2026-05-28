@@ -42,6 +42,12 @@ Validate it before running the demo:
 agentid provider validate examples/provider-mcp-contract.yaml
 ```
 
+Emit the JSON Schema for editor or CI validation:
+
+```bash
+agentid provider schema > schema/provider-mcp-contract.schema.json
+```
+
 Compare reviewed versions before enabling updated provider tools:
 
 ```bash
@@ -60,9 +66,32 @@ For providers starting from an existing OpenAPI document, generate a contract
 starter first:
 
 ```bash
-agentid provider from-openapi openapi.yaml \
+agentid provider from-openapi examples/provider-openapi.yaml \
   --provider example-crm \
   --output provider-mcp-contract.yaml
+```
+
+That gives a concrete migration path:
+
+```text
+OpenAPI description
+  -> provider MCP authorization contract
+  -> enterprise AgentID manifest starter
+  -> gateway authorization
+  -> provider receipt verification
+```
+
+You can also verify a signed receipt fixture directly from the CLI:
+
+```bash
+agentid provider verify-receipt examples/provider-signed-receipt.json \
+  --secret dev-provider-receipt-secret \
+  --require-signed \
+  --tenant tenant-a \
+  --agent enterprise-support-agent \
+  --tool provider.crm.update_customer \
+  --action write \
+  --resource provider/customer/cus_123
 ```
 
 ## 1. Start AgentID
@@ -120,6 +149,11 @@ The mock provider verifies that signature using
 `AGENTID_PROVIDER_RECEIPT_HMAC_SECRET`, defaulting to the same demo secret. In
 production, use managed signing keys, JWS, or introspection rather than a static
 demo secret in config.
+
+The same receipt semantics are available in two places:
+
+- the TypeScript adapter helper at `mcp-gateway-adapter/src/receipts.ts`
+- the Python CLI verifier via `agentid provider verify-receipt`
 
 ## 4. Read Call: Enterprise Allows, Provider Executes
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
 import yaml
 
 from agentid.cli import main
@@ -7,9 +8,13 @@ from agentid.manifest import validate_manifest
 from agentid.provider import (
     diff_provider_contracts,
     import_provider_contract,
+    load_provider_schema,
     load_provider_contract,
     provider_contract_from_openapi,
+    provider_schema_json,
+    sign_provider_receipt,
     validate_provider_contract,
+    verify_provider_receipt,
 )
 
 
@@ -20,6 +25,23 @@ def test_provider_contract_example_is_valid():
 
     assert result.ok
     assert result.errors == []
+
+
+def test_provider_contract_example_matches_json_schema():
+    schema = load_provider_schema()
+    contract = load_provider_contract(Path(__file__).resolve().parent.parent / "examples" / "provider-mcp-contract.yaml")
+
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(contract)
+
+
+def test_cli_provider_schema_payload_is_json(capsys):
+    code = main(["provider", "schema"])
+    payload = yaml.safe_load(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["title"] == "AgentID Provider MCP Authorization Contract"
+    assert yaml.safe_load(provider_schema_json())["$id"].endswith("/provider-mcp-contract.schema.json")
 
 
 def test_provider_contract_requires_receipts_for_high_blast_radius_tools():
@@ -237,6 +259,71 @@ def test_cli_provider_from_openapi_writes_contract(tmp_path, capsys):
     assert "provider.crm.update_customer" in contract["provider_agentid"]["tools"]
 
 
+def test_verify_provider_receipt_accepts_signed_receipt():
+    receipt = provider_receipt()
+    signed = sign_provider_receipt(receipt, "test-secret")
+
+    result = verify_provider_receipt(
+        signed,
+        secret="test-secret",
+        require_signed=True,
+        expected_tenant="tenant-a",
+        expected_agent="enterprise-support-agent",
+        expected_tool="provider.crm.update_customer",
+        expected_action="write",
+        expected_resource="provider/customer/cus_123",
+        expected_job="support_case_resolution",
+        expected_case="case-1042",
+        expected_customer="cus_123",
+        expected_approval="approval-1",
+        expected_jit_grant="grant-1",
+    )
+
+    assert result.ok
+    assert result.findings == []
+    assert result.receipt == receipt
+
+
+def test_verify_provider_receipt_detects_signature_and_binding_failures():
+    receipt = provider_receipt()
+    signed = sign_provider_receipt(receipt, "test-secret")
+    signed["payload"] = {**receipt, "resource": "provider/customer/cus_456"}
+
+    result = verify_provider_receipt(signed, secret="test-secret", expected_resource="provider/customer/cus_123")
+
+    assert not result.ok
+    assert "receipt signature mismatch" in result.findings
+    assert "receipt resource mismatch" in result.findings
+
+
+def test_cli_provider_verify_receipt(tmp_path, capsys):
+    receipt_path = tmp_path / "receipt.yaml"
+    receipt_path.write_text(yaml.safe_dump(sign_provider_receipt(provider_receipt(), "test-secret")), encoding="utf-8")
+
+    code = main(
+        [
+            "provider",
+            "verify-receipt",
+            str(receipt_path),
+            "--secret",
+            "test-secret",
+            "--require-signed",
+            "--tenant",
+            "tenant-a",
+            "--agent",
+            "enterprise-support-agent",
+            "--tool",
+            "provider.crm.update_customer",
+            "--resource",
+            "provider/customer/cus_123",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert code == 0
+    assert "Provider authorization receipt is valid." in output
+
+
 def provider_contract(tools):
     return {
         "provider_agentid": {
@@ -335,4 +422,22 @@ def openapi_spec():
                 }
             },
         },
+    }
+
+
+def provider_receipt():
+    return {
+        "decision_id": "dec-1",
+        "tenant_id": "tenant-a",
+        "agent_id": "enterprise-support-agent",
+        "tool": "provider.crm.update_customer",
+        "action": "write",
+        "resource": "provider/customer/cus_123",
+        "job_id": "support_case_resolution",
+        "case_id": "case-1042",
+        "customer_id": "cus_123",
+        "approval_id": "approval-1",
+        "jit_grant_id": "grant-1",
+        "issued_at": "2020-01-01T00:00:00Z",
+        "expires_at": "2099-05-28T12:05:00Z",
     }

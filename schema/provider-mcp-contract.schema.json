@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json",
+  "title": "AgentID Provider MCP Authorization Contract",
+  "description": "Provider-published authorization metadata for MCP tools, including action semantics, resource mappings, approval expectations, receipt requirements, and blast-radius controls.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["provider_agentid"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "provider_agentid": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["provider", "mcp_server", "tools"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mcp_server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/tool"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["action", "risk"],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["read", "write", "admin", "execute"]
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "resource_template": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data_from": {
+          "type": "string"
+        },
+        "data_to": {
+          "type": "string"
+        },
+        "requires_jit": {
+          "type": "boolean"
+        },
+        "receipt_required": {
+          "type": "boolean"
+        },
+        "approval": {
+          "type": "string",
+          "enum": ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"]
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "input_schema": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "authorization_requirements": {
+          "$ref": "#/$defs/authorization_requirements"
+        }
+      }
+    },
+    "authorization_requirements": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "required_context": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "bind_receipt_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "resource_arg": {
+          "type": "string"
+        },
+        "resource_template": {
+          "type": "string"
+        },
+        "amount_arg": {
+          "type": "string"
+        },
+        "receipt_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "single_use": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

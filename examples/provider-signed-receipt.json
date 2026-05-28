@@ -1,0 +1,19 @@
+{
+  "alg": "HS256",
+  "payload": {
+    "decision_id": "dec-cli-demo",
+    "tenant_id": "tenant-a",
+    "agent_id": "enterprise-support-agent",
+    "tool": "provider.crm.update_customer",
+    "action": "write",
+    "resource": "provider/customer/cus_123",
+    "job_id": "support_case_resolution",
+    "case_id": "case-1042",
+    "customer_id": "cus_123",
+    "approval_id": "approval-123",
+    "jit_grant_id": "grant-123",
+    "issued_at": "2020-01-01T00:00:00.000Z",
+    "expires_at": "2099-01-01T00:00:00.000Z"
+  },
+  "signature": "YJSiGa3jfTThSTsPe6kRejzSsJV-s95qeJy0---wPcE"
+}

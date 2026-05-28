@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import base64
+import hashlib
+import hmac
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +36,22 @@ class ProviderContractDiff:
     removed_tools: list[str]
     changed_tools: list[str]
     findings: list[str]
+
+
+@dataclass(frozen=True)
+class ProviderReceiptVerification:
+    ok: bool
+    receipt: dict[str, Any] | None
+    findings: list[str]
+
+
+def load_provider_schema() -> dict[str, Any]:
+    schema_path = Path(__file__).resolve().parent.parent / "schema" / "provider-mcp-contract.schema.json"
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
+def provider_schema_json(indent: int = 2) -> str:
+    return json.dumps(load_provider_schema(), indent=indent) + "\n"
 
 
 def load_provider_contract(path: str | Path) -> dict[str, Any]:
@@ -405,6 +425,84 @@ def provider_contract_yaml(contract: dict[str, Any]) -> str:
     return yaml.safe_dump(contract, sort_keys=False, allow_unicode=False)
 
 
+def sign_provider_receipt(receipt: dict[str, Any], secret: str) -> dict[str, Any]:
+    return {
+        "alg": "HS256",
+        "payload": receipt,
+        "signature": _receipt_signature(receipt, secret),
+    }
+
+
+def verify_provider_receipt(
+    value: dict[str, Any],
+    *,
+    secret: str | None = None,
+    require_signed: bool = False,
+    expected_tenant: str | None = None,
+    expected_agent: str | None = None,
+    expected_tool: str | None = None,
+    expected_action: str | None = None,
+    expected_resource: str | None = None,
+    expected_job: str | None = None,
+    expected_case: str | None = None,
+    expected_customer: str | None = None,
+    expected_approval: str | None = None,
+    expected_jit_grant: str | None = None,
+    expected_amount: str | None = None,
+    now: datetime | None = None,
+) -> ProviderReceiptVerification:
+    findings: list[str] = []
+    receipt = value
+
+    if _is_signed_receipt(value):
+        if secret is None:
+            return ProviderReceiptVerification(False, None, ["receipt signature secret is required"])
+        signature_result = _verify_signed_receipt(value, secret)
+        receipt = signature_result.receipt or {}
+        findings.extend(signature_result.findings)
+    elif require_signed:
+        findings.append("receipt must be signed")
+
+    if not isinstance(receipt, dict) or not receipt:
+        return ProviderReceiptVerification(False, None, findings or ["receipt payload is required"])
+
+    for field in ["decision_id", "agent_id", "tool", "action", "issued_at", "expires_at"]:
+        if not _string(receipt.get(field)):
+            findings.append(f"receipt {field} is required")
+
+    checks = {
+        "tenant_id": expected_tenant,
+        "agent_id": expected_agent,
+        "tool": expected_tool,
+        "action": expected_action,
+        "resource": expected_resource,
+        "job_id": expected_job,
+        "case_id": expected_case,
+        "customer_id": expected_customer,
+        "approval_id": expected_approval,
+        "jit_grant_id": expected_jit_grant,
+        "amount": expected_amount,
+    }
+    for field, expected in checks.items():
+        if expected is not None and _string(receipt.get(field)) != expected:
+            findings.append(f"receipt {field} mismatch")
+
+    current = now or datetime.now(timezone.utc)
+    expires_at = _parse_timestamp(receipt.get("expires_at"))
+    if expires_at is None:
+        findings.append("receipt expires_at is invalid")
+    elif expires_at <= current:
+        findings.append("receipt is expired")
+
+    issued_at = _parse_timestamp(receipt.get("issued_at"))
+    if issued_at is None:
+        findings.append("receipt issued_at is invalid")
+    elif issued_at > current:
+        findings.append("receipt issued_at is in the future")
+
+    return ProviderReceiptVerification(ok=not findings, receipt=receipt, findings=findings)
+
+
 def _validate_provider_tool(
     name: str,
     tool: dict[str, Any],
@@ -767,3 +865,54 @@ def _input_has_field(tool: dict[str, Any], field: str) -> bool:
 
 def _title_from_id(agent_id: str) -> str:
     return " ".join(part.capitalize() for part in agent_id.replace("_", "-").split("-") if part)
+
+
+def _is_signed_receipt(value: dict[str, Any]) -> bool:
+    return "alg" in value or "payload" in value or "signature" in value
+
+
+def _verify_signed_receipt(value: dict[str, Any], secret: str) -> ProviderReceiptVerification:
+    findings: list[str] = []
+    if value.get("alg") != "HS256":
+        findings.append("receipt signature alg must be HS256")
+    payload = value.get("payload")
+    if not isinstance(payload, dict):
+        findings.append("receipt signed payload is required")
+    signature = _string(value.get("signature"))
+    if not signature:
+        findings.append("receipt signature is required")
+    if findings or not isinstance(payload, dict):
+        return ProviderReceiptVerification(False, payload if isinstance(payload, dict) else None, findings)
+
+    expected = _receipt_signature(payload, secret)
+    if not hmac.compare_digest(expected, signature):
+        findings.append("receipt signature mismatch")
+    return ProviderReceiptVerification(ok=not findings, receipt=payload, findings=findings)
+
+
+def _receipt_signature(payload: dict[str, Any], secret: str) -> str:
+    digest = hmac.new(secret.encode("utf-8"), _canonical_json(payload).encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    text = _string(value)
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _string(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)

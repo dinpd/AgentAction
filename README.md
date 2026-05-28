@@ -216,10 +216,12 @@ agentid mcp check tools-list.json --max-risk high
 agentid mcp diff old-tools-list.json new-tools-list.json
 agentid mcp ui --output agentid-mcp-analyzer.html
 agentid mcp serve-ui --host 127.0.0.1 --port 8799
+agentid provider schema > schema/provider-mcp-contract.schema.json
 agentid provider validate examples/provider-mcp-contract.yaml
 agentid provider diff old-provider-contract.yaml new-provider-contract.yaml
 agentid provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
-agentid provider from-openapi openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
+agentid provider from-openapi examples/provider-openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
+agentid provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
 agentid schema > schema/agentid.schema.json
 agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
@@ -252,7 +254,12 @@ starter that enterprises can tighten with local agent, job, approval, OIDC, and
 data-flow policy. `provider from-openapi` creates a provider MCP authorization
 contract starter from an OpenAPI document, inferring operation names, resource
 templates, input schemas, and conservative risk/JIT/receipt requirements for
-write, delete, admin, and financial-looking operations.
+write, delete, admin, and financial-looking operations. `provider schema`
+prints the provider contract JSON Schema for editor and CI validation.
+`provider verify-receipt` lets a provider implementation, CI test, or local
+demo verify a raw or signed authorization receipt against expected tenant,
+agent, tool, action, resource, job, case, customer, approval, JIT grant, and
+amount bindings.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -260,6 +267,15 @@ validation:
 
 ```yaml
 $schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
+```
+
+The provider MCP contract JSON Schema is available at
+[`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
+and can be emitted with `agentid provider schema`. Add this to a provider
+contract for editor validation:
+
+```yaml
+$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
 ```
 
 AgentID also ships a GitHub Action for PR checks:
@@ -456,6 +472,9 @@ Implemented:
 - Provider MCP contract import flow for generated, reviewable enterprise
   manifest starters
 - OpenAPI-to-provider-contract bridge for auth-first API-to-MCP onboarding
+- Provider MCP contract JSON Schema and CLI schema emitter
+- Provider authorization receipt verification CLI with signed HMAC receipt
+  support for local demos and CI checks
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
@@ -471,10 +490,8 @@ Next:
 - Hosted MCP analyzer demo after the local/browser workflow is useful, with a
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default
-- Provider-side MCP receipt verification in the mock provider and reference
-  adapter demo
-- Signed receipt/introspection production path and "Turn Your API Into MCP,
-  Safely" article/demo package
+- JWS/JWKS or introspection production path for provider receipts
+- Published "Turn Your API Into MCP, Safely" article/demo package
 - Stronger policy backend support, including OPA improvements, Cedar policy
   generation, and CEL examples for gateway-side authorization
 - Durable delegation-grant endpoint with source/target manifest intersection

@@ -119,6 +119,14 @@ Provider MCP contract
   -> drift metadata
 ```
 
+AgentID includes a draft JSON Schema for this contract at
+[`../schema/provider-mcp-contract.schema.json`](../schema/provider-mcp-contract.schema.json).
+Providers can expose that schema in published contract files with:
+
+```yaml
+$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
+```
+
 The enterprise should consume that contract and produce a tenant-specific
 AgentID manifest:
 
@@ -147,6 +155,17 @@ The reference adapter supports a dependency-free HMAC-signed envelope for the
 local provider demo. Production deployments should use managed keys, key
 rotation, replay protection, and either signed JWS-style receipts or
 introspection.
+
+For local validation and CI tests, providers can verify a receipt without
+running the mock server:
+
+```bash
+agentid provider verify-receipt examples/provider-signed-receipt.json \
+  --secret dev-provider-receipt-secret \
+  --require-signed \
+  --tool provider.crm.update_customer \
+  --resource provider/customer/cus_123
+```
 
 ## When Provider-Side Auth Matters
 

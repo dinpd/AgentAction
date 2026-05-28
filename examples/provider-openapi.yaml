@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info:
+  title: Example CRM
+  version: 1.0.0
+paths:
+  /customers/{customer_id}:
+    get:
+      operationId: searchCustomer
+      summary: Search a customer record.
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+    patch:
+      operationId: updateCustomer
+      summary: Update a customer record.
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - billing_email
+              properties:
+                billing_email:
+                  type: string
+                plan:
+                  type: string
+  /customers/{customer_id}/credits:
+    post:
+      operationId: issueCredit
+      summary: Issue a customer billing credit.
+      parameters:
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount_usd
+              properties:
+                amount_usd:
+                  type: number
+                reason:
+                  type: string
