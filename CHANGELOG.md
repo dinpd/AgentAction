@@ -7,6 +7,7 @@
 - Added `agentid mcp diff` for detecting newly exposed tools and tool schema drift.
 - Added `agentid mcp ui` for writing a self-contained browser MCP analyzer.
 - Added `agentid mcp serve-ui` for localhost MCP analysis with local remote-fetch support.
+- Added MCP analyzer UI compare mode and Markdown report export.
 - Added a sample MCP `tools/list` response for analyzer testing.
 
 ## 0.1.2

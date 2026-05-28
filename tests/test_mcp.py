@@ -145,7 +145,10 @@ def test_mcp_ui_writer_creates_browser_analyzer(tmp_path):
 
     assert "AgentID MCP Analyzer" in html
     assert "Analysis runs in this browser tab" in html
+    assert "Compare Drift" in html
+    assert "Copy Markdown" in html
     assert "manifestSnippet" in html
+    assert "markdownReport" in html
 
 
 def test_cli_mcp_ui(tmp_path, capsys):

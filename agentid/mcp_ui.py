@@ -315,6 +315,7 @@ MCP_UI_HTML = r"""<!doctype html>
     <div class="row">
       <button id="loadSample">Load sample</button>
       <button id="exportJson" disabled>Export JSON</button>
+      <button id="copyMarkdown" disabled>Copy Markdown</button>
     </div>
   </header>
 
@@ -339,11 +340,20 @@ MCP_UI_HTML = r"""<!doctype html>
         <button id="analyze" class="primary">Analyze</button>
         <button id="clear">Clear</button>
       </div>
+      <div>
+        <h2>Compare Drift</h2>
+        <textarea id="previousInput" class="compact" spellcheck="false" placeholder="Paste previous tools/list JSON"></textarea>
+        <div class="row">
+          <button id="compareDrift">Compare</button>
+        </div>
+        <p class="hint">Compare a previous tool surface with the current input to find added, removed, and changed tools.</p>
+      </div>
       <div id="error" class="error"></div>
     </aside>
 
     <section>
       <div id="summary" class="summary"></div>
+      <div id="driftPanel" class="panel" style="margin-bottom:14px"></div>
       <div class="workspace">
         <div class="panel">
           <div class="panel-head">
@@ -478,11 +488,14 @@ MCP_UI_HTML = r"""<!doctype html>
     const summary = document.getElementById("summary");
     const toolsEl = document.getElementById("tools");
     const details = document.getElementById("details");
+    const driftPanel = document.getElementById("driftPanel");
     const toolCount = document.getElementById("toolCount");
     const exportJson = document.getElementById("exportJson");
+    const copyMarkdown = document.getElementById("copyMarkdown");
 
     let currentAnalysis = null;
     let selectedTool = null;
+    let currentDiff = null;
 
     function toolsFromPayload(payload) {
       if (Array.isArray(payload)) return payload;
@@ -589,7 +602,9 @@ MCP_UI_HTML = r"""<!doctype html>
       currentAnalysis = analysis;
       selectedTool = analysis.tools[0] || null;
       exportJson.disabled = !analysis;
+      copyMarkdown.disabled = !analysis;
       renderSummary();
+      renderDrift();
       renderTools();
       renderDetails();
     }
@@ -639,6 +654,25 @@ MCP_UI_HTML = r"""<!doctype html>
       `;
     }
 
+    function renderDrift() {
+      if (!currentDiff) {
+        driftPanel.innerHTML = `<div class="empty">Compare mode has not run.</div>`;
+        return;
+      }
+      driftPanel.innerHTML = `
+        <div class="panel-head"><h2>Drift</h2><span class="hint">${currentDiff.findings.length} findings</span></div>
+        <div class="detail">
+          <div class="summary">
+            ${metric("Added", currentDiff.added_tools.length, "tools")}
+            ${metric("Removed", currentDiff.removed_tools.length, "tools")}
+            ${metric("Changed", currentDiff.changed_tools.length, "tools")}
+            ${metric("Risk", currentDiff.findings.some((finding) => finding.includes("high-risk") || finding.includes("risk increased")) ? "Review" : "Stable", "drift")}
+          </div>
+          <div><h2>Findings</h2>${list(currentDiff.findings.length ? currentDiff.findings : ["No drift findings."])}</div>
+        </div>
+      `;
+    }
+
     function renderDetails() {
       if (!selectedTool) {
         details.innerHTML = `<div class="empty">Select a tool to inspect findings and remediation.</div>`;
@@ -683,6 +717,84 @@ MCP_UI_HTML = r"""<!doctype html>
         `    approval: ${approval}`,
         ...(authMode === "just_in_time" ? ["    constraints:", "      token_ttl_seconds: 300", "      resource: \"*\""] : [])
       ].join("\n");
+    }
+
+    function reportManifestSnippet(analysis) {
+      const snippets = analysis.tools
+        .filter((tool) => tool.risk_score >= 25)
+        .slice(0, 8)
+        .map((tool) => manifestSnippet(tool).split("\n").slice(1).join("\n"));
+      if (!snippets.length) return "tools: []";
+      return ["tools:", ...snippets].join("\n");
+    }
+
+    function diffTools(beforeTools, afterTools) {
+      const before = Object.fromEntries(beforeTools.filter((tool) => tool.name).map((tool) => [String(tool.name), tool]));
+      const after = Object.fromEntries(afterTools.filter((tool) => tool.name).map((tool) => [String(tool.name), tool]));
+      const beforeNames = new Set(Object.keys(before));
+      const afterNames = new Set(Object.keys(after));
+      const added = [...afterNames].filter((name) => !beforeNames.has(name)).sort();
+      const removed = [...beforeNames].filter((name) => !afterNames.has(name)).sort();
+      const changed = [...afterNames].filter((name) => beforeNames.has(name) && JSON.stringify(normalizedTool(before[name])) !== JSON.stringify(normalizedTool(after[name]))).sort();
+      const findings = [];
+      if (added.length) findings.push(`${added.length} new ${plural("tool", added.length)} exposed`);
+      if (removed.length) findings.push(`${removed.length} ${plural("tool", removed.length)} removed`);
+      if (changed.length) findings.push(`${changed.length} tool schemas or descriptions changed`);
+      for (const name of added) {
+        const analysis = analyzeTool(after[name]);
+        if (analysis.risk_score >= 50) findings.push(`new high-risk tool: ${name} (${analysis.risk_label})`);
+      }
+      for (const name of changed) {
+        const beforeAnalysis = analyzeTool(before[name]);
+        const afterAnalysis = analyzeTool(after[name]);
+        if (afterAnalysis.risk_score > beforeAnalysis.risk_score) {
+          findings.push(`tool risk increased: ${name} (${beforeAnalysis.risk_label} -> ${afterAnalysis.risk_label})`);
+        }
+      }
+      return { added_tools: added, removed_tools: removed, changed_tools: changed, findings };
+    }
+
+    function normalizedTool(tool) {
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema || tool.input_schema
+      };
+    }
+
+    function markdownReport() {
+      if (!currentAnalysis) return "";
+      const riskyTools = currentAnalysis.tools
+        .filter((tool) => tool.risk_score >= 25)
+        .slice(0, 8)
+        .map((tool) => `- ${tool.name}: ${tool.risk_score}/100 (${tool.risk_label}, ${tool.action})`);
+      const lines = [
+        "# AgentID MCP Analysis",
+        "",
+        `Risk score: ${currentAnalysis.risk_score}/100 (${currentAnalysis.risk_label})`,
+        `Tools analyzed: ${currentAnalysis.tool_count}`,
+        "",
+        "## Findings",
+        ...(currentAnalysis.findings.length ? currentAnalysis.findings.map((finding) => `- ${finding}`) : ["- No summary findings."]),
+        "",
+        "## Highest-Risk Tools",
+        ...(riskyTools.length ? riskyTools : ["- None"]),
+        "",
+        "## Drift",
+        ...(currentDiff ? currentDiff.findings.map((finding) => `- ${finding}`) : ["- Not compared."]),
+        "",
+        "## Remediation",
+        "- Put high-risk tools behind gateway authorization.",
+        "- Require approval or just-in-time authority for write, execute, and admin tools.",
+        "- Bind authorization to user, agent, job, resource, and time window.",
+        "- Log decisions and track tool drift in CI.",
+        "",
+        "## Starter AgentID Manifest Snippet",
+        "```yaml",
+        reportManifestSnippet(currentAnalysis),
+        "```"
+      ];
+      return lines.join("\n");
     }
 
     function inputArgumentNames(schema) {
@@ -752,6 +864,7 @@ MCP_UI_HTML = r"""<!doctype html>
       try {
         error.textContent = "";
         const payload = JSON.parse(input.value || "{}");
+        currentDiff = null;
         render(analyzeTools(toolsFromPayload(payload)));
       } catch (err) {
         error.textContent = err.message;
@@ -760,12 +873,15 @@ MCP_UI_HTML = r"""<!doctype html>
 
     document.getElementById("clear").addEventListener("click", () => {
       input.value = "";
+      document.getElementById("previousInput").value = "";
+      currentDiff = null;
       error.textContent = "";
     });
 
     document.getElementById("loadSample").addEventListener("click", () => {
       input.value = JSON.stringify(sample, null, 2);
       error.textContent = "";
+      currentDiff = null;
       render(analyzeTools(toolsFromPayload(sample)));
     });
 
@@ -792,17 +908,37 @@ MCP_UI_HTML = r"""<!doctype html>
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Remote fetch failed.");
         input.value = JSON.stringify(payload.tools_list, null, 2);
+        currentDiff = null;
         render(analyzeTools(toolsFromPayload(payload.tools_list)));
       } catch (err) {
         error.textContent = `${err.message} If this is the static HTML file, run agentid mcp serve-ui and open that local URL.`;
       }
     });
 
+    document.getElementById("compareDrift").addEventListener("click", () => {
+      try {
+        error.textContent = "";
+        const before = toolsFromPayload(JSON.parse(document.getElementById("previousInput").value || "{}"));
+        const after = toolsFromPayload(JSON.parse(input.value || "{}"));
+        currentDiff = diffTools(before, after);
+        render(analyzeTools(after));
+      } catch (err) {
+        error.textContent = err.message;
+      }
+    });
+
     exportJson.addEventListener("click", async () => {
       if (!currentAnalysis) return;
-      await navigator.clipboard.writeText(JSON.stringify(currentAnalysis, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify({ analysis: currentAnalysis, drift: currentDiff }, null, 2));
       exportJson.textContent = "Copied";
       setTimeout(() => exportJson.textContent = "Export JSON", 900);
+    });
+
+    copyMarkdown.addEventListener("click", async () => {
+      if (!currentAnalysis) return;
+      await navigator.clipboard.writeText(markdownReport());
+      copyMarkdown.textContent = "Copied";
+      setTimeout(() => copyMarkdown.textContent = "Copy Markdown", 900);
     });
 
     toolsEl.addEventListener("click", (event) => {
@@ -821,6 +957,7 @@ MCP_UI_HTML = r"""<!doctype html>
     ].join("");
     toolsEl.innerHTML = `<div class="empty">Paste or upload a tools/list response to begin.</div>`;
     details.innerHTML = `<div class="empty">Analysis runs locally in this browser tab.</div>`;
+    driftPanel.innerHTML = `<div class="empty">Compare mode has not run.</div>`;
   </script>
 </body>
 </html>
