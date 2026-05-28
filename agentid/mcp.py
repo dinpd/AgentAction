@@ -74,6 +74,7 @@ WRITE_HINTS = {"write", "update", "create", "insert", "send", "post", "put", "pa
 ADMIN_HINTS = {"admin", "permission", "policy", "role", "token", "secret", "key"}
 EXECUTE_HINTS = {"exec", "execute", "shell", "command", "run", "deploy"}
 DEFAULT_PROTOCOL_VERSION = "2025-11-25"
+RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,14 @@ class FetchResult:
     payload: dict[str, Any]
     protocol_version: str
     session_id: str | None = None
+
+
+@dataclass(frozen=True)
+class McpCheck:
+    ok: bool
+    findings: list[str]
+    analysis: McpAnalysis
+    diff: McpDiff | None = None
 
 
 PostJson = Callable[[str, dict[str, Any], dict[str, str], float], tuple[dict[str, Any] | None, dict[str, str]]]
@@ -286,6 +295,29 @@ def analyze_tools(tools: list[dict[str, Any]]) -> McpAnalysis:
         findings=findings,
         tools=sorted(analyses, key=lambda tool: (-tool.risk_score, tool.name)),
     )
+
+
+def check_tools(
+    tools: list[dict[str, Any]],
+    max_risk: str = "high",
+    before_tools: list[dict[str, Any]] | None = None,
+    fail_on_drift: bool = False,
+) -> McpCheck:
+    if max_risk not in RISK_ORDER:
+        raise ValueError(f"max_risk must be one of: {', '.join(RISK_ORDER)}")
+
+    analysis = analyze_tools(tools)
+    findings: list[str] = []
+    if RISK_ORDER[analysis.risk_label] > RISK_ORDER[max_risk]:
+        findings.append(f"MCP risk {analysis.risk_label} exceeds max risk {max_risk}")
+
+    drift: McpDiff | None = None
+    if before_tools is not None:
+        drift = diff_tools(before_tools, tools)
+        if fail_on_drift and drift.findings:
+            findings.extend(drift.findings)
+
+    return McpCheck(ok=not findings, findings=findings, analysis=analysis, diff=drift)
 
 
 def analyze_tool(tool: dict[str, Any]) -> ToolAnalysis:

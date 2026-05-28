@@ -316,6 +316,7 @@ MCP_UI_HTML = r"""<!doctype html>
       <button id="loadSample">Load sample</button>
       <button id="exportJson" disabled>Export JSON</button>
       <button id="copyMarkdown" disabled>Copy Markdown</button>
+      <button id="copyManifest" disabled>Copy Manifest</button>
     </div>
   </header>
 
@@ -492,6 +493,7 @@ MCP_UI_HTML = r"""<!doctype html>
     const toolCount = document.getElementById("toolCount");
     const exportJson = document.getElementById("exportJson");
     const copyMarkdown = document.getElementById("copyMarkdown");
+    const copyManifest = document.getElementById("copyManifest");
 
     let currentAnalysis = null;
     let selectedTool = null;
@@ -603,6 +605,7 @@ MCP_UI_HTML = r"""<!doctype html>
       selectedTool = analysis.tools[0] || null;
       exportJson.disabled = !analysis;
       copyMarkdown.disabled = !analysis;
+      copyManifest.disabled = !analysis;
       renderSummary();
       renderDrift();
       renderTools();
@@ -939,6 +942,13 @@ MCP_UI_HTML = r"""<!doctype html>
       await navigator.clipboard.writeText(markdownReport());
       copyMarkdown.textContent = "Copied";
       setTimeout(() => copyMarkdown.textContent = "Copy Markdown", 900);
+    });
+
+    copyManifest.addEventListener("click", async () => {
+      if (!currentAnalysis) return;
+      await navigator.clipboard.writeText(reportManifestSnippet(currentAnalysis));
+      copyManifest.textContent = "Copied";
+      setTimeout(() => copyManifest.textContent = "Copy Manifest", 900);
     });
 
     toolsEl.addEventListener("click", (event) => {

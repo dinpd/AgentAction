@@ -13,6 +13,7 @@ from agentid.manifest import ManifestError, load_manifest, validate_manifest
 from agentid.mcp import (
     analysis_to_dict,
     analyze_tools,
+    check_tools,
     diff_to_dict,
     diff_tools,
     fetch_tools_list,
@@ -71,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
     mcp_diff_parser.add_argument("before")
     mcp_diff_parser.add_argument("after")
     mcp_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    mcp_check_parser = mcp_subparsers.add_parser("check", help="CI-friendly MCP risk check.")
+    mcp_check_parser.add_argument("tools_list")
+    mcp_check_parser.add_argument("--max-risk", choices=["low", "medium", "high", "critical"], default="high")
+    mcp_check_parser.add_argument("--before", help="Previous tools/list response for drift checks.")
+    mcp_check_parser.add_argument("--fail-on-drift", action="store_true")
+    mcp_check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mcp_ui_parser = mcp_subparsers.add_parser("ui", help="Write the browser-based MCP analyzer UI.")
     mcp_ui_parser.add_argument("--output", default="agentid-mcp-analyzer.html")
     mcp_fetch_parser = mcp_subparsers.add_parser("fetch", help="Fetch tools/list from an HTTP MCP server.")
@@ -119,6 +126,32 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(format_diff(diff), end="")
                 return 0
+            if args.mcp_command == "check":
+                check = check_tools(
+                    load_tools_list(args.tools_list),
+                    max_risk=args.max_risk,
+                    before_tools=load_tools_list(args.before) if args.before else None,
+                    fail_on_drift=args.fail_on_drift,
+                )
+                if args.json:
+                    print(
+                        json.dumps(
+                            {
+                                "ok": check.ok,
+                                "findings": check.findings,
+                                "analysis": analysis_to_dict(check.analysis),
+                                "drift": diff_to_dict(check.diff) if check.diff else None,
+                            },
+                            indent=2,
+                        )
+                    )
+                elif check.ok:
+                    print(f"MCP check passed. Risk is {check.analysis.risk_label}.")
+                else:
+                    print("MCP check failed:")
+                    for finding in check.findings:
+                        print(f"- {finding}")
+                return 0 if check.ok else 1
             if args.mcp_command == "ui":
                 path = write_mcp_ui(args.output)
                 print(f"Wrote MCP analyzer UI: {path}")

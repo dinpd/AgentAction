@@ -138,6 +138,7 @@ agentid audit examples/sample-tool-log.json --manifest examples/customer-support
 agentid mcp analyze examples/mcp-tools-list-risky.json
 agentid mcp analyze examples/mcp-tools-list-risky.json --json
 agentid mcp fetch https://mcp.example.com/mcp --output tools-list.json
+agentid mcp check tools-list.json --max-risk high
 agentid mcp diff old-tools-list.json new-tools-list.json
 agentid mcp ui --output agentid-mcp-analyzer.html
 agentid mcp serve-ui --host 127.0.0.1 --port 8799
@@ -151,13 +152,15 @@ agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port
 `mcp fetch` connects to an HTTP MCP server, performs the MCP initialize flow,
 calls `tools/list`, and writes the JSON response for analysis. `mcp analyze`
 scores a saved MCP `tools/list` response for tool capability risk, sensitive
-arguments, likely blast radius, and remediation steps. `mcp diff` compares two
-saved `tools/list` responses to detect newly exposed tools, schema changes, and
-increased tool risk. `mcp ui` writes a self-contained browser analyzer with
-paste/upload analysis, compare mode, Markdown reports, JSON export, and starter
-manifest snippets. `mcp serve-ui` serves the same analyzer on localhost with a
-local-only fetch endpoint, so the UI can ask the AgentID CLI process to fetch a
-remote MCP server without sending credentials to a hosted page.
+arguments, likely blast radius, and remediation steps. `mcp check` is a
+CI-friendly risk gate that exits nonzero when risk exceeds a configured
+threshold or drift is detected. `mcp diff` compares two saved `tools/list`
+responses to detect newly exposed tools, schema changes, and increased tool
+risk. `mcp ui` writes a self-contained browser analyzer with paste/upload
+analysis, compare mode, Markdown reports, JSON export, and starter manifest
+exports. `mcp serve-ui` serves the same analyzer on localhost with a local-only
+fetch endpoint, so the UI can ask the AgentID CLI process to fetch a remote MCP
+server without sending credentials to a hosted page.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -339,8 +342,10 @@ Implemented:
 - Reference MCP gateway adapter for `tools/list` and `tools/call`
 - MCP gateway adapter demo with mock provider server
 - MCP blast-radius analyzer CLI for saved `tools/list` output
+- CI-friendly MCP risk check for maximum allowed risk and drift findings
 - MCP tool drift diff for newly exposed tools and schema changes
-- Browser/local MCP analyzer UI for pasted or uploaded `tools/list` JSON
+- Browser/local MCP analyzer UI for pasted or uploaded `tools/list` JSON,
+  Markdown reports, JSON export, and starter AgentID manifest export
 - Local MCP analyzer UI server with localhost remote-fetch support
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Hosted gateway-control demo with SaaS and MCP flows

@@ -2,7 +2,7 @@ import json
 
 from agentid.cli import main
 from agentid.mcp import FetchResult
-from agentid.mcp import analyze_tools, diff_tools, fetch_tools_list, parse_json_or_sse, tools_from_payload
+from agentid.mcp import analyze_tools, check_tools, diff_tools, fetch_tools_list, parse_json_or_sse, tools_from_payload
 from agentid.mcp_ui import write_mcp_ui
 from agentid.mcp_ui_server import fetch_tools_response
 
@@ -147,6 +147,7 @@ def test_mcp_ui_writer_creates_browser_analyzer(tmp_path):
     assert "Analysis runs in this browser tab" in html
     assert "Compare Drift" in html
     assert "Copy Markdown" in html
+    assert "Copy Manifest" in html
     assert "manifestSnippet" in html
     assert "markdownReport" in html
 
@@ -258,6 +259,68 @@ def test_cli_mcp_fetch_writes_output(tmp_path, monkeypatch, capsys):
     assert code == 0
     assert "Wrote MCP tools/list" in capsys.readouterr().out
     assert json.loads(output.read_text(encoding="utf-8"))["result"]["tools"] == []
+
+
+def test_check_tools_fails_when_risk_exceeds_threshold():
+    check = check_tools(
+        [
+            {
+                "name": "shell.execute_command",
+                "description": "Execute a shell command",
+                "inputSchema": {"properties": {"command": {"type": "string"}}},
+            }
+        ],
+        max_risk="high",
+    )
+
+    assert not check.ok
+    assert "MCP risk critical exceeds max risk high" in check.findings
+
+
+def test_check_tools_passes_at_threshold():
+    check = check_tools(
+        [{"name": "docs.search", "description": "Search docs", "inputSchema": {"properties": {"query": {"type": "string"}}}}],
+        max_risk="medium",
+    )
+
+    assert check.ok
+
+
+def test_cli_mcp_check_returns_nonzero_for_failure(tmp_path, capsys):
+    tools_path = tmp_path / "tools.json"
+    tools_path.write_text(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "name": "shell.execute_command",
+                        "description": "Execute a shell command",
+                        "inputSchema": {"properties": {"command": {"type": "string"}}},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    code = main(["mcp", "check", str(tools_path), "--max-risk", "high"])
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert "MCP check failed" in output
+
+
+def test_cli_mcp_check_can_fail_on_drift(tmp_path, capsys):
+    before_path = tmp_path / "before.json"
+    after_path = tmp_path / "after.json"
+    before_path.write_text(json.dumps({"tools": [{"name": "docs.search", "inputSchema": {"properties": {}}}]}), encoding="utf-8")
+    after_path.write_text(json.dumps({"tools": [{"name": "docs.search", "inputSchema": {"properties": {}}}, {"name": "admin.delete_customer", "inputSchema": {"properties": {}}}]}), encoding="utf-8")
+
+    code = main(["mcp", "check", str(after_path), "--max-risk", "critical", "--before", str(before_path), "--fail-on-drift"])
+    output = capsys.readouterr().out
+
+    assert code == 1
+    assert "new tools exposed" in output
 
 
 def test_mcp_ui_server_fetch_response(monkeypatch):
