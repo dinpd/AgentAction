@@ -1,0 +1,235 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  MemoryReplayStore,
+  createAgentIdReceiptMiddleware,
+  signProviderReceipt,
+  verifyProviderReceipt,
+  type ProviderAuthorizationReceipt,
+  type ResponseLike,
+} from "../src/index.ts";
+
+test("verifyProviderReceipt accepts signed receipt bound to tool args", async () => {
+  const receipt = signedReceipt();
+
+  const result = await verifyProviderReceipt(signProviderReceipt(receipt, "secret-1"), {
+    secret: "secret-1",
+    requireSigned: true,
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.receipt, receipt);
+});
+
+test("verifyProviderReceipt rejects tampered signatures and mismatched resources", async () => {
+  const signed = signProviderReceipt(signedReceipt(), "secret-1");
+  signed.payload = { ...signed.payload, resource: "provider/customer/cus_999" };
+
+  const result = await verifyProviderReceipt(signed, {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.findings.includes("receipt signature mismatch"));
+  assert.ok(result.findings.includes("receipt resource mismatch"));
+});
+
+test("verifyProviderReceipt rejects unsigned receipts when signatures are required", async () => {
+  const result = await verifyProviderReceipt(signedReceipt(), {
+    requireSigned: true,
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.findings, ["receipt must be signed"]);
+});
+
+test("verifyProviderReceipt rejects expired receipts", async () => {
+  const receipt = { ...signedReceipt(), expires_at: "2026-05-28T12:00:30Z" };
+
+  const result = await verifyProviderReceipt(signProviderReceipt(receipt, "secret-1"), {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.findings.includes("receipt is expired"));
+});
+
+test("MemoryReplayStore rejects reused receipts", async () => {
+  const store = new MemoryReplayStore();
+  const signed = signProviderReceipt(signedReceipt(), "secret-1");
+
+  const first = await verifyProviderReceipt(signed, {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    replayStore: store,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+  const second = await verifyProviderReceipt(signed, {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    replayStore: store,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, false);
+  assert.ok(second.findings.includes("receipt was already used"));
+});
+
+test("middleware attaches verified receipt and calls next", async () => {
+  const req = {
+    body: mcpRequest(signProviderReceipt(signedReceipt(), "secret-1")),
+  };
+  const res = fakeResponse();
+  let nextCalled = false;
+  const middleware = createAgentIdReceiptMiddleware({
+    secret: "secret-1",
+    now: () => new Date("2026-05-28T12:01:00Z"),
+    tools: {
+      "provider.crm.update_customer": policy,
+    },
+  });
+
+  await middleware(req, res, (error) => {
+    assert.equal(error, undefined);
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, true);
+  assert.equal(res.statusCode, undefined);
+  assert.equal(req.agentidReceipt?.decision_id, "dec-1");
+});
+
+test("middleware returns 403 for denied receipts", async () => {
+  const req = {
+    body: mcpRequest(undefined),
+  };
+  const res = fakeResponse();
+  let nextCalled = false;
+  const middleware = createAgentIdReceiptMiddleware({
+    secret: "secret-1",
+    tools: {
+      "provider.crm.update_customer": policy,
+    },
+  });
+
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+  assert.deepEqual(res.body, {
+    error: "AgentID provider authorization receipt denied",
+    findings: ["missing _agentid_receipt"],
+  });
+});
+
+test("middleware skips tools without a configured receipt policy", async () => {
+  const req = { body: mcpRequest(undefined, "provider.crm.search_customer") };
+  const res = fakeResponse();
+  let nextCalled = false;
+  const middleware = createAgentIdReceiptMiddleware({
+    tools: {
+      "provider.crm.update_customer": policy,
+    },
+  });
+
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, true);
+  assert.equal(res.statusCode, undefined);
+});
+
+const policy = {
+  action: "write",
+  resourceTemplate: "provider/customer/{customer_id}",
+  requiredReceiptFields: ["tenant_id", "user_id", "approval_id", "jit_grant_id", "job_id", "case_id", "customer_id"],
+  bindArgs: {
+    job_id: "job_id",
+    case_id: "case_id",
+    customer_id: "customer_id",
+    approval_id: "approval_id",
+    jit_grant_id: "jit_grant_id",
+  },
+};
+
+function signedReceipt(): ProviderAuthorizationReceipt {
+  return {
+    decision_id: "dec-1",
+    tenant_id: "tenant-a",
+    agent_id: "enterprise-support-agent",
+    user_id: "support-rep-17",
+    tool: "provider.crm.update_customer",
+    action: "write",
+    resource: "provider/customer/cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    customer_id: "cus_123",
+    approval_id: "approval-1",
+    jit_grant_id: "grant-1",
+    issued_at: "2026-05-28T12:00:00Z",
+    expires_at: "2099-05-28T12:05:00Z",
+  };
+}
+
+function toolArgs(): Record<string, unknown> {
+  return {
+    customer_id: "cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    approval_id: "approval-1",
+    jit_grant_id: "grant-1",
+  };
+}
+
+function mcpRequest(receipt: unknown, tool = "provider.crm.update_customer") {
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: {
+      name: tool,
+      arguments: {
+        ...toolArgs(),
+        _agentid_receipt: receipt,
+      },
+    },
+  };
+}
+
+function fakeResponse(): ResponseLike & { statusCode?: number; body?: unknown } {
+  return {
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+    },
+  };
+}

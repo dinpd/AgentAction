@@ -312,6 +312,8 @@ For the provider side of that boundary, including authorization receipts and
 provider execution receipts, see
 [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
+For provider-side Express receipt verification middleware, see
+[`packages/provider-express/`](packages/provider-express/).
 
 `gateway` starts a lightweight HTTP authorization gateway for agent tool-call
 integration. The gateway exposes:
@@ -482,6 +484,7 @@ Implemented:
 - Provider MCP contract JSON Schema and CLI schema emitter
 - Provider authorization receipt verification CLI with signed HMAC receipt
   support for local demos and CI checks
+- Express-compatible provider receipt verification middleware
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
@@ -498,6 +501,7 @@ Next:
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default
 - JWS/JWKS or introspection production path for provider receipts
+- FastAPI provider receipt verification middleware
 - Published "Turn Your API Into MCP, Safely" article/demo package
 - Stronger policy backend support, including OPA improvements, Cedar policy
   generation, and CEL examples for gateway-side authorization
