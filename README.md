@@ -314,6 +314,8 @@ provider execution receipts, see
 For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
 For provider-side Express receipt verification middleware, see
 [`packages/provider-express/`](packages/provider-express/).
+For provider-side FastAPI receipt verification helpers, see
+[`packages/provider-fastapi/`](packages/provider-fastapi/).
 
 `gateway` starts a lightweight HTTP authorization gateway for agent tool-call
 integration. The gateway exposes:
@@ -485,6 +487,7 @@ Implemented:
 - Provider authorization receipt verification CLI with signed HMAC receipt
   support for local demos and CI checks
 - Express-compatible provider receipt verification middleware
+- FastAPI-compatible provider receipt verification helpers
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
@@ -501,7 +504,6 @@ Next:
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default
 - JWS/JWKS or introspection production path for provider receipts
-- FastAPI provider receipt verification middleware
 - Published "Turn Your API Into MCP, Safely" article/demo package
 - Stronger policy backend support, including OPA improvements, Cedar policy
   generation, and CEL examples for gateway-side authorization
