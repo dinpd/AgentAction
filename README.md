@@ -24,6 +24,8 @@ AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise
 
 - **API and SaaS providers** turning APIs into MCP tools without giving agents
   broad authority.
+- **API platform and monetization teams** preserving entitlements, quotas,
+  metering, and billing controls as APIs become agent-callable tools.
 - **Enterprise AI platform teams** reviewing which tools agents may use, under
   what conditions.
 - **MCP gateway builders** enforcing policy before forwarding `tools/call`.
@@ -41,6 +43,9 @@ For providers turning APIs into MCP servers, AgentID also defines an
 auth-first pattern: publish a provider MCP authorization contract, let
 enterprises review and overlay local agent policy, require scoped receipts for
 high-blast-radius actions, and keep provider business authorization in the
+execution path. This also helps providers preserve API business controls as
+tools become agent-callable: entitlement checks, quotas, usage metering,
+billable events, rate limits, and overage handling stay in the provider
 execution path. See [Two-sided MCP authorization](#two-sided-mcp-authorization)
 and [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 

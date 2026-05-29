@@ -139,6 +139,39 @@ The demo path should be runnable in minutes. The production path should map to
 existing IdPs, gateways, policy engines, audit pipelines, and provider business
 authorization.
 
+## API monetization requirements
+
+AgentID provider contracts should preserve provider API monetization when APIs
+are exposed as MCP tools.
+
+Provider contracts should be able to describe billable tools, usage dimensions,
+quota scope, entitlement requirements, metering identifiers, and
+spend-sensitive constraints. Enterprise policy should be able to require
+approval or JIT authority for monetized or high-cost actions, while provider
+systems remain the source of truth for plan checks, quota enforcement, overage
+handling, metering, and billing events.
+
+AgentID receipts should carry enough context to correlate an enterprise-side
+authorization decision with provider-side metering and execution audit, without
+making AgentID the billing system.
+
+Useful contract concepts include:
+
+- whether a tool is billable
+- usage dimensions such as calls, records read, exports, workflow runs,
+  messages sent, credits issued, or compute time
+- tenant, customer, account, user, and resource identifiers needed for
+  entitlement and billing checks
+- quota scope, such as tenant, workspace, user, account, or resource
+- provider meter identifiers for billable events
+- spend controls, amount limits, approval thresholds, and JIT requirements
+- provider-side rate limits, overage handling, and billing-event emission
+
+AgentID should protect both enterprise risk boundaries and provider
+business-model boundaries when APIs become agent-callable tools. The provider
+retains final authority over entitlements, quotas, metering, billing, and
+execution.
+
 ## Trust requirements
 
 AgentID must be credible to security reviewers:
