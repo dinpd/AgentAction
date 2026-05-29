@@ -146,6 +146,7 @@ provider.crm.update_customer:
   data_to: provider_crm
   requires_jit: true
   approval: human_confirm
+  receipt_required: true
   authorization_requirements:
     required_context:
       - tenant_id
@@ -162,12 +163,14 @@ provider.crm.update_customer:
       - tool
       - action
       - resource
+      - job_id
       - case_id
       - customer_id
       - approval_id
+      - jit_grant_id
     resource_arg: customer_id
-    receipt_required: true
     receipt_ttl_seconds: 300
+    single_use: true
 ```
 
 Issuing a credit adds financial constraints:
@@ -181,8 +184,34 @@ provider.billing.issue_credit:
   data_to: provider_billing
   requires_jit: true
   approval: manager
+  receipt_required: true
   constraints:
     max_amount_usd: 100
+  authorization_requirements:
+    required_context:
+      - tenant_id
+      - agent_id
+      - user_id
+      - job_id
+      - case_id
+      - customer_id
+      - approval_id
+    bind_receipt_to:
+      - tenant_id
+      - agent_id
+      - user_id
+      - tool
+      - action
+      - resource
+      - job_id
+      - case_id
+      - customer_id
+      - approval_id
+      - jit_grant_id
+    resource_arg: customer_id
+    amount_arg: amount_usd
+    receipt_ttl_seconds: 180
+    single_use: true
 ```
 
 This contract tells the enterprise gateway what it must know before forwarding a
@@ -208,6 +237,7 @@ authorization receipt to the provider MCP server:
   "customer_id": "cus_123",
   "approval_id": "approval-456",
   "jit_grant_id": "grant_789",
+  "issued_at": "2026-05-28T20:10:00Z",
   "expires_at": "2026-05-28T20:15:00Z"
 }
 ```
@@ -274,6 +304,8 @@ authorization receipt before executing.
 AgentID gives this pattern a concrete shape:
 
 - provider-published MCP authorization contracts
+- a provider MCP contract JSON Schema for editor and CI validation
+- OpenAPI-to-provider-contract generation for auth-first onboarding
 - enterprise-reviewed AgentID manifests
 - runtime authorization checks before tool calls
 - short-lived JIT grants for sensitive actions
@@ -282,6 +314,18 @@ AgentID gives this pattern a concrete shape:
 - provider-side receipt verification
 - provider execution receipts for shared audit
 - drift detection when provider tools or schemas change
+
+The concrete path looks like this:
+
+```text
+OpenAPI description
+  -> provider MCP authorization contract
+  -> enterprise AgentID manifest starter
+  -> gateway authorization
+  -> signed authorization receipt
+  -> provider receipt verification
+  -> provider business authorization
+```
 
 The goal is not to replace MCP authorization, OAuth, provider IAM, OPA, Cedar,
 or enterprise security tools. The goal is to define the missing contract between
@@ -296,9 +340,11 @@ MCP client
   -> AgentID MCP gateway adapter
   -> AgentID /authorize
   -> mock provider MCP server
+  -> provider receipt verification
+  -> provider business authorization
 ```
 
-The demo should show:
+The demo shows:
 
 - a CRM read allowed
 - a CRM write denied without JIT
@@ -308,7 +354,38 @@ The demo should show:
 - a billing credit denied over provider limits
 - provider execution receipts emitted as structured logs
 
-The project roadmap tracks the implementation in:
+Start with the provider demo:
+
+- [`provider-mcp-demo.md`](provider-mcp-demo.md)
+
+Useful commands:
+
+```bash
+agentid provider schema > schema/provider-mcp-contract.schema.json
+
+agentid provider from-openapi examples/provider-openapi.yaml \
+  --provider example-crm \
+  --output provider-mcp-contract.yaml
+
+agentid provider validate examples/provider-mcp-contract.yaml
+
+agentid provider import examples/provider-mcp-contract.yaml \
+  --agent enterprise-support-agent \
+  --output generated-agent.yaml
+
+agentid provider verify-receipt examples/provider-signed-receipt.json \
+  --secret dev-provider-receipt-secret \
+  --require-signed \
+  --tool provider.crm.update_customer \
+  --resource provider/customer/cus_123
+```
+
+The reference adapter uses dependency-free HMAC receipts for the local demo and
+CI-friendly fixtures. Production providers should use managed keys, key
+rotation, replay protection, and either JWS/JWKS-style receipts or
+introspection.
+
+The implementation lives in:
 
 - [`provider-mcp-authorization.md`](provider-mcp-authorization.md)
 - [`provider-mcp-positioning.md`](provider-mcp-positioning.md)
@@ -319,4 +396,3 @@ The adoption message is:
 > Turn your API into MCP, safely. Publish the contract, let enterprises review
 > it, require scoped receipts for high-blast-radius actions, and keep provider
 > business authorization in the execution path.
-
