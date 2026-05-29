@@ -4,6 +4,16 @@ This walkthrough shows how to use AgentID as an authorization contract for AI
 agent tool calls across app runtimes, internal systems, SaaS APIs, and MCP
 gateways.
 
+## Before You Start
+
+AgentID works best when the provider publishes tool authorization requirements
+and the enterprise overlays local policy. The provider knows what each tool can
+do; the enterprise knows which agents, users, jobs, customers, and approval
+workflows are allowed.
+
+For the broader ecosystem model, see
+[`ecosystem-positioning.md`](ecosystem-positioning.md).
+
 ## 1. Install
 
 ```bash

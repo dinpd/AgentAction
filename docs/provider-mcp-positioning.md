@@ -9,6 +9,10 @@ missing step: if the tool can write, send, refund, delete, deploy, export, or
 touch regulated data, the provider needs an authorization contract before
 customers can safely let agents use it.
 
+AgentID is not another API-to-MCP wrapper. It is the authorization contract
+layer that makes write-capable, high-blast-radius MCP tools reviewable and
+enforceable by enterprise customers.
+
 ## Core Narrative
 
 Providers want their APIs to be agent-accessible. Enterprises want those tools

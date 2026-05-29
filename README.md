@@ -1,10 +1,16 @@
 # AgentID
 
-**AgentID** is an open-source authorization layer for AI agent tool calls.
+**Authorization contracts for AI agent tool execution.**
 
-It helps teams declare, validate, and enforce what agents are allowed to do
-across SaaS apps, internal systems, cloud control planes, databases,
-provider-hosted tools, and MCP gateways.
+AgentID helps API providers, MCP gateway builders, and enterprise AI platform
+teams answer one runtime question:
+
+> Should this agent perform this tool action on this resource, for this user, job, customer, approval, and time window?
+
+OAuth can prove access to a server. MCP tool schemas describe inputs. AgentID
+defines the missing authorization contract for agent tool calls across SaaS
+apps, internal systems, cloud control planes, databases, provider-hosted tools,
+and MCP gateways.
 
 ![AgentID gives MCP gateways an authorization contract](docs/AgentIDMCPAuthorizationContract.png)
 
@@ -13,6 +19,16 @@ The core idea is simple:
 > Every production agent should have an authority contract that says who it is, who owns it, what it can request, when authority should be issued just in time, where data can flow, when it needs approval, and how it can be stopped.
 
 AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
+
+## Who AgentID is for
+
+- **API and SaaS providers** turning APIs into MCP tools without giving agents
+  broad authority.
+- **Enterprise AI platform teams** reviewing which tools agents may use, under
+  what conditions.
+- **MCP gateway builders** enforcing policy before forwarding `tools/call`.
+- **Security teams** needing audit evidence for agent actions, approvals, JIT
+  grants, and tool execution.
 
 For gateway deployments, AgentID is meant to run at an enterprise-controlled
 boundary:
@@ -54,6 +70,7 @@ Try the hosted demo:
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
+For ecosystem positioning and business requirements, see [`docs/ecosystem-positioning.md`](docs/ecosystem-positioning.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
@@ -93,6 +110,22 @@ AgentID can also describe how callers authenticate to a gateway. The `oidc`
 section maps customer identity-provider claims to AgentID concepts such as
 tenant, user, and agent, then declares the scopes required to authorize tool
 calls, read policies, or issue JIT grants.
+
+## Positioning in one minute
+
+AgentID sits between agent identity and tool execution.
+
+It does not replace OAuth, IAM, OPA, Cedar, OpenFGA, MCP authorization, or
+provider business rules. It gives those systems a shared contract for agent
+authority:
+
+- what tool is being called
+- what action is requested
+- what resource is affected
+- what job, case, customer, and user are in scope
+- whether approval or JIT authority is required
+- what data flow is allowed
+- what audit evidence should exist
 
 ---
 
