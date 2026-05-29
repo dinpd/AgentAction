@@ -57,6 +57,7 @@ For a full implementation walkthrough, see [`docs/getting-started.md`](docs/gett
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
+For provider MCP contract CI checks, see [`docs/provider-mcp-ci.md`](docs/provider-mcp-ci.md).
 For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
 For the API-to-MCP article, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 For the provider MCP authorization demo, see [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md).
@@ -484,6 +485,7 @@ Implemented:
   manifest starters
 - OpenAPI-to-provider-contract bridge for auth-first API-to-MCP onboarding
 - Provider MCP contract JSON Schema and CLI schema emitter
+- Provider MCP contract CI guide and copyable GitHub Actions workflow
 - Provider authorization receipt verification CLI with signed HMAC receipt
   support for local demos and CI checks
 - Express-compatible provider receipt verification middleware
