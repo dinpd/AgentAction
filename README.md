@@ -58,7 +58,7 @@ For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integra
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
-For the API-to-MCP article draft, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
+For the API-to-MCP article, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 For the provider MCP authorization demo, see [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md).
 For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
 For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](docs/agent-to-agent-delegation.md).
@@ -126,8 +126,8 @@ flowchart LR
     Identity --> Job --> Tool --> Flow --> Approval --> Delegation --> Decision
 ```
 
-At runtime, a SaaS app, agent runtime, or enterprise gateway asks the AgentID
-gateway before tool execution. In MCP deployments, the enterprise MCP gateway
+At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentID
+decision endpoint before tool execution. In MCP deployments, the enterprise MCP gateway
 performs this check before forwarding a `tools/call` request to an internal or
 provider MCP server. The gateway evaluates:
 
@@ -471,7 +471,7 @@ Implemented:
 - Provider-side MCP authorization guide with CRM/billing use case, receipt
   contract, and execution plan
 - Provider MCP positioning guide for auth-first API-to-MCP adoption
-- Draft article: "Turn Your API Into MCP, Safely"
+- Article: "Turn Your API Into MCP, Safely"
 - Provider MCP authorization demo with local receipt verification
 - Provider MCP contract validator for high-blast-radius tool requirements
 - Provider MCP contract diff for tool, risk, schema, receipt, and constraint
