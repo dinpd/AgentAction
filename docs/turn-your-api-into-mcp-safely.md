@@ -2,6 +2,13 @@
 
 Authorization contracts for agent tools
 
+Links:
+
+- Code: [`github.com/dinpd/AgentID`](https://github.com/dinpd/AgentID)
+- Demo: [`provider-mcp-demo.md`](provider-mcp-demo.md)
+- Schema: [`provider-mcp-contract.schema.json`](../schema/provider-mcp-contract.schema.json)
+- Example contract: [`provider-mcp-contract.yaml`](../examples/provider-mcp-contract.yaml)
+
 MCP makes APIs callable by agents. That is useful, but it also changes the risk
 model for API providers.
 

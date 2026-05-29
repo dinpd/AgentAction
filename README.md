@@ -28,6 +28,13 @@ high-blast-radius actions, and keep provider business authorization in the
 execution path. See [Two-sided MCP authorization](#two-sided-mcp-authorization)
 and [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 
+If you are here for MCP provider authorization:
+
+- Article: [`Turn Your API Into MCP, Safely`](docs/turn-your-api-into-mcp-safely.md)
+- Local demo: [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md)
+- Provider contract schema: [`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
+- Example contract: [`examples/provider-mcp-contract.yaml`](examples/provider-mcp-contract.yaml)
+
 ---
 
 ## Quick Start
