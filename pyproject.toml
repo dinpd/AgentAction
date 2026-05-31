@@ -8,7 +8,7 @@ version = "0.1.2"
 description = "Authorization contracts, policy checks, and receipts for AI agent tool calls across MCP gateways, SaaS APIs, and enterprise systems."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "AgentID contributors" }]
 dependencies = ["PyYAML>=6.0.1"]
 
