@@ -10,6 +10,22 @@ The business requirement is simple:
 
 ![AgentID ecosystem positioning](AgentIDEcosystemPositioning.png)
 
+## Ecosystem boundary
+
+AgentID is not the agent framework, protocol, gateway, identity provider,
+policy engine, or tool host. It is the agent authority contract that those
+components can share before a tool action executes.
+
+| Ecosystem layer | Examples | What it answers | AgentID's role |
+| --- | --- | --- | --- |
+| Agent builders and runtimes | LangChain, LlamaIndex, AutoGen, CrewAI, OpenAI Agents SDK, IDE agents | How does the agent plan, reason, and call tools? | Constrains which tool actions the agent may attempt. |
+| Protocols and schemas | MCP, A2A, OpenAPI, JSON Schema, tool annotations | How are tools, inputs, and interactions described? | Adds authority semantics to tool descriptions. |
+| Gateways and registries | agentgateway, ContextForge, MCP gateways, Envoy, Kong, API gateways, tool catalogs | How are tools discovered, routed, federated, proxied, and observed? | Gives gateways a reviewable contract and runtime decision point. |
+| Identity and access | OAuth, OIDC, JWT, IAM, SPIFFE/SPIRE, customer IdPs | Who is calling, and which server can be reached? | Uses identity as input, but does not treat identity as sufficient authority. |
+| Policy and authorization | OPA, Cedar, OpenFGA, RBAC, application entitlements | May this user, tenant, or account perform the underlying business operation? | Complements business authorization with agent-specific eligibility. |
+| Execution systems | Provider MCP servers, SaaS APIs, internal services, cloud control planes, databases | What actually reads, writes, sends, refunds, deploys, deletes, or exports? | Runs before execution; the provider or app still makes the final business decision. |
+| Audit and observability | OpenTelemetry, SIEM, audit logs, billing meters, provider execution receipts | What happened, who approved it, and how can it be reviewed? | Emits decisions, denials, JIT grants, receipts, and correlation handles. |
+
 ## The market gap
 
 MCP makes APIs callable by agents. That is useful, but it changes the risk model
