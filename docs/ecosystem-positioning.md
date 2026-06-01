@@ -2,49 +2,42 @@
 
 AgentID exists to make agent tool execution reviewable, enforceable, and
 auditable across provider-hosted MCP tools, enterprise MCP gateways, SaaS apps,
-and internal systems.
+cloud control planes, databases, and internal systems.
 
 The business requirement is simple:
 
-> AgentID must make MCP and agent tool ecosystems safe enough for enterprise adoption by turning tool authority into a portable, reviewable, enforceable contract shared between providers and enterprises.
+> AgentID must make MCP and agent tool ecosystems safe enough for enterprise
+> adoption by turning tool authority into a portable, reviewable, enforceable
+> contract shared between providers and enterprises.
 
 ![AgentID ecosystem positioning](AgentIDEcosystemPositioning.png)
 
-## Ecosystem boundary
-
-AgentID is not the agent framework, protocol, gateway, identity provider,
-policy engine, or tool host. It is the agent authority contract that those
-components can share before a tool action executes.
-
-| Ecosystem layer | Examples | What it answers | AgentID's role |
-| --- | --- | --- | --- |
-| Agent builders and runtimes | LangChain, LlamaIndex, AutoGen, CrewAI, OpenAI Agents SDK, IDE agents | How does the agent plan, reason, and call tools? | Constrains which tool actions the agent may attempt. |
-| Protocols and schemas | MCP, A2A, OpenAPI, JSON Schema, tool annotations | How are tools, inputs, and interactions described? | Adds authority semantics to tool descriptions. |
-| Gateways and registries | agentgateway, ContextForge, MCP gateways, Envoy, Kong, API gateways, tool catalogs | How are tools discovered, routed, federated, proxied, and observed? | Gives gateways a reviewable contract and runtime decision point. |
-| Identity and access | OAuth, OIDC, JWT, IAM, SPIFFE/SPIRE, customer IdPs | Who is calling, and which server can be reached? | Uses identity as input, but does not treat identity as sufficient authority. |
-| Policy and authorization | OPA, Cedar, OpenFGA, RBAC, application entitlements | May this user, tenant, or account perform the underlying business operation? | Complements business authorization with agent-specific eligibility. |
-| Execution systems | Provider MCP servers, SaaS APIs, internal services, cloud control planes, databases | What actually reads, writes, sends, refunds, deploys, deletes, or exports? | Runs before execution; the provider or app still makes the final business decision. |
-| Audit and observability | OpenTelemetry, SIEM, audit logs, billing meters, provider execution receipts | What happened, who approved it, and how can it be reviewed? | Emits decisions, denials, JIT grants, receipts, and correlation handles. |
-
-## The market gap
+## The gap
 
 MCP makes APIs callable by agents. That is useful, but it changes the risk model
 for every API provider and enterprise platform team.
 
-OAuth can prove that a client may access an MCP server. MCP tool schemas can
-describe the inputs a tool accepts. Tool annotations can hint at behavior. None
-of those, by themselves, answers whether this agent should perform this action
-on this resource for this user, job, customer, approval, and time window.
+OAuth can prove that a caller may reach an MCP server. MCP tool schemas can
+describe the inputs a tool accepts. Tool annotations can hint at behavior.
+Gateways can route and observe calls. Policy engines can decide whether a user
+or tenant may perform a business operation.
+
+None of those, by themselves, answers the agent-specific question:
+
+> Should this agent attempt this tool action on this resource, for this user,
+> job, customer, approval, and time window?
 
 AgentID fills that gap with an authorization contract for agent tool execution.
 
-## What AgentID is
+## Where AgentID fits
 
 AgentID is the agent authority layer between identity and execution:
 
 ```text
 Agent or app runtime
+  -> gateway, app runtime, or tool host
   -> AgentID authorization contract and runtime check
+  -> business authorization
   -> SaaS, internal, cloud, database, or MCP tool
 ```
 
@@ -59,9 +52,52 @@ Provider publishes MCP tool contract
   -> tool executes
 ```
 
-This lets providers describe tool blast radius and authorization requirements,
-while enterprises overlay local policy for agents, users, jobs, cases,
-customers, data flows, approvals, and JIT grants.
+The provider describes tool semantics, blast radius, protected resources,
+receipt requirements, approval expectations, and provider-side constraints. The
+enterprise overlays local policy for agents, users, jobs, cases, customers,
+data flows, approvals, and JIT grants.
+
+## Ecosystem boundary
+
+AgentID is not another agent framework, protocol, gateway, identity provider,
+policy engine, or tool host. It is the authority contract that those components
+can share before an agent-originated tool action executes.
+
+- **Agent builders and runtimes:** LangChain, LlamaIndex, AutoGen, CrewAI,
+  OpenAI Agents SDK, IDE agents, and desktop agents decide how agents plan,
+  reason, and call tools. AgentID constrains which tool actions those agents
+  may attempt.
+- **Protocols and schemas:** MCP, A2A, OpenAPI, JSON Schema, and tool
+  annotations describe tools, inputs, resources, and interactions. AgentID adds
+  authority semantics to those descriptions.
+- **Gateways and registries:** agentgateway, ContextForge, MCP gateways, Envoy,
+  Kong, API gateways, and tool catalogs make tools discoverable, routable,
+  federated, proxied, and observable. AgentID gives them a reviewable contract
+  and runtime decision point.
+- **Identity and access:** OAuth, OIDC, JWT, IAM, SPIFFE/SPIRE, and customer
+  IdPs prove who is calling and which server can be reached. AgentID uses
+  identity as input, but does not treat identity as sufficient authority.
+- **Policy and authorization:** OPA, Cedar, OpenFGA, RBAC, application
+  entitlements, and provider policies decide whether a user, tenant, account,
+  or app may perform the underlying business operation. AgentID complements
+  them with agent-specific eligibility.
+- **Execution systems:** provider MCP servers, SaaS APIs, internal services,
+  cloud control planes, databases, and queues perform the actual read, write,
+  send, refund, deploy, delete, or export. AgentID runs before execution; the
+  provider or app still makes the final business decision.
+- **Audit and observability:** OpenTelemetry, SIEM, audit logs, billing meters,
+  and provider execution receipts explain what happened and how it can be
+  reviewed. AgentID emits decisions, denials, JIT grants, receipts, drift
+  findings, and correlation handles.
+
+The clean boundary is:
+
+- identity systems answer who is calling
+- gateways answer how the call is routed and mediated
+- business authorization answers what the user or tenant may do
+- AgentID answers what the agent may attempt, for this job and approval state
+- the provider or application still decides whether the underlying operation
+  executes
 
 ## What AgentID is not
 
@@ -71,11 +107,12 @@ AgentID is not:
 - another MCP gateway
 - another IAM system
 - a replacement for OAuth, OIDC, or customer identity providers
-- a replacement for OPA, Cedar, OpenFGA, or application authorization
+- a replacement for OPA, Cedar, OpenFGA, RBAC, or application authorization
 - a replacement for provider-side tenant isolation and business rules
 - a generic agent identity registry
+- a billing, metering, or observability system
 
-AgentID should make existing systems more useful for agentic execution by giving
+AgentID should make these systems more useful for agentic execution by giving
 them a shared, reviewable contract for agent authority.
 
 ## Primary users
@@ -100,13 +137,16 @@ AgentID should help providers:
 - identify which tool arguments map to protected resources
 - require scoped receipts before high-blast-radius execution
 - keep provider business authorization in the execution path
+- preserve entitlements, quotas, usage metering, billing controls, and rate
+  limits as APIs become agent-callable tools
 - provide audit handles that connect enterprise authorization to provider
   execution
 - reduce repeated security-review friction for each enterprise customer
 
 The provider owns tool semantics. That means the provider is best positioned to
 publish the base contract for action, risk, protected resources, receipt
-bindings, approval expectations, and provider-side constraints.
+bindings, approval expectations, provider-side constraints, and billable usage
+dimensions.
 
 ## Enterprise value
 
@@ -120,26 +160,11 @@ AgentID should help enterprises:
 - avoid broad standing authority for write, admin, execute, financial,
   external-send, deletion, export, and regulated-data actions
 - enforce policy at an MCP gateway, app runtime, or internal tool boundary
+- require approval or JIT authority for monetized, high-cost, or high-risk
+  actions
 - produce audit evidence for approvals, JIT grants, decisions, denials, and
   tool execution
 - detect MCP tool drift before newly exposed tools become available to agents
-
-## Relationship to the ecosystem
-
-AgentID should complement, not compete with, the existing security stack.
-
-Use OAuth and OIDC to prove caller identity and server access. Use MCP
-authorization to protect MCP server access. Use MCP schemas to describe tool
-inputs. Use OPA, Cedar, OpenFGA, IAM, and application authorization for business
-object decisions. Use AgentID to define and enforce whether an agent-originated
-tool action is eligible to proceed.
-
-The clean boundary is:
-
-- identity systems answer who is calling
-- business authorization answers what the user or tenant may do
-- AgentID answers what the agent may attempt, for this job and approval state
-- the provider still decides whether the underlying business operation executes
 
 ## Adoption motion
 
@@ -148,14 +173,16 @@ The preferred adoption loop is:
 1. Provider publishes `provider-mcp-contract.yaml`.
 2. Enterprise validates and reviews the contract.
 3. Enterprise imports it into a tenant or agent manifest.
-4. Gateway or app runtime checks AgentID before tool execution.
+4. Gateway, app runtime, or tool host checks AgentID before tool execution.
 5. Sensitive calls receive short-lived, scoped JIT authority.
 6. Provider verifies the forwarded receipt before high-risk execution.
-7. Both sides keep audit handles for review, support, and compliance.
+7. Provider applies tenant isolation, product rules, entitlements, quotas,
+   metering, billing, and business authorization.
+8. Both sides keep audit handles for review, support, and compliance.
 
 The demo path should be runnable in minutes. The production path should map to
-existing IdPs, gateways, policy engines, audit pipelines, and provider business
-authorization.
+existing IdPs, gateways, policy engines, audit pipelines, provider business
+authorization, and provider monetization systems.
 
 ## API monetization requirements
 
