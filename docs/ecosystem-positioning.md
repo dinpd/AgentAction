@@ -8,6 +8,8 @@ The business requirement is simple:
 
 > AgentID must make MCP and agent tool ecosystems safe enough for enterprise adoption by turning tool authority into a portable, reviewable, enforceable contract shared between providers and enterprises.
 
+![AgentID ecosystem positioning](AgentIDEcosystemPositioning.png)
+
 ## The market gap
 
 MCP makes APIs callable by agents. That is useful, but it changes the risk model
