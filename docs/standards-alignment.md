@@ -186,3 +186,11 @@ The external message should be:
 > AgentID does not compete with distributed identity standards. It gives them
 > the missing authorization payload: what the verified agent may do, under
 > which context, and what evidence must exist before execution.
+
+Draft outreach materials are available in [`outreach/`](outreach/):
+
+- [`agent-identity-is-not-agent-authority.md`](outreach/agent-identity-is-not-agent-authority.md)
+- [`a2a-authority-extension-draft.md`](outreach/a2a-authority-extension-draft.md)
+- [`mcp-scoped-execution-receipts-draft.md`](outreach/mcp-scoped-execution-receipts-draft.md)
+- [`agntcy-agentid-authority-metadata-draft.md`](outreach/agntcy-agentid-authority-metadata-draft.md)
+- [`signed-receipts-implementation-brief.md`](outreach/signed-receipts-implementation-brief.md)
