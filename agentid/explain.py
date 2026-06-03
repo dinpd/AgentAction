@@ -15,6 +15,8 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     audit = manifest.get("audit", {})
     kill_switch = manifest.get("kill_switch", {})
     oidc = manifest.get("oidc", {})
+    trusted_issuers = manifest.get("trusted_issuers", [])
+    attestations = manifest.get("attestations", [])
 
     lines: list[str] = []
 
@@ -22,6 +24,8 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     lines.append(f"Owner: {agent.get('owner', 'missing-owner')}")
     lines.append(f"Environment: {agent.get('environment', 'unspecified')}")
     lines.append(f"Purpose: {agent.get('purpose', 'unspecified')}")
+    if agent.get("did"):
+        lines.append(f"DID: {agent['did']}")
     if agent.get("expires_at"):
         lines.append(f"Authority expires: {agent['expires_at']}")
 
@@ -53,6 +57,27 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
             "- Required scopes: "
             + ", ".join(f"{name}={scope}" for name, scope in scopes.items())
         )
+
+    lines.append("")
+    lines.append("Trust and attestations:")
+    if trusted_issuers:
+        lines.append("- Trusted issuers: " + ", ".join(trusted_issuers))
+    else:
+        lines.append("- Trusted issuers: none declared")
+    if not attestations:
+        lines.append("- No attestations declared.")
+    else:
+        for attestation in attestations:
+            summary = (
+                f"- {attestation.get('type', 'unnamed-attestation')}: "
+                f"issuer={attestation.get('issuer', 'missing-issuer')}, "
+                f"result={attestation.get('result', 'unknown')}"
+            )
+            if attestation.get("standard"):
+                summary += f", standard={attestation['standard']}"
+            if attestation.get("expires_at"):
+                summary += f", expires={attestation['expires_at']}"
+            lines.append(summary)
 
     lines.append("")
     lines.append("Just-in-time authorization:")
@@ -94,6 +119,9 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     lines.append(f"- Enforce manifest: {bool(runtime.get('enforce_manifest'))}")
     lines.append(f"- Detect tool drift: {bool(runtime.get('detect_tool_drift'))}")
     lines.append(f"- Detect new destinations: {bool(runtime.get('detect_new_destinations'))}")
+    lines.append(f"- Require valid attestations: {bool(runtime.get('require_valid_attestations'))}")
+    lines.append(f"- Deny if attestation expired: {bool(runtime.get('deny_if_attestation_expired'))}")
+    lines.append(f"- Deny if credential revoked: {bool(runtime.get('deny_if_credential_revoked'))}")
 
     lines.append("")
     lines.append("Audit:")

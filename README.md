@@ -81,6 +81,7 @@ For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-ga
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For provider MCP contract CI checks, see [`docs/provider-mcp-ci.md`](docs/provider-mcp-ci.md).
 For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
+For DID, Verifiable Credential, OAuth/OIDC, MCP, A2A, AGNTCY, and NIST alignment, see [`docs/standards-alignment.md`](docs/standards-alignment.md).
 For the API-to-MCP article, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 For the provider MCP authorization demo, see [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md).
 For job-to-be-done boundaries, see [`docs/job-boundaries.md`](docs/job-boundaries.md).
@@ -115,6 +116,13 @@ AgentID can also describe how callers authenticate to a gateway. The `oidc`
 section maps customer identity-provider claims to AgentID concepts such as
 tenant, user, and agent, then declares the scopes required to authorize tool
 calls, read policies, or issue JIT grants.
+
+AgentID can also carry optional distributed identity metadata. A manifest may
+bind an agent to a DID, declare trusted issuers, and include VC-style
+attestations for security review, provider approval, compliance status, or
+operational readiness. These fields are evidence inputs for runtime policy; they
+do not replace AgentID's action-level authorization decision. See
+[`docs/standards-alignment.md`](docs/standards-alignment.md).
 
 ## Positioning in one minute
 
@@ -350,6 +358,9 @@ For MCP server calls, including internal and provider-hosted servers, see
 For the provider side of that boundary, including authorization receipts and
 provider execution receipts, see
 [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
+For standards alignment and contribution targets around DID, Verifiable
+Credentials, OAuth/OIDC, MCP, A2A, AGNTCY, and NIST, see
+[`docs/standards-alignment.md`](docs/standards-alignment.md).
 For a reference adapter, see [`mcp-gateway-adapter/`](mcp-gateway-adapter/).
 For provider-side Express receipt verification middleware, see
 [`packages/provider-express/`](packages/provider-express/).

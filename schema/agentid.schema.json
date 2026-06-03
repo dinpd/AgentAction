@@ -20,11 +20,42 @@
         "owner": { "type": "string", "minLength": 1 },
         "environment": { "type": "string", "minLength": 1 },
         "purpose": { "type": "string", "minLength": 1 },
+        "did": { "type": "string", "minLength": 1 },
         "expires_at": {
           "oneOf": [
             { "type": "string", "format": "date" },
             { "type": "null" }
           ]
+        }
+      }
+    },
+    "trusted_issuers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "attestations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["type", "issuer", "result"],
+        "properties": {
+          "type": { "type": "string", "minLength": 1 },
+          "issuer": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string", "minLength": 1 },
+          "standard": { "type": "string", "minLength": 1 },
+          "controls": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "result": {
+            "type": "string",
+            "enum": ["pass", "fail", "partial", "unknown"]
+          },
+          "issued_at": { "type": "string", "format": "date" },
+          "expires_at": { "type": "string", "format": "date" },
+          "credential_status": { "type": "string", "minLength": 1 },
+          "evidence_uri": { "type": "string", "minLength": 1 }
         }
       }
     },
@@ -228,7 +259,10 @@
       "properties": {
         "enforce_manifest": { "type": "boolean" },
         "detect_tool_drift": { "type": "boolean" },
-        "detect_new_destinations": { "type": "boolean" }
+        "detect_new_destinations": { "type": "boolean" },
+        "require_valid_attestations": { "type": "boolean" },
+        "deny_if_attestation_expired": { "type": "boolean" },
+        "deny_if_credential_revoked": { "type": "boolean" }
       }
     },
     "audit": {

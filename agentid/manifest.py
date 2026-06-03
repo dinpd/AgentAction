@@ -24,6 +24,7 @@ VALID_ACCESS = {"read", "write", "admin", "execute"}
 VALID_APPROVAL = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_AUTH_MODE = {"delegated", "service", "just_in_time"}
 VALID_OIDC_TOKEN_MODES = {"jwks", "demo_hs256"}
+VALID_ATTESTATION_RESULTS = {"pass", "fail", "partial", "unknown"}
 
 
 def load_manifest(path: str | Path) -> dict[str, Any]:
@@ -56,6 +57,9 @@ def validate_manifest(manifest: dict[str, Any]) -> ValidationResult:
         if not agent.get(field):
             errors.append(f"Missing required field: agent.{field}")
 
+    _validate_agent_identity(manifest, errors, warnings)
+    _validate_trusted_issuers(manifest, errors, warnings)
+    _validate_attestations(manifest, errors, warnings)
     _validate_jit_authorization(manifest, errors, warnings)
     _validate_oidc(manifest, errors, warnings)
     _validate_tools(manifest, errors, warnings)
@@ -74,6 +78,87 @@ def validate_manifest(manifest: dict[str, Any]) -> ValidationResult:
         warnings.append("agent.expires_at is not set. Consider expiring production agent authority.")
 
     return ValidationResult(ok=not errors, errors=errors, warnings=warnings)
+
+
+def _validate_agent_identity(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    agent = manifest.get("agent", {})
+    if not isinstance(agent, dict):
+        return
+
+    did = agent.get("did")
+    if did is None:
+        return
+    if not isinstance(did, str) or not did:
+        errors.append("agent.did must be a non-empty string if provided.")
+    elif not did.startswith("did:"):
+        warnings.append("agent.did does not look like a decentralized identifier.")
+
+
+def _validate_trusted_issuers(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    issuers = manifest.get("trusted_issuers")
+    attestations = manifest.get("attestations", [])
+
+    if issuers is None:
+        if attestations:
+            warnings.append("trusted_issuers is not set. Attestation signatures may lack an explicit trust policy.")
+        return
+
+    if not isinstance(issuers, list):
+        errors.append("trusted_issuers must be a list.")
+        return
+
+    for idx, issuer in enumerate(issuers):
+        if not isinstance(issuer, str) or not issuer:
+            errors.append(f"trusted_issuers[{idx}] must be a non-empty string.")
+
+
+def _validate_attestations(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    attestations = manifest.get("attestations")
+    if attestations is None:
+        runtime = manifest.get("runtime", {})
+        if isinstance(runtime, dict) and runtime.get("require_valid_attestations"):
+            errors.append("attestations is required when runtime.require_valid_attestations is true.")
+        return
+
+    if not isinstance(attestations, list):
+        errors.append("attestations must be a list.")
+        return
+
+    agent_did = manifest.get("agent", {}).get("did") if isinstance(manifest.get("agent"), dict) else None
+    trusted_issuers = set(manifest.get("trusted_issuers", []) or [])
+
+    for idx, attestation in enumerate(attestations):
+        prefix = f"attestations[{idx}]"
+        if not isinstance(attestation, dict):
+            errors.append(f"{prefix} must be an object.")
+            continue
+
+        for field in ["type", "issuer", "result"]:
+            if not attestation.get(field):
+                errors.append(f"{prefix}.{field} is required.")
+
+        issuer = attestation.get("issuer")
+        if isinstance(issuer, str) and trusted_issuers and issuer not in trusted_issuers:
+            warnings.append(f"{prefix}.issuer is not listed in trusted_issuers: {issuer}.")
+
+        subject = attestation.get("subject")
+        if subject is not None and (not isinstance(subject, str) or not subject):
+            errors.append(f"{prefix}.subject must be a non-empty string if provided.")
+        elif agent_did and subject and subject != agent_did:
+            warnings.append(f"{prefix}.subject does not match agent.did.")
+
+        result = attestation.get("result")
+        if result and result not in VALID_ATTESTATION_RESULTS:
+            errors.append(f"{prefix}.result must be one of: {', '.join(sorted(VALID_ATTESTATION_RESULTS))}.")
+
+        expires_at = attestation.get("expires_at")
+        if expires_at:
+            _validate_date_field(f"{prefix}.expires_at", expires_at, errors, warnings)
+        else:
+            warnings.append(f"{prefix}.expires_at is not set.")
+
+        if not attestation.get("credential_status"):
+            warnings.append(f"{prefix}.credential_status is not set. Revocation checks may not be possible.")
 
 
 def _validate_oidc(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
@@ -331,6 +416,18 @@ def _validate_runtime(manifest: dict[str, Any], errors: list[str], warnings: lis
         if not runtime.get(field):
             warnings.append(f"runtime.{field} is not true.")
 
+    if runtime.get("require_valid_attestations"):
+        if not manifest.get("attestations"):
+            errors.append("runtime.require_valid_attestations is true but attestations is empty.")
+        if not manifest.get("trusted_issuers"):
+            errors.append("runtime.require_valid_attestations is true but trusted_issuers is empty.")
+
+    if runtime.get("require_valid_attestations") and not runtime.get("deny_if_attestation_expired"):
+        warnings.append("runtime.deny_if_attestation_expired is not true while valid attestations are required.")
+
+    if runtime.get("require_valid_attestations") and not runtime.get("deny_if_credential_revoked"):
+        warnings.append("runtime.deny_if_credential_revoked is not true while valid attestations are required.")
+
 
 def _validate_audit(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     audit = manifest.get("audit", {})
@@ -365,3 +462,17 @@ def _validate_expiry(value: Any, warnings: list[str], errors: list[str]) -> None
 
     if expiry < date.today():
         warnings.append("agent.expires_at is in the past.")
+
+
+def _validate_date_field(field: str, value: Any, errors: list[str], warnings: list[str]) -> None:
+    try:
+        if isinstance(value, date):
+            parsed = value
+        else:
+            parsed = datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        errors.append(f"{field} must be YYYY-MM-DD.")
+        return
+
+    if parsed < date.today():
+        warnings.append(f"{field} is in the past.")
