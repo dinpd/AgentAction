@@ -28,7 +28,7 @@ from agentid_provider_fastapi import (
 app = FastAPI()
 
 verifier = ProviderReceiptVerifier(
-    jwks={"keys": [...]},
+    jwks_uri="https://enterprise.example.com/.well-known/jwks.json",
     issuer="https://enterprise.example.com",
     audience="provider-crm-mcp",
     replay_store=InMemoryReplayStore(),
@@ -67,6 +67,7 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 ## What It Checks
 
 - Signed JWS receipt envelopes against a local JWKS
+- Signed JWS receipt envelopes against a remote JWKS URI
 - Optional issuer, audience, and allowed-algorithm checks
 - Signed HMAC receipt envelopes for local demos
 - Required receipt fields
@@ -76,6 +77,11 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 - Receipt fields bound to MCP tool arguments
 - `issued_at` and `expires_at`
 - Optional single-use replay protection
+
+Remote JWKS fetches are cached for 5 minutes by default, fall back to stale
+keys for up to 5 more minutes when refresh fails, and force a refresh when a
+receipt `kid` is missing so key rotation can land before the TTL expires. Use
+`jwks` for a local key set or `jwks_uri` for a remote key set.
 
 HMAC receipts are intended for local demos and simple integrations. Production
 providers should prefer managed keys with JWS/JWKS or receipt introspection.

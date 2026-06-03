@@ -77,7 +77,9 @@ Allowed calls can also carry a provider-verifiable authorization receipt in
 `_agentid_receipt`. For local demos, configure `provider_receipts.hmac_secret`.
 For production-oriented integrations, configure `provider_receipts.jws` with a
 private signing key, key ID, issuer, and audience so providers can verify the
-receipt against JWKS:
+receipt against JWKS. Providers can verify against a local JWKS object or a
+remote JWKS URI with a 5 minute cache TTL, a 5 minute stale-on-error window,
+and an immediate refresh when a receipt `kid` is missing from the cached keys:
 
 ```json
 {
@@ -105,7 +107,6 @@ This adapter is not a full production MCP gateway. It does not yet implement:
 - downstream authentication.
 - JIT grant issuance flow.
 - provider-specific argument mappers.
-- remote JWKS fetching.
 - tool drift reporting.
 
 Those are the next pieces to add around this reference enforcement path.

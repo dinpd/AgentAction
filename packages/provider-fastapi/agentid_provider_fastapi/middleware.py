@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
 from agentid.provider import (
+    ProviderReceiptJwksCache,
     sign_provider_receipt,
     sign_provider_receipt_jws,
     verify_provider_receipt as verify_receipt_envelope,
@@ -64,6 +65,11 @@ class ProviderReceiptVerifier:
         *,
         secret: str | Callable[[], str | None] | None = None,
         jwks: dict[str, Any] | Callable[[], dict[str, Any] | None] | None = None,
+        jwks_uri: str | None = None,
+        jwks_cache: ProviderReceiptJwksCache | None = None,
+        jwks_cache_ttl_seconds: int = 300,
+        jwks_stale_if_error_seconds: int = 300,
+        jwks_timeout_seconds: float = 5.0,
         issuer: str | None = None,
         audience: str | None = None,
         allowed_algs: list[str] | None = None,
@@ -75,6 +81,11 @@ class ProviderReceiptVerifier:
     ) -> None:
         self.secret = secret
         self.jwks = jwks
+        self.jwks_uri = jwks_uri
+        self.jwks_cache = jwks_cache or ProviderReceiptJwksCache()
+        self.jwks_cache_ttl_seconds = jwks_cache_ttl_seconds
+        self.jwks_stale_if_error_seconds = jwks_stale_if_error_seconds
+        self.jwks_timeout_seconds = jwks_timeout_seconds
         self.issuer = issuer
         self.audience = audience
         self.allowed_algs = allowed_algs
@@ -102,6 +113,11 @@ class ProviderReceiptVerifier:
             args.get(self.receipt_argument),
             secret=self._secret(),
             jwks=self._jwks(),
+            jwks_uri=self.jwks_uri,
+            jwks_cache=self.jwks_cache,
+            jwks_cache_ttl_seconds=self.jwks_cache_ttl_seconds,
+            jwks_stale_if_error_seconds=self.jwks_stale_if_error_seconds,
+            jwks_timeout_seconds=self.jwks_timeout_seconds,
             issuer=self.issuer,
             audience=self.audience,
             allowed_algs=self.allowed_algs,
@@ -129,6 +145,11 @@ def verify_provider_receipt(
     *,
     secret: str | None = None,
     jwks: dict[str, Any] | None = None,
+    jwks_uri: str | None = None,
+    jwks_cache: ProviderReceiptJwksCache | None = None,
+    jwks_cache_ttl_seconds: int = 300,
+    jwks_stale_if_error_seconds: int = 300,
+    jwks_timeout_seconds: float = 5.0,
     issuer: str | None = None,
     audience: str | None = None,
     allowed_algs: list[str] | None = None,
@@ -149,6 +170,11 @@ def verify_provider_receipt(
         value,
         secret=secret,
         jwks=jwks,
+        jwks_uri=jwks_uri,
+        jwks_cache=jwks_cache,
+        jwks_cache_ttl_seconds=jwks_cache_ttl_seconds,
+        jwks_stale_if_error_seconds=jwks_stale_if_error_seconds,
+        jwks_timeout_seconds=jwks_timeout_seconds,
         expected_issuer=issuer,
         expected_audience=audience,
         allowed_algs=allowed_algs,

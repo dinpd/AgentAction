@@ -11,6 +11,7 @@ from jwt.algorithms import RSAAlgorithm
 from agentid_provider_fastapi import (
     AgentIdReceiptError,
     InMemoryReplayStore,
+    ProviderReceiptJwksCache,
     ProviderReceiptVerifier,
     ToolReceiptPolicy,
     sign_provider_receipt,
@@ -197,6 +198,32 @@ def test_verifier_dependency_accepts_jws_receipt_for_configured_tool():
     assert result.receipt["decision_id"] == "dec-1"
 
 
+def test_verifier_dependency_accepts_remote_jwks_for_configured_tool(monkeypatch):
+    private_key, jwks = rsa_key_and_jwks()
+    verifier = ProviderReceiptVerifier(
+        jwks_uri="http://placeholder.invalid",
+        jwks_cache=ProviderReceiptJwksCache(),
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+        tools={"provider.crm.update_customer": policy()},
+    )
+    signed = sign_provider_receipt_jws(
+        receipt(),
+        private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+
+    monkeypatch.setattr("agentid.provider.fetch_provider_receipt_jwks", lambda jwks_uri, *, timeout_seconds=5.0: jwks)
+    verifier.jwks_uri = "https://enterprise.example.com/.well-known/jwks.json"
+    result = verifier.verify_body(mcp_request(signed))
+
+    assert result.ok
+    assert result.receipt["decision_id"] == "dec-1"
+
+
 @pytest.mark.anyio
 async def test_dependency_raises_for_denied_receipt(anyio_backend):
     verifier = ProviderReceiptVerifier(
@@ -306,6 +333,8 @@ def rsa_key_and_jwks():
     public_jwk["alg"] = "RS256"
     public_jwk["use"] = "sig"
     return private_pem, {"keys": [public_jwk]}
+
+
 
 
 @pytest.fixture

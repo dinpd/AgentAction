@@ -1,16 +1,18 @@
 import { createServer } from "node:http";
 
-import { unwrapProviderReceipt } from "../src/receipts.js";
+import { RemoteJwksCache, unwrapProviderReceiptWithJwks } from "../src/receipts.js";
 
 const host = "127.0.0.1";
 const port = 8790;
 const receiptHmacSecret = process.env.AGENTID_PROVIDER_RECEIPT_HMAC_SECRET || "dev-provider-receipt-secret";
 const receiptJwks = parseJwks(process.env.AGENTID_PROVIDER_RECEIPT_JWKS);
+const receiptJwksUri = process.env.AGENTID_PROVIDER_RECEIPT_JWKS_URI;
 const receiptIssuer = process.env.AGENTID_PROVIDER_RECEIPT_ISSUER;
 const receiptAudience = process.env.AGENTID_PROVIDER_RECEIPT_AUDIENCE;
 const receiptAllowedAlgorithms = process.env.AGENTID_PROVIDER_RECEIPT_ALLOWED_ALGS?.split(",")
   .map((alg) => alg.trim())
   .filter(Boolean);
+const receiptJwksCache = new RemoteJwksCache();
 const usedReceipts = new Set<string>();
 
 const tools = [
@@ -83,7 +85,7 @@ const server = createServer(async (request, response) => {
   }
 
   const body = JSON.parse(await readBody(request));
-  const result = handleRequest(body);
+  const result = await handleRequest(body);
   response.writeHead(200, { "content-type": "application/json" });
   response.end(JSON.stringify(result));
 });
@@ -92,7 +94,7 @@ server.listen(port, host, () => {
   console.log(`Mock provider MCP server listening on http://${host}:${port}/mcp`);
 });
 
-function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; method: string; params?: Record<string, unknown> }) {
+async function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; method: string; params?: Record<string, unknown> }) {
   if (request.method === "tools/list") {
     return { jsonrpc: "2.0", id: request.id, result: { tools } };
   }
@@ -100,7 +102,7 @@ function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; method: 
   if (request.method === "tools/call") {
     const name = request.params?.name;
     const args = isRecord(request.params?.arguments) ? request.params.arguments : {};
-    const verification = verifyProviderAuthorization(String(name), args);
+    const verification = await verifyProviderAuthorization(String(name), args);
     if (!verification.ok) {
       return {
         jsonrpc: "2.0",
@@ -161,11 +163,15 @@ function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; method: 
   };
 }
 
-function verifyProviderAuthorization(tool: string, args: Record<string, unknown>) {
+async function verifyProviderAuthorization(tool: string, args: Record<string, unknown>) {
   if (!receiptRequired(tool)) return { ok: true, findings: [] as string[], receiptId: undefined, tenantId: undefined };
 
   const receiptEnvelope = isRecord(args._agentid_receipt) ? args._agentid_receipt : undefined;
-  const unwrapped = unwrapProviderReceipt(receiptEnvelope, receiptHmacSecret, receiptJwks, {
+  const unwrapped = await unwrapProviderReceiptWithJwks(receiptEnvelope, {
+    secret: receiptHmacSecret,
+    jwks: receiptJwks,
+    jwksUri: receiptJwksUri,
+    jwksCache: receiptJwksCache,
     issuer: receiptIssuer,
     audience: receiptAudience,
     allowedAlgorithms: receiptAllowedAlgorithms,

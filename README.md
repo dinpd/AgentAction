@@ -313,7 +313,10 @@ prints the provider contract JSON Schema for editor and CI validation.
 `provider verify-receipt` lets a provider implementation, CI test, or local
 demo verify a raw or signed authorization receipt against expected tenant,
 agent, tool, action, resource, job, case, customer, approval, JIT grant, and
-amount bindings.
+amount bindings. JWS receipts can use either `--jwks` for a local key set or
+`--jwks-uri` for a remote key set; remote JWKS fetches are cached for 5 minutes
+by default, use stale keys for up to 5 more minutes on refresh failures, and
+force one immediate refresh when a receipt `kid` is missing from the cache.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor

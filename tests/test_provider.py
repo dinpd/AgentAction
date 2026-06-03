@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import json
+from datetime import datetime, timezone
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from jsonschema import Draft202012Validator
@@ -10,6 +11,8 @@ import yaml
 from agentid.cli import main
 from agentid.manifest import validate_manifest
 from agentid.provider import (
+    ProviderContractError,
+    ProviderReceiptJwksCache,
     diff_provider_contracts,
     import_provider_contract,
     load_provider_schema,
@@ -338,6 +341,106 @@ def test_verify_provider_receipt_rejects_jws_issuer_mismatch():
     assert "receipt JWS issuer mismatch" in result.findings
 
 
+def test_verify_provider_receipt_accepts_remote_jwks(monkeypatch):
+    private_key, jwks = rsa_key_and_jwks()
+    receipt = provider_receipt()
+    signed = sign_provider_receipt_jws(
+        receipt,
+        private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+
+    calls = mock_jwks_fetch(monkeypatch, [jwks])
+    result = verify_provider_receipt(
+        signed,
+        jwks_uri="https://enterprise.example.com/.well-known/jwks.json",
+        require_signed=True,
+        expected_issuer="https://enterprise.example.com",
+        expected_audience="provider-crm-mcp",
+        expected_tool="provider.crm.update_customer",
+        expected_resource="provider/customer/cus_123",
+    )
+
+    assert result.ok
+    assert result.findings == []
+    assert result.receipt == receipt
+    assert calls == ["https://enterprise.example.com/.well-known/jwks.json"]
+
+
+def test_verify_provider_receipt_uses_stale_remote_jwks_after_refresh_failure(monkeypatch):
+    private_key, jwks = rsa_key_and_jwks()
+    signed = sign_provider_receipt_jws(
+        provider_receipt(),
+        private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+    cache = ProviderReceiptJwksCache()
+
+    calls = mock_jwks_fetch(monkeypatch, [jwks, ProviderContractError("failed to fetch receipt JWKS: unavailable")])
+    first = verify_provider_receipt(
+        signed,
+        jwks_uri="https://enterprise.example.com/.well-known/jwks.json",
+        jwks_cache=cache,
+        jwks_cache_ttl_seconds=1,
+        jwks_stale_if_error_seconds=30,
+        require_signed=True,
+        expected_issuer="https://enterprise.example.com",
+        expected_audience="provider-crm-mcp",
+        now=instant("2026-05-28T12:00:00Z"),
+    )
+    second = verify_provider_receipt(
+        signed,
+        jwks_uri="https://enterprise.example.com/.well-known/jwks.json",
+        jwks_cache=cache,
+        jwks_cache_ttl_seconds=1,
+        jwks_stale_if_error_seconds=30,
+        require_signed=True,
+        expected_issuer="https://enterprise.example.com",
+        expected_audience="provider-crm-mcp",
+        now=instant("2026-05-28T12:00:02Z"),
+    )
+
+    assert first.ok
+    assert second.ok
+    assert calls == [
+        "https://enterprise.example.com/.well-known/jwks.json",
+        "https://enterprise.example.com/.well-known/jwks.json",
+    ]
+
+
+def test_verify_provider_receipt_refreshes_remote_jwks_when_kid_rotates(monkeypatch):
+    _, old_jwks = rsa_key_and_jwks("agentid-2026-05")
+    new_private_key, new_jwks = rsa_key_and_jwks("agentid-2026-06")
+    signed = sign_provider_receipt_jws(
+        provider_receipt(),
+        new_private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+
+    calls = mock_jwks_fetch(monkeypatch, [old_jwks, new_jwks])
+    result = verify_provider_receipt(
+        signed,
+        jwks_uri="https://enterprise.example.com/.well-known/jwks.json",
+        jwks_cache=ProviderReceiptJwksCache(),
+        require_signed=True,
+        expected_issuer="https://enterprise.example.com",
+        expected_audience="provider-crm-mcp",
+    )
+
+    assert result.ok
+    assert result.findings == []
+    assert calls == [
+        "https://enterprise.example.com/.well-known/jwks.json",
+        "https://enterprise.example.com/.well-known/jwks.json",
+    ]
+
+
 def test_verify_provider_receipt_detects_signature_and_binding_failures():
     receipt = provider_receipt()
     signed = sign_provider_receipt(receipt, "test-secret")
@@ -403,6 +506,47 @@ def test_cli_provider_verify_jws_receipt(tmp_path, capsys):
             str(receipt_path),
             "--jwks",
             str(jwks_path),
+            "--issuer",
+            "https://enterprise.example.com",
+            "--audience",
+            "provider-crm-mcp",
+            "--require-signed",
+            "--tool",
+            "provider.crm.update_customer",
+            "--resource",
+            "provider/customer/cus_123",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert code == 0
+    assert "Provider authorization receipt is valid." in output
+
+
+def test_cli_provider_verify_jws_receipt_via_jwks_uri(tmp_path, capsys, monkeypatch):
+    private_key, jwks = rsa_key_and_jwks()
+    receipt_path = tmp_path / "receipt.yaml"
+    receipt_path.write_text(
+        yaml.safe_dump(
+            sign_provider_receipt_jws(
+                provider_receipt(),
+                private_key,
+                issuer="https://enterprise.example.com",
+                audience="provider-crm-mcp",
+                key_id="agentid-2026-06",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    mock_jwks_fetch(monkeypatch, [jwks])
+    code = main(
+        [
+            "provider",
+            "verify-receipt",
+            str(receipt_path),
+            "--jwks-uri",
+            "https://enterprise.example.com/.well-known/jwks.json",
             "--issuer",
             "https://enterprise.example.com",
             "--audience",
@@ -539,7 +683,11 @@ def provider_receipt():
     }
 
 
-def rsa_key_and_jwks():
+def instant(value: str):
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def rsa_key_and_jwks(kid: str = "agentid-2026-06"):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -547,7 +695,25 @@ def rsa_key_and_jwks():
         encryption_algorithm=serialization.NoEncryption(),
     ).decode("ascii")
     public_jwk = json.loads(RSAAlgorithm.to_jwk(private_key.public_key()))
-    public_jwk["kid"] = "agentid-2026-06"
+    public_jwk["kid"] = kid
     public_jwk["alg"] = "RS256"
     public_jwk["use"] = "sig"
     return private_pem, {"keys": [public_jwk]}
+
+
+def mock_jwks_fetch(monkeypatch, responses):
+    queue = list(responses)
+    calls = []
+
+    def fake_fetch(jwks_uri, *, timeout_seconds=5.0):
+        del timeout_seconds
+        calls.append(jwks_uri)
+        if not queue:
+            raise AssertionError("unexpected JWKS fetch")
+        response = queue.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr("agentid.provider.fetch_provider_receipt_jwks", fake_fetch)
+    return calls

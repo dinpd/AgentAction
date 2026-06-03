@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   MemoryReplayStore,
+  RemoteJwksCache,
   createAgentIdReceiptMiddleware,
   signProviderReceiptJws,
   signProviderReceipt,
@@ -52,6 +53,35 @@ test("verifyProviderReceipt accepts JWS receipt bound to tool args", async () =>
   assert.equal(result.ok, true);
   assert.deepEqual(result.findings, []);
   assert.deepEqual(result.receipt, signedReceipt());
+});
+
+test("verifyProviderReceipt accepts remote JWKS", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const fetch = mockFetch([jwks]);
+  const result = await verifyProviderReceipt(
+    signProviderReceiptJws(signedReceipt(), privateKey, {
+      issuer: "https://enterprise.example.com",
+      audience: "provider-crm-mcp",
+      keyId: "agentid-2026-06",
+    }),
+    {
+      jwksUri: "https://enterprise.example.com/.well-known/jwks.json",
+      jwksCache: new RemoteJwksCache(),
+      fetch,
+      issuer: "https://enterprise.example.com",
+      audience: "provider-crm-mcp",
+      requireSigned: true,
+      tool: "provider.crm.update_customer",
+      args: toolArgs(),
+      policy,
+      now: () => new Date("2026-05-28T12:01:00Z"),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.receipt, signedReceipt());
+  assert.equal(fetch.calls.length, 1);
 });
 
 test("verifyProviderReceipt rejects JWS issuer mismatch", async () => {
@@ -292,4 +322,22 @@ function rsaKeyPair() {
     privateKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
     jwks: { keys: [jwk] },
   };
+}
+
+function mockFetch(responses: Array<unknown>) {
+  const queue = [...responses];
+  const calls: string[] = [];
+  const fetch = (async (input: string | URL) => {
+    calls.push(String(input));
+    const payload = queue.shift();
+    if (payload === undefined) throw new Error("unexpected fetch");
+    if (payload instanceof Error) throw payload;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    };
+  }) as typeof globalThis.fetch & { calls: string[] };
+  fetch.calls = calls;
+  return fetch;
 }

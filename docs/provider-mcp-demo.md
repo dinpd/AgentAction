@@ -105,6 +105,21 @@ agentid provider verify-receipt receipt.json \
   --require-signed
 ```
 
+You can also trust a remote key set directly:
+
+```bash
+agentid provider verify-receipt receipt.json \
+  --jwks-uri https://enterprise.example.com/.well-known/jwks.json \
+  --issuer https://enterprise.example.com \
+  --audience provider-crm-mcp \
+  --require-signed
+```
+
+Remote JWKS lookups are cached for 5 minutes by default, reuse stale keys for
+up to 5 more minutes on refresh failures, and force a refresh when a receipt
+`kid` is missing from the cached JWKS so key rotation does not wait for TTL
+expiry.
+
 ## 1. Start AgentID
 
 From the repo root in terminal 1:
@@ -134,7 +149,8 @@ receipt envelopes. It also emits provider execution receipts as structured JSON
 logs.
 
 To verify JWS receipts in the mock provider, set
-`AGENTID_PROVIDER_RECEIPT_JWKS` to a JWKS JSON object. You can also set
+`AGENTID_PROVIDER_RECEIPT_JWKS` to a JWKS JSON object or
+`AGENTID_PROVIDER_RECEIPT_JWKS_URI` to a remote JWKS endpoint. You can also set
 `AGENTID_PROVIDER_RECEIPT_ISSUER`, `AGENTID_PROVIDER_RECEIPT_AUDIENCE`, and
 `AGENTID_PROVIDER_RECEIPT_ALLOWED_ALGS` for stricter trust policy checks.
 

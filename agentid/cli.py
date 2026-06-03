@@ -28,6 +28,7 @@ from agentid.mcp_ui_server import serve_mcp_ui
 from agentid.policy import generate_policy
 from agentid.provider import (
     ProviderContractError,
+    ProviderReceiptJwksCache,
     diff_provider_contracts,
     format_provider_diff,
     import_provider_contract,
@@ -134,6 +135,15 @@ def main(argv: list[str] | None = None) -> int:
     provider_receipt_parser.add_argument("--secret", help="HMAC secret for signed receipts.")
     provider_receipt_parser.add_argument("--secret-env", help="Environment variable containing the HMAC secret.")
     provider_receipt_parser.add_argument("--jwks", help="JWKS file for JWS signed receipts.")
+    provider_receipt_parser.add_argument("--jwks-uri", help="JWKS URI for JWS signed receipts.")
+    provider_receipt_parser.add_argument("--jwks-cache-ttl", type=int, default=300, help="Remote JWKS cache TTL in seconds.")
+    provider_receipt_parser.add_argument(
+        "--jwks-stale-if-error",
+        type=int,
+        default=300,
+        help="How long to reuse an expired remote JWKS after refresh failures, in seconds.",
+    )
+    provider_receipt_parser.add_argument("--jwks-timeout", type=float, default=5.0, help="Remote JWKS fetch timeout in seconds.")
     provider_receipt_parser.add_argument("--issuer", help="Expected JWS issuer.")
     provider_receipt_parser.add_argument("--audience", help="Expected JWS audience.")
     provider_receipt_parser.add_argument("--allowed-alg", action="append", help="Allowed JWS algorithm. Can be repeated.")
@@ -330,6 +340,11 @@ def main(argv: list[str] | None = None) -> int:
                 receipt,
                 secret=secret,
                 jwks=jwks,
+                jwks_uri=args.jwks_uri,
+                jwks_cache=ProviderReceiptJwksCache(),
+                jwks_cache_ttl_seconds=args.jwks_cache_ttl,
+                jwks_stale_if_error_seconds=args.jwks_stale_if_error,
+                jwks_timeout_seconds=args.jwks_timeout,
                 expected_issuer=args.issuer,
                 expected_audience=args.audience,
                 allowed_algs=args.allowed_alg,

@@ -7,6 +7,47 @@ export type ReceiptUnwrapResult = {
   findings: string[];
 };
 
+export type JsonWebKeySet = {
+  keys?: JsonWebKey[];
+};
+
+const DEFAULT_RECEIPT_JWKS_CACHE_TTL_MS = 300_000;
+const DEFAULT_RECEIPT_JWKS_STALE_IF_ERROR_MS = 300_000;
+
+export class RemoteJwksCache {
+  private entries = new Map<string, { jwks: JsonWebKeySet; expiresAt: number; staleUntil: number }>();
+
+  async get(
+    jwksUri: string,
+    options: {
+      ttlMs?: number;
+      staleIfErrorMs?: number;
+      now?: () => Date;
+      forceRefresh?: boolean;
+      fetch?: typeof fetch;
+    } = {},
+  ): Promise<JsonWebKeySet> {
+    const now = options.now ? options.now().getTime() : Date.now();
+    const entry = this.entries.get(jwksUri);
+    if (entry && !options.forceRefresh && entry.expiresAt > now) return entry.jwks;
+
+    try {
+      const jwks = await fetchProviderReceiptJwks(jwksUri, { fetch: options.fetch });
+      const ttlMs = Math.max(options.ttlMs ?? DEFAULT_RECEIPT_JWKS_CACHE_TTL_MS, 0);
+      const staleIfErrorMs = Math.max(options.staleIfErrorMs ?? DEFAULT_RECEIPT_JWKS_STALE_IF_ERROR_MS, 0);
+      this.entries.set(jwksUri, {
+        jwks,
+        expiresAt: now + ttlMs,
+        staleUntil: now + ttlMs + staleIfErrorMs,
+      });
+      return jwks;
+    } catch (error) {
+      if (entry && entry.staleUntil > now) return entry.jwks;
+      throw error;
+    }
+  }
+}
+
 export function signProviderReceipt(
   receipt: ProviderAuthorizationReceipt,
   secret: string,
@@ -72,7 +113,7 @@ export function verifySignedProviderReceipt(
 
 export function verifyJwsProviderReceipt(
   value: unknown,
-  jwks: { keys?: JsonWebKey[] },
+  jwks: JsonWebKeySet,
   options: {
     issuer?: string;
     audience?: string;
@@ -124,7 +165,7 @@ export function verifyJwsProviderReceipt(
 export function unwrapProviderReceipt(
   value: unknown,
   secret?: string,
-  jwks?: { keys?: JsonWebKey[] },
+  jwks?: JsonWebKeySet,
   jwsOptions: {
     issuer?: string;
     audience?: string;
@@ -140,6 +181,57 @@ export function unwrapProviderReceipt(
   if (!isSignedReceiptEnvelope(value)) return { receipt: value as ProviderAuthorizationReceipt, findings: [] };
   if (!secret) return { findings: ["receipt signature secret is required"] };
   return verifySignedProviderReceipt(value, secret);
+}
+
+export async function unwrapProviderReceiptWithJwks(
+  value: unknown,
+  options: {
+    secret?: string;
+    jwks?: JsonWebKeySet;
+    jwksUri?: string;
+    jwksCache?: RemoteJwksCache;
+    jwksCacheTtlMs?: number;
+    jwksStaleIfErrorMs?: number;
+    fetch?: typeof fetch;
+    issuer?: string;
+    audience?: string;
+    allowedAlgorithms?: string[];
+    now?: () => Date;
+  } = {},
+): Promise<ReceiptUnwrapResult> {
+  if (!isRecord(value)) return { findings: [] };
+  if (!isJwsReceipt(value)) return unwrapProviderReceipt(value, options.secret, options.jwks, options);
+  if (options.jwks) return verifyJwsProviderReceipt(value, options.jwks, options);
+  if (!options.jwksUri) return { findings: ["receipt JWKS is required"] };
+
+  const cache = options.jwksCache || new RemoteJwksCache();
+  let resolvedJwks: JsonWebKeySet;
+  try {
+    resolvedJwks = await cache.get(options.jwksUri, {
+      ttlMs: options.jwksCacheTtlMs,
+      staleIfErrorMs: options.jwksStaleIfErrorMs,
+      now: options.now,
+      fetch: options.fetch,
+    });
+  } catch (error) {
+    return { findings: [String((error as Error).message || error)] };
+  }
+
+  const verified = verifyJwsProviderReceipt(value, resolvedJwks, options);
+  if (!jwksKeyNotFound(verified.findings)) return verified;
+
+  try {
+    const refreshedJwks = await cache.get(options.jwksUri, {
+      ttlMs: options.jwksCacheTtlMs,
+      staleIfErrorMs: options.jwksStaleIfErrorMs,
+      now: options.now,
+      forceRefresh: true,
+      fetch: options.fetch,
+    });
+    return verifyJwsProviderReceipt(value, refreshedJwks, options);
+  } catch {
+    return verified;
+  }
 }
 
 export function canonicalJson(value: unknown): string {
@@ -161,7 +253,11 @@ function isSignedReceiptEnvelope(value: Record<string, unknown>): boolean {
   return "payload" in value || "signature" in value || "alg" in value;
 }
 
-function jwkForHeader(jwks: { keys?: JsonWebKey[] }, header: Record<string, unknown>): JsonWebKey | undefined {
+function isJwsReceipt(value: unknown): value is JwsProviderAuthorizationReceipt {
+  return isRecord(value) && typeof value.jws === "string";
+}
+
+function jwkForHeader(jwks: JsonWebKeySet, header: Record<string, unknown>): JsonWebKey | undefined {
   const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
   const kid = stringValue(header.kid);
   if (kid) return keys.find((key) => stringValue((key as unknown as Record<string, unknown>).kid) === kid);
@@ -192,6 +288,23 @@ function parseTimestamp(value: unknown): Date | undefined {
   return date;
 }
 
+async function fetchProviderReceiptJwks(
+  jwksUri: string,
+  options: { fetch?: typeof fetch } = {},
+): Promise<JsonWebKeySet> {
+  const fetchFn = options.fetch || globalThis.fetch;
+  if (typeof fetchFn !== "function") throw new Error("receipt JWKS fetch is unavailable");
+
+  const response = await fetchFn(jwksUri, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error(`failed to fetch receipt JWKS: ${response.status}`);
+
+  const payload = await response.json();
+  if (!isRecord(payload) || ("keys" in payload && !Array.isArray(payload.keys))) {
+    throw new Error("receipt JWKS response must be a JSON object with a keys array");
+  }
+  return payload as JsonWebKeySet;
+}
+
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
@@ -205,4 +318,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringValue(value: unknown): string {
   if (value === undefined || value === null) return "";
   return String(value);
+}
+
+function jwksKeyNotFound(findings: string[]): boolean {
+  return findings.some((finding) => finding.startsWith("receipt JWS key not found:"));
 }

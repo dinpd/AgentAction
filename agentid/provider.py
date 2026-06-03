@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import base64
 import hashlib
 import hmac
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 import jwt
 import yaml
@@ -29,6 +31,9 @@ FINANCIAL_HINTS = ("credit", "refund", "payment", "charge", "purchase", "discoun
 ADMIN_HINTS = ("admin", "role", "permission", "policy", "token", "secret", "key")
 RISK_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
+DEFAULT_RECEIPT_JWKS_CACHE_TTL_SECONDS = 300
+DEFAULT_RECEIPT_JWKS_STALE_IF_ERROR_SECONDS = 300
+DEFAULT_RECEIPT_JWKS_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,49 @@ class ProviderReceiptVerification:
     ok: bool
     receipt: dict[str, Any] | None
     findings: list[str]
+
+
+@dataclass
+class ProviderReceiptJwksCacheEntry:
+    jwks: dict[str, Any]
+    expires_at: datetime
+    stale_until: datetime
+
+
+class ProviderReceiptJwksCache:
+    def __init__(self) -> None:
+        self._entries: dict[str, ProviderReceiptJwksCacheEntry] = {}
+
+    def get(
+        self,
+        jwks_uri: str,
+        *,
+        ttl_seconds: int = DEFAULT_RECEIPT_JWKS_CACHE_TTL_SECONDS,
+        stale_if_error_seconds: int = DEFAULT_RECEIPT_JWKS_STALE_IF_ERROR_SECONDS,
+        timeout_seconds: float = DEFAULT_RECEIPT_JWKS_TIMEOUT_SECONDS,
+        now: datetime | None = None,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        current = now or datetime.now(timezone.utc)
+        entry = self._entries.get(jwks_uri)
+        if entry and not force_refresh and entry.expires_at > current:
+            return entry.jwks
+
+        try:
+            jwks = fetch_provider_receipt_jwks(jwks_uri, timeout_seconds=timeout_seconds)
+        except ProviderContractError:
+            if entry and entry.stale_until > current:
+                return entry.jwks
+            raise
+
+        expires_at = current + timedelta(seconds=max(ttl_seconds, 0))
+        stale_until = expires_at + timedelta(seconds=max(stale_if_error_seconds, 0))
+        self._entries[jwks_uri] = ProviderReceiptJwksCacheEntry(
+            jwks=jwks,
+            expires_at=expires_at,
+            stale_until=stale_until,
+        )
+        return jwks
 
 
 def load_provider_schema() -> dict[str, Any]:
@@ -463,11 +511,39 @@ def sign_provider_receipt_jws(
     return {"jws": jwt.encode(claims, private_key_pem, algorithm=algorithm, headers=headers)}
 
 
+def fetch_provider_receipt_jwks(
+    jwks_uri: str,
+    *,
+    timeout_seconds: float = DEFAULT_RECEIPT_JWKS_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    try:
+        with urllib_request.urlopen(
+            urllib_request.Request(jwks_uri, headers={"accept": "application/json"}),
+            timeout=timeout_seconds,
+        ) as response:
+            payload = response.read().decode("utf-8")
+    except (ValueError, urllib_error.URLError, TimeoutError) as exc:
+        raise ProviderContractError(f"failed to fetch receipt JWKS: {exc}") from exc
+
+    try:
+        jwks = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ProviderContractError(f"receipt JWKS response is not valid JSON: {exc}") from exc
+    if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
+        raise ProviderContractError("receipt JWKS response must be a JSON object with a keys array")
+    return jwks
+
+
 def verify_provider_receipt(
     value: Any,
     *,
     secret: str | None = None,
     jwks: dict[str, Any] | None = None,
+    jwks_uri: str | None = None,
+    jwks_cache: ProviderReceiptJwksCache | None = None,
+    jwks_cache_ttl_seconds: int = DEFAULT_RECEIPT_JWKS_CACHE_TTL_SECONDS,
+    jwks_stale_if_error_seconds: int = DEFAULT_RECEIPT_JWKS_STALE_IF_ERROR_SECONDS,
+    jwks_timeout_seconds: float = DEFAULT_RECEIPT_JWKS_TIMEOUT_SECONDS,
     expected_issuer: str | None = None,
     expected_audience: str | None = None,
     allowed_algs: list[str] | None = None,
@@ -489,14 +565,18 @@ def verify_provider_receipt(
     receipt = value
 
     if isinstance(value, dict) and _is_jws_receipt(value):
-        if jwks is None:
-            return ProviderReceiptVerification(False, None, ["receipt JWKS is required"])
-        signature_result = _verify_jws_receipt(
+        signature_result = _verify_jws_receipt_with_remote_jwks(
             value,
-            jwks,
+            jwks=jwks,
+            jwks_uri=jwks_uri,
+            jwks_cache=jwks_cache,
+            jwks_cache_ttl_seconds=jwks_cache_ttl_seconds,
+            jwks_stale_if_error_seconds=jwks_stale_if_error_seconds,
+            jwks_timeout_seconds=jwks_timeout_seconds,
             expected_issuer=expected_issuer,
             expected_audience=expected_audience,
             allowed_algs=allowed_algs,
+            now=now,
         )
         receipt = signature_result.receipt or {}
         findings.extend(signature_result.findings)
@@ -921,6 +1001,76 @@ def _is_jws_receipt(value: dict[str, Any]) -> bool:
     return isinstance(value.get("jws"), str)
 
 
+def _verify_jws_receipt_with_remote_jwks(
+    value: dict[str, Any],
+    *,
+    jwks: dict[str, Any] | None,
+    jwks_uri: str | None,
+    jwks_cache: ProviderReceiptJwksCache | None,
+    jwks_cache_ttl_seconds: int,
+    jwks_stale_if_error_seconds: int,
+    jwks_timeout_seconds: float,
+    expected_issuer: str | None = None,
+    expected_audience: str | None = None,
+    allowed_algs: list[str] | None = None,
+    now: datetime | None = None,
+) -> ProviderReceiptVerification:
+    if jwks is not None:
+        return _verify_jws_receipt(
+            value,
+            jwks,
+            expected_issuer=expected_issuer,
+            expected_audience=expected_audience,
+            allowed_algs=allowed_algs,
+        )
+    if not jwks_uri:
+        return ProviderReceiptVerification(False, None, ["receipt JWKS is required"])
+
+    cache = jwks_cache or ProviderReceiptJwksCache()
+    current = now or datetime.now(timezone.utc)
+    try:
+        resolved_jwks = cache.get(
+            jwks_uri,
+            ttl_seconds=jwks_cache_ttl_seconds,
+            stale_if_error_seconds=jwks_stale_if_error_seconds,
+            timeout_seconds=jwks_timeout_seconds,
+            now=current,
+        )
+    except ProviderContractError as exc:
+        return ProviderReceiptVerification(False, None, [str(exc)])
+
+    result = _verify_jws_receipt(
+        value,
+        resolved_jwks,
+        expected_issuer=expected_issuer,
+        expected_audience=expected_audience,
+        allowed_algs=allowed_algs,
+    )
+    if not _jwks_key_not_found(result.findings):
+        return result
+
+    try:
+        refreshed_jwks = cache.get(
+            jwks_uri,
+            ttl_seconds=jwks_cache_ttl_seconds,
+            stale_if_error_seconds=jwks_stale_if_error_seconds,
+            timeout_seconds=jwks_timeout_seconds,
+            now=current,
+            force_refresh=True,
+        )
+    except ProviderContractError:
+        return result
+    if refreshed_jwks is resolved_jwks:
+        return result
+    return _verify_jws_receipt(
+        value,
+        refreshed_jwks,
+        expected_issuer=expected_issuer,
+        expected_audience=expected_audience,
+        allowed_algs=allowed_algs,
+    )
+
+
 def _verify_jws_receipt(
     value: dict[str, Any],
     jwks: dict[str, Any],
@@ -983,6 +1133,10 @@ def _verify_jws_receipt(
     if not receipt:
         return ProviderReceiptVerification(False, None, ["receipt JWS payload is required"])
     return ProviderReceiptVerification(True, receipt, [])
+
+
+def _jwks_key_not_found(findings: list[str]) -> bool:
+    return any(finding.startswith("receipt JWS key not found:") for finding in findings)
 
 
 def _jwk_for_header(jwks: dict[str, Any], header: dict[str, Any]) -> dict[str, Any] | None:
