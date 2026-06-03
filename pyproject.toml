@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "AgentID contributors" }]
-dependencies = ["PyYAML>=6.0.1"]
+dependencies = ["PyYAML>=6.0.1", "PyJWT[crypto]>=2.8.0"]
 
 [project.optional-dependencies]
 dev = ["jsonschema>=4.23.0", "pytest>=9.0.3"]

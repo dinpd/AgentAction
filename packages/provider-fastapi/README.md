@@ -28,7 +28,9 @@ from agentid_provider_fastapi import (
 app = FastAPI()
 
 verifier = ProviderReceiptVerifier(
-    secret="dev-provider-receipt-secret",
+    jwks={"keys": [...]},
+    issuer="https://enterprise.example.com",
+    audience="provider-crm-mcp",
     replay_store=InMemoryReplayStore(),
     tools={
         "provider.crm.update_customer": ToolReceiptPolicy(
@@ -64,7 +66,9 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 
 ## What It Checks
 
-- Signed HMAC receipt envelope by default
+- Signed JWS receipt envelopes against a local JWKS
+- Optional issuer, audience, and allowed-algorithm checks
+- Signed HMAC receipt envelopes for local demos
 - Required receipt fields
 - Tool name
 - Expected action
@@ -74,4 +78,4 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 - Optional single-use replay protection
 
 HMAC receipts are intended for local demos and simple integrations. Production
-providers should move to managed keys with JWS/JWKS or receipt introspection.
+providers should prefer managed keys with JWS/JWKS or receipt introspection.

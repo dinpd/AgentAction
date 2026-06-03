@@ -94,6 +94,17 @@ agentid provider verify-receipt examples/provider-signed-receipt.json \
   --resource provider/customer/cus_123
 ```
 
+For JWS/JWKS receipts, pass the provider's trusted JWKS and expected issuer or
+audience:
+
+```bash
+agentid provider verify-receipt receipt.json \
+  --jwks enterprise-jwks.json \
+  --issuer https://enterprise.example.com \
+  --audience provider-crm-mcp \
+  --require-signed
+```
+
 ## 1. Start AgentID
 
 From the repo root in terminal 1:
@@ -118,8 +129,14 @@ npm run mock-provider
 The mock provider listens on `http://127.0.0.1:8790/mcp`.
 
 For high-risk tools, it requires `_agentid_receipt` in the MCP tool arguments.
-It accepts raw local demo receipts and signed HMAC receipt envelopes. It also
-emits provider execution receipts as structured JSON logs.
+It accepts raw local demo receipts, signed HMAC receipt envelopes, and JWS
+receipt envelopes. It also emits provider execution receipts as structured JSON
+logs.
+
+To verify JWS receipts in the mock provider, set
+`AGENTID_PROVIDER_RECEIPT_JWKS` to a JWKS JSON object. You can also set
+`AGENTID_PROVIDER_RECEIPT_ISSUER`, `AGENTID_PROVIDER_RECEIPT_AUDIENCE`, and
+`AGENTID_PROVIDER_RECEIPT_ALLOWED_ALGS` for stricter trust policy checks.
 
 ## 3. Start the Adapter
 
@@ -147,8 +164,8 @@ with a receipt in `_agentid_receipt`. The example config signs the receipt with
 
 The mock provider verifies that signature using
 `AGENTID_PROVIDER_RECEIPT_HMAC_SECRET`, defaulting to the same demo secret. In
-production, use managed signing keys, JWS, or introspection rather than a static
-demo secret in config.
+production, use managed signing keys with `provider_receipts.jws` or
+introspection rather than a static demo secret in config.
 
 The same receipt semantics are available in two places:
 

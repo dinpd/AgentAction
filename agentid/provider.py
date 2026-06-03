@@ -9,6 +9,7 @@ import hmac
 from pathlib import Path
 from typing import Any
 
+import jwt
 import yaml
 
 from agentid.manifest import ValidationResult
@@ -433,10 +434,43 @@ def sign_provider_receipt(receipt: dict[str, Any], secret: str) -> dict[str, Any
     }
 
 
+def sign_provider_receipt_jws(
+    receipt: dict[str, Any],
+    private_key_pem: str,
+    *,
+    issuer: str | None = None,
+    subject: str | None = None,
+    audience: str | None = None,
+    key_id: str | None = None,
+    algorithm: str = "RS256",
+) -> dict[str, Any]:
+    claims: dict[str, Any] = {"receipt": receipt}
+    if issuer:
+        claims["iss"] = issuer
+    if subject:
+        claims["sub"] = subject
+    if audience:
+        claims["aud"] = audience
+    issued_at = _parse_timestamp(receipt.get("issued_at"))
+    expires_at = _parse_timestamp(receipt.get("expires_at"))
+    if issued_at:
+        claims["iat"] = int(issued_at.timestamp())
+    if expires_at:
+        claims["exp"] = int(expires_at.timestamp())
+    if receipt.get("decision_id"):
+        claims["jti"] = receipt["decision_id"]
+    headers = {"kid": key_id} if key_id else None
+    return {"jws": jwt.encode(claims, private_key_pem, algorithm=algorithm, headers=headers)}
+
+
 def verify_provider_receipt(
-    value: dict[str, Any],
+    value: Any,
     *,
     secret: str | None = None,
+    jwks: dict[str, Any] | None = None,
+    expected_issuer: str | None = None,
+    expected_audience: str | None = None,
+    allowed_algs: list[str] | None = None,
     require_signed: bool = False,
     expected_tenant: str | None = None,
     expected_agent: str | None = None,
@@ -454,7 +488,19 @@ def verify_provider_receipt(
     findings: list[str] = []
     receipt = value
 
-    if _is_signed_receipt(value):
+    if isinstance(value, dict) and _is_jws_receipt(value):
+        if jwks is None:
+            return ProviderReceiptVerification(False, None, ["receipt JWKS is required"])
+        signature_result = _verify_jws_receipt(
+            value,
+            jwks,
+            expected_issuer=expected_issuer,
+            expected_audience=expected_audience,
+            allowed_algs=allowed_algs,
+        )
+        receipt = signature_result.receipt or {}
+        findings.extend(signature_result.findings)
+    elif isinstance(value, dict) and _is_signed_receipt(value):
         if secret is None:
             return ProviderReceiptVerification(False, None, ["receipt signature secret is required"])
         signature_result = _verify_signed_receipt(value, secret)
@@ -869,6 +915,97 @@ def _title_from_id(agent_id: str) -> str:
 
 def _is_signed_receipt(value: dict[str, Any]) -> bool:
     return "alg" in value or "payload" in value or "signature" in value
+
+
+def _is_jws_receipt(value: dict[str, Any]) -> bool:
+    return isinstance(value.get("jws"), str)
+
+
+def _verify_jws_receipt(
+    value: dict[str, Any],
+    jwks: dict[str, Any],
+    *,
+    expected_issuer: str | None = None,
+    expected_audience: str | None = None,
+    allowed_algs: list[str] | None = None,
+) -> ProviderReceiptVerification:
+    token = _string(value.get("jws"))
+    if not token:
+        return ProviderReceiptVerification(False, None, ["receipt jws is required"])
+
+    algorithms = allowed_algs or ["RS256", "ES256"]
+    findings: list[str] = []
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError as exc:
+        return ProviderReceiptVerification(False, None, [f"receipt JWS header is invalid: {exc}"])
+
+    alg = _string(header.get("alg"))
+    if alg not in algorithms:
+        findings.append(f"receipt JWS alg is not allowed: {alg}")
+
+    key = _jwk_for_header(jwks, header)
+    if key is None:
+        findings.append(f"receipt JWS key not found: {_string(header.get('kid')) or 'missing-kid'}")
+
+    if findings or key is None:
+        return ProviderReceiptVerification(False, None, findings)
+
+    try:
+        algorithm = jwt.algorithms.get_default_algorithms().get(alg)
+        if algorithm is None:
+            return ProviderReceiptVerification(False, None, [f"receipt JWS alg is unsupported: {alg}"])
+        public_key = algorithm.from_jwk(json.dumps(key))
+        claims = jwt.decode(
+            token,
+            public_key,
+            algorithms=algorithms,
+            audience=expected_audience,
+            issuer=expected_issuer,
+            options={
+                "verify_aud": expected_audience is not None,
+                "verify_iss": expected_issuer is not None,
+                "verify_exp": False,
+                "verify_iat": False,
+                "verify_nbf": False,
+            },
+        )
+    except jwt.ExpiredSignatureError:
+        return ProviderReceiptVerification(False, None, ["receipt JWS is expired"])
+    except jwt.InvalidAudienceError:
+        return ProviderReceiptVerification(False, None, ["receipt JWS audience mismatch"])
+    except jwt.InvalidIssuerError:
+        return ProviderReceiptVerification(False, None, ["receipt JWS issuer mismatch"])
+    except jwt.InvalidTokenError as exc:
+        return ProviderReceiptVerification(False, None, [f"receipt JWS signature invalid: {exc}"])
+
+    receipt = _receipt_from_jws_claims(claims)
+    if not receipt:
+        return ProviderReceiptVerification(False, None, ["receipt JWS payload is required"])
+    return ProviderReceiptVerification(True, receipt, [])
+
+
+def _jwk_for_header(jwks: dict[str, Any], header: dict[str, Any]) -> dict[str, Any] | None:
+    keys = jwks.get("keys")
+    if not isinstance(keys, list):
+        return None
+    kid = header.get("kid")
+    if kid:
+        for key in keys:
+            if isinstance(key, dict) and key.get("kid") == kid:
+                return key
+        return None
+    matching = [key for key in keys if isinstance(key, dict)]
+    return matching[0] if len(matching) == 1 else None
+
+
+def _receipt_from_jws_claims(claims: dict[str, Any]) -> dict[str, Any] | None:
+    receipt = claims.get("receipt") or claims.get("payload")
+    if isinstance(receipt, dict):
+        return receipt
+    registered = {"iss", "sub", "aud", "exp", "iat", "nbf", "jti"}
+    candidate = {key: value for key, value in claims.items() if key not in registered}
+    return candidate if candidate else None
 
 
 def _verify_signed_receipt(value: dict[str, Any], secret: str) -> ProviderReceiptVerification:

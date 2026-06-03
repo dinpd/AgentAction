@@ -29,6 +29,9 @@
         "source": {
           "type": "string"
         },
+        "receipt": {
+          "$ref": "#/$defs/receipt_trust_policy"
+        },
         "tools": {
           "type": "object",
           "minProperties": 1,
@@ -122,6 +125,48 @@
         },
         "single_use": {
           "type": "boolean"
+        }
+      }
+    },
+    "receipt_trust_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "verification": {
+          "type": "string",
+          "enum": ["raw", "hmac", "jws_jwks", "signed_or_introspected", "introspection"]
+        },
+        "transport": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_issuers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "jwks_uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_algs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["RS256", "ES256"]
+          },
+          "uniqueItems": true
+        },
+        "introspection_uri": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }

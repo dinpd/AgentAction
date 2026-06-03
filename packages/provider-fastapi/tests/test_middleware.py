@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from jwt.algorithms import RSAAlgorithm
 
 from agentid_provider_fastapi import (
     AgentIdReceiptError,
@@ -10,6 +14,7 @@ from agentid_provider_fastapi import (
     ProviderReceiptVerifier,
     ToolReceiptPolicy,
     sign_provider_receipt,
+    sign_provider_receipt_jws,
     verify_provider_receipt,
 )
 
@@ -28,6 +33,56 @@ def test_verify_provider_receipt_accepts_signed_receipt_bound_to_args():
     assert result.ok
     assert result.findings == []
     assert result.receipt == receipt()
+
+
+def test_verify_provider_receipt_accepts_jws_receipt_bound_to_args():
+    private_key, jwks = rsa_key_and_jwks()
+
+    result = verify_provider_receipt(
+        sign_provider_receipt_jws(
+            receipt(),
+            private_key,
+            issuer="https://enterprise.example.com",
+            audience="provider-crm-mcp",
+            key_id="agentid-2026-06",
+        ),
+        jwks=jwks,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        require_signed=True,
+        tool="provider.crm.update_customer",
+        args=tool_args(),
+        policy=policy(),
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+    )
+
+    assert result.ok
+    assert result.findings == []
+    assert result.receipt == receipt()
+
+
+def test_verify_provider_receipt_rejects_jws_issuer_mismatch():
+    private_key, jwks = rsa_key_and_jwks()
+
+    result = verify_provider_receipt(
+        sign_provider_receipt_jws(
+            receipt(),
+            private_key,
+            issuer="https://enterprise.example.com",
+            audience="provider-crm-mcp",
+            key_id="agentid-2026-06",
+        ),
+        jwks=jwks,
+        issuer="https://other.example.com",
+        audience="provider-crm-mcp",
+        tool="provider.crm.update_customer",
+        args=tool_args(),
+        policy=policy(),
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+    )
+
+    assert not result.ok
+    assert "receipt JWS issuer mismatch" in result.findings
 
 
 def test_verify_provider_receipt_rejects_tampered_signature_and_resource_mismatch():
@@ -114,6 +169,29 @@ def test_verifier_dependency_returns_receipt_for_configured_tool():
     )
 
     result = verifier.verify_body(mcp_request(sign_provider_receipt(receipt(), "secret-1")))
+
+    assert result.ok
+    assert result.receipt["decision_id"] == "dec-1"
+
+
+def test_verifier_dependency_accepts_jws_receipt_for_configured_tool():
+    private_key, jwks = rsa_key_and_jwks()
+    verifier = ProviderReceiptVerifier(
+        jwks=jwks,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+        tools={"provider.crm.update_customer": policy()},
+    )
+
+    signed = sign_provider_receipt_jws(
+        receipt(),
+        private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+    result = verifier.verify_body(mcp_request(signed))
 
     assert result.ok
     assert result.receipt["decision_id"] == "dec-1"
@@ -214,6 +292,20 @@ def mcp_request(receipt_value, tool="provider.crm.update_customer"):
 
 def instant(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def rsa_key_and_jwks():
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("ascii")
+    public_jwk = json.loads(RSAAlgorithm.to_jwk(private_key.public_key()))
+    public_jwk["kid"] = "agentid-2026-06"
+    public_jwk["alg"] = "RS256"
+    public_jwk["use"] = "sig"
+    return private_pem, {"keys": [public_jwk]}
 
 
 @pytest.fixture

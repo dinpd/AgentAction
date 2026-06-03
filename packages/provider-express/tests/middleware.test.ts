@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
 import {
   MemoryReplayStore,
   createAgentIdReceiptMiddleware,
+  signProviderReceiptJws,
   signProviderReceipt,
   verifyProviderReceipt,
   type ProviderAuthorizationReceipt,
@@ -25,6 +27,52 @@ test("verifyProviderReceipt accepts signed receipt bound to tool args", async ()
   assert.equal(result.ok, true);
   assert.deepEqual(result.findings, []);
   assert.deepEqual(result.receipt, receipt);
+});
+
+test("verifyProviderReceipt accepts JWS receipt bound to tool args", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const result = await verifyProviderReceipt(
+    signProviderReceiptJws(signedReceipt(), privateKey, {
+      issuer: "https://enterprise.example.com",
+      audience: "provider-crm-mcp",
+      keyId: "agentid-2026-06",
+    }),
+    {
+      jwks,
+      issuer: "https://enterprise.example.com",
+      audience: "provider-crm-mcp",
+      requireSigned: true,
+      tool: "provider.crm.update_customer",
+      args: toolArgs(),
+      policy,
+      now: () => new Date("2026-05-28T12:01:00Z"),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.receipt, signedReceipt());
+});
+
+test("verifyProviderReceipt rejects JWS issuer mismatch", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const result = await verifyProviderReceipt(
+    signProviderReceiptJws(signedReceipt(), privateKey, {
+      issuer: "https://enterprise.example.com",
+      audience: "provider-crm-mcp",
+      keyId: "agentid-2026-06",
+    }),
+    {
+      jwks,
+      issuer: "https://other.example.com",
+      audience: "provider-crm-mcp",
+      requireSigned: true,
+      now: () => new Date("2026-05-28T12:01:00Z"),
+    },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.findings.includes("receipt JWS issuer mismatch"));
 });
 
 test("verifyProviderReceipt rejects tampered signatures and mismatched resources", async () => {
@@ -231,5 +279,17 @@ function fakeResponse(): ResponseLike & { statusCode?: number; body?: unknown } 
     json(body: unknown) {
       this.body = body;
     },
+  };
+}
+
+function rsaKeyPair() {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: "jwk" });
+  (jwk as unknown as Record<string, unknown>).kid = "agentid-2026-06";
+  (jwk as unknown as Record<string, unknown>).alg = "RS256";
+  (jwk as unknown as Record<string, unknown>).use = "sig";
+  return {
+    privateKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    jwks: { keys: [jwk] },
   };
 }

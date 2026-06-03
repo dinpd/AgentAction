@@ -6,6 +6,7 @@ from .middleware import (
     ReplayStore,
     ToolReceiptPolicy,
     sign_provider_receipt,
+    sign_provider_receipt_jws,
     verify_provider_receipt,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "ReplayStore",
     "ToolReceiptPolicy",
     "sign_provider_receipt",
+    "sign_provider_receipt_jws",
     "verify_provider_receipt",
 ]

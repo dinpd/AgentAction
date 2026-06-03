@@ -33,8 +33,14 @@ app.use(express.json());
 
 app.post(
   "/mcp",
-  createAgentIdReceiptMiddleware({
-    secret: process.env.AGENTID_PROVIDER_RECEIPT_HMAC_SECRET,
+createAgentIdReceiptMiddleware({
+    jwks: {
+      keys: [
+        /* enterprise receipt signing public keys */
+      ],
+    },
+    issuer: "https://enterprise.example.com",
+    audience: "provider-crm-mcp",
     replayStore: new MemoryReplayStore(),
     tools: {
       "provider.crm.update_customer": {
@@ -69,7 +75,9 @@ app.post(
 
 ## What It Checks
 
-- Signed HMAC receipt envelope by default
+- Signed JWS receipt envelopes against a local JWKS
+- Optional issuer, audience, and allowed-algorithm checks
+- Signed HMAC receipt envelopes for local demos
 - Required receipt fields
 - Tool name
 - Expected action
@@ -79,4 +87,4 @@ app.post(
 - Optional single-use replay protection
 
 HMAC receipts are intended for local demos and simple integrations. Production
-providers should move to managed keys with JWS/JWKS or receipt introspection.
+providers should prefer managed keys with JWS/JWKS or receipt introspection.

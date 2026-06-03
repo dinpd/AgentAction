@@ -5,6 +5,12 @@ import { unwrapProviderReceipt } from "../src/receipts.js";
 const host = "127.0.0.1";
 const port = 8790;
 const receiptHmacSecret = process.env.AGENTID_PROVIDER_RECEIPT_HMAC_SECRET || "dev-provider-receipt-secret";
+const receiptJwks = parseJwks(process.env.AGENTID_PROVIDER_RECEIPT_JWKS);
+const receiptIssuer = process.env.AGENTID_PROVIDER_RECEIPT_ISSUER;
+const receiptAudience = process.env.AGENTID_PROVIDER_RECEIPT_AUDIENCE;
+const receiptAllowedAlgorithms = process.env.AGENTID_PROVIDER_RECEIPT_ALLOWED_ALGS?.split(",")
+  .map((alg) => alg.trim())
+  .filter(Boolean);
 const usedReceipts = new Set<string>();
 
 const tools = [
@@ -159,7 +165,11 @@ function verifyProviderAuthorization(tool: string, args: Record<string, unknown>
   if (!receiptRequired(tool)) return { ok: true, findings: [] as string[], receiptId: undefined, tenantId: undefined };
 
   const receiptEnvelope = isRecord(args._agentid_receipt) ? args._agentid_receipt : undefined;
-  const unwrapped = unwrapProviderReceipt(receiptEnvelope, receiptHmacSecret);
+  const unwrapped = unwrapProviderReceipt(receiptEnvelope, receiptHmacSecret, receiptJwks, {
+    issuer: receiptIssuer,
+    audience: receiptAudience,
+    allowedAlgorithms: receiptAllowedAlgorithms,
+  });
   const receipt = unwrapped.receipt;
   if (!receipt) return { ok: false, findings: ["missing _agentid_receipt", ...unwrapped.findings] };
 
@@ -220,6 +230,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringValue(value: unknown): string {
   if (value === undefined || value === null) return "";
   return String(value);
+}
+
+function parseJwks(value: string | undefined): { keys?: JsonWebKey[] } | undefined {
+  if (!value) return undefined;
+  const parsed = JSON.parse(value) as unknown;
+  if (!isRecord(parsed) || !Array.isArray(parsed.keys)) {
+    throw new Error("AGENTID_PROVIDER_RECEIPT_JWKS must be a JWKS JSON object");
+  }
+  return parsed as { keys?: JsonWebKey[] };
 }
 
 function readBody(request: NodeJS.ReadableStream): Promise<string> {

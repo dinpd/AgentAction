@@ -14,9 +14,11 @@ are stable.
 AgentID currently supports:
 
 - raw provider authorization receipts
-- HMAC-signed provider receipt envelopes in the TypeScript adapter
-- Python CLI receipt verification with `agentid provider verify-receipt`
-- provider-side middleware for Express and FastAPI
+- HMAC-signed provider receipt envelopes for local demos
+- JWS/JWKS receipt signing and verification in the Python core and CLI
+- JWS receipt signing in the MCP gateway adapter
+- JWS/JWKS verification in the TypeScript adapter helpers
+- provider-side JWS/JWKS verification middleware for Express and FastAPI
 
 The HMAC path is useful for local demos, but production providers need managed
 keys, key rotation, issuer identity, key IDs, and replay protection.
@@ -66,22 +68,32 @@ The verifier should check:
   case, customer, approval, JIT grant, and amount bindings
 - single-use receipts have not been replayed
 
-## Implementation Steps
+## Implementation Status
 
-1. Add a Python receipt signing/verification module for JWS-style envelopes.
-2. Add TypeScript verification support in `mcp-gateway-adapter/src/receipts.ts`.
-3. Add CLI flags:
+Done:
+
+1. Added Python receipt signing and verification for compact JWS envelopes.
+2. Added TypeScript signing and verification support in
+   `mcp-gateway-adapter/src/receipts.ts`.
+3. Added CLI flags:
    - `--jwks`
    - `--issuer`
    - `--audience`
    - `--allowed-alg`
-4. Add provider contract fields:
-   - `receipt.verification: signed_or_introspected`
+4. Added provider contract fields:
+   - `receipt.verification`
    - `receipt.allowed_issuers`
    - `receipt.jwks_uri`
    - `receipt.audience`
-5. Add replay-cache hooks for provider middleware.
-6. Keep HMAC support documented as demo/local only.
+   - `receipt.allowed_algs`
+5. Added Express and FastAPI provider middleware support for JWKS, issuer,
+   audience, and allowed algorithms.
+6. Kept the HMAC compatibility path for demos and CI fixtures.
+
+Still open:
+
+1. Add remote JWKS fetching and cache policy.
+2. Add DID URL verification methods after JWS/JWKS policy is stable.
 
 ## Tests
 

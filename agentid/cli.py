@@ -133,6 +133,10 @@ def main(argv: list[str] | None = None) -> int:
     provider_receipt_parser.add_argument("receipt", help="YAML or JSON receipt payload, or '-' for stdin.")
     provider_receipt_parser.add_argument("--secret", help="HMAC secret for signed receipts.")
     provider_receipt_parser.add_argument("--secret-env", help="Environment variable containing the HMAC secret.")
+    provider_receipt_parser.add_argument("--jwks", help="JWKS file for JWS signed receipts.")
+    provider_receipt_parser.add_argument("--issuer", help="Expected JWS issuer.")
+    provider_receipt_parser.add_argument("--audience", help="Expected JWS audience.")
+    provider_receipt_parser.add_argument("--allowed-alg", action="append", help="Allowed JWS algorithm. Can be repeated.")
     provider_receipt_parser.add_argument("--require-signed", action="store_true", help="Fail if the receipt is not signed.")
     provider_receipt_parser.add_argument("--tenant", help="Expected tenant_id.")
     provider_receipt_parser.add_argument("--agent", help="Expected agent_id.")
@@ -315,9 +319,20 @@ def main(argv: list[str] | None = None) -> int:
                 if not secret:
                     print(f"ERROR: environment variable is not set: {args.secret_env}", file=sys.stderr)
                     return 2
+            jwks = None
+            if args.jwks:
+                try:
+                    jwks = load_yaml_object(args.jwks, "JWKS")
+                except ProviderContractError as exc:
+                    print(f"ERROR: {exc}", file=sys.stderr)
+                    return 2
             result = verify_provider_receipt(
                 receipt,
                 secret=secret,
+                jwks=jwks,
+                expected_issuer=args.issuer,
+                expected_audience=args.audience,
+                allowed_algs=args.allowed_alg,
                 require_signed=args.require_signed,
                 expected_tenant=args.tenant,
                 expected_agent=args.agent,

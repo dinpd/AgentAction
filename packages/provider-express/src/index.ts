@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createPrivateKey, createPublicKey, createSign, createVerify, timingSafeEqual } from "node:crypto";
 
 export type ProviderAuthorizationReceipt = {
   decision_id: string;
@@ -19,9 +19,13 @@ export type ProviderAuthorizationReceipt = {
 };
 
 export type SignedProviderAuthorizationReceipt = {
-  alg: "HS256";
+  alg: "HS256" | "RS256";
   payload: ProviderAuthorizationReceipt;
   signature: string;
+};
+
+export type JwsProviderAuthorizationReceipt = {
+  jws: string;
 };
 
 export type ReceiptVerificationResult = {
@@ -50,6 +54,10 @@ export type ToolReceiptPolicy = {
 
 export type AgentIdProviderExpressOptions = {
   secret?: string | (() => string | Promise<string>);
+  jwks?: { keys?: JsonWebKey[] } | (() => { keys?: JsonWebKey[] } | Promise<{ keys?: JsonWebKey[] }>);
+  issuer?: string;
+  audience?: string;
+  allowedAlgorithms?: string[];
   requireSigned?: boolean;
   receiptArgument?: string;
   tools?: Record<string, ToolReceiptPolicy>;
@@ -102,8 +110,13 @@ export function createAgentIdReceiptMiddleware(options: AgentIdProviderExpressOp
       if (!policy || policy.required === false) return next();
 
       const secret = await resolveSecret(options.secret);
+      const jwks = await resolveJwks(options.jwks);
       const verification = await verifyProviderReceipt(parsed.args[receiptArgument], {
         secret,
+        jwks,
+        issuer: options.issuer,
+        audience: options.audience,
+        allowedAlgorithms: options.allowedAlgorithms,
         requireSigned,
         tool: parsed.tool,
         args: parsed.args,
@@ -143,10 +156,46 @@ export function signProviderReceipt(
   };
 }
 
+export function signProviderReceiptJws(
+  receipt: ProviderAuthorizationReceipt,
+  privateKeyPem: string,
+  options: {
+    issuer?: string;
+    subject?: string;
+    audience?: string;
+    keyId?: string;
+    algorithm?: "RS256";
+  } = {},
+): JwsProviderAuthorizationReceipt {
+  const algorithm = options.algorithm || "RS256";
+  const header = compactJson({ alg: algorithm, typ: "JWT", kid: options.keyId });
+  const issuedAt = parseTimestamp(receipt.issued_at);
+  const expiresAt = parseTimestamp(receipt.expires_at);
+  const claims = compactJson({
+    receipt,
+    iss: options.issuer,
+    sub: options.subject,
+    aud: options.audience,
+    iat: issuedAt ? Math.floor(issuedAt.getTime() / 1000) : undefined,
+    exp: expiresAt ? Math.floor(expiresAt.getTime() / 1000) : undefined,
+    jti: receipt.decision_id,
+  });
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(claims)}`;
+  const signer = createSign("RSA-SHA256");
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer.sign(createPrivateKey(privateKeyPem)).toString("base64url");
+  return { jws: `${signingInput}.${signature}` };
+}
+
 export async function verifyProviderReceipt(
   value: unknown,
   options: {
     secret?: string;
+    jwks?: { keys?: JsonWebKey[] };
+    issuer?: string;
+    audience?: string;
+    allowedAlgorithms?: string[];
     requireSigned?: boolean;
     tool?: string;
     args?: Record<string, unknown>;
@@ -157,12 +206,17 @@ export async function verifyProviderReceipt(
 ): Promise<ReceiptVerificationResult> {
   const findings: string[] = [];
   const requireSigned = options.requireSigned !== false;
-  const unwrapped = unwrapProviderReceipt(value, options.secret);
+  const unwrapped = unwrapProviderReceipt(value, options.secret, options.jwks, {
+    issuer: options.issuer,
+    audience: options.audience,
+    allowedAlgorithms: options.allowedAlgorithms,
+    now: options.now,
+  });
 
   if (!value) {
     return { ok: false, findings: ["missing _agentid_receipt"] };
   }
-  if (requireSigned && !isSignedReceiptEnvelope(value)) {
+  if (requireSigned && !isSignedReceiptEnvelope(value) && !isJwsReceipt(value)) {
     findings.push("receipt must be signed");
   }
 
@@ -215,8 +269,17 @@ export async function verifyProviderReceipt(
   };
 }
 
-export function unwrapProviderReceipt(value: unknown, secret?: string): { receipt?: ProviderAuthorizationReceipt; findings: string[] } {
+export function unwrapProviderReceipt(
+  value: unknown,
+  secret?: string,
+  jwks?: { keys?: JsonWebKey[] },
+  jwsOptions: { issuer?: string; audience?: string; allowedAlgorithms?: string[]; now?: () => Date } = {},
+): { receipt?: ProviderAuthorizationReceipt; findings: string[] } {
   if (!isRecord(value)) return { findings: [] };
+  if (isJwsReceipt(value)) {
+    if (!jwks) return { findings: ["receipt JWKS is required"] };
+    return verifyJwsProviderReceipt(value, jwks, jwsOptions);
+  }
   if (!isSignedReceiptEnvelope(value)) return { receipt: value as ProviderAuthorizationReceipt, findings: [] };
   if (!secret) return { findings: ["receipt signature secret is required"] };
   return verifySignedProviderReceipt(value, secret);
@@ -237,6 +300,52 @@ export function verifySignedProviderReceipt(value: unknown, secret: string): { r
     receipt: value.payload as ProviderAuthorizationReceipt,
     findings,
   };
+}
+
+export function verifyJwsProviderReceipt(
+  value: unknown,
+  jwks: { keys?: JsonWebKey[] },
+  options: { issuer?: string; audience?: string; allowedAlgorithms?: string[]; now?: () => Date } = {},
+): { receipt?: ProviderAuthorizationReceipt; findings: string[] } {
+  if (!isJwsReceipt(value)) return { findings: ["receipt jws is required"] };
+  const parts = value.jws.split(".");
+  if (parts.length !== 3) return { findings: ["receipt JWS compact serialization is invalid"] };
+
+  const header = parseBase64UrlJson(parts[0]);
+  const claims = parseBase64UrlJson(parts[1]);
+  if (!isRecord(header)) return { findings: ["receipt JWS header is invalid"] };
+  if (!isRecord(claims)) return { findings: ["receipt JWS payload is invalid"] };
+
+  const allowedAlgorithms = options.allowedAlgorithms || ["RS256"];
+  const alg = stringValue(header.alg);
+  const findings: string[] = [];
+  if (!allowedAlgorithms.includes(alg)) findings.push(`receipt JWS alg is not allowed: ${alg}`);
+
+  const key = jwkForHeader(jwks, header);
+  if (!key) findings.push(`receipt JWS key not found: ${stringValue(header.kid) || "missing-kid"}`);
+  if (findings.length || !key) return { findings };
+
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(`${parts[0]}.${parts[1]}`);
+  verifier.end();
+  if (!verifier.verify(createPublicKey({ key, format: "jwk" }), Buffer.from(parts[2], "base64url"))) {
+    return { findings: ["receipt JWS signature invalid"] };
+  }
+
+  if (options.issuer && stringValue(claims.iss) !== options.issuer) findings.push("receipt JWS issuer mismatch");
+  if (options.audience && stringValue(claims.aud) !== options.audience) findings.push("receipt JWS audience mismatch");
+  const nowSeconds = Math.floor((options.now ? options.now() : new Date()).getTime() / 1000);
+  if (typeof claims.exp === "number" && claims.exp <= nowSeconds) findings.push("receipt JWS is expired");
+  if (typeof claims.nbf === "number" && claims.nbf > nowSeconds) findings.push("receipt JWS not before is in the future");
+  if (typeof claims.iat === "number" && claims.iat > nowSeconds) findings.push("receipt JWS issued_at is in the future");
+
+  const receipt = isRecord(claims.receipt)
+    ? claims.receipt as ProviderAuthorizationReceipt
+    : isRecord(claims.payload)
+      ? claims.payload as ProviderAuthorizationReceipt
+      : undefined;
+  if (!receipt) findings.push("receipt JWS payload is required");
+  return { receipt, findings };
 }
 
 export function canonicalJson(value: unknown): string {
@@ -262,6 +371,12 @@ async function resolveSecret(secret: AgentIdProviderExpressOptions["secret"]): P
   if (!secret) return undefined;
   if (typeof secret === "function") return secret();
   return secret;
+}
+
+async function resolveJwks(jwks: AgentIdProviderExpressOptions["jwks"]): Promise<{ keys?: JsonWebKey[] } | undefined> {
+  if (!jwks) return undefined;
+  if (typeof jwks === "function") return jwks();
+  return jwks;
 }
 
 function receiptFieldFindings(receipt: ProviderAuthorizationReceipt, policy: ToolReceiptPolicy | undefined): string[] {
@@ -301,6 +416,33 @@ function receiptSignature(payload: Record<string, unknown>, secret: string): str
 
 function isSignedReceiptEnvelope(value: unknown): boolean {
   return isRecord(value) && ("payload" in value || "signature" in value || "alg" in value);
+}
+
+function isJwsReceipt(value: unknown): value is JwsProviderAuthorizationReceipt {
+  return isRecord(value) && typeof value.jws === "string";
+}
+
+function jwkForHeader(jwks: { keys?: JsonWebKey[] }, header: Record<string, unknown>): JsonWebKey | undefined {
+  const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
+  const kid = stringValue(header.kid);
+  if (kid) return keys.find((key) => stringValue((key as unknown as Record<string, unknown>).kid) === kid);
+  return keys.length === 1 ? keys[0] : undefined;
+}
+
+function compactJson(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
+function base64UrlJson(value: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function parseBase64UrlJson(value: string): unknown {
+  try {
+    return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+  } catch {
+    return undefined;
+  }
 }
 
 function parseTimestamp(value: unknown): Date | undefined {

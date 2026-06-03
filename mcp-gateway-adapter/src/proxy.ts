@@ -1,6 +1,6 @@
 import { AgentIdClient } from "./agentid.js";
 import { mapToolCallToAuthorize } from "./mapper.js";
-import { signProviderReceipt } from "./receipts.js";
+import { signProviderReceipt, signProviderReceiptJws } from "./receipts.js";
 import type {
   AdapterConfig,
   AgentIdAuthorizeRequest,
@@ -8,6 +8,7 @@ import type {
   AuthorizationDecisionLog,
   JsonRpcRequest,
   JsonRpcResponse,
+  JwsProviderAuthorizationReceipt,
   ProviderAuthorizationReceipt,
   RequestContext,
   SignedProviderAuthorizationReceipt,
@@ -185,7 +186,18 @@ function compactReceipt(receipt: ProviderAuthorizationReceipt): ProviderAuthoriz
 function maybeSignReceipt(
   receipt: ProviderAuthorizationReceipt,
   config: AdapterConfig,
-): ProviderAuthorizationReceipt | SignedProviderAuthorizationReceipt {
+): ProviderAuthorizationReceipt | SignedProviderAuthorizationReceipt | JwsProviderAuthorizationReceipt {
+  const jws = config.provider_receipts?.jws;
+  const privateKey = jws?.private_key_pem || (jws?.private_key_env ? process.env[jws.private_key_env] : undefined);
+  if (privateKey) {
+    return signProviderReceiptJws(receipt, privateKey, {
+      issuer: jws?.issuer,
+      subject: jws?.subject || receipt.agent_id,
+      audience: jws?.audience,
+      keyId: jws?.key_id,
+      algorithm: jws?.algorithm,
+    });
+  }
   const secret = config.provider_receipts?.hmac_secret;
   if (!secret) return receipt;
   return signProviderReceipt(receipt, secret);

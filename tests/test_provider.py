@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import json
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 from jsonschema import Draft202012Validator
+from jwt.algorithms import RSAAlgorithm
 import yaml
 
 from agentid.cli import main
@@ -13,6 +17,7 @@ from agentid.provider import (
     provider_contract_from_openapi,
     provider_schema_json,
     sign_provider_receipt,
+    sign_provider_receipt_jws,
     validate_provider_contract,
     verify_provider_receipt,
 )
@@ -284,6 +289,55 @@ def test_verify_provider_receipt_accepts_signed_receipt():
     assert result.receipt == receipt
 
 
+def test_verify_provider_receipt_accepts_jws_receipt():
+    private_key, jwks = rsa_key_and_jwks()
+    receipt = provider_receipt()
+    signed = sign_provider_receipt_jws(
+        receipt,
+        private_key,
+        issuer="https://enterprise.example.com",
+        subject="did:web:example.com:agents:support",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+
+    result = verify_provider_receipt(
+        signed,
+        jwks=jwks,
+        require_signed=True,
+        expected_issuer="https://enterprise.example.com",
+        expected_audience="provider-crm-mcp",
+        expected_tool="provider.crm.update_customer",
+        expected_resource="provider/customer/cus_123",
+    )
+
+    assert result.ok
+    assert result.findings == []
+    assert result.receipt == receipt
+
+
+def test_verify_provider_receipt_rejects_jws_issuer_mismatch():
+    private_key, jwks = rsa_key_and_jwks()
+    signed = sign_provider_receipt_jws(
+        provider_receipt(),
+        private_key,
+        issuer="https://enterprise.example.com",
+        audience="provider-crm-mcp",
+        key_id="agentid-2026-06",
+    )
+
+    result = verify_provider_receipt(
+        signed,
+        jwks=jwks,
+        require_signed=True,
+        expected_issuer="https://other.example.com",
+        expected_audience="provider-crm-mcp",
+    )
+
+    assert not result.ok
+    assert "receipt JWS issuer mismatch" in result.findings
+
+
 def test_verify_provider_receipt_detects_signature_and_binding_failures():
     receipt = provider_receipt()
     signed = sign_provider_receipt(receipt, "test-secret")
@@ -312,6 +366,48 @@ def test_cli_provider_verify_receipt(tmp_path, capsys):
             "tenant-a",
             "--agent",
             "enterprise-support-agent",
+            "--tool",
+            "provider.crm.update_customer",
+            "--resource",
+            "provider/customer/cus_123",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert code == 0
+    assert "Provider authorization receipt is valid." in output
+
+
+def test_cli_provider_verify_jws_receipt(tmp_path, capsys):
+    private_key, jwks = rsa_key_and_jwks()
+    receipt_path = tmp_path / "receipt.yaml"
+    jwks_path = tmp_path / "jwks.json"
+    receipt_path.write_text(
+        yaml.safe_dump(
+            sign_provider_receipt_jws(
+                provider_receipt(),
+                private_key,
+                issuer="https://enterprise.example.com",
+                audience="provider-crm-mcp",
+                key_id="agentid-2026-06",
+            )
+        ),
+        encoding="utf-8",
+    )
+    jwks_path.write_text(json.dumps(jwks), encoding="utf-8")
+
+    code = main(
+        [
+            "provider",
+            "verify-receipt",
+            str(receipt_path),
+            "--jwks",
+            str(jwks_path),
+            "--issuer",
+            "https://enterprise.example.com",
+            "--audience",
+            "provider-crm-mcp",
+            "--require-signed",
             "--tool",
             "provider.crm.update_customer",
             "--resource",
@@ -441,3 +537,17 @@ def provider_receipt():
         "issued_at": "2020-01-01T00:00:00Z",
         "expires_at": "2099-05-28T12:05:00Z",
     }
+
+
+def rsa_key_and_jwks():
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("ascii")
+    public_jwk = json.loads(RSAAlgorithm.to_jwk(private_key.public_key()))
+    public_jwk["kid"] = "agentid-2026-06"
+    public_jwk["alg"] = "RS256"
+    public_jwk["use"] = "sig"
+    return private_pem, {"keys": [public_jwk]}

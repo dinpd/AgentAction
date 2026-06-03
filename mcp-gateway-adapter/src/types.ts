@@ -79,6 +79,15 @@ export type AdapterConfig = {
   provider_receipts?: {
     tenant_id?: string;
     hmac_secret?: string;
+    jws?: {
+      private_key_pem?: string;
+      private_key_env?: string;
+      key_id?: string;
+      issuer?: string;
+      subject?: string;
+      audience?: string;
+      algorithm?: "RS256";
+    };
   };
   tools: Record<string, ToolMapping>;
   filter_tools_list?: boolean;
@@ -119,9 +128,13 @@ export type ProviderAuthorizationReceipt = {
 };
 
 export type SignedProviderAuthorizationReceipt = {
-  alg: "HS256";
+  alg: "HS256" | "RS256";
   payload: ProviderAuthorizationReceipt;
   signature: string;
+};
+
+export type JwsProviderAuthorizationReceipt = {
+  jws: string;
 };
 
 export type RequestContext = {

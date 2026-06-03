@@ -73,6 +73,26 @@ Each tool mapping tells the adapter how to build an AgentID authorize payload:
 }
 ```
 
+Allowed calls can also carry a provider-verifiable authorization receipt in
+`_agentid_receipt`. For local demos, configure `provider_receipts.hmac_secret`.
+For production-oriented integrations, configure `provider_receipts.jws` with a
+private signing key, key ID, issuer, and audience so providers can verify the
+receipt against JWKS:
+
+```json
+{
+  "provider_receipts": {
+    "tenant_id": "tenant-a",
+    "jws": {
+      "private_key_env": "AGENTID_RECEIPT_PRIVATE_KEY_PEM",
+      "key_id": "agentid-2026-06",
+      "issuer": "https://enterprise.example.com",
+      "audience": "provider-crm-mcp"
+    }
+  }
+}
+```
+
 ## Limitations
 
 This adapter is not a full production MCP gateway. It does not yet implement:
@@ -85,6 +105,7 @@ This adapter is not a full production MCP gateway. It does not yet implement:
 - downstream authentication.
 - JIT grant issuance flow.
 - provider-specific argument mappers.
+- remote JWKS fetching.
 - tool drift reporting.
 
 Those are the next pieces to add around this reference enforcement path.

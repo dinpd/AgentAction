@@ -4,7 +4,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
-from agentid.provider import sign_provider_receipt, verify_provider_receipt as verify_receipt_envelope
+from agentid.provider import (
+    sign_provider_receipt,
+    sign_provider_receipt_jws,
+    verify_provider_receipt as verify_receipt_envelope,
+)
 
 
 class ReplayStore(Protocol):
@@ -59,6 +63,10 @@ class ProviderReceiptVerifier:
         self,
         *,
         secret: str | Callable[[], str | None] | None = None,
+        jwks: dict[str, Any] | Callable[[], dict[str, Any] | None] | None = None,
+        issuer: str | None = None,
+        audience: str | None = None,
+        allowed_algs: list[str] | None = None,
         require_signed: bool = True,
         receipt_argument: str = "_agentid_receipt",
         tools: dict[str, ToolReceiptPolicy] | None = None,
@@ -66,6 +74,10 @@ class ProviderReceiptVerifier:
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self.secret = secret
+        self.jwks = jwks
+        self.issuer = issuer
+        self.audience = audience
+        self.allowed_algs = allowed_algs
         self.require_signed = require_signed
         self.receipt_argument = receipt_argument
         self.tools = tools or {}
@@ -89,6 +101,10 @@ class ProviderReceiptVerifier:
         return verify_provider_receipt(
             args.get(self.receipt_argument),
             secret=self._secret(),
+            jwks=self._jwks(),
+            issuer=self.issuer,
+            audience=self.audience,
+            allowed_algs=self.allowed_algs,
             require_signed=self.require_signed,
             tool=tool,
             args=args,
@@ -102,11 +118,20 @@ class ProviderReceiptVerifier:
             return self.secret()
         return self.secret
 
+    def _jwks(self) -> dict[str, Any] | None:
+        if callable(self.jwks):
+            return self.jwks()
+        return self.jwks
+
 
 def verify_provider_receipt(
     value: Any,
     *,
     secret: str | None = None,
+    jwks: dict[str, Any] | None = None,
+    issuer: str | None = None,
+    audience: str | None = None,
+    allowed_algs: list[str] | None = None,
     require_signed: bool = True,
     tool: str | None = None,
     args: dict[str, Any] | None = None,
@@ -123,6 +148,10 @@ def verify_provider_receipt(
     result = verify_receipt_envelope(
         value,
         secret=secret,
+        jwks=jwks,
+        expected_issuer=issuer,
+        expected_audience=audience,
+        allowed_algs=allowed_algs,
         require_signed=require_signed,
         expected_tool=tool,
         expected_action=policy.action if policy else None,

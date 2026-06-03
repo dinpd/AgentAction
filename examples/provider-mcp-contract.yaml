@@ -8,6 +8,15 @@ provider_agentid:
     production_options:
       - signed_jws
       - introspection
+  receipt:
+    verification: jws_jwks
+    transport: params.arguments._agentid_receipt
+    allowed_issuers:
+      - https://enterprise.example.com
+    jwks_uri: https://enterprise.example.com/.well-known/jwks.json
+    audience: provider-crm-mcp
+    allowed_algs:
+      - RS256
 
   tools:
     provider.crm.search_customer:
