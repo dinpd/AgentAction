@@ -1,16 +1,17 @@
 # AgentID
 
-**Authorization contracts for AI agent tool execution.**
+**Authorization contracts for AI agent capability and tool execution.**
 
-AgentID helps API providers, MCP gateway builders, and enterprise AI platform
+AgentID helps API providers, MCP gateway builders, skill authors, and enterprise AI platform
 teams answer one runtime question:
 
-> Should this agent perform this tool action on this resource, for this user, job, customer, approval, and time window?
+> Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
 
-OAuth can prove access to a server. MCP tool schemas describe inputs. AgentID
+OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
+package workflows and supporting instructions. AgentID
 defines the missing authorization contract for agent tool calls across SaaS
 apps, internal systems, cloud control planes, databases, provider-hosted tools,
-and MCP gateways.
+skills, and MCP gateways.
 
 ![AgentID gives MCP gateways an authorization contract](docs/AgentIDMCPAuthorizationContract.png)
 
@@ -29,6 +30,8 @@ AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise
 - **Enterprise AI platform teams** reviewing which tools agents may use, under
   what conditions.
 - **MCP gateway builders** enforcing policy before forwarding `tools/call`.
+- **Skill authors and platform teams** packaging reusable workflows with
+  explicit AgentID guardrails.
 - **Security teams** needing audit evidence for agent actions, approvals, JIT
   grants, and tool execution.
 
@@ -81,6 +84,7 @@ For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-ga
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For provider MCP contract CI checks, see [`docs/provider-mcp-ci.md`](docs/provider-mcp-ci.md).
 For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
+For skill-local guardrail contracts, see [`docs/skills-authorization.md`](docs/skills-authorization.md).
 For DID, Verifiable Credential, OAuth/OIDC, MCP, A2A, AGNTCY, and NIST alignment, see [`docs/standards-alignment.md`](docs/standards-alignment.md).
 For the API-to-MCP article, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
 For the provider MCP authorization demo, see [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md).

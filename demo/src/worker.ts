@@ -312,7 +312,7 @@ const HTML = String.raw`<!doctype html>
   <header>
     <div>
       <h1>AgentID Gateway Control Demo</h1>
-      <p style="color:var(--muted);font-size:13px;margin-top:3px">Runtime and MCP gateway checks before agent tool execution.</p>
+      <p style="color:var(--muted);font-size:13px;margin-top:3px">Runtime, skill, and MCP gateway checks before agent tool execution.</p>
     </div>
     <div class="toolbar">
       <span class="pill">Gateway: Cloudflare Worker</span>
@@ -367,6 +367,16 @@ const HTML = String.raw`<!doctype html>
         <pre id="response">{}</pre>
       </div>
       <div>
+        <h2>Skill Guardrails Demo</h2>
+        <div class="use-cases" style="margin-bottom:12px">
+          <div class="use-case">
+            <strong>Support refund workflow skill</strong>
+            <span>Activate a reviewed skill, block an undeclared downstream tool, then allow a scoped provider credit.</span>
+          </div>
+        </div>
+        <button class="primary" id="runSkill">Run Skill Demo</button>
+      </div>
+      <div>
         <h2>MCP Gateway Demo</h2>
         <div class="use-cases" style="margin-bottom:12px">
           <div class="use-case">
@@ -397,6 +407,7 @@ const HTML = String.raw`<!doctype html>
       run: document.getElementById("run"),
       reset: document.getElementById("reset"),
       runMcp: document.getElementById("runMcp"),
+      runSkill: document.getElementById("runSkill"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
       payload: document.getElementById("payload"),
@@ -727,6 +738,158 @@ const HTML = String.raw`<!doctype html>
       }
     }
 
+    async function runSkillDemo() {
+      reset();
+      els.run.disabled = true;
+      els.runMcp.disabled = true;
+      els.runSkill.disabled = true;
+      const skillId = "support-refund-workflow";
+      const skillHash = "sha256:replace-with-skill-bundle-digest";
+      const job = "refund_triage";
+      const caseId = "case-1042";
+      const customerId = "cus_123";
+      try {
+        addStep({
+          id: "skill-contract",
+          title: "Review skill-carried AgentID contract",
+          detail: "The skill declares its source, hash, approval/JIT requirements, and the downstream tools listed in may_invoke.",
+          status: "info",
+          payload: {
+            agentid_skill: {
+              id: skillId,
+              kind: "skill",
+              hash: skillHash,
+              access: "execute",
+              auth_mode: "just_in_time",
+              approval: "human_confirm",
+              may_invoke: [
+                "provider.crm.search_customer",
+                "provider.billing.lookup_invoices",
+                "provider.billing.issue_credit"
+              ]
+            }
+          }
+        });
+
+        const skillGrantPayload = {
+          tool: skillId,
+          action: "execute",
+          resource: "skill/" + skillId,
+          job_id: job,
+          case_id: caseId,
+          customer_id: customerId,
+          approval_id: "approval-skill-123",
+          user_id: "support-rep-17"
+        };
+        const skillGrant = await api("/api/skill/jit-grants", skillGrantPayload);
+        addStep({
+          id: "skill-grant",
+          title: skillGrant.status === 201 ? "JIT grant issued for skill activation" : "Skill activation grant denied",
+          detail: skillGrant.status === 201 ? "The skill cannot run on standing authority; activation is bound to this job, case, customer, and approval." : skillGrant.body.error,
+          status: skillGrant.status === 201 ? "allow" : "deny",
+          payload: skillGrantPayload,
+          response: skillGrant.body
+        });
+        if (skillGrant.status !== 201) return setStatus("Skill demo stopped: skill activation grant failed.", "deny");
+
+        const activatePayload = {
+          agent_id: "enterprise-support-agent",
+          tool: skillId,
+          action: "execute",
+          resource: "skill/" + skillId,
+          job_id: job,
+          case_id: caseId,
+          customer_id: customerId,
+          approved: true,
+          jit_grant_id: skillGrant.body.jit_grant_id
+        };
+        const activate = await api("/api/skill/authorize", activatePayload);
+        addStep({
+          id: "skill-activation",
+          title: activate.body.allow ? "Skill activation allowed" : "Skill activation denied",
+          detail: activate.body.allow ? "AgentID allowed the reviewed skill to run for this scoped refund-triage job." : activate.body.findings.join("; "),
+          status: activate.body.allow ? "allow" : "deny",
+          payload: activatePayload,
+          response: activate.body
+        });
+        if (!activate.body.allow) return setStatus("Skill demo stopped: skill activation denied.", "deny");
+
+        const blockedPayload = {
+          agent_id: "enterprise-support-agent",
+          skill_id: skillId,
+          skill_hash: skillHash,
+          job_id: job,
+          case_id: caseId,
+          customer_id: customerId,
+          tool: "provider.crm.update_customer",
+          action: "write",
+          resource: "provider/customer/" + customerId,
+          approved: true
+        };
+        const blocked = await api("/api/skill/authorize", blockedPayload);
+        addStep({
+          id: "skill-blocked-tool",
+          title: blocked.body.allow ? "Undeclared downstream tool unexpectedly allowed" : "Skill blocked from undeclared downstream tool",
+          detail: blocked.body.allow ? "The provider CRM write was allowed." : "The skill contract does not include provider.crm.update_customer in may_invoke, so the gateway denies the call.",
+          status: blocked.body.allow ? "allow" : "deny",
+          payload: blockedPayload,
+          response: blocked.body
+        });
+
+        const creditGrantPayload = {
+          tool: "provider.billing.issue_credit",
+          action: "write",
+          resource: "provider/billing/customer/" + customerId,
+          job_id: job,
+          case_id: caseId,
+          customer_id: customerId,
+          approval_id: "manager-approval-456",
+          user_id: "support-rep-17"
+        };
+        const creditGrant = await api("/api/skill/jit-grants", creditGrantPayload);
+        addStep({
+          id: "skill-credit-grant",
+          title: creditGrant.status === 201 ? "JIT grant issued for provider credit" : "Provider credit grant denied",
+          detail: creditGrant.status === 201 ? "The downstream tool still needs its own scoped grant; the skill activation grant is not enough." : creditGrant.body.error,
+          status: creditGrant.status === 201 ? "allow" : "deny",
+          payload: creditGrantPayload,
+          response: creditGrant.body
+        });
+        if (creditGrant.status !== 201) return setStatus("Skill demo stopped: provider credit grant failed.", "deny");
+
+        const creditPayload = {
+          agent_id: "enterprise-support-agent",
+          skill_id: skillId,
+          skill_hash: skillHash,
+          job_id: job,
+          case_id: caseId,
+          customer_id: customerId,
+          tool: "provider.billing.issue_credit",
+          action: "write",
+          resource: "provider/billing/customer/" + customerId,
+          approved: true,
+          jit_grant_id: creditGrant.body.jit_grant_id
+        };
+        const credit = await api("/api/skill/authorize", creditPayload);
+        addStep({
+          id: "skill-credit",
+          title: credit.body.allow ? "Skill-originated provider credit allowed" : "Skill-originated provider credit denied",
+          detail: credit.body.allow ? "The skill may invoke this tool, the manager approval is present, and the downstream JIT grant is valid." : credit.body.findings.join("; "),
+          status: credit.body.allow ? "allow" : "deny",
+          payload: creditPayload,
+          response: credit.body
+        });
+
+        setStatus(credit.body.allow ? "Skill guardrails demo complete: reviewed skill activated, undeclared tool blocked, scoped provider credit allowed." : "Skill guardrails demo ended with denial.", credit.body.allow ? "allow" : "deny");
+      } catch (error) {
+        setStatus("Skill demo error: " + error.message, "deny");
+      } finally {
+        els.run.disabled = false;
+        els.runMcp.disabled = false;
+        els.runSkill.disabled = false;
+      }
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
@@ -741,6 +904,7 @@ const HTML = String.raw`<!doctype html>
     els.months.addEventListener("input", () => els.amount.value = money(els.months.value));
     els.run.addEventListener("click", runScenario);
     els.runMcp.addEventListener("click", runMcpDemo);
+    els.runSkill.addEventListener("click", runSkillDemo);
     els.reset.addEventListener("click", reset);
     syncScenario();
     reset();
@@ -765,6 +929,12 @@ export default {
       return proxyGateway(request, env, "authorize", mcpTenant(env), "enterprise-support-agent");
     }
     if (request.method === "POST" && url.pathname === "/api/mcp/jit-grants") {
+      return proxyGateway(request, env, "jit-grants", mcpTenant(env), "enterprise-support-agent");
+    }
+    if (request.method === "POST" && url.pathname === "/api/skill/authorize") {
+      return proxyGateway(request, env, "authorize", mcpTenant(env), "enterprise-support-agent");
+    }
+    if (request.method === "POST" && url.pathname === "/api/skill/jit-grants") {
       return proxyGateway(request, env, "jit-grants", mcpTenant(env), "enterprise-support-agent");
     }
     return json({ error: "not found" }, 404);

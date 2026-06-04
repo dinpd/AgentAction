@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentid.capabilities import capability_id, declared_capabilities
+
 
 STRONG_APPROVAL = {"required", "human_confirm", "step_up", "manager", "block"}
 
@@ -43,41 +45,53 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
         score += 10
         reasons.append("just-in-time authorization not enabled")
 
-    tools = manifest.get("tools", [])
-    if len(tools) > 5:
+    capabilities = declared_capabilities(manifest)
+    if len(capabilities) > 5:
         score += 10
-        reasons.append("large number of tools")
+        reasons.append("large number of capabilities")
 
-    for tool in tools:
-        access = tool.get("access")
-        approval = tool.get("approval", "none")
-        auth_mode = tool.get("auth_mode", "delegated")
-        constraints = tool.get("constraints", {})
+    for capability in capabilities:
+        name = capability_id(capability) or "unnamed-capability"
+        kind = capability.get("kind", "mcp_tool")
+        access = capability.get("access")
+        approval = capability.get("approval", "none")
+        auth_mode = capability.get("auth_mode", "delegated")
+        constraints = capability.get("constraints", {})
 
         if access == "read":
             score += 3
         elif access == "write":
             score += 12
-            reasons.append(f"{tool.get('name')} has write access")
+            reasons.append(f"{name} has write access")
         elif access == "execute":
             score += 18
-            reasons.append(f"{tool.get('name')} has execute access")
+            reasons.append(f"{name} has execute access")
         elif access == "admin":
             score += 30
-            reasons.append(f"{tool.get('name')} has admin access")
+            reasons.append(f"{name} has admin access")
+
+        if kind == "skill":
+            score += 8
+            reasons.append(f"{name} is a skill capability")
+            if not capability.get("hash"):
+                score += 8
+                reasons.append(f"{name} lacks a skill hash")
+            if not capability.get("may_invoke"):
+                score += 10
+                reasons.append(f"{name} does not constrain downstream tool use")
 
         if access in {"write", "execute", "admin"}:
             if auth_mode == "just_in_time":
                 score -= 8
             else:
                 score += 10
-                reasons.append(f"{tool.get('name')} does not use just-in-time auth")
+                reasons.append(f"{name} does not use just-in-time auth")
 
         if approval in STRONG_APPROVAL:
             score -= 5
         elif access in {"write", "execute", "admin"}:
             score += 10
-            reasons.append(f"{tool.get('name')} has weak approval: {approval}")
+            reasons.append(f"{name} has weak approval: {approval}")
 
         if constraints:
             score -= 4
@@ -86,7 +100,7 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
                 score -= 2
         elif access in {"write", "execute", "admin"}:
             score += 8
-            reasons.append(f"{tool.get('name')} lacks constraints")
+            reasons.append(f"{name} lacks constraints")
 
     data_flows = manifest.get("data_flows")
     if data_flows is None:

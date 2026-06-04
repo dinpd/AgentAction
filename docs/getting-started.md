@@ -214,6 +214,8 @@ It illustrates:
 - Customer refund-history lookup before any refund.
 - Human notification for repeat-refund or multi-month refund scenarios.
 - JIT grant issuance before Stripe refund execution.
+- Skill guardrail review, activation, downstream denial, and approved provider
+  credit execution.
 - MCP provider tool filtering, read authorization, write denial without JIT, and
   write authorization after a scoped grant.
 - Gateway decisions with OIDC-derived auth context.

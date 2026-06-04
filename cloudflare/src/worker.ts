@@ -14,6 +14,7 @@ type Env = {
 type AgentIdManifest = {
   [key: string]: unknown;
   agent?: Record<string, unknown>;
+  capabilities?: Array<Record<string, unknown>>;
   tools?: Array<Record<string, unknown>>;
   data_flows?: Array<Record<string, unknown>>;
   delegation_chain?: Record<string, unknown>;
@@ -236,6 +237,9 @@ async function authorize(
   const event: ToolEvent = {
     agent_id: payload.agent_id ?? manifest.agent?.id,
     tool: payload.tool,
+    capability: payload.capability,
+    skill_id: payload.skill_id,
+    skill_hash: payload.skill_hash,
     action: payload.action,
     data_from: payload.data_from ?? "",
     data_to: payload.data_to ?? "",
@@ -255,7 +259,7 @@ async function authorize(
     customer_id: payload.customer_id,
   };
   const findings: string[] = [];
-  const tool = toolByName(manifest, stringValue(event.tool));
+  const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
 
   if (tool?.auth_mode === "just_in_time") {
     const response = await grantStore(env, tenantId, manifest).fetch(
@@ -307,30 +311,46 @@ function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
 function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
   const findings: string[] = [];
   const agentId = manifest.agent?.id;
-  const tool = toolByName(manifest, stringValue(event.tool));
+  const skillId = stringValue(event.skill_id);
+  const skill = skillId ? toolByName(manifest, skillId) : undefined;
+  const requestedCapability = stringValue(event.tool ?? event.capability ?? event.skill_id);
+  const tool = toolByName(manifest, requestedCapability);
 
   if (agentId && event.agent_id !== agentId) {
     findings.push(`event[0]: agent_id mismatch: ${event.agent_id} != ${agentId}`);
   }
+  if (skillId) {
+    if (!skill) {
+      findings.push(`event[0]: undeclared skill used: ${skillId}`);
+    } else if (skill.kind !== "skill") {
+      findings.push(`event[0]: skill_id does not reference a skill capability: ${skillId}`);
+    }
+  }
   if (!tool) {
-    findings.push(`event[0]: undeclared tool used: ${event.tool}`);
+    findings.push(`event[0]: undeclared capability used: ${requestedCapability}`);
     return findings;
   }
+  if (skill && event.tool && skillId !== event.tool) {
+    const mayInvoke = Array.isArray(skill.may_invoke) ? skill.may_invoke : undefined;
+    if (mayInvoke && !mayInvoke.includes(event.tool)) {
+      findings.push(`event[0]: skill ${skillId} may not invoke tool: ${event.tool}`);
+    }
+  }
   if (tool.access !== event.action) {
-    findings.push(`event[0]: action mismatch for ${event.tool}: actual=${event.action}, allowed=${tool.access}`);
+    findings.push(`event[0]: action mismatch for ${requestedCapability}: actual=${event.action}, allowed=${tool.access}`);
   }
 
   const approval = stringValue(tool.approval || "none");
   if (APPROVAL_REQUIRED.has(approval) && event.approved !== true) {
-    findings.push(`event[0]: ${event.tool} requires approval but event is not approved`);
+    findings.push(`event[0]: ${requestedCapability} requires approval but event is not approved`);
   }
   if (approval === "block") {
-    findings.push(`event[0]: ${event.tool} is blocked by manifest policy`);
+    findings.push(`event[0]: ${requestedCapability} is blocked by manifest policy`);
   }
 
   if (tool.auth_mode === "just_in_time") {
     if (!event.jit_grant_id) {
-      findings.push(`event[0]: ${event.tool} requires JIT authorization but no jit_grant_id is present`);
+      findings.push(`event[0]: ${requestedCapability} requires JIT authorization but no jit_grant_id is present`);
     }
     if (event.jit_grant_valid === false) {
       findings.push("event[0]: JIT grant is marked invalid");
@@ -430,7 +450,7 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
 
 function generateOpaPolicy(manifest: AgentIdManifest): string {
   const agentId = stringValue(manifest.agent?.id || "unknown-agent");
-  const tools = manifest.tools ?? [];
+  const tools = declaredCapabilities(manifest);
   const flows = manifest.data_flows ?? [];
   const jobBoundary = manifest.job_boundary ?? {};
   const allowed = tools.map((tool) => `allowed_tools["${tool.name}"] := "${tool.access}"`).join("\n") || "# No tools declared.";
@@ -474,6 +494,8 @@ default allow := false
 
 agent_id := "${agentId}"
 
+requested_capability := object.get(input, "tool", object.get(input, "capability", ""))
+
 ${allowed}
 
 ${approvals}
@@ -494,8 +516,8 @@ ${requiredJobBindings}
 
 tool_allowed if {
     input.agent_id == agent_id
-    allowed_tools[input.tool] == input.action
-    not blocked_tools[input.tool]
+    allowed_tools[requested_capability] == input.action
+    not blocked_tools[requested_capability]
 }
 
 flow_allowed if {
@@ -537,23 +559,23 @@ missing_job_bindings[field] if {
 }
 
 jit_satisfied if {
-    not requires_jit[input.tool]
+    not requires_jit[requested_capability]
 }
 
 jit_satisfied if {
-    requires_jit[input.tool]
+    requires_jit[requested_capability]
     input.jit_grant_valid == true
     input.jit_grant_agent_id == input.agent_id
-    input.jit_grant_tool == input.tool
+    input.jit_grant_tool == requested_capability
     input.jit_grant_action == input.action
 }
 
 approval_satisfied if {
-    not requires_approval[input.tool]
+    not requires_approval[requested_capability]
 }
 
 approval_satisfied if {
-    requires_approval[input.tool]
+    requires_approval[requested_capability]
     input.approved == true
 }
 
@@ -589,8 +611,27 @@ function parseRoute(pathname: string): { tenantId: string | null; endpoint: stri
   return { tenantId: null, endpoint: parts[0] ?? "" };
 }
 
+function declaredCapabilities(manifest: AgentIdManifest): Array<Record<string, unknown>> {
+  const capabilities = Array.isArray(manifest.capabilities)
+    ? manifest.capabilities.map((capability) => ({
+        kind: capability.kind ?? "mcp_tool",
+        name: capability.name ?? capability.id,
+        id: capability.id ?? capability.name,
+        ...capability,
+      }))
+    : [];
+  const tools = Array.isArray(manifest.tools)
+    ? manifest.tools.map((tool) => ({
+        kind: tool.kind ?? "mcp_tool",
+        id: tool.id ?? tool.name,
+        ...tool,
+      }))
+    : [];
+  return [...capabilities, ...tools];
+}
+
 function toolByName(manifest: AgentIdManifest, name: string): Record<string, unknown> | undefined {
-  return (manifest.tools ?? []).find((tool) => tool.name === name);
+  return declaredCapabilities(manifest).find((tool) => tool.name === name || tool.id === name);
 }
 
 function grantTtlSeconds(manifest: AgentIdManifest, tool: Record<string, unknown>): number {

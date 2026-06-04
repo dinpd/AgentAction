@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from agentid.audit import audit_events
+from agentid.capabilities import capabilities_by_id
 from agentid.manifest import ManifestError, load_manifest, validate_manifest
 from agentid.policy import generate_policy
 
@@ -156,6 +157,8 @@ class AgentGateway:
         normalized = {
             "agent_id": event.get("agent_id", self.manifest.get("agent", {}).get("id")),
             "tool": event.get("tool"),
+            "capability": event.get("capability"),
+            "skill_id": event.get("skill_id"),
             "action": event.get("action"),
             "data_from": event.get("data_from", ""),
             "data_to": event.get("data_to", ""),
@@ -309,10 +312,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _tool_by_name(manifest: dict[str, Any], name: str) -> dict[str, Any] | None:
-    for tool in manifest.get("tools", []):
-        if tool.get("name") == name:
-            return tool
-    return None
+    return capabilities_by_id(manifest).get(name)
 
 
 def _grant_ttl_seconds(manifest: dict[str, Any], tool: dict[str, Any]) -> int:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentid.capabilities import capability_id, declared_capabilities
+
 
 def explain_manifest(manifest: dict[str, Any]) -> str:
     agent = manifest.get("agent", {})
@@ -9,7 +11,7 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     chain = manifest.get("delegation_chain", {})
     intent = manifest.get("intent", {})
     jit = manifest.get("jit_authorization", {})
-    tools = manifest.get("tools", [])
+    capabilities = declared_capabilities(manifest)
     flows = manifest.get("data_flows", [])
     runtime = manifest.get("runtime", {})
     audit = manifest.get("audit", {})
@@ -89,20 +91,24 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
     lines.append(f"- Revoke after use: {bool(jit.get('revoke_after_use'))}")
 
     lines.append("")
-    lines.append("Tools:")
-    if not tools:
-        lines.append("- No tools declared.")
+    lines.append("Capabilities:")
+    if not capabilities:
+        lines.append("- No capabilities declared.")
     else:
-        for tool in tools:
+        for capability in capabilities:
+            name = capability_id(capability) or "unnamed-capability"
             line = (
-                f"- {tool.get('name', 'unnamed-tool')}: "
-                f"{tool.get('access', 'unknown')} access, "
-                f"auth_mode={tool.get('auth_mode', 'delegated')}, "
-                f"approval={tool.get('approval', 'none')}"
+                f"- {name}: "
+                f"kind={capability.get('kind', 'mcp_tool')}, "
+                f"{capability.get('access', 'unknown')} access, "
+                f"auth_mode={capability.get('auth_mode', 'delegated')}, "
+                f"approval={capability.get('approval', 'none')}"
             )
-            constraints = tool.get("constraints")
+            constraints = capability.get("constraints")
             if constraints:
                 line += f", constrained by {', '.join(constraints.keys())}"
+            if capability.get("kind") == "skill" and capability.get("may_invoke"):
+                line += f", may invoke {', '.join(capability['may_invoke'])}"
             lines.append(line)
 
     lines.append("")

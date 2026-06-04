@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json",
   "title": "AgentID Manifest",
-  "description": "Authority contract for an AI agent, including identity, OIDC access, tool permissions, data flows, JIT authorization, runtime expectations, audit, and kill switch controls.",
+  "description": "Authority contract for an AI agent, including identity, OIDC access, capability permissions, tool permissions, skill permissions, data flows, JIT authorization, runtime expectations, audit, and kill switch controls.",
   "type": "object",
   "additionalProperties": true,
   "required": ["agent"],
@@ -185,6 +185,78 @@
         },
         "revoke_after_use": { "type": "boolean" },
         "max_session_extensions": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "First-class agent capabilities. Use this for MCP tools, API operations, local tools, and skills. The legacy tools field remains supported as shorthand for MCP tools.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "kind", "access"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "kind": {
+            "type": "string",
+            "enum": ["api_operation", "local_tool", "mcp_tool", "skill", "tool"]
+          },
+          "source": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 },
+          "hash": { "type": "string", "minLength": 1 },
+          "access": {
+            "type": "string",
+            "enum": ["read", "write", "admin", "execute"]
+          },
+          "auth_mode": {
+            "type": "string",
+            "enum": ["delegated", "service", "just_in_time"]
+          },
+          "approval": {
+            "type": "string",
+            "enum": ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"]
+          },
+          "may_invoke": {
+            "type": "array",
+            "description": "Downstream capability or tool IDs this skill may invoke.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "filesystem": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "network": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "process": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "token_ttl_seconds": { "type": "integer", "minimum": 1 },
+              "max_amount_usd": { "type": "number", "minimum": 0 },
+              "allowed_reasons": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "allowed_domains": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "resource": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "tools": {

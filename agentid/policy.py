@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentid.capabilities import capability_id, declared_capabilities
+
 
 APPROVAL_REQUIRED = {"required", "human_confirm", "step_up", "manager"}
 BLOCKING_APPROVAL = {"block"}
@@ -9,7 +11,7 @@ BLOCKING_APPROVAL = {"block"}
 
 def generate_opa_policy(manifest: dict[str, Any]) -> str:
     agent_id = manifest.get("agent", {}).get("id", "unknown-agent")
-    tools = manifest.get("tools", [])
+    capabilities = declared_capabilities(manifest)
     flows = manifest.get("data_flows", [])
     job_boundary = manifest.get("job_boundary", {})
 
@@ -22,11 +24,11 @@ def generate_opa_policy(manifest: dict[str, Any]) -> str:
     blocked_job_rules: list[str] = []
     required_binding_rules: list[str] = []
 
-    for tool in tools:
-        name = tool.get("name")
-        access = tool.get("access")
-        approval = tool.get("approval", "none")
-        auth_mode = tool.get("auth_mode", "delegated")
+    for capability in capabilities:
+        name = capability_id(capability)
+        access = capability.get("access")
+        approval = capability.get("approval", "none")
+        auth_mode = capability.get("auth_mode", "delegated")
         if not name or not access:
             continue
         allowed_rules.append(f'allowed_tools["{name}"] := "{access}"')
@@ -67,6 +69,8 @@ default allow := false
 
 agent_id := "{agent_id}"
 
+requested_capability := object.get(input, "tool", object.get(input, "capability", ""))
+
 {allowed_block}
 
 {approval_block}
@@ -87,8 +91,8 @@ job_required := {job_required}
 
 tool_allowed if {{
     input.agent_id == agent_id
-    allowed_tools[input.tool] == input.action
-    not blocked_tools[input.tool]
+    allowed_tools[requested_capability] == input.action
+    not blocked_tools[requested_capability]
 }}
 
 flow_allowed if {{
@@ -130,23 +134,23 @@ missing_job_bindings[field] if {{
 }}
 
 jit_satisfied if {{
-    not requires_jit[input.tool]
+    not requires_jit[requested_capability]
 }}
 
 jit_satisfied if {{
-    requires_jit[input.tool]
+    requires_jit[requested_capability]
     input.jit_grant_valid == true
     input.jit_grant_agent_id == input.agent_id
-    input.jit_grant_tool == input.tool
+    input.jit_grant_tool == requested_capability
     input.jit_grant_action == input.action
 }}
 
 approval_satisfied if {{
-    not requires_approval[input.tool]
+    not requires_approval[requested_capability]
 }}
 
 approval_satisfied if {{
-    requires_approval[input.tool]
+    requires_approval[requested_capability]
     input.approved == true
 }}
 

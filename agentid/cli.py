@@ -43,6 +43,7 @@ from agentid.provider import (
 )
 from agentid.risk import risk_label, risk_score
 from agentid.schema import schema_json
+from agentid.skill import SkillContractError, load_skill_contract, validate_skill_contract
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentID manifest.")
     audit_parser.add_argument("audit_log")
     audit_parser.add_argument("--manifest", required=True)
+
+    skill_parser = subparsers.add_parser("skill", help="Work with skill-local AgentID guardrail contracts.")
+    skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
+    skill_validate_parser = skill_subparsers.add_parser("validate", help="Validate a skill AgentID guardrail contract.")
+    skill_validate_parser.add_argument("skill", help="Skill directory, SKILL.md, or agentid skill contract YAML.")
 
     mcp_parser = subparsers.add_parser("mcp", help="Analyze MCP tool surfaces.")
     mcp_subparsers = mcp_parser.add_subparsers(dest="mcp_command", required=True)
@@ -369,6 +375,19 @@ def main(argv: list[str] | None = None) -> int:
                 print("Provider authorization receipt is invalid:")
                 for finding in result.findings:
                     print(f"- {finding}")
+            return 0 if result.ok else 1
+
+    if args.command == "skill":
+        try:
+            contract = load_skill_contract(args.skill)
+        except SkillContractError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        if args.skill_command == "validate":
+            result = validate_skill_contract(contract)
+            if result.ok:
+                print("Skill AgentID guardrail contract is valid.")
+            _print_validation(result, include_success=False)
             return 0 if result.ok else 1
 
     try:

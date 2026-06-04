@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agentid.capabilities import capabilities_by_id
+
 
 APPROVAL_REQUIRED = {"required", "human_confirm", "step_up", "manager"}
 
@@ -21,7 +23,7 @@ def load_audit_log(path: str | Path) -> list[dict[str, Any]]:
 def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
     findings: list[str] = []
     agent_id = manifest.get("agent", {}).get("id")
-    tools = {tool.get("name"): tool for tool in manifest.get("tools", [])}
+    capabilities = capabilities_by_id(manifest)
     allowed_flows = {
         (flow.get("from"), flow.get("to")): flow.get("allowed")
         for flow in manifest.get("data_flows", [])
@@ -33,12 +35,26 @@ def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tupl
         if agent_id and event.get("agent_id") != agent_id:
             findings.append(f"{prefix}: agent_id mismatch: {event.get('agent_id')} != {agent_id}")
 
-        tool_name = event.get("tool")
-        if tool_name not in tools:
-            findings.append(f"{prefix}: undeclared tool used: {tool_name}")
+        skill_id = event.get("skill_id")
+        skill_capability = None
+        if skill_id:
+            skill_capability = capabilities.get(str(skill_id))
+            if not skill_capability:
+                findings.append(f"{prefix}: undeclared skill used: {skill_id}")
+            elif skill_capability.get("kind") != "skill":
+                findings.append(f"{prefix}: skill_id does not reference a skill capability: {skill_id}")
+
+        tool_name = event.get("tool") or event.get("capability") or skill_id
+        if tool_name not in capabilities:
+            findings.append(f"{prefix}: undeclared capability used: {tool_name}")
             continue
 
-        manifest_tool = tools[tool_name]
+        manifest_tool = capabilities[str(tool_name)]
+        if skill_capability and event.get("tool") and skill_id != event.get("tool"):
+            may_invoke = skill_capability.get("may_invoke")
+            if isinstance(may_invoke, list) and event.get("tool") not in may_invoke:
+                findings.append(f"{prefix}: skill {skill_id} may not invoke tool: {event.get('tool')}")
+
         if manifest_tool.get("access") != event.get("action"):
             findings.append(
                 f"{prefix}: action mismatch for {tool_name}: actual={event.get('action')}, allowed={manifest_tool.get('access')}"

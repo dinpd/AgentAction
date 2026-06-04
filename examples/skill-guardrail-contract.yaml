@@ -1,0 +1,24 @@
+agentid_skill:
+  id: support-refund-workflow
+  kind: skill
+  source: ./skills/support-refund-workflow
+  version: 1.0.0
+  hash: sha256:replace-with-skill-bundle-digest
+  access: execute
+  auth_mode: just_in_time
+  approval: human_confirm
+  may_invoke:
+    - provider.crm.search_customer
+    - provider.billing.issue_credit
+    - email.send_external
+  permissions:
+    filesystem:
+      - read:workspace
+    network:
+      - provider-mcp-server
+  constraints:
+    token_ttl_seconds: 300
+    max_amount_usd: 100
+    allowed_reasons:
+      - duplicate_charge
+      - service_failure

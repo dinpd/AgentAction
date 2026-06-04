@@ -149,7 +149,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
       line-height: 1;
     }
 
-    .tool, .flow {
+    .tool, .skill, .flow {
       display: grid;
       gap: 12px;
       padding: 12px;
@@ -234,6 +234,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
     <h1>AgentID Policy Builder</h1>
     <div class="toolbar">
       <button id="addTool">Add tool</button>
+      <button id="addSkill">Add skill</button>
       <button id="addFlow">Add flow</button>
       <button id="copyOutput" class="primary">Copy output</button>
     </div>
@@ -311,6 +312,15 @@ CONFIG_UI_HTML = r"""<!doctype html>
 
       <section>
         <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">Skill Guardrails</h2>
+          <button class="icon" id="skillPlus" title="Add skill">+</button>
+        </div>
+        <p class="hint">Skills declare the tools they may invoke. The skill contract is a requested authority envelope; the manifest decides what is allowed.</p>
+        <div id="skills" class="stack" style="margin-top:12px"></div>
+      </section>
+
+      <section>
+        <div class="row" style="justify-content:space-between">
           <h2 style="margin:0">Data Flows</h2>
           <button class="icon" id="flowPlus" title="Add flow">+</button>
         </div>
@@ -350,6 +360,19 @@ CONFIG_UI_HTML = r"""<!doctype html>
         { name: "provider.crm.update_customer", access: "write", approval: "human_confirm", auth_mode: "just_in_time", resource: "provider/customer/*", ttl: "300" },
         { name: "provider.billing.lookup_invoices", access: "read", approval: "notify", auth_mode: "delegated", resource: "provider/billing/customer/*", ttl: "" }
       ],
+      skills: [
+        {
+          id: "support-refund-workflow",
+          source: "./skills/support-refund-workflow",
+          version: "1.0.0",
+          hash: "sha256:replace-with-skill-bundle-digest",
+          approval: "human_confirm",
+          auth_mode: "just_in_time",
+          may_invoke: "provider.crm.search_customer, provider.billing.lookup_invoices, provider.billing.issue_credit",
+          ttl: "300",
+          max_amount_usd: "100"
+        }
+      ],
       flows: [
         { from: "enterprise_crm", to: "provider_crm", allowed: true },
         { from: "provider_crm", to: "agent_context", allowed: true },
@@ -384,6 +407,22 @@ CONFIG_UI_HTML = r"""<!doctype html>
         }
       })).filter((tool) => tool.name);
 
+      const capabilities = state.skills.map((skill) => ({
+        id: skill.id.trim(),
+        kind: "skill",
+        source: skill.source.trim(),
+        version: skill.version.trim(),
+        hash: skill.hash.trim(),
+        access: "execute",
+        approval: skill.approval,
+        auth_mode: skill.auth_mode,
+        may_invoke: csv(skill.may_invoke),
+        constraints: {
+          ...(skill.ttl ? { token_ttl_seconds: Number(skill.ttl) } : {}),
+          ...(skill.max_amount_usd ? { max_amount_usd: Number(skill.max_amount_usd) } : {})
+        }
+      })).filter((skill) => skill.id);
+
       return {
         agent: {
           id: agentId.value.trim(),
@@ -411,7 +450,10 @@ CONFIG_UI_HTML = r"""<!doctype html>
           bind_authorization_to: csv(jobBindings.value)
         },
         intent: {
-          confirmation_required_for: tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name)
+          confirmation_required_for: [
+            ...tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name),
+            ...capabilities.filter((capability) => ["execute", "admin"].includes(capability.access)).map((capability) => capability.id)
+          ]
         },
         oidc: {
           enabled: oidcEnabled.checked,
@@ -434,9 +476,9 @@ CONFIG_UI_HTML = r"""<!doctype html>
           }
         },
         jit_authorization: {
-          enabled: tools.some((tool) => tool.auth_mode === "just_in_time"),
+          enabled: tools.some((tool) => tool.auth_mode === "just_in_time") || capabilities.some((capability) => capability.auth_mode === "just_in_time"),
           default_ttl_seconds: Number(jitTtl.value || 300),
-          bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id", "job_id", "case_id", "customer_id"],
+          bind_token_to: ["agent_id", "user_id", "skill_id", "tool", "action", "resource", "approval_id", "job_id", "case_id", "customer_id"],
           revoke_after_use: true
         },
         ...(mcpEnabled.checked ? { mcp_gateway: {
@@ -452,6 +494,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
             ...(tool.auth_mode === "just_in_time" ? { approved_arg: "approved", jit_grant_id_arg: "jit_grant_id" } : {})
           }]))
         } } : {}),
+        capabilities,
         tools,
         data_flows: state.flows.map((flow) => ({ from: flow.from.trim(), to: flow.to.trim(), allowed: Boolean(flow.allowed) })).filter((flow) => flow.from && flow.to),
         runtime: {
@@ -497,16 +540,22 @@ CONFIG_UI_HTML = r"""<!doctype html>
     }
 
     function opaPolicy(data) {
-      const allowed = data.tools.map((tool) => `allowed_tools["${tool.name}"] := "${tool.access}"`).join("\n") || "# No tools declared.";
-      const approvals = data.tools.filter((tool) => ["required", "human_confirm", "step_up", "manager"].includes(tool.approval)).map((tool) => `requires_approval["${tool.name}"]`).join("\n") || "# No approval-required tools declared.";
-      const blocked = data.tools.filter((tool) => tool.approval === "block").map((tool) => `blocked_tools["${tool.name}"]`).join("\n") || "# No blocked tools declared.";
-      const jit = data.tools.filter((tool) => tool.auth_mode === "just_in_time").map((tool) => `requires_jit["${tool.name}"]`).join("\n") || "# No JIT-required tools declared.";
+      const capabilities = [
+        ...data.capabilities.map((capability) => ({ name: capability.id, access: capability.access, approval: capability.approval, auth_mode: capability.auth_mode })),
+        ...data.tools
+      ];
+      const allowed = capabilities.map((tool) => `allowed_tools["${tool.name}"] := "${tool.access}"`).join("\n") || "# No capabilities declared.";
+      const approvals = capabilities.filter((tool) => ["required", "human_confirm", "step_up", "manager"].includes(tool.approval)).map((tool) => `requires_approval["${tool.name}"]`).join("\n") || "# No approval-required capabilities declared.";
+      const blocked = capabilities.filter((tool) => tool.approval === "block").map((tool) => `blocked_tools["${tool.name}"]`).join("\n") || "# No blocked capabilities declared.";
+      const jit = capabilities.filter((tool) => tool.auth_mode === "just_in_time").map((tool) => `requires_jit["${tool.name}"]`).join("\n") || "# No JIT-required capabilities declared.";
       const flows = data.data_flows.filter((flow) => flow.allowed).map((flow) => `allowed_flows["${flow.from}::${flow.to}"]`).join("\n") || "# No explicit allowed data flows declared.";
       return `package agentid
 
 default allow := false
 
 agent_id := "${data.agent.id}"
+
+requested_capability := object.get(input, "tool", object.get(input, "capability", ""))
 
 ${allowed}
 
@@ -520,8 +569,8 @@ ${flows}
 
 tool_allowed if {
     input.agent_id == agent_id
-    allowed_tools[input.tool] == input.action
-    not blocked_tools[input.tool]
+    allowed_tools[requested_capability] == input.action
+    not blocked_tools[requested_capability]
 }
 
 flow_allowed if {
@@ -534,23 +583,23 @@ flow_allowed if {
 }
 
 jit_satisfied if {
-    not requires_jit[input.tool]
+    not requires_jit[requested_capability]
 }
 
 jit_satisfied if {
-    requires_jit[input.tool]
+    requires_jit[requested_capability]
     input.jit_grant_valid == true
     input.jit_grant_agent_id == input.agent_id
-    input.jit_grant_tool == input.tool
+    input.jit_grant_tool == requested_capability
     input.jit_grant_action == input.action
 }
 
 approval_satisfied if {
-    not requires_approval[input.tool]
+    not requires_approval[requested_capability]
 }
 
 approval_satisfied if {
-    requires_approval[input.tool]
+    requires_approval[requested_capability]
     input.approved == true
 }
 
@@ -568,8 +617,8 @@ allow if {
         job_id: data.job_boundary?.allowed_jobs?.[0] || "support_case_resolution",
         case_id: "case-1042",
         customer_id: "cus_123",
-        tool: data.tools[0]?.name || "tool.name",
-        action: data.tools[0]?.access || "read",
+        tool: data.capabilities[0]?.id || data.tools[0]?.name || "tool.name",
+        action: data.capabilities[0]?.access || data.tools[0]?.access || "read",
         data_from: data.data_flows[0]?.from || "",
         data_to: data.data_flows[0]?.to || "",
         approved: false
@@ -598,6 +647,31 @@ allow if {
             <label>Token TTL<input type="number" min="30" data-tool="${index}" data-field="ttl" value="${tool.ttl}"></label>
           </div>`;
         tools.appendChild(el);
+      });
+    }
+
+    function renderSkills() {
+      skills.innerHTML = "";
+      state.skills.forEach((skill, index) => {
+        const el = document.createElement("div");
+        el.className = "skill";
+        el.innerHTML = `
+          <div class="row" style="justify-content:space-between">
+            <strong>Skill ${index + 1}</strong>
+            <button class="icon" title="Remove skill" data-remove-skill="${index}">x</button>
+          </div>
+          <div class="grid">
+            <label>ID<input data-skill="${index}" data-field="id" value="${skill.id}"></label>
+            <label>Source<input data-skill="${index}" data-field="source" value="${skill.source}"></label>
+            <label>Version<input data-skill="${index}" data-field="version" value="${skill.version}"></label>
+            <label>Hash<input data-skill="${index}" data-field="hash" value="${skill.hash}"></label>
+            <label>Approval<select data-skill="${index}" data-field="approval">${approvalOptions.map((v) => `<option ${skill.approval === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Auth mode<select data-skill="${index}" data-field="auth_mode">${authOptions.map((v) => `<option ${skill.auth_mode === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+            <label>Token TTL<input type="number" min="30" data-skill="${index}" data-field="ttl" value="${skill.ttl}"></label>
+            <label>Max amount USD<input type="number" min="0" data-skill="${index}" data-field="max_amount_usd" value="${skill.max_amount_usd}"></label>
+          </div>
+          <label>May invoke<input data-skill="${index}" data-field="may_invoke" value="${skill.may_invoke}"></label>`;
+        skills.appendChild(el);
       });
     }
 
@@ -631,6 +705,7 @@ allow if {
 
     function render() {
       renderTools();
+      renderSkills();
       renderFlows();
       renderOutput();
     }
@@ -638,6 +713,7 @@ allow if {
     document.addEventListener("input", (event) => {
       const target = event.target;
       if (target.dataset.tool) state.tools[Number(target.dataset.tool)][target.dataset.field] = target.value;
+      if (target.dataset.skill) state.skills[Number(target.dataset.skill)][target.dataset.field] = target.value;
       if (target.dataset.flow) state.flows[Number(target.dataset.flow)][target.dataset.field] = target.type === "checkbox" ? target.checked : target.value;
       renderOutput();
     });
@@ -653,12 +729,20 @@ allow if {
         state.tools.push({ name: "", access: "read", approval: "none", auth_mode: "delegated", resource: "", ttl: "" });
         render();
       }
+      if (target.id === "addSkill" || target.id === "skillPlus") {
+        state.skills.push({ id: "", source: "", version: "1.0.0", hash: "", approval: "human_confirm", auth_mode: "just_in_time", may_invoke: "", ttl: "300", max_amount_usd: "" });
+        render();
+      }
       if (target.id === "addFlow" || target.id === "flowPlus") {
         state.flows.push({ from: "", to: "", allowed: true });
         render();
       }
       if (target.dataset.removeTool) {
         state.tools.splice(Number(target.dataset.removeTool), 1);
+        render();
+      }
+      if (target.dataset.removeSkill) {
+        state.skills.splice(Number(target.dataset.removeSkill), 1);
         render();
       }
       if (target.dataset.removeFlow) {

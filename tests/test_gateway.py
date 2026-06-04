@@ -277,3 +277,5 @@ def test_config_ui_writer_creates_browser_builder(tmp_path):
     assert "AgentID Policy Builder" in html
     assert "Manifest YAML" in html
     assert "OPA Policy" in html
+    assert "Skill Guardrails" in html
+    assert "support-refund-workflow" in html

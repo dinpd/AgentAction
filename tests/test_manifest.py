@@ -202,3 +202,39 @@ def test_runtime_attestation_enforcement_requires_attestations_and_trusted_issue
     assert not result.ok
     assert "attestations is required when runtime.require_valid_attestations is true." in result.errors
     assert "runtime.require_valid_attestations is true but trusted_issuers is empty." in result.errors
+
+
+def test_manifest_accepts_skill_capability_without_legacy_tools():
+    manifest = {
+        "agent": {
+            "id": "a1",
+            "name": "Test Agent",
+            "owner": "team",
+            "environment": "dev",
+            "purpose": "test",
+        },
+        "jit_authorization": {
+            "enabled": True,
+            "default_ttl_seconds": 300,
+            "bind_token_to": ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+            "revoke_after_use": True,
+        },
+        "capabilities": [
+            {
+                "id": "support-refund-workflow",
+                "kind": "skill",
+                "source": "./skills/support-refund-workflow",
+                "version": "1.0.0",
+                "hash": "sha256:test",
+                "access": "execute",
+                "auth_mode": "just_in_time",
+                "approval": "human_confirm",
+                "may_invoke": ["provider.billing.issue_credit"],
+                "constraints": {"token_ttl_seconds": 300},
+            }
+        ],
+    }
+
+    result = validate_manifest(manifest)
+
+    assert result.ok

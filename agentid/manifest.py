@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from agentid.capabilities import declared_capabilities
+
 
 class ManifestError(Exception):
     """Raised when a manifest cannot be loaded or parsed."""
@@ -23,6 +25,7 @@ REQUIRED_AGENT_FIELDS = ["id", "name", "owner", "environment", "purpose"]
 VALID_ACCESS = {"read", "write", "admin", "execute"}
 VALID_APPROVAL = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_AUTH_MODE = {"delegated", "service", "just_in_time"}
+VALID_CAPABILITY_KIND = {"api_operation", "local_tool", "mcp_tool", "skill", "tool"}
 VALID_OIDC_TOKEN_MODES = {"jwks", "demo_hs256"}
 VALID_ATTESTATION_RESULTS = {"pass", "fail", "partial", "unknown"}
 
@@ -210,12 +213,12 @@ def _validate_oidc(manifest: dict[str, Any], errors: list[str], warnings: list[s
 
 def _validate_jit_authorization(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
     jit = manifest.get("jit_authorization")
-    tools = manifest.get("tools", [])
-    uses_jit = any(isinstance(t, dict) and t.get("auth_mode") == "just_in_time" for t in tools)
+    capabilities = declared_capabilities(manifest)
+    uses_jit = any(capability.get("auth_mode") == "just_in_time" for capability in capabilities)
 
     if jit is None:
         if uses_jit:
-            errors.append("jit_authorization is required when any tool uses auth_mode=just_in_time.")
+            errors.append("jit_authorization is required when any capability uses auth_mode=just_in_time.")
         else:
             warnings.append("jit_authorization is not set. Sensitive tools may rely on standing authority.")
         return
@@ -225,7 +228,7 @@ def _validate_jit_authorization(manifest: dict[str, Any], errors: list[str], war
         return
 
     if uses_jit and not jit.get("enabled"):
-        errors.append("jit_authorization.enabled must be true when just-in-time tools are declared.")
+        errors.append("jit_authorization.enabled must be true when just-in-time capabilities are declared.")
 
     ttl = jit.get("default_ttl_seconds")
     if ttl is None:
@@ -245,58 +248,114 @@ def _validate_jit_authorization(manifest: dict[str, Any], errors: list[str], war
             warnings.append("jit_authorization.bind_token_to is missing recommended bindings: " + ", ".join(sorted(missing)))
 
     if uses_jit and not jit.get("revoke_after_use"):
-        warnings.append("jit_authorization.revoke_after_use is not true for just-in-time tools.")
+        warnings.append("jit_authorization.revoke_after_use is not true for just-in-time capabilities.")
 
 
 def _validate_tools(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    capabilities = manifest.get("capabilities")
     tools = manifest.get("tools", [])
-    if not tools:
-        warnings.append("No tools declared. Agent authority may be incomplete or intentionally empty.")
+
+    if capabilities is None and not tools:
+        warnings.append("No capabilities declared. Agent authority may be incomplete or intentionally empty.")
+
+    if capabilities is not None:
+        if not isinstance(capabilities, list):
+            errors.append("capabilities must be a list.")
+        else:
+            for idx, capability in enumerate(capabilities):
+                _validate_capability(capability, f"capabilities[{idx}]", errors, warnings)
 
     if tools and not isinstance(tools, list):
         errors.append("tools must be a list.")
         return
 
     for idx, tool in enumerate(tools):
-        prefix = f"tools[{idx}]"
-        if not isinstance(tool, dict):
-            errors.append(f"{prefix} must be an object.")
-            continue
+        _validate_capability(tool, f"tools[{idx}]", errors, warnings, legacy_tool=True)
 
-        if not tool.get("name"):
-            errors.append(f"{prefix}.name is required.")
 
-        access = tool.get("access")
-        if access not in VALID_ACCESS:
-            errors.append(f"{prefix}.access must be one of: {', '.join(sorted(VALID_ACCESS))}.")
+def _validate_capability(
+    capability: Any,
+    prefix: str,
+    errors: list[str],
+    warnings: list[str],
+    *,
+    legacy_tool: bool = False,
+) -> None:
+    if not isinstance(capability, dict):
+        errors.append(f"{prefix} must be an object.")
+        return
 
-        auth_mode = tool.get("auth_mode", "delegated")
-        if auth_mode not in VALID_AUTH_MODE:
-            errors.append(f"{prefix}.auth_mode must be one of: {', '.join(sorted(VALID_AUTH_MODE))}.")
+    identity_field = "name" if legacy_tool else "id"
+    if not capability.get(identity_field):
+        errors.append(f"{prefix}.{identity_field} is required.")
 
-        approval = tool.get("approval", "none")
-        if approval not in VALID_APPROVAL:
-            errors.append(f"{prefix}.approval must be one of: {', '.join(sorted(VALID_APPROVAL))}.")
+    kind = capability.get("kind", "mcp_tool" if legacy_tool else None)
+    if not legacy_tool:
+        if not kind:
+            errors.append(f"{prefix}.kind is required.")
+        elif kind not in VALID_CAPABILITY_KIND:
+            errors.append(f"{prefix}.kind must be one of: {', '.join(sorted(VALID_CAPABILITY_KIND))}.")
 
-        if access in {"write", "admin", "execute"} and approval in {"none", "notify"}:
-            warnings.append(f"{prefix} has {access} access with weak approval setting: {approval}.")
+    access = capability.get("access")
+    if access not in VALID_ACCESS:
+        errors.append(f"{prefix}.access must be one of: {', '.join(sorted(VALID_ACCESS))}.")
 
-        if access in {"write", "admin", "execute"} and auth_mode != "just_in_time":
-            warnings.append(f"{prefix} has {access} access without auth_mode=just_in_time.")
+    auth_mode = capability.get("auth_mode", "delegated")
+    if auth_mode not in VALID_AUTH_MODE:
+        errors.append(f"{prefix}.auth_mode must be one of: {', '.join(sorted(VALID_AUTH_MODE))}.")
 
-        if access == "admin":
-            warnings.append(f"{prefix} uses admin access. Prefer narrower tool permissions.")
+    approval = capability.get("approval", "none")
+    if approval not in VALID_APPROVAL:
+        errors.append(f"{prefix}.approval must be one of: {', '.join(sorted(VALID_APPROVAL))}.")
 
-        constraints = tool.get("constraints", {})
-        if access in {"write", "admin", "execute"} and not constraints:
-            warnings.append(f"{prefix} has {access} access without constraints.")
+    if access in {"write", "admin", "execute"} and approval in {"none", "notify"}:
+        warnings.append(f"{prefix} has {access} access with weak approval setting: {approval}.")
 
-        if auth_mode == "just_in_time":
-            ttl = constraints.get("token_ttl_seconds") if isinstance(constraints, dict) else None
-            if ttl is not None and (not isinstance(ttl, int) or ttl <= 0):
-                errors.append(f"{prefix}.constraints.token_ttl_seconds must be a positive integer.")
-            elif ttl is not None and ttl > 900:
-                warnings.append(f"{prefix}.constraints.token_ttl_seconds is greater than 15 minutes.")
+    if access in {"write", "admin", "execute"} and auth_mode != "just_in_time":
+        warnings.append(f"{prefix} has {access} access without auth_mode=just_in_time.")
+
+    if access == "admin":
+        warnings.append(f"{prefix} uses admin access. Prefer narrower capability permissions.")
+
+    constraints = capability.get("constraints", {})
+    if constraints and not isinstance(constraints, dict):
+        errors.append(f"{prefix}.constraints must be an object.")
+        constraints = {}
+
+    if access in {"write", "admin", "execute"} and not constraints:
+        warnings.append(f"{prefix} has {access} access without constraints.")
+
+    if auth_mode == "just_in_time":
+        ttl = constraints.get("token_ttl_seconds") if isinstance(constraints, dict) else None
+        if ttl is not None and (not isinstance(ttl, int) or ttl <= 0):
+            errors.append(f"{prefix}.constraints.token_ttl_seconds must be a positive integer.")
+        elif ttl is not None and ttl > 900:
+            warnings.append(f"{prefix}.constraints.token_ttl_seconds is greater than 15 minutes.")
+
+    if kind == "skill":
+        _validate_skill_capability(capability, prefix, errors, warnings)
+
+
+def _validate_skill_capability(
+    capability: dict[str, Any],
+    prefix: str,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    if not capability.get("source"):
+        warnings.append(f"{prefix}.source is not set. Skill provenance may be hard to review.")
+    if not capability.get("hash"):
+        warnings.append(f"{prefix}.hash is not set. Skill drift may be hard to detect.")
+
+    may_invoke = capability.get("may_invoke")
+    if may_invoke is None:
+        warnings.append(f"{prefix}.may_invoke is not set. Skill downstream tool use is unconstrained.")
+    elif not isinstance(may_invoke, list):
+        errors.append(f"{prefix}.may_invoke must be a list.")
+
+    permissions = capability.get("permissions")
+    if permissions is not None and not isinstance(permissions, dict):
+        errors.append(f"{prefix}.permissions must be an object.")
 
 
 def _validate_delegation_chain(manifest: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
