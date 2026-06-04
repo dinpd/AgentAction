@@ -31,10 +31,26 @@ Example Agent Card extension object:
     "authorization_contract_uri": "https://agent.example.com/.well-known/agentid-provider-contract.json",
     "receipt_required_for": ["write", "admin", "execute", "financial"],
     "receipt_transport": "message.metadata.agentid_receipt",
+    "receipt_binds": [
+      "agent_id",
+      "principal_id",
+      "task_id",
+      "action",
+      "resource",
+      "authority_decision_id"
+    ],
+    "receipt_verification": "signed_or_introspected",
     "attestation_uri": "https://agent.example.com/.well-known/vcs.json"
   }
 }
 ```
+
+The Agent Card should distinguish where to fetch the authority contract from
+the minimum receipt interface expected at task time. `receipt_binds` should be
+treated as a public minimum binding set, not a full policy disclosure. The
+linked authority contract can define stricter provider/tool-specific bindings,
+such as approval ID, JIT grant ID, case/customer/resource fields, amount, and
+tenant-specific constraints.
 
 ## Why this helps
 
@@ -48,6 +64,7 @@ It also supports common enterprise checks:
 - Where can a verifier fetch the authority contract?
 - Where can a verifier fetch identity or security attestations?
 - How should an authorization receipt be carried in an A2A request?
+- Which minimum receipt claims should be bound to the delegated task?
 
 ## Non-goals
 
