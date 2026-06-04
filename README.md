@@ -21,6 +21,34 @@ The core idea is simple:
 
 AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
+## Core Concepts
+
+AgentID separates three concepts that are often blurred in agent systems:
+
+```text
+Skill = workflow package
+Tool = executable operation
+Flow = data movement boundary
+```
+
+- **Tool:** an operation the agent or runtime can call, such as
+  `provider.crm.search_customer`, `stripe.create_refund`, or
+  `email.send_external`. Tool policy answers what operation is being attempted,
+  what access level it has, which resource it affects, and whether approval or
+  JIT authority is required.
+- **Skill:** a reusable workflow package that may call one or more tools, such
+  as `support-refund-workflow`. Skill policy answers whether the agent may
+  activate that workflow and which downstream tools it may invoke through
+  `may_invoke`. A skill-carried AgentID contract is a requested authority
+  envelope, not a permission grant.
+- **Flow:** a source-to-destination data boundary, such as
+  `provider_crm -> agent_context` or `customer_records -> external_email`.
+  Flow policy answers where data may move and which destinations are blocked.
+
+AgentID needs all three because they catch different failure modes: tool policy
+stops dangerous operations, skill policy stops workflow escalation, and flow
+policy stops data moving to the wrong place.
+
 ## Who AgentID is for
 
 - **API and SaaS providers** turning APIs into MCP tools without giving agents

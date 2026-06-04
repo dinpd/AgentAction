@@ -11,6 +11,28 @@ and constrained before it invokes downstream tools.
 MCP remains the runtime integration surface for external tools. Skills are the
 workflow packaging surface. AgentID should govern both.
 
+## Skill, tool, and flow
+
+AgentID uses these terms deliberately:
+
+```text
+Skill = workflow package
+Tool = executable operation
+Flow = data movement boundary
+```
+
+- A **skill** packages instructions, scripts, examples, and workflow logic. It
+  can orchestrate multiple downstream calls.
+- A **tool** is the concrete operation being executed, such as
+  `provider.billing.issue_credit`.
+- A **flow** is the movement of data between sources and destinations, such as
+  `provider_billing -> agent_context`.
+
+For a skill-originated call, AgentID can check both the skill and the tool: the
+skill must be declared and allowed to invoke the downstream tool through
+`may_invoke`, and the downstream tool must still satisfy its own approval, JIT,
+resource, and data-flow rules.
+
 ## Skill-local guardrails
 
 A skill can carry its own AgentID guardrail contract in one of these places:
