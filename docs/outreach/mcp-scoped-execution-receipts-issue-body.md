@@ -70,16 +70,34 @@ tool request metadata or arguments:
   "tool": "provider.crm.update_customer",
   "action": "write",
   "resource": "provider/customer/cus_123",
+  "phase": "admission",
+  "issuer": "https://enterprise.example.com",
+  "audience": "provider-crm-mcp/provider.crm.update_customer",
+  "request_digest": "sha256:...",
+  "policy_version": "crm-write-policy-2026-06",
   "case_id": "case-1042",
   "customer_id": "cus_123",
   "approval_id": "approval-456",
   "jit_grant_id": "grant_789",
+  "idempotency_key": "case-1042:update-cus-123:dec-123",
   "expires_at": "2026-06-03T18:00:00Z"
 }
 ```
 
 The provider MCP server verifies that the receipt is valid, fresh, and bound to
 the exact tool call before applying its normal business authorization.
+
+One useful acceptance test is receipt replay and scope drift:
+
+1. The gateway admits `provider.crm.update_customer` for `case_1042` /
+   `cus_123`, bound to canonical request digest A, policy version P, and expiry
+   T.
+2. The client retries the same logical call with the same receipt. The provider
+   can either accept it once or return the prior result, depending on its
+   single-use or idempotency policy.
+3. The client changes the resource, customer, action, request digest, policy
+   version, or context. The provider rejects the receipt as stale or out of
+   scope before business logic runs.
 
 ## Why this helps
 
