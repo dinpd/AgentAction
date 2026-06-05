@@ -44,6 +44,7 @@ Example Agent Card extension object:
       "authority_decision_id"
     ],
     "receipt_verification": "signed_or_introspected",
+    "receipt_profile_uri": "urn:example:authority-receipt:v1",
     "attestation_uri": "https://agent.example.com/.well-known/vcs.json"
   }
 }
@@ -54,7 +55,10 @@ the minimum receipt interface expected at task time. `receipt_binds` should be
 treated as a public minimum binding set, not a full policy disclosure. The
 linked authority contract can define stricter provider/tool-specific bindings,
 such as approval ID, JIT grant ID, case/customer/resource fields, amount, and
-tenant-specific constraints.
+tenant-specific constraints. When a server needs closed outcome semantics, the
+optional `receipt_profile_uri` can point to a receipt profile that defines the
+allowed outcome vocabulary, escalation states, canonicalization requirements,
+and domain-specific evidence rules.
 
 ## Why this helps
 
@@ -69,6 +73,7 @@ It also supports common enterprise checks:
 - Where can a verifier fetch identity or security attestations?
 - How should an authorization receipt be carried in an A2A request?
 - Which minimum receipt claims should be bound to the delegated task?
+- Which receipt profile defines closed outcome and evidence semantics?
 
 ## Non-goals
 
