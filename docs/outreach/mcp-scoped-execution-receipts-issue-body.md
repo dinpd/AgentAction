@@ -64,6 +64,7 @@ tool request metadata or arguments:
 ```json
 {
   "decision_id": "dec_123",
+  "action_id": "act_456",
   "tenant_id": "acme-corp",
   "agent_id": "enterprise-support-agent",
   "user_id": "support-rep-17",
@@ -71,6 +72,7 @@ tool request metadata or arguments:
   "action": "write",
   "resource": "provider/customer/cus_123",
   "phase": "admission",
+  "state": "admitted",
   "issuer": "https://enterprise.example.com",
   "audience": "provider-crm-mcp/provider.crm.update_customer",
   "request_digest": "sha256:...",
@@ -87,17 +89,32 @@ tool request metadata or arguments:
 The provider MCP server verifies that the receipt is valid, fresh, and bound to
 the exact tool call before applying its normal business authorization.
 
-One useful acceptance test is receipt replay and scope drift:
+The receipt state machine should stay separate from provider business logic.
+Example receipt states:
+
+- `admitted`: this exact request was accepted for possible execution.
+- `completed`: the provider has a prior outcome for the same action or receipt
+  ID.
+- `denied`: policy, user, or provider refused before execution.
+- `expired`: the receipt is no longer fresh.
+- `out_of_scope`: request digest, resource, action, or policy context no longer
+  matches.
+- `already_consumed`: the receipt cannot authorize another mutation.
+
+One useful acceptance test is receipt replay, retry suppression, and scope
+drift:
 
 1. The gateway admits `provider.crm.update_customer` for `case_1042` /
-   `cus_123`, bound to canonical request digest A, policy version P, and expiry
-   T.
-2. The client retries the same logical call with the same receipt. The provider
-   can either accept it once or return the prior result, depending on its
-   single-use or idempotency policy.
-3. The client changes the resource, customer, action, request digest, policy
-   version, or context. The provider rejects the receipt as stale or out of
-   scope before business logic runs.
+   `cus_123`, bound to stable action ID A, canonical request digest D, policy
+   version P, and expiry T.
+2. Transport times out after the provider has executed, reserved, or otherwise
+   consumed the receipt.
+3. The client retries with the same receipt, action ID, and request digest. The
+   provider returns the prior outcome or an `already_consumed` terminal state
+   without running business logic again.
+4. The client changes the resource, customer, action, request digest, policy
+   version, action ID, or context. The provider rejects the receipt as
+   `out_of_scope` or stale before business logic runs.
 
 ## Why this helps
 
