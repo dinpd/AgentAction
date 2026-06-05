@@ -11,6 +11,29 @@ provider_agentid:
   receipt:
     verification: jws_jwks
     transport: params.arguments._agentid_receipt
+    profile:
+      uri: https://agentid.dev/profiles/scoped-tool-receipt/v1
+      canonicalization: agentid_canonical_json_v1
+      digest_algorithm: SHA-256
+      default_bindings:
+        - tenant_id
+        - agent_id
+        - user_id
+        - tool
+        - action
+        - resource
+        - job_id
+      outcomes:
+        - value: ALLOW
+          description: The action is authorized under the profile and may continue to provider business checks.
+        - value: REFER
+          description: The action needs an external review, approval, or business decision before execution.
+        - value: DENY
+          description: The action is not authorized under the profile and must not execute.
+      basis:
+        handling: categorical_or_reference
+        category_field: basis_category
+        reference_field: basis_ref
     allowed_issuers:
       - https://enterprise.example.com
     jwks_uri: https://enterprise.example.com/.well-known/jwks.json

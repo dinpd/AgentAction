@@ -156,6 +156,13 @@ local provider demo. Production deployments should use managed keys, key
 rotation, replay protection, and either signed JWS-style receipts or
 introspection.
 
+Provider contracts can also advertise a receipt profile in
+`provider_agentid.receipt.profile`. The profile names the URI, canonicalization
+rule, default bound fields, outcome vocabulary, and privacy-preserving basis
+handling that verifiers should apply to scoped authorization receipts. See
+[`receipt-profiles.md`](receipt-profiles.md) for the AgentID profile shape and
+the `agentid_canonical_json_v1` canonicalization rule.
+
 For local validation and CI tests, providers can verify a receipt without
 running the mock server:
 
@@ -365,6 +372,8 @@ it should define:
 - whether a receipt is required, audit-only, or optional
 - whether JIT authority is required
 - receipt TTL and single-use expectations
+- receipt profile URI, canonicalization rule, outcome vocabulary, and basis
+  handling
 - provider-side constraints such as amount limits, allowed operations, or
   recipient restrictions
 - schema version, tool version, and schema hash for drift detection

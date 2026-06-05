@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added provider receipt profile metadata with canonicalization, default binding,
+  outcome, and privacy-preserving basis handling.
+- Added provider contract validation for receipt profile defaults on high-risk
+  tools.
 - Added `agentid mcp fetch` for fetching `tools/list` from HTTP MCP servers.
 - Added `agentid mcp analyze` for scoring saved MCP `tools/list` output.
 - Added `agentid mcp check` for CI-friendly MCP risk gates.

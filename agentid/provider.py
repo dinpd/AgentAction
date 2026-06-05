@@ -24,6 +24,9 @@ class ProviderContractError(Exception):
 VALID_ACTIONS = {"read", "write", "admin", "execute"}
 VALID_APPROVALS = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_RISKS = {"low", "medium", "high", "critical"}
+VALID_RECEIPT_CANONICALIZATION = {"agentid_canonical_json_v1"}
+VALID_RECEIPT_DIGESTS = {"SHA-256"}
+VALID_RECEIPT_BASIS_HANDLING = {"omit", "categorical", "reference", "categorical_or_reference"}
 REQUIRED_HIGH_RISK_CONTEXT = {"tenant_id", "agent_id", "user_id"}
 REQUIRED_HIGH_RISK_BINDINGS = {"tenant_id", "agent_id", "tool", "action", "resource"}
 JIT_BINDINGS = {"approval_id", "jit_grant_id"}
@@ -136,12 +139,15 @@ def validate_provider_contract(contract: dict[str, Any]) -> ValidationResult:
         errors.append("provider_agentid.tools must be a non-empty object.")
         return ValidationResult(ok=False, errors=errors, warnings=warnings)
 
+    receipt_profile = _receipt_profile(root.get("receipt"))
+    _validate_receipt_trust_policy(root.get("receipt"), "provider_agentid.receipt", errors, warnings)
+
     for name, tool in tools.items():
         prefix = f"provider_agentid.tools.{name}"
         if not isinstance(tool, dict):
             errors.append(f"{prefix} must be an object.")
             continue
-        _validate_provider_tool(str(name), tool, prefix, errors, warnings)
+        _validate_provider_tool(str(name), tool, prefix, receipt_profile, errors, warnings)
 
     return ValidationResult(ok=not errors, errors=errors, warnings=warnings)
 
@@ -465,6 +471,9 @@ def provider_contract_from_openapi(
             "mcp_server": inferred_mcp_server,
             "version": "review_required",
             "source": "openapi",
+            "receipt": {
+                "profile": _default_receipt_profile(),
+            },
             "tools": tools,
         }
     }
@@ -633,6 +642,7 @@ def _validate_provider_tool(
     name: str,
     tool: dict[str, Any],
     prefix: str,
+    receipt_profile: dict[str, Any] | None,
     errors: list[str],
     warnings: list[str],
 ) -> None:
@@ -664,7 +674,83 @@ def _validate_provider_tool(
         warnings.append(f"{prefix}.data_to is not set.")
 
     if _is_high_blast_radius(name, tool):
-        _validate_high_blast_radius_tool(name, tool, prefix, errors, warnings)
+        _validate_high_blast_radius_tool(name, tool, prefix, receipt_profile, errors, warnings)
+
+
+def _receipt_profile(receipt: Any) -> dict[str, Any] | None:
+    if not isinstance(receipt, dict):
+        return None
+    profile = receipt.get("profile")
+    return profile if isinstance(profile, dict) else None
+
+
+def _validate_receipt_trust_policy(
+    receipt: Any,
+    prefix: str,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    if receipt is None:
+        return
+    if not isinstance(receipt, dict):
+        errors.append(f"{prefix} must be an object.")
+        return
+
+    profile = receipt.get("profile")
+    if profile is not None and not isinstance(profile, dict):
+        errors.append(f"{prefix}.profile must be an object.")
+        return
+    if not isinstance(profile, dict):
+        warnings.append(f"{prefix}.profile is not set. Receipt semantics will be deployment-specific.")
+        return
+
+    if not _string(profile.get("uri")):
+        errors.append(f"{prefix}.profile.uri is required.")
+
+    canonicalization = profile.get("canonicalization")
+    if canonicalization not in VALID_RECEIPT_CANONICALIZATION:
+        errors.append(
+            f"{prefix}.profile.canonicalization must be one of: "
+            + ", ".join(sorted(VALID_RECEIPT_CANONICALIZATION))
+            + "."
+        )
+
+    digest_algorithm = profile.get("digest_algorithm")
+    if digest_algorithm is not None and digest_algorithm not in VALID_RECEIPT_DIGESTS:
+        errors.append(
+            f"{prefix}.profile.digest_algorithm must be one of: "
+            + ", ".join(sorted(VALID_RECEIPT_DIGESTS))
+            + "."
+        )
+
+    default_bindings = profile.get("default_bindings")
+    if default_bindings is not None and _string_set(default_bindings) is None:
+        errors.append(f"{prefix}.profile.default_bindings must be a list of strings.")
+
+    outcomes = profile.get("outcomes")
+    if not isinstance(outcomes, list) or not outcomes:
+        errors.append(f"{prefix}.profile.outcomes must be a non-empty list.")
+    else:
+        for index, outcome in enumerate(outcomes):
+            outcome_prefix = f"{prefix}.profile.outcomes[{index}]"
+            if not isinstance(outcome, dict):
+                errors.append(f"{outcome_prefix} must be an object.")
+                continue
+            if not _string(outcome.get("value")):
+                errors.append(f"{outcome_prefix}.value is required.")
+            if not _string(outcome.get("description")):
+                errors.append(f"{outcome_prefix}.description is required.")
+
+    basis = profile.get("basis")
+    if basis is not None:
+        if not isinstance(basis, dict):
+            errors.append(f"{prefix}.profile.basis must be an object.")
+        elif basis.get("handling") not in VALID_RECEIPT_BASIS_HANDLING:
+            errors.append(
+                f"{prefix}.profile.basis.handling must be one of: "
+                + ", ".join(sorted(VALID_RECEIPT_BASIS_HANDLING))
+                + "."
+            )
 
 
 def _tools(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -728,6 +814,7 @@ def _validate_high_blast_radius_tool(
     name: str,
     tool: dict[str, Any],
     prefix: str,
+    receipt_profile: dict[str, Any] | None,
     errors: list[str],
     warnings: list[str],
 ) -> None:
@@ -775,6 +862,14 @@ def _validate_high_blast_radius_tool(
                 errors.append(
                     f"{prefix}.authorization_requirements.bind_receipt_to is missing JIT bindings: "
                     + ", ".join(sorted(missing_jit))
+                )
+        if receipt_profile:
+            default_bindings = _string_set(receipt_profile.get("default_bindings")) or set()
+            missing_profile_bindings = default_bindings - bindings
+            if missing_profile_bindings:
+                errors.append(
+                    f"{prefix}.authorization_requirements.bind_receipt_to is missing profile bindings: "
+                    + ", ".join(sorted(missing_profile_bindings))
                 )
 
     if not auth.get("resource_arg") and not auth.get("resource_template") and not tool.get("resource_template"):
@@ -967,6 +1062,34 @@ def _receipt_ttl(tool: dict[str, Any]) -> int | None:
     if isinstance(auth, dict) and isinstance(auth.get("receipt_ttl_seconds"), int):
         return auth["receipt_ttl_seconds"]
     return None
+
+
+def _default_receipt_profile() -> dict[str, Any]:
+    return {
+        "uri": "https://agentid.dev/profiles/scoped-tool-receipt/v1",
+        "canonicalization": "agentid_canonical_json_v1",
+        "digest_algorithm": "SHA-256",
+        "default_bindings": ["tenant_id", "agent_id", "user_id", "tool", "action", "resource", "job_id"],
+        "outcomes": [
+            {
+                "value": "ALLOW",
+                "description": "The action is authorized under the profile and may continue to provider business checks.",
+            },
+            {
+                "value": "REFER",
+                "description": "The action needs an external review, approval, or business decision before execution.",
+            },
+            {
+                "value": "DENY",
+                "description": "The action is not authorized under the profile and must not execute.",
+            },
+        ],
+        "basis": {
+            "handling": "categorical_or_reference",
+            "category_field": "basis_category",
+            "reference_field": "basis_ref",
+        },
+    }
 
 
 def _resource_pattern(template: str) -> str:

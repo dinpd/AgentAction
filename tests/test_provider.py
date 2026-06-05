@@ -41,6 +41,9 @@ def test_provider_contract_example_matches_json_schema():
 
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(contract)
+    profile = contract["provider_agentid"]["receipt"]["profile"]
+    assert profile["canonicalization"] == "agentid_canonical_json_v1"
+    assert [outcome["value"] for outcome in profile["outcomes"]] == ["ALLOW", "REFER", "DENY"]
 
 
 def test_cli_provider_schema_payload_is_json(capsys):
@@ -78,6 +81,58 @@ def test_provider_contract_requires_receipts_for_high_blast_radius_tools():
     assert "provider_agentid.tools.provider.crm.update_customer.requires_jit must be true for high-blast-radius tools." in result.errors
     assert "provider_agentid.tools.provider.crm.update_customer.approval must require explicit approval for high-blast-radius tools." in result.errors
     assert "provider_agentid.tools.provider.crm.update_customer.authorization_requirements is required for high-blast-radius tools." in result.errors
+
+
+def test_provider_contract_receipt_profile_requires_matching_tool_bindings():
+    contract = provider_contract({"provider.crm.update_customer": high_risk_tool()})
+    contract["provider_agentid"]["receipt"] = {
+        "verification": "jws_jwks",
+        "transport": "params.arguments._agentid_receipt",
+        "profile": {
+            "uri": "https://agentid.dev/profiles/scoped-tool-receipt/v1",
+            "canonicalization": "agentid_canonical_json_v1",
+            "digest_algorithm": "SHA-256",
+            "default_bindings": ["tenant_id", "agent_id", "user_id", "tool", "action", "resource", "job_id"],
+            "outcomes": [
+                {"value": "ALLOW", "description": "Allowed under this profile."},
+                {"value": "REFER", "description": "Needs external review before execution."},
+                {"value": "DENY", "description": "Denied under this profile."},
+            ],
+            "basis": {"handling": "categorical_or_reference"},
+        },
+    }
+
+    result = validate_provider_contract(contract)
+
+    assert not result.ok
+    assert (
+        "provider_agentid.tools.provider.crm.update_customer.authorization_requirements.bind_receipt_to "
+        "is missing profile bindings: job_id, user_id"
+    ) in result.errors
+
+
+def test_provider_contract_rejects_invalid_receipt_profile():
+    contract = provider_contract({"provider.crm.update_customer": high_risk_tool()})
+    contract["provider_agentid"]["receipt"] = {
+        "verification": "jws_jwks",
+        "transport": "params.arguments._agentid_receipt",
+        "profile": {
+            "uri": "https://agentid.dev/profiles/scoped-tool-receipt/v1",
+            "canonicalization": "plain_json",
+            "outcomes": [],
+            "basis": {"handling": "full_text"},
+        },
+    }
+
+    result = validate_provider_contract(contract)
+
+    assert not result.ok
+    assert "provider_agentid.receipt.profile.canonicalization must be one of: agentid_canonical_json_v1." in result.errors
+    assert "provider_agentid.receipt.profile.outcomes must be a non-empty list." in result.errors
+    assert (
+        "provider_agentid.receipt.profile.basis.handling must be one of: "
+        "categorical, categorical_or_reference, omit, reference."
+    ) in result.errors
 
 
 def test_cli_provider_validate(tmp_path, capsys):
@@ -229,6 +284,7 @@ def test_provider_contract_from_openapi_generates_reviewable_contract():
 
     assert result.ok
     tools = contract["provider_agentid"]["tools"]
+    assert contract["provider_agentid"]["receipt"]["profile"]["canonicalization"] == "agentid_canonical_json_v1"
     assert "provider.crm.search_customer" in tools
     assert "provider.crm.update_customer" in tools
     assert "provider.crm.issue_credit" in tools

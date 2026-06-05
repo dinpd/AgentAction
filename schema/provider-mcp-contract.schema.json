@@ -167,6 +167,73 @@
         "introspection_uri": {
           "type": "string",
           "minLength": 1
+        },
+        "profile": {
+          "$ref": "#/$defs/receipt_profile"
+        }
+      }
+    },
+    "receipt_profile": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["uri", "canonicalization", "outcomes"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonicalization": {
+          "type": "string",
+          "enum": ["agentid_canonical_json_v1"]
+        },
+        "digest_algorithm": {
+          "type": "string",
+          "enum": ["SHA-256"]
+        },
+        "default_bindings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["value", "description"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "basis": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "handling": {
+              "type": "string",
+              "enum": ["omit", "categorical", "reference", "categorical_or_reference"]
+            },
+            "category_field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference_field": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       }
     }

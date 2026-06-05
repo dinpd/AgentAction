@@ -86,6 +86,7 @@ If you are here for MCP provider authorization:
 - Local demo: [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md)
 - Provider contract schema: [`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
 - Example contract: [`examples/provider-mcp-contract.yaml`](examples/provider-mcp-contract.yaml)
+- Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 
 ---
 
@@ -112,6 +113,7 @@ For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-ga
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For provider MCP contract CI checks, see [`docs/provider-mcp-ci.md`](docs/provider-mcp-ci.md).
 For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
+For receipt profiles and canonicalization, see [`docs/receipt-profiles.md`](docs/receipt-profiles.md).
 For skill-local guardrail contracts, see [`docs/skills-authorization.md`](docs/skills-authorization.md).
 For DID, Verifiable Credential, OAuth/OIDC, MCP, A2A, AGNTCY, and NIST alignment, see [`docs/standards-alignment.md`](docs/standards-alignment.md).
 For the API-to-MCP article, see [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
@@ -349,6 +351,9 @@ amount bindings. JWS receipts can use either `--jwks` for a local key set or
 `--jwks-uri` for a remote key set; remote JWKS fetches are cached for 5 minutes
 by default, use stale keys for up to 5 more minutes on refresh failures, and
 force one immediate refresh when a receipt `kid` is missing from the cache.
+Provider contracts can also advertise a receipt profile URI, canonicalization
+rule, default binding fields, allowed outcomes, and privacy-preserving basis
+handling so verifiers know how to interpret signed receipts.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
 and can be emitted with `agentid schema`. Add this to a manifest for editor
@@ -572,6 +577,9 @@ Implemented:
 - Provider MCP contract CI guide and copyable GitHub Actions workflow
 - Provider authorization receipt verification CLI with signed HMAC receipt
   support for local demos and CI checks
+- Receipt profile metadata in provider MCP contracts, with canonicalization,
+  default bindings, example `ALLOW` / `REFER` / `DENY` outcomes, and
+  privacy-preserving basis handling
 - Express-compatible provider receipt verification middleware
 - FastAPI-compatible provider receipt verification helpers
 - Hosted gateway-control demo with SaaS and MCP flows
@@ -580,6 +588,8 @@ Implemented:
 Next:
 
 - More ecommerce manifests and audit-log examples
+- Request-digest support for receipt profile canonicalization in provider
+  verifier helpers
 - MCP tool metadata import/export and tool drift detection for `tools/list`
   changes, schema changes, and newly exposed write/admin tools
 - MCP blast-radius analyzer improvements for authorization posture, data-flow
