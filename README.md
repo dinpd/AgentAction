@@ -64,7 +64,8 @@ policy stops data moving to the wrong place.
   grants, and tool execution.
 
 For gateway deployments, AgentID is meant to run at an enterprise-controlled
-boundary:
+boundary as the authorization decision service, not necessarily as the network
+gateway or MCP proxy:
 
 ```text
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentID Check -> Internal, SaaS, or MCP Tool
@@ -208,9 +209,9 @@ flowchart LR
 ```
 
 At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentID
-decision endpoint before tool execution. In MCP deployments, the enterprise MCP gateway
-performs this check before forwarding a `tools/call` request to an internal or
-provider MCP server. The gateway evaluates:
+decision endpoint before tool execution. In MCP deployments, the enterprise MCP
+gateway performs this check before forwarding a `tools/call` request to an
+internal or provider MCP server. The gateway evaluates:
 
 - **Identity:** the caller token maps to the expected tenant, user, and agent.
 - **Job boundary:** the request belongs to an allowed job, case, and customer.
@@ -407,8 +408,9 @@ For provider-side Express receipt verification middleware, see
 For provider-side FastAPI receipt verification helpers, see
 [`packages/provider-fastapi/`](packages/provider-fastapi/).
 
-`gateway` starts a lightweight HTTP authorization gateway for agent tool-call
-integration. The gateway exposes:
+`gateway` starts a lightweight HTTP authorization service for agent tool-call
+integration. This service is meant to sit behind an app runtime, API gateway, or
+MCP gateway that performs the actual traffic forwarding. It exposes:
 
 | Endpoint | Purpose |
 |---|---|
@@ -546,7 +548,7 @@ Implemented:
 - JSON Schema for manifests
 - GitHub Action for PR validation and risk-threshold checks
 - Web-based manifest builder
-- Python authorization gateway
+- Python authorization service
 - Cloudflare Workers gateway with KV tenant manifests and Durable Object JIT grants
 - OIDC claim/scopes section in manifests
 - Scoped agent-to-agent delegation checks

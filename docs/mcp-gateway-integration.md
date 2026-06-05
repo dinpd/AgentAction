@@ -8,6 +8,10 @@ a tool call should proceed.
 Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Internal or Provider MCP Server
 ```
 
+AgentID is not required to be the network gateway or MCP proxy. In this
+topology, the enterprise MCP gateway or app runtime calls AgentID as an
+authorization decision service before forwarding tool calls.
+
 The enterprise owns the gateway and the AgentID manifest. The downstream MCP
 server may be an internal enterprise server or a provider-hosted server.
 
@@ -33,13 +37,13 @@ control point.
 sequenceDiagram
     participant Agent as Enterprise Agent
     participant MCP as Enterprise MCP Gateway
-    participant AgentID as AgentID Gateway
+    participant AgentID as AgentID Authorization Service
     participant Server as MCP Server
     participant Tool as Tool
 
     Agent->>MCP: MCP tools/call
     MCP->>MCP: Map tool name and arguments to AgentID event
-    MCP->>AgentID: POST /tenants/:id/authorize
+    MCP->>AgentID: POST /authorize
     AgentID-->>MCP: allow/deny + findings
     alt allowed
         MCP->>Server: Forward MCP tools/call
@@ -152,7 +156,8 @@ for a complete example.
 
 ## Boundary of Responsibility
 
-AgentID controls the enterprise-side decision before forwarding the call:
+AgentID controls the enterprise-side authorization decision before the gateway
+forwards the call:
 
 - Agent identity.
 - Job boundary.
@@ -170,8 +175,9 @@ The downstream MCP server still controls its own behavior:
 - Tool implementation.
 - Server audit and retention.
 
-Use both. AgentID prevents unapproved outbound calls from the enterprise
-gateway; internal systems and providers still enforce their own platform rules.
+Use both. AgentID prevents unapproved outbound calls from the enterprise gateway
+or app runtime; internal systems and providers still enforce their own platform
+rules.
 
 For provider-hosted MCP servers, there is a second useful enforcement point: the
 provider can verify that forwarded calls include a scoped enterprise

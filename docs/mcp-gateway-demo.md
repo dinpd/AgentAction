@@ -9,7 +9,7 @@ For the companion provider-side receipt verification flow, see
 The flow is:
 
 ```text
-MCP client -> AgentID MCP gateway adapter -> AgentID gateway -> mock provider MCP server
+MCP client -> AgentID MCP gateway adapter -> AgentID /authorize -> mock provider MCP server
 ```
 
 The demo takes about ten minutes and shows five behaviors:

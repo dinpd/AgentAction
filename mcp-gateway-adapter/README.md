@@ -33,7 +33,7 @@ npm test
 npm run build
 ```
 
-Start an AgentID gateway:
+Start the AgentID authorization service:
 
 ```bash
 agentid gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
