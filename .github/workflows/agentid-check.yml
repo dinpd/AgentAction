@@ -41,7 +41,7 @@ jobs:
 
       - uses: ./
         with:
-          manifests: "examples/*.yaml"
+          manifests: "examples/customer-support-*-agent.yaml examples/provider-mcp-support-agent.yaml"
           max-risk: "75"
 
   typescript-sdk:

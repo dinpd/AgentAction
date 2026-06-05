@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentid"
-version = "0.1.2"
+version = "0.2.0"
 description = "Authorization contracts, policy checks, and receipts for AI agent tool calls across MCP gateways, SaaS APIs, and enterprise systems."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{ name = "AgentID contributors" }]
 dependencies = ["PyYAML>=6.0.1", "PyJWT[crypto]>=2.8.0"]
 
 [project.optional-dependencies]
-dev = ["jsonschema>=4.23.0", "pytest>=9.0.3"]
+dev = ["anyio>=4.0.0", "jsonschema>=4.23.0", "pytest>=9.0.3"]
 
 [project.scripts]
 agentid = "agentid.cli:main"

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-06-05
+
 ### Provider MCP authorization and receipts
 
 - Added provider-side MCP authorization contracts for provider-published tool
