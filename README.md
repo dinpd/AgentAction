@@ -1,9 +1,12 @@
 # AgentID
 
-**Authorization contracts for AI agent capability and tool execution.**
+**Just-in-time authority for high-risk AI agent tool actions.**
 
-AgentID helps API providers, MCP gateway builders, skill authors, and enterprise AI platform
-teams answer one runtime question:
+AgentID helps platform, SRE, security, MCP gateway, and SaaS provider teams
+avoid giving agents standing authority over production systems, customer data,
+payments, external sends, secrets, and administrative tools.
+
+AgentID answers one runtime question:
 
 > Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
 
@@ -17,7 +20,9 @@ skills, and MCP gateways.
 
 The core idea is simple:
 
-> Every production agent should have an authority contract that says who it is, who owns it, what it can request, when authority should be issued just in time, where data can flow, when it needs approval, and how it can be stopped.
+> Every production agent should have an authority contract that says who it is,
+> who owns it, what it can request, when authority should be issued just in
+> time, where data can flow, when it needs approval, and how it can be stopped.
 
 AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
@@ -51,17 +56,20 @@ policy stops data moving to the wrong place.
 
 ## Who AgentID is for
 
+- **Platform engineering and SRE teams** letting agents inspect systems while
+  gating production deploys, rollbacks, Terraform applies, Kubernetes changes,
+  incident remediation, secrets, and IAM changes.
+- **Enterprise AI platform teams** reviewing which tools agents may use, under
+  what conditions.
+- **Security teams** needing approval, JIT, audit, and kill-switch evidence for
+  high-risk agent actions.
+- **MCP gateway builders** enforcing policy before forwarding `tools/call`.
 - **API and SaaS providers** turning APIs into MCP tools without giving agents
   broad authority.
 - **API platform and monetization teams** preserving entitlements, quotas,
   metering, and billing controls as APIs become agent-callable tools.
-- **Enterprise AI platform teams** reviewing which tools agents may use, under
-  what conditions.
-- **MCP gateway builders** enforcing policy before forwarding `tools/call`.
 - **Skill authors and platform teams** packaging reusable workflows with
   explicit AgentID guardrails.
-- **Security teams** needing audit evidence for agent actions, approvals, JIT
-  grants, and tool execution.
 
 For gateway deployments, AgentID is meant to run at an enterprise-controlled
 boundary as the authorization decision service, not necessarily as the network
@@ -70,6 +78,12 @@ gateway or MCP proxy:
 ```text
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentID Check -> Internal, SaaS, or MCP Tool
 ```
+
+The DevOps/SRE solution pack shows one concrete deployment pattern: agents can
+inspect production systems, while production-changing actions require scoped
+just-in-time authority, approval, and audit. The same model applies to SaaS and
+provider MCP tools where reads are low-friction and writes, refunds, exports,
+sends, deletes, admin changes, and high-cost actions require stronger controls.
 
 For providers turning APIs into MCP servers, AgentID also defines an
 auth-first pattern: publish a provider MCP authorization contract, let
