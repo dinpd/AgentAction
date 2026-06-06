@@ -269,6 +269,50 @@ def test_gateway_binds_jit_grant_to_job_boundary_fields():
     assert "JIT grant case_id mismatch" in decision.findings
 
 
+def test_gateway_enforces_required_context_and_allowed_values():
+    manifest = _manifest()
+    manifest["tools"][1]["name"] = "devops.deploy.production"
+    manifest["tools"][1]["access"] = "execute"
+    manifest["tools"][1]["constraints"] = {
+        "token_ttl_seconds": 300,
+        "required_context": ["environment", "service_id", "change_request_id", "commit_sha"],
+        "allowed_values": {"environment": ["production"], "service_id": ["checkout-api"]},
+    }
+    gateway = AgentGateway(manifest)
+    grant = gateway.create_jit_grant(
+        {
+            "tool": "devops.deploy.production",
+            "action": "execute",
+            "resource": "service/checkout-api/environment/production",
+            "approval_id": "approval-1",
+            "user_id": "user-1",
+            "environment": "production",
+            "service_id": "checkout-api",
+            "change_request_id": "CHG-1042",
+            "commit_sha": "abc123",
+        }
+    )
+
+    denied = gateway.authorize(
+        {
+            "agent_id": "support-copilot-prod",
+            "tool": "devops.deploy.production",
+            "action": "execute",
+            "resource": "service/checkout-api/environment/production",
+            "approved": True,
+            "jit_grant_id": grant.grant_id,
+            "environment": "staging",
+            "service_id": "checkout-api",
+            "change_request_id": "CHG-1042",
+        }
+    )
+
+    assert not denied.allow
+    assert "JIT grant environment mismatch" in denied.findings
+    assert "event[0]: required context field is missing: commit_sha" in denied.findings
+    assert "event[0]: environment is not allowed: staging" in denied.findings
+
+
 def test_config_ui_writer_creates_browser_builder(tmp_path):
     output = write_config_ui(tmp_path / "builder.html")
 

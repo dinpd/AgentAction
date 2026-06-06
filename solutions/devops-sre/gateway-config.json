@@ -1,0 +1,114 @@
+{
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 8788
+  },
+  "agentid": {
+    "base_url": "http://127.0.0.1:8787",
+    "token": "dev-token"
+  },
+  "downstream": {
+    "url": "http://127.0.0.1:8790/mcp"
+  },
+  "agent": {
+    "id": "platform-release-agent"
+  },
+  "provider_receipts": {
+    "tenant_id": "tenant-a",
+    "hmac_secret": "dev-provider-receipt-secret"
+  },
+  "filter_tools_list": true,
+  "tools": {
+    "devops.logs.read": {
+      "action": "read",
+      "data_from": "runtime_logs",
+      "data_to": "agent_context",
+      "resource_template": "service/{service_id}/environment/{environment}/logs",
+      "job_id_arg": "job_id",
+      "context_args": {
+        "service_id": "service_id",
+        "environment": "environment",
+        "incident_id": "incident_id"
+      }
+    },
+    "devops.deployment.status": {
+      "action": "read",
+      "data_from": "deployment_control_plane",
+      "data_to": "agent_context",
+      "resource_template": "service/{service_id}/environment/{environment}/deployment",
+      "job_id_arg": "job_id",
+      "context_args": {
+        "service_id": "service_id",
+        "environment": "environment"
+      }
+    },
+    "devops.deploy.production": {
+      "action": "execute",
+      "data_from": "release_pipeline",
+      "data_to": "production_runtime",
+      "resource_template": "service/{service_id}/environment/{environment}",
+      "job_id_arg": "job_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 300,
+      "context_args": {
+        "service_id": "service_id",
+        "environment": "environment",
+        "repo": "repo",
+        "branch": "branch",
+        "commit_sha": "commit_sha",
+        "change_request_id": "change_request_id",
+        "incident_id": "incident_id"
+      }
+    },
+    "devops.rollback.production": {
+      "action": "execute",
+      "data_from": "incident_response_plan",
+      "data_to": "production_runtime",
+      "resource_template": "service/{service_id}/environment/{environment}/rollback",
+      "job_id_arg": "job_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 180,
+      "context_args": {
+        "service_id": "service_id",
+        "environment": "environment",
+        "incident_id": "incident_id",
+        "deployment_id": "deployment_id",
+        "rollback_plan_id": "rollback_plan_id"
+      }
+    },
+    "devops.terraform.plan": {
+      "action": "read",
+      "data_from": "infrastructure_state",
+      "data_to": "agent_context",
+      "resource_template": "repo/{repo}/workspace/{workspace}/plan",
+      "job_id_arg": "job_id",
+      "context_args": {
+        "repo": "repo",
+        "workspace": "workspace"
+      }
+    },
+    "devops.terraform.apply": {
+      "action": "admin",
+      "data_from": "infrastructure_change",
+      "data_to": "cloud_control_plane",
+      "resource_template": "repo/{repo}/workspace/{workspace}/apply",
+      "job_id_arg": "job_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 180,
+      "context_args": {
+        "repo": "repo",
+        "workspace": "workspace",
+        "change_request_id": "change_request_id"
+      }
+    }
+  }
+}

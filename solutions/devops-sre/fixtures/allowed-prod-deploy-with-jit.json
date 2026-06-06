@@ -1,0 +1,21 @@
+{
+  "jsonrpc": "2.0",
+  "id": 103,
+  "method": "tools/call",
+  "params": {
+    "name": "devops.deploy.production",
+    "arguments": {
+      "service_id": "checkout-api",
+      "environment": "production",
+      "repo": "github.com/example/checkout",
+      "branch": "main",
+      "commit_sha": "abc123",
+      "job_id": "production_deploy",
+      "change_request_id": "CHG-1042",
+      "incident_id": "INC-2048",
+      "approved": true,
+      "approval_id": "approval-1",
+      "jit_grant_id": "replace-with-issued-grant-id"
+    }
+  }
+}

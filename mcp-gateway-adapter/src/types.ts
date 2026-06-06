@@ -19,6 +19,7 @@ export type JsonRpcResponse = {
 };
 
 export type AgentIdAuthorizeRequest = {
+  [key: string]: unknown;
   agent_id: string;
   tool: string;
   action: string;
@@ -56,6 +57,7 @@ export type ToolMapping = {
   jit_grant_id_arg?: string;
   approval_id_arg?: string;
   amount_arg?: string;
+  context_args?: Record<string, string>;
   receipt_required?: boolean;
   receipt_ttl_seconds?: number;
 };
@@ -94,6 +96,7 @@ export type AdapterConfig = {
 };
 
 export type AuthorizationDecisionLog = {
+  [key: string]: unknown;
   event: "agentid.mcp.authorization";
   agent_id: string;
   tenant_id?: string;
@@ -110,6 +113,7 @@ export type AuthorizationDecisionLog = {
 };
 
 export type ProviderAuthorizationReceipt = {
+  [key: string]: unknown;
   decision_id: string;
   tenant_id?: string;
   agent_id: string;

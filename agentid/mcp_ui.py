@@ -388,6 +388,15 @@ MCP_UI_HTML = r"""<!doctype html>
       email: ["external send", 14],
       slack: ["external send", 12],
       deploy: ["deployment", 22],
+      rollback: ["deployment", 22],
+      release: ["deployment", 16],
+      terraform: ["infrastructure", 24],
+      kubectl: ["kubernetes", 24],
+      kubernetes: ["kubernetes", 20],
+      helm: ["kubernetes", 18],
+      namespace: ["kubernetes", 12],
+      cluster: ["kubernetes", 18],
+      migration: ["database", 20],
       exec: ["execution", 28],
       execute: ["execution", 28],
       shell: ["execution", 30],
@@ -410,7 +419,10 @@ MCP_UI_HTML = r"""<!doctype html>
       browser: ["browser/network", 14],
       url: ["browser/network", 10],
       http: ["browser/network", 10],
-      cloud: ["cloud", 18]
+      cloud: ["cloud", 18],
+      iam: ["identity/access", 24],
+      prod: ["production", 18],
+      production: ["production", 20]
     };
 
     const SENSITIVE_ARGUMENTS = {
@@ -434,12 +446,21 @@ MCP_UI_HTML = r"""<!doctype html>
       amount: ["amount argument", 16],
       role: ["role argument", 16],
       permission: ["permission argument", 20],
-      policy: ["policy argument", 18]
+      policy: ["policy argument", 18],
+      environment: ["environment argument", 12],
+      service_id: ["service argument", 12],
+      cluster: ["cluster argument", 16],
+      namespace: ["namespace argument", 14],
+      repo: ["repository argument", 10],
+      branch: ["branch argument", 10],
+      commit_sha: ["commit argument", 12],
+      change_request_id: ["change request argument", 16],
+      incident_id: ["incident argument", 12]
     };
 
     const WRITE_HINTS = new Set(["write", "update", "create", "insert", "send", "post", "put", "patch", "delete", "remove", "destroy"]);
-    const ADMIN_HINTS = new Set(["admin", "permission", "policy", "role", "token", "secret", "key"]);
-    const EXECUTE_HINTS = new Set(["exec", "execute", "shell", "command", "run", "deploy"]);
+    const ADMIN_HINTS = new Set(["admin", "permission", "policy", "role", "token", "secret", "key", "iam", "apply"]);
+    const EXECUTE_HINTS = new Set(["exec", "execute", "shell", "command", "run", "deploy", "rollback", "release", "migrate"]);
 
     const sample = {
       jsonrpc: "2.0",

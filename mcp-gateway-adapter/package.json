@@ -9,7 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "test": "node --test --import tsx tests/*.test.ts",
     "dev": "tsx src/index.ts examples/config.json",
-    "mock-provider": "tsx examples/mock-provider.ts"
+    "dev:devops": "tsx src/index.ts ../solutions/devops-sre/gateway-config.json",
+    "mock-provider": "tsx examples/mock-provider.ts",
+    "mock-provider:devops": "tsx ../solutions/devops-sre/mock-provider.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

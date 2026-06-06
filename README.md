@@ -107,6 +107,12 @@ Try the hosted demo:
 - Gateway-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
+Try the first vertical solution pack:
+
+- DevOps/SRE: [`solutions/devops-sre/`](solutions/devops-sre/) shows how to let
+  agents inspect production systems while requiring short-lived scoped authority
+  for deploys, rollbacks, and infrastructure changes.
+
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For ecosystem positioning and business requirements, see [`docs/ecosystem-positioning.md`](docs/ecosystem-positioning.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
@@ -584,6 +590,8 @@ Implemented:
   privacy-preserving basis handling
 - Express-compatible provider receipt verification middleware
 - FastAPI-compatible provider receipt verification helpers
+- DevOps/SRE solution pack for production deploys, rollbacks, Terraform apply,
+  and incident diagnostics
 - Hosted gateway-control demo with SaaS and MCP flows
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 

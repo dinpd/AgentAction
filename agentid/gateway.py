@@ -41,10 +41,11 @@ class JitGrant:
     job_id: str = ""
     case_id: str = ""
     customer_id: str = ""
+    context: dict[str, str] | None = None
     used: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "jit_grant_id": self.grant_id,
             "agent_id": self.agent_id,
             "tool": self.tool,
@@ -58,6 +59,9 @@ class JitGrant:
             "customer_id": self.customer_id,
             "used": self.used,
         }
+        if self.context:
+            data["context"] = self.context
+        return data
 
 
 class JitGrantStore:
@@ -91,6 +95,7 @@ class JitGrantStore:
             job_id=str(request.get("job_id", "")),
             case_id=str(request.get("case_id", "")),
             customer_id=str(request.get("customer_id", "")),
+            context=_string_context(request),
         )
         self._grants[grant.grant_id] = grant
         return grant
@@ -130,6 +135,9 @@ class JitGrantStore:
             findings.append("JIT grant case_id mismatch")
         if grant.customer_id and event.get("customer_id") and grant.customer_id != event.get("customer_id"):
             findings.append("JIT grant customer_id mismatch")
+        for key, value in (grant.context or {}).items():
+            if event.get(key) and str(event.get(key)) != value:
+                findings.append(f"JIT grant {key} mismatch")
 
         event["jit_grant_valid"] = not findings
         event["jit_grant_agent_id"] = grant.agent_id
@@ -138,6 +146,8 @@ class JitGrantStore:
         event["jit_grant_job_id"] = grant.job_id
         event["jit_grant_case_id"] = grant.case_id
         event["jit_grant_customer_id"] = grant.customer_id
+        if grant.context:
+            event["jit_grant_context"] = grant.context
 
         if not findings and manifest.get("jit_authorization", {}).get("revoke_after_use"):
             grant.used = True
@@ -177,6 +187,7 @@ class AgentGateway:
             "case_id": event.get("case_id"),
             "customer_id": event.get("customer_id"),
         }
+        normalized.update(_string_context(event))
         findings = self.grants.bind_event(self.manifest, normalized)
         ok, audit_findings = audit_events(self.manifest, [normalized])
         findings.extend(audit_findings)
@@ -324,6 +335,49 @@ def _grant_ttl_seconds(manifest: dict[str, Any], tool: dict[str, Any]) -> int:
     if isinstance(default_ttl, int) and default_ttl > 0:
         return default_ttl
     return 300
+
+
+_RESERVED_EVENT_FIELDS = {
+    "agent_id",
+    "tool",
+    "capability",
+    "skill_id",
+    "action",
+    "data_from",
+    "data_to",
+    "approved",
+    "jit_grant_id",
+    "resource",
+    "called_agent",
+    "delegated_tool",
+    "delegation_depth",
+    "delegation_grant_id",
+    "approval_source",
+    "approval_agent",
+    "tenant_id",
+    "user_id",
+    "job_id",
+    "case_id",
+    "customer_id",
+    "context",
+}
+
+
+def _string_context(payload: dict[str, Any]) -> dict[str, str]:
+    context: dict[str, str] = {}
+    raw_context = payload.get("context")
+    if isinstance(raw_context, dict):
+        for key, value in raw_context.items():
+            if isinstance(key, str) and _is_context_scalar(value):
+                context[key] = str(value)
+    for key, value in payload.items():
+        if key not in _RESERVED_EVENT_FIELDS and _is_context_scalar(value):
+            context[str(key)] = str(value)
+    return context
+
+
+def _is_context_scalar(value: Any) -> bool:
+    return isinstance(value, (str, int, float, bool)) and value is not None
 
 
 if __name__ == "__main__":

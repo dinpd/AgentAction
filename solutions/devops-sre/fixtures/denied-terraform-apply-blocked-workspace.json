@@ -1,0 +1,17 @@
+{
+  "jsonrpc": "2.0",
+  "id": 104,
+  "method": "tools/call",
+  "params": {
+    "name": "devops.terraform.apply",
+    "arguments": {
+      "repo": "github.com/example/infra",
+      "workspace": "production-destroy",
+      "job_id": "terraform_apply",
+      "change_request_id": "CHG-2042",
+      "approved": true,
+      "approval_id": "approval-2",
+      "jit_grant_id": "replace-with-issued-grant-id"
+    }
+  }
+}

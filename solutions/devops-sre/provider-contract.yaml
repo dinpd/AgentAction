@@ -1,0 +1,331 @@
+$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
+provider_agentid:
+  provider: devops-platform
+  mcp_server: devops-control-plane-mcp
+  version: "2026-06-06"
+  source: solution-pack/devops-sre
+  receipt_transport:
+    local_demo_field: _agentid_receipt
+    production_options:
+      - signed_jws
+      - introspection
+  receipt:
+    verification: jws_jwks
+    transport: params.arguments._agentid_receipt
+    profile:
+      uri: https://agentid.dev/profiles/scoped-ops-receipt/v1
+      canonicalization: agentid_canonical_json_v1
+      digest_algorithm: SHA-256
+      default_bindings:
+        - tenant_id
+        - agent_id
+        - user_id
+        - tool
+        - action
+        - resource
+        - job_id
+      outcomes:
+        - value: ALLOW
+          description: The operational action is authorized under the profile and may continue to provider control-plane checks.
+        - value: REFER
+          description: The operational action needs an external review, change approval, or incident decision before execution.
+        - value: DENY
+          description: The operational action is not authorized under the profile and must not execute.
+      basis:
+        handling: categorical_or_reference
+        category_field: basis_category
+        reference_field: basis_ref
+    allowed_issuers:
+      - https://enterprise.example.com
+    jwks_uri: https://enterprise.example.com/.well-known/jwks.json
+    audience: devops-control-plane-mcp
+    allowed_algs:
+      - RS256
+
+  tools:
+    devops.logs.read:
+      action: read
+      risk: low
+      resource_template: service/{service_id}/environment/{environment}/logs
+      data_from: runtime_logs
+      data_to: agent_context
+      requires_jit: false
+      receipt_required: false
+      input_schema:
+        type: object
+        required:
+          - service_id
+          - environment
+          - job_id
+          - incident_id
+        properties:
+          service_id:
+            type: string
+          environment:
+            type: string
+          job_id:
+            type: string
+          incident_id:
+            type: string
+
+    devops.deployment.status:
+      action: read
+      risk: low
+      resource_template: service/{service_id}/environment/{environment}/deployment
+      data_from: deployment_control_plane
+      data_to: agent_context
+      requires_jit: false
+      receipt_required: false
+      input_schema:
+        type: object
+        required:
+          - service_id
+          - environment
+          - job_id
+        properties:
+          service_id:
+            type: string
+          environment:
+            type: string
+          job_id:
+            type: string
+
+    devops.deploy.production:
+      action: execute
+      risk: high
+      resource_template: service/{service_id}/environment/{environment}
+      data_from: release_pipeline
+      data_to: production_runtime
+      requires_jit: true
+      approval: human_confirm
+      receipt_required: true
+      constraints:
+        allowed_values:
+          environment:
+            - production
+      input_schema:
+        type: object
+        required:
+          - service_id
+          - environment
+          - repo
+          - branch
+          - commit_sha
+          - job_id
+          - change_request_id
+          - approved
+          - jit_grant_id
+          - approval_id
+        properties:
+          service_id:
+            type: string
+          environment:
+            type: string
+          repo:
+            type: string
+          branch:
+            type: string
+          commit_sha:
+            type: string
+          job_id:
+            type: string
+          change_request_id:
+            type: string
+          incident_id:
+            type: string
+          approved:
+            type: boolean
+          jit_grant_id:
+            type: string
+          approval_id:
+            type: string
+      authorization_requirements:
+        required_context:
+          - tenant_id
+          - agent_id
+          - user_id
+          - job_id
+          - environment
+          - service_id
+          - repo
+          - branch
+          - commit_sha
+          - change_request_id
+          - approval_id
+        bind_receipt_to:
+          - tenant_id
+          - agent_id
+          - user_id
+          - tool
+          - action
+          - resource
+          - job_id
+          - environment
+          - service_id
+          - repo
+          - branch
+          - commit_sha
+          - change_request_id
+          - approval_id
+          - jit_grant_id
+        resource_arg: service_id
+        receipt_ttl_seconds: 300
+        single_use: true
+
+    devops.rollback.production:
+      action: execute
+      risk: high
+      resource_template: service/{service_id}/environment/{environment}/rollback
+      data_from: incident_response_plan
+      data_to: production_runtime
+      requires_jit: true
+      approval: human_confirm
+      receipt_required: true
+      input_schema:
+        type: object
+        required:
+          - service_id
+          - environment
+          - deployment_id
+          - rollback_plan_id
+          - job_id
+          - incident_id
+          - approved
+          - jit_grant_id
+          - approval_id
+        properties:
+          service_id:
+            type: string
+          environment:
+            type: string
+          deployment_id:
+            type: string
+          rollback_plan_id:
+            type: string
+          job_id:
+            type: string
+          incident_id:
+            type: string
+          approved:
+            type: boolean
+          jit_grant_id:
+            type: string
+          approval_id:
+            type: string
+      authorization_requirements:
+        required_context:
+          - tenant_id
+          - agent_id
+          - user_id
+          - job_id
+          - environment
+          - service_id
+          - incident_id
+          - deployment_id
+          - rollback_plan_id
+          - approval_id
+        bind_receipt_to:
+          - tenant_id
+          - agent_id
+          - user_id
+          - tool
+          - action
+          - resource
+          - job_id
+          - environment
+          - service_id
+          - incident_id
+          - deployment_id
+          - rollback_plan_id
+          - approval_id
+          - jit_grant_id
+        resource_arg: service_id
+        receipt_ttl_seconds: 180
+        single_use: true
+
+    devops.terraform.plan:
+      action: read
+      risk: medium
+      resource_template: repo/{repo}/workspace/{workspace}/plan
+      data_from: infrastructure_state
+      data_to: agent_context
+      requires_jit: false
+      receipt_required: false
+      input_schema:
+        type: object
+        required:
+          - repo
+          - workspace
+          - job_id
+        properties:
+          repo:
+            type: string
+          workspace:
+            type: string
+          job_id:
+            type: string
+
+    devops.terraform.apply:
+      action: admin
+      risk: critical
+      resource_template: repo/{repo}/workspace/{workspace}/apply
+      data_from: infrastructure_change
+      data_to: cloud_control_plane
+      requires_jit: true
+      approval: manager
+      receipt_required: true
+      constraints:
+        blocked_values:
+          workspace:
+            - production-destroy
+      input_schema:
+        type: object
+        required:
+          - repo
+          - workspace
+          - job_id
+          - change_request_id
+          - approved
+          - jit_grant_id
+          - approval_id
+        properties:
+          repo:
+            type: string
+          workspace:
+            type: string
+          job_id:
+            type: string
+          change_request_id:
+            type: string
+          approved:
+            type: boolean
+          jit_grant_id:
+            type: string
+          approval_id:
+            type: string
+      authorization_requirements:
+        required_context:
+          - tenant_id
+          - agent_id
+          - user_id
+          - job_id
+          - repo
+          - workspace
+          - change_request_id
+          - approval_id
+        bind_receipt_to:
+          - tenant_id
+          - agent_id
+          - user_id
+          - tool
+          - action
+          - resource
+          - job_id
+          - repo
+          - workspace
+          - change_request_id
+          - approval_id
+          - jit_grant_id
+        resource_arg: workspace
+        receipt_ttl_seconds: 180
+        single_use: true

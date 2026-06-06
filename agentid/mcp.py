@@ -21,6 +21,15 @@ RISKY_NAME_KEYWORDS: dict[str, tuple[str, int]] = {
     "email": ("external send", 14),
     "slack": ("external send", 12),
     "deploy": ("deployment", 22),
+    "rollback": ("deployment", 22),
+    "release": ("deployment", 16),
+    "terraform": ("infrastructure", 24),
+    "kubectl": ("kubernetes", 24),
+    "kubernetes": ("kubernetes", 20),
+    "helm": ("kubernetes", 18),
+    "namespace": ("kubernetes", 12),
+    "cluster": ("kubernetes", 18),
+    "migration": ("database", 20),
     "exec": ("execution", 28),
     "execute": ("execution", 28),
     "shell": ("execution", 30),
@@ -44,6 +53,9 @@ RISKY_NAME_KEYWORDS: dict[str, tuple[str, int]] = {
     "url": ("browser/network", 10),
     "http": ("browser/network", 10),
     "cloud": ("cloud", 18),
+    "iam": ("identity/access", 24),
+    "prod": ("production", 18),
+    "production": ("production", 20),
 }
 
 SENSITIVE_ARGUMENTS: dict[str, tuple[str, int]] = {
@@ -68,11 +80,20 @@ SENSITIVE_ARGUMENTS: dict[str, tuple[str, int]] = {
     "role": ("role argument", 16),
     "permission": ("permission argument", 20),
     "policy": ("policy argument", 18),
+    "environment": ("environment argument", 12),
+    "service_id": ("service argument", 12),
+    "cluster": ("cluster argument", 16),
+    "namespace": ("namespace argument", 14),
+    "repo": ("repository argument", 10),
+    "branch": ("branch argument", 10),
+    "commit_sha": ("commit argument", 12),
+    "change_request_id": ("change request argument", 16),
+    "incident_id": ("incident argument", 12),
 }
 
 WRITE_HINTS = {"write", "update", "create", "insert", "send", "post", "put", "patch", "delete", "remove", "destroy"}
-ADMIN_HINTS = {"admin", "permission", "policy", "role", "token", "secret", "key"}
-EXECUTE_HINTS = {"exec", "execute", "shell", "command", "run", "deploy"}
+ADMIN_HINTS = {"admin", "permission", "policy", "role", "token", "secret", "key", "iam", "apply"}
+EXECUTE_HINTS = {"exec", "execute", "shell", "command", "run", "deploy", "rollback", "release", "migrate"}
 DEFAULT_PROTOCOL_VERSION = "2025-11-25"
 RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 

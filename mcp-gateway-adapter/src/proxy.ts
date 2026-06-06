@@ -100,6 +100,7 @@ function authorizationLog(
     allowed: decision.allow,
     decision: decision.decision,
     findings: decision.findings,
+    ...contextFromPayload(payload),
   });
 }
 
@@ -163,6 +164,7 @@ function providerReceipt(
     approval_id: stringFromArg(args, mapping.approval_id_arg),
     jit_grant_id: payload.jit_grant_id,
     amount: stringFromArg(args, mapping.amount_arg),
+    ...receiptContextFromArgs(args, mapping),
     issued_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
   });
@@ -209,6 +211,39 @@ function stringFromArg(args: Record<string, unknown>, key: string | undefined): 
   if (value === undefined || value === null) return undefined;
   return String(value);
 }
+
+function receiptContextFromArgs(args: Record<string, unknown>, mapping: ToolMapping): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [field, argName] of Object.entries(mapping.context_args || {})) {
+    const value = stringFromArg(args, argName);
+    if (value !== undefined) result[field] = value;
+  }
+  return result;
+}
+
+function contextFromPayload(payload: AgentIdAuthorizeRequest): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (!KNOWN_PAYLOAD_FIELDS.has(key) && value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+const KNOWN_PAYLOAD_FIELDS = new Set([
+  "agent_id",
+  "tenant_id",
+  "user_id",
+  "tool",
+  "action",
+  "data_from",
+  "data_to",
+  "resource",
+  "job_id",
+  "case_id",
+  "customer_id",
+  "approved",
+  "jit_grant_id",
+]);
 
 function filterToolsList(response: JsonRpcResponse, config: AdapterConfig): JsonRpcResponse {
   if (config.filter_tools_list === false) return response;

@@ -1,0 +1,14 @@
+{
+  "jsonrpc": "2.0",
+  "id": 101,
+  "method": "tools/call",
+  "params": {
+    "name": "devops.logs.read",
+    "arguments": {
+      "service_id": "checkout-api",
+      "environment": "production",
+      "job_id": "incident_diagnostics",
+      "incident_id": "INC-2048"
+    }
+  }
+}

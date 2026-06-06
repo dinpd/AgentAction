@@ -1,0 +1,105 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "devops.logs.read",
+        "description": "Read recent service logs for a specific incident and environment.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["service_id", "environment", "job_id", "incident_id"],
+          "properties": {
+            "service_id": { "type": "string" },
+            "environment": { "type": "string" },
+            "job_id": { "type": "string" },
+            "incident_id": { "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "devops.deployment.status",
+        "description": "Read deployment state for a service and environment.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["service_id", "environment", "job_id"],
+          "properties": {
+            "service_id": { "type": "string" },
+            "environment": { "type": "string" },
+            "job_id": { "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "devops.deploy.production",
+        "description": "Deploy a reviewed commit to production.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["service_id", "environment", "repo", "branch", "commit_sha", "job_id", "change_request_id", "approved", "jit_grant_id", "approval_id"],
+          "properties": {
+            "service_id": { "type": "string" },
+            "environment": { "type": "string" },
+            "repo": { "type": "string" },
+            "branch": { "type": "string" },
+            "commit_sha": { "type": "string" },
+            "job_id": { "type": "string" },
+            "change_request_id": { "type": "string" },
+            "incident_id": { "type": "string" },
+            "approved": { "type": "boolean" },
+            "jit_grant_id": { "type": "string" },
+            "approval_id": { "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "devops.rollback.production",
+        "description": "Roll back a production deployment during an approved incident response.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["service_id", "environment", "deployment_id", "rollback_plan_id", "job_id", "incident_id", "approved", "jit_grant_id", "approval_id"],
+          "properties": {
+            "service_id": { "type": "string" },
+            "environment": { "type": "string" },
+            "deployment_id": { "type": "string" },
+            "rollback_plan_id": { "type": "string" },
+            "job_id": { "type": "string" },
+            "incident_id": { "type": "string" },
+            "approved": { "type": "boolean" },
+            "jit_grant_id": { "type": "string" },
+            "approval_id": { "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "devops.terraform.plan",
+        "description": "Read an infrastructure plan for a repository workspace.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["repo", "workspace", "job_id"],
+          "properties": {
+            "repo": { "type": "string" },
+            "workspace": { "type": "string" },
+            "job_id": { "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "devops.terraform.apply",
+        "description": "Apply an approved infrastructure change.",
+        "inputSchema": {
+          "type": "object",
+          "required": ["repo", "workspace", "job_id", "change_request_id", "approved", "jit_grant_id", "approval_id"],
+          "properties": {
+            "repo": { "type": "string" },
+            "workspace": { "type": "string" },
+            "job_id": { "type": "string" },
+            "change_request_id": { "type": "string" },
+            "approved": { "type": "boolean" },
+            "jit_grant_id": { "type": "string" },
+            "approval_id": { "type": "string" }
+          }
+        }
+      }
+    ]
+  }
+}

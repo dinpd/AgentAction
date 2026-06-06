@@ -73,6 +73,10 @@ def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tupl
             if event.get("jit_grant_valid") is False:
                 findings.append(f"{prefix}: JIT grant is marked invalid")
 
+        constraints = manifest_tool.get("constraints", {})
+        if isinstance(constraints, dict):
+            findings.extend(_constraint_findings(prefix, constraints, event))
+
         job_boundary = manifest.get("job_boundary")
         if isinstance(job_boundary, dict):
             job_id = event.get("job_id")
@@ -133,3 +137,31 @@ def audit_events(manifest: dict[str, Any], events: list[dict[str, Any]]) -> tupl
                 findings.append(f"{prefix}: delegated tool is not allowed: {delegated_tool}")
 
     return not findings, findings
+
+
+def _constraint_findings(prefix: str, constraints: dict[str, Any], event: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+
+    required_context = constraints.get("required_context", [])
+    if isinstance(required_context, list):
+        for field in required_context:
+            if isinstance(field, str) and not event.get(field):
+                findings.append(f"{prefix}: required context field is missing: {field}")
+
+    allowed_values = constraints.get("allowed_values", {})
+    if isinstance(allowed_values, dict):
+        for field, allowed in allowed_values.items():
+            if not isinstance(field, str) or not isinstance(allowed, list) or not event.get(field):
+                continue
+            if str(event[field]) not in {str(value) for value in allowed}:
+                findings.append(f"{prefix}: {field} is not allowed: {event[field]}")
+
+    blocked_values = constraints.get("blocked_values", {})
+    if isinstance(blocked_values, dict):
+        for field, blocked in blocked_values.items():
+            if not isinstance(field, str) or not isinstance(blocked, list) or not event.get(field):
+                continue
+            if str(event[field]) in {str(value) for value in blocked}:
+                findings.append(f"{prefix}: {field} is blocked: {event[field]}")
+
+    return findings
