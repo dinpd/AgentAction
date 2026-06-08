@@ -10,6 +10,7 @@
     "test": "node --test --import tsx tests/*.test.ts",
     "dev": "tsx src/index.ts examples/config.json",
     "dev:devops": "tsx src/index.ts ../solutions/devops-sre/gateway-config.json",
+    "github-provider:devops": "tsx ../solutions/devops-sre/github-actions-provider.ts",
     "mock-provider": "tsx examples/mock-provider.ts",
     "mock-provider:devops": "tsx ../solutions/devops-sre/mock-provider.ts"
   },

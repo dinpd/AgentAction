@@ -1,6 +1,6 @@
 # AgentID DevOps/SRE Solution Pack
 
-This pack demonstrates the commercial wedge for operational agents:
+This pack demonstrates an operational safety pattern for AI agents:
 
 > Let agents help operate production without giving them standing production authority.
 
@@ -19,9 +19,11 @@ rollbacks, and infrastructure apply actions.
 - `tools-list.json` - sample MCP `tools/list` output for analyzer and CI use.
 - `mock-provider.ts` - mock DevOps MCP provider that verifies high-risk
   receipts and applies provider-side operational policy.
+- `github-actions-provider.ts` - GitHub Actions MCP provider wrapper that
+  verifies AgentID receipts before dispatching a workflow.
 - `fixtures/` - sample JSON-RPC calls for allowed and denied flows.
 
-## Value Wedge
+## Operational Controls
 
 Read-only diagnostics stay fast:
 
@@ -86,6 +88,25 @@ cd mcp-gateway-adapter
 npm run mock-provider:devops
 ```
 
+To use the GitHub Actions provider wrapper instead of the mock provider:
+
+```bash
+cd mcp-gateway-adapter
+npm run github-provider:devops
+```
+
+By default, the GitHub provider runs in dry-run mode. To dispatch a real
+workflow, set:
+
+```bash
+export GITHUB_TOKEN=github_pat_or_installation_token
+export GITHUB_ACTIONS_EXECUTE=true
+```
+
+The token must be able to create workflow dispatch events for the target
+repository. The workflow must support `workflow_dispatch`, and the request must
+include `repo`, `workflow_id`, and `branch`.
+
 Terminal 3: start the reference MCP gateway adapter.
 
 ```bash
@@ -126,6 +147,7 @@ curl -s http://127.0.0.1:8787/jit-grants \
     "environment": "production",
     "service_id": "checkout-api",
     "repo": "github.com/example/checkout",
+    "workflow_id": "deploy-production.yml",
     "branch": "main",
     "commit_sha": "abc123",
     "change_request_id": "CHG-1042",

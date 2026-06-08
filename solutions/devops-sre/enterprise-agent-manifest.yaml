@@ -81,6 +81,7 @@ jit_authorization:
     - environment
     - service_id
     - repo
+    - workflow_id
     - branch
     - commit_sha
     - change_request_id
@@ -115,6 +116,7 @@ mcp_gateway:
         service_id: service_id
         environment: environment
         repo: repo
+        workflow_id: workflow_id
         branch: branch
         commit_sha: commit_sha
         change_request_id: change_request_id
@@ -151,6 +153,7 @@ tools:
         - environment
         - service_id
         - repo
+        - workflow_id
         - branch
         - commit_sha
         - change_request_id

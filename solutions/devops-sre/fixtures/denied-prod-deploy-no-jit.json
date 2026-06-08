@@ -8,6 +8,7 @@
       "service_id": "checkout-api",
       "environment": "production",
       "repo": "github.com/example/checkout",
+      "workflow_id": "deploy-production.yml",
       "branch": "main",
       "commit_sha": "abc123",
       "job_id": "production_deploy",

@@ -35,11 +35,12 @@
         "description": "Deploy a reviewed commit to production.",
         "inputSchema": {
           "type": "object",
-          "required": ["service_id", "environment", "repo", "branch", "commit_sha", "job_id", "change_request_id", "approved", "jit_grant_id", "approval_id"],
+          "required": ["service_id", "environment", "repo", "workflow_id", "branch", "commit_sha", "job_id", "change_request_id", "approved", "jit_grant_id", "approval_id"],
           "properties": {
             "service_id": { "type": "string" },
             "environment": { "type": "string" },
             "repo": { "type": "string" },
+            "workflow_id": { "type": "string" },
             "branch": { "type": "string" },
             "commit_sha": { "type": "string" },
             "job_id": { "type": "string" },

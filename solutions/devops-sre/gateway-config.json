@@ -57,6 +57,7 @@
         "service_id": "service_id",
         "environment": "environment",
         "repo": "repo",
+        "workflow_id": "workflow_id",
         "branch": "branch",
         "commit_sha": "commit_sha",
         "change_request_id": "change_request_id",

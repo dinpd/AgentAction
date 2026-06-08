@@ -109,6 +109,7 @@ provider_agentid:
           - service_id
           - environment
           - repo
+          - workflow_id
           - branch
           - commit_sha
           - job_id
@@ -122,6 +123,8 @@ provider_agentid:
           environment:
             type: string
           repo:
+            type: string
+          workflow_id:
             type: string
           branch:
             type: string
@@ -148,6 +151,7 @@ provider_agentid:
           - environment
           - service_id
           - repo
+          - workflow_id
           - branch
           - commit_sha
           - change_request_id
@@ -163,6 +167,7 @@ provider_agentid:
           - environment
           - service_id
           - repo
+          - workflow_id
           - branch
           - commit_sha
           - change_request_id

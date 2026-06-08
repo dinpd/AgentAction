@@ -3,8 +3,11 @@ import { createServer } from "node:http";
 
 import { RemoteJwksCache, unwrapProviderReceiptWithJwks } from "../../mcp-gateway-adapter/src/receipts.js";
 
-const host = process.env.DEVOPS_MOCK_PROVIDER_HOST || "127.0.0.1";
-const port = Number(process.env.DEVOPS_MOCK_PROVIDER_PORT || "8790");
+const host = process.env.DEVOPS_GITHUB_PROVIDER_HOST || "127.0.0.1";
+const port = Number(process.env.DEVOPS_GITHUB_PROVIDER_PORT || "8790");
+const githubApiUrl = (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/+$/, "");
+const githubToken = process.env.GITHUB_TOKEN;
+const executeGitHubActions = process.env.GITHUB_ACTIONS_EXECUTE === "true";
 const receiptHmacSecret = process.env.AGENTID_PROVIDER_RECEIPT_HMAC_SECRET || "dev-provider-receipt-secret";
 const receiptJwks = parseJwks(process.env.AGENTID_PROVIDER_RECEIPT_JWKS);
 const receiptJwksUri = process.env.AGENTID_PROVIDER_RECEIPT_JWKS_URI;
@@ -37,16 +40,6 @@ const receiptPolicies: Record<string, { action: string; required: string[]; reso
     ],
     resource: (args) => `service/${stringValue(args.service_id)}/environment/${stringValue(args.environment)}`,
   },
-  "devops.rollback.production": {
-    action: "execute",
-    required: ["environment", "service_id", "incident_id", "deployment_id", "rollback_plan_id", "approval_id", "jit_grant_id"],
-    resource: (args) => `service/${stringValue(args.service_id)}/environment/${stringValue(args.environment)}/rollback`,
-  },
-  "devops.terraform.apply": {
-    action: "admin",
-    required: ["repo", "workspace", "change_request_id", "approval_id", "jit_grant_id"],
-    resource: (args) => `repo/${stringValue(args.repo)}/workspace/${stringValue(args.workspace)}/apply`,
-  },
 };
 
 const server = createServer(async (request, response) => {
@@ -68,7 +61,8 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Mock DevOps MCP provider listening on http://${host}:${port}/mcp`);
+  console.log(`GitHub Actions DevOps MCP provider listening on http://${host}:${port}/mcp`);
+  console.log(`GitHub Actions execution is ${executeGitHubActions ? "enabled" : "dry-run only"}`);
 });
 
 async function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; method: string; params?: Record<string, unknown> }) {
@@ -105,23 +99,45 @@ async function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; me
       };
     }
 
+    if (name !== "devops.deploy.production") {
+      return {
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { content: [{ type: "text", text: `GitHub provider does not execute ${name}` }] },
+      };
+    }
+
+    const dispatch = await dispatchWorkflow(args, verification.receiptId);
+    if (!dispatch.ok) {
+      return {
+        jsonrpc: "2.0",
+        id: request.id,
+        error: {
+          code: -32012,
+          message: "GitHub Actions workflow dispatch failed",
+          data: { findings: dispatch.findings },
+        },
+      };
+    }
+
     if (verification.receiptId) usedReceipts.add(verification.receiptId);
     console.log(
       JSON.stringify({
         event: "agentid.provider.execution",
-        provider_execution_id: `ops-exec-${String(request.id ?? "notification")}`,
+        provider_execution_id: `github-dispatch-${String(request.id ?? "notification")}`,
         agentid_decision_id: verification.receiptId,
         tenant_id: verification.tenantId,
         tool: name,
         resource: resourceForTool(name, args),
-        repo: stringValue(args.repo) || undefined,
-        workflow_id: stringValue(args.workflow_id) || undefined,
-        environment: stringValue(args.environment) || undefined,
-        service_id: stringValue(args.service_id) || undefined,
-        change_request_id: stringValue(args.change_request_id) || undefined,
+        repo: normalizeRepo(stringValue(args.repo)),
+        workflow_id: stringValue(args.workflow_id),
+        ref: stringValue(args.branch),
+        environment: stringValue(args.environment),
+        service_id: stringValue(args.service_id),
+        change_request_id: stringValue(args.change_request_id),
         incident_id: stringValue(args.incident_id) || undefined,
-        result: "executed",
-        provider_policy_version: "2026-06-06",
+        result: executeGitHubActions ? "dispatched" : "dry_run",
+        provider_policy_version: "2026-06-08",
       }),
     );
 
@@ -132,9 +148,10 @@ async function handleRequest(request: { jsonrpc: "2.0"; id?: string | number; me
         content: [
           {
             type: "text",
-            text: `mock DevOps provider executed ${name}`,
+            text: dispatch.message,
           },
         ],
+        metadata: dispatch.metadata,
       },
     };
   }
@@ -192,27 +209,104 @@ async function verifyProviderAuthorization(tool: string, args: Record<string, un
 }
 
 function providerBusinessFindings(tool: string, args: Record<string, unknown>): string[] {
-  if (tool === "devops.deploy.production" && stringValue(args.environment) !== "production") {
-    return ["production deploy tool may only target production"];
+  if (tool !== "devops.deploy.production") return [];
+  const findings: string[] = [];
+  if (stringValue(args.environment) !== "production") findings.push("production deploy tool may only target production");
+  if (!repoParts(stringValue(args.repo))) findings.push("repo must be owner/name or github.com/owner/name");
+  if (!stringValue(args.workflow_id)) findings.push("workflow_id is required");
+  if (!stringValue(args.branch)) findings.push("branch is required");
+  if (!stringValue(args.commit_sha)) findings.push("commit_sha is required");
+  if (!stringValue(args.change_request_id)) findings.push("change_request_id is required");
+  return findings;
+}
+
+async function dispatchWorkflow(args: Record<string, unknown>, decisionId: string | undefined) {
+  const repo = normalizeRepo(stringValue(args.repo));
+  const parts = repoParts(repo);
+  const workflowId = stringValue(args.workflow_id);
+  const ref = stringValue(args.branch);
+  const metadata = {
+    repo,
+    workflow_id: workflowId,
+    ref,
+    dry_run: !executeGitHubActions,
+  };
+
+  if (!executeGitHubActions) {
+    return {
+      ok: true,
+      findings: [] as string[],
+      message: `dry run: would dispatch ${workflowId} in ${repo} at ${ref}`,
+      metadata,
+    };
   }
-  if (tool === "devops.rollback.production" && !stringValue(args.incident_id)) {
-    return ["rollback requires incident_id"];
+
+  if (!githubToken) {
+    return { ok: false, findings: ["GITHUB_TOKEN is required when GITHUB_ACTIONS_EXECUTE=true"], metadata };
   }
-  if (tool === "devops.terraform.apply" && stringValue(args.workspace) === "production-destroy") {
-    return ["workspace production-destroy is blocked by provider policy"];
+  if (!parts) {
+    return { ok: false, findings: ["repo must be owner/name or github.com/owner/name"], metadata };
   }
-  return [];
+
+  const [owner, name] = parts;
+  const response = await fetch(`${githubApiUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`, {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${githubToken}`,
+      "content-type": "application/json",
+      "user-agent": "agentid-devops-sre-provider",
+      "x-github-api-version": "2026-03-10",
+    },
+    body: JSON.stringify({
+      ref,
+      inputs: {
+        environment: stringValue(args.environment),
+        service_id: stringValue(args.service_id),
+        commit_sha: stringValue(args.commit_sha),
+        change_request_id: stringValue(args.change_request_id),
+        incident_id: stringValue(args.incident_id),
+        agentid_decision_id: decisionId || "",
+      },
+    }),
+  });
+
+  if (response.status !== 204 && response.status !== 200) {
+    const detail = await response.text();
+    return {
+      ok: false,
+      findings: [`GitHub workflow dispatch returned ${response.status}: ${detail}`],
+      metadata,
+    };
+  }
+
+  return {
+    ok: true,
+    findings: [] as string[],
+    message: `dispatched ${workflowId} in ${repo} at ${ref}`,
+    metadata: { ...metadata, status: response.status },
+  };
 }
 
 function resourceForTool(tool: string, args: Record<string, unknown>): string {
   const policy = receiptPolicies[tool];
   if (policy) return policy.resource(args);
-  if (tool === "devops.logs.read") return `service/${stringValue(args.service_id)}/environment/${stringValue(args.environment)}/logs`;
-  if (tool === "devops.deployment.status") {
-    return `service/${stringValue(args.service_id)}/environment/${stringValue(args.environment)}/deployment`;
-  }
-  if (tool === "devops.terraform.plan") return `repo/${stringValue(args.repo)}/workspace/${stringValue(args.workspace)}/plan`;
   return "";
+}
+
+function normalizeRepo(value: string): string {
+  return value
+    .replace(/^https:\/\/github\.com\//, "")
+    .replace(/^git@github\.com:/, "")
+    .replace(/^github\.com\//, "")
+    .replace(/\.git$/, "");
+}
+
+function repoParts(value: string): [string, string] | undefined {
+  const repo = normalizeRepo(value);
+  const parts = repo.split("/");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return undefined;
+  return [parts[0], parts[1]];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
