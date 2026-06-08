@@ -44,7 +44,32 @@ type Grant = {
   job_id?: string;
   case_id?: string;
   customer_id?: string;
+  context?: Record<string, string>;
   used: boolean;
+};
+type ApprovalRequest = {
+  approval_id: string;
+  status: "pending" | "approved" | "denied";
+  agent_id: string;
+  tool: string;
+  action: string;
+  resource: string;
+  requested_by: string;
+  reason: string;
+  created_at: string;
+  decided_at?: string;
+  decided_by?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  context?: Record<string, string>;
+  findings?: string[];
+};
+type Route = {
+  tenantId: string | null;
+  endpoint: string;
+  resourceId: string;
+  action: string;
 };
 
 const APPROVAL_REQUIRED = new Set(["required", "human_confirm", "step_up", "manager"]);
@@ -119,6 +144,15 @@ export default {
         return text(generateOpaPolicy(manifest));
       }
 
+      if (request.method === "GET" && route.endpoint === "approval-requests" && route.resourceId) {
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/approvals/${encodeURIComponent(route.resourceId)}`),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
       if (request.method === "POST" && route.endpoint === "authorize") {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
@@ -134,10 +168,56 @@ export default {
         );
       }
 
+      if (request.method === "POST" && route.endpoint === "approval-requests" && !route.resourceId) {
+        const payload = await readJson(request);
+        const approval = createApprovalRequest(manifest, payload);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/approvals", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(approval),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
+        request.method === "POST" &&
+        route.endpoint === "approval-requests" &&
+        route.resourceId &&
+        (route.action === "approve" || route.action === "deny")
+      ) {
+        const payload = await readJson(request);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/approvals/${encodeURIComponent(route.resourceId)}/${route.action}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
       if (request.method === "POST" && route.endpoint === "jit-grants") {
         const payload = await readJson(request);
+        const checked = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/approvals/require-approved", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ manifest, request: payload }),
+          }),
+        );
+        if (!checked.ok) {
+          const body = await checked.json() as Record<string, unknown>;
+          body.auth = auth.context;
+          return json(body, checked.status);
+        }
         const grant = createJitGrant(manifest, payload);
-        const stored = await grantStore(env, route.tenantId, manifest).fetch(
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/grants", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -157,7 +237,12 @@ export default {
 };
 
 export class AgentIdJitGrants {
-  state: { storage: { get(key: string): Promise<Grant | undefined>; put(key: string, value: Grant): Promise<void> } };
+  state: {
+    storage: {
+      get<T = unknown>(key: string): Promise<T | undefined>;
+      put<T = unknown>(key: string, value: T): Promise<void>;
+    };
+  };
 
   constructor(state: AgentIdJitGrants["state"]) {
     this.state = state;
@@ -165,12 +250,49 @@ export class AgentIdJitGrants {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const payload = await readJson(request);
+    const payload = request.method === "GET" ? {} : await readJson(request);
 
     if (request.method === "POST" && url.pathname === "/grants") {
       const grant = payload as Grant;
       await this.state.storage.put(grant.jit_grant_id, grant);
       return json(grant, 201);
+    }
+
+    if (request.method === "POST" && url.pathname === "/approvals") {
+      const approval = payload as ApprovalRequest;
+      await this.state.storage.put(`approval:${approval.approval_id}`, approval);
+      return json(approval, 201);
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/approvals/")) {
+      const approvalId = decodeURIComponent(url.pathname.replace("/approvals/", ""));
+      const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
+      if (!approval) return json({ error: "not found" }, 404);
+      return json(approval);
+    }
+
+    if (request.method === "POST" && url.pathname === "/approvals/require-approved") {
+      const manifest = payload.manifest as AgentIdManifest;
+      const grantRequest = payload.request as ToolEvent;
+      const result = await this.requireApprovedForGrant(manifest, grantRequest);
+      if (result.length > 0) return json({ error: result[0] }, 400);
+      return json({ ok: true });
+    }
+
+    if (request.method === "POST" && url.pathname.startsWith("/approvals/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length !== 3 || (parts[2] !== "approve" && parts[2] !== "deny")) {
+        return json({ error: "not found" }, 404);
+      }
+      const approvalId = decodeURIComponent(parts[1]);
+      const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
+      if (!approval) return json({ error: `approval request not found: ${approvalId}` }, 404);
+      approval.status = parts[2] === "approve" ? "approved" : "denied";
+      approval.decided_at = new Date().toISOString();
+      approval.decided_by = stringValue(payload.decided_by ?? payload.user_id);
+      approval.findings = findingsFromPayload(payload);
+      await this.state.storage.put(`approval:${approvalId}`, approval);
+      return json(approval);
     }
 
     if (request.method === "POST" && url.pathname === "/bind") {
@@ -184,7 +306,7 @@ export class AgentIdJitGrants {
         return json({ event, findings: ["missing jit_grant_id"] });
       }
 
-      const grant = await this.state.storage.get(grantId);
+      const grant = await this.state.storage.get<Grant>(grantId);
       if (!grant) {
         event.jit_grant_valid = false;
         return json({ event, findings: ["unknown jit_grant_id"] });
@@ -207,6 +329,11 @@ export class AgentIdJitGrants {
       if (grant.customer_id && event.customer_id && grant.customer_id !== event.customer_id) {
         findings.push("JIT grant customer_id mismatch");
       }
+      for (const [key, value] of Object.entries(grant.context ?? {})) {
+        if (!hasValue(event[key]) || stringValue(event[key]) !== value) {
+          findings.push(`JIT grant ${key} mismatch`);
+        }
+      }
 
       event.jit_grant_valid = findings.length === 0;
       event.jit_grant_agent_id = grant.agent_id;
@@ -215,6 +342,7 @@ export class AgentIdJitGrants {
       event.jit_grant_job_id = grant.job_id;
       event.jit_grant_case_id = grant.case_id;
       event.jit_grant_customer_id = grant.customer_id;
+      if (grant.context) event.jit_grant_context = grant.context;
 
       if (findings.length === 0 && manifest.jit_authorization?.revoke_after_use === true) {
         grant.used = true;
@@ -225,6 +353,39 @@ export class AgentIdJitGrants {
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async requireApprovedForGrant(manifest: AgentIdManifest, request: ToolEvent): Promise<string[]> {
+    const toolName = stringValue(request.tool);
+    const tool = toolByName(manifest, toolName);
+    if (!tool || !approvalRequired(tool)) return [];
+
+    const approvalId = stringValue(request.approval_id);
+    if (!approvalId) return ["approval_id is required for approval-gated JIT grants"];
+    const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
+    if (!approval) return [`approval request not found: ${approvalId}`];
+    if (approval.status === "denied") return [`approval request is denied: ${approvalId}`];
+    if (approval.status !== "approved") return [`approval request is not approved: ${approvalId}`];
+
+    const agentId = stringValue(manifest.agent?.id);
+    if (approval.agent_id !== agentId) return ["approval request agent_id mismatch"];
+    if (approval.tool !== toolName) return ["approval request tool mismatch"];
+    if (approval.action !== stringValue(request.action)) return ["approval request action mismatch"];
+    const fields: Array<[string, unknown, unknown]> = [
+      ["resource", approval.resource, request.resource],
+      ["job_id", approval.job_id, request.job_id],
+      ["case_id", approval.case_id, request.case_id],
+      ["customer_id", approval.customer_id, request.customer_id],
+    ];
+    for (const [field, approved, requested] of fields) {
+      const finding = matchingFinding(field, approved, requested);
+      if (finding) return [finding];
+    }
+    for (const [key, value] of Object.entries(approval.context ?? {})) {
+      const finding = matchingFinding(key, value, request[key]);
+      if (finding) return [finding];
+    }
+    return [];
   }
 }
 
@@ -262,7 +423,7 @@ async function authorize(
   const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
 
   if (tool?.auth_mode === "just_in_time") {
-    const response = await grantStore(env, tenantId, manifest).fetch(
+    const response = await authorizationStore(env, tenantId, manifest).fetch(
       new Request("https://agentid.local/bind", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -276,6 +437,34 @@ async function authorize(
 
   findings.push(...auditEvent(manifest, event));
   return { allow: findings.length === 0, findings, event };
+}
+
+function createApprovalRequest(manifest: AgentIdManifest, payload: ToolEvent): ApprovalRequest {
+  const agentId = stringValue(manifest.agent?.id);
+  const toolName = stringValue(payload.tool);
+  const action = stringValue(payload.action);
+  const tool = toolByName(manifest, toolName);
+
+  if (!tool) throw new Error(`unknown tool: ${toolName}`);
+  if (tool.access !== action) throw new Error(`action does not match manifest access for ${toolName}`);
+  if (!approvalRequired(tool)) throw new Error(`${toolName} does not require approval`);
+
+  return {
+    approval_id: stringValue(payload.approval_id) || crypto.randomUUID(),
+    status: "pending",
+    agent_id: agentId,
+    tool: toolName,
+    action,
+    resource: stringValue(payload.resource),
+    requested_by: stringValue(payload.requested_by ?? payload.user_id),
+    reason: stringValue(payload.reason),
+    created_at: new Date().toISOString(),
+    job_id: stringValue(payload.job_id),
+    case_id: stringValue(payload.case_id),
+    customer_id: stringValue(payload.customer_id),
+    context: stringContext(payload),
+    findings: [],
+  };
 }
 
 function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
@@ -304,6 +493,7 @@ function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
     job_id: stringValue(payload.job_id),
     case_id: stringValue(payload.case_id),
     customer_id: stringValue(payload.customer_id),
+    context: stringContext(payload),
     used: false,
   };
 }
@@ -598,17 +788,22 @@ async function loadManifest(env: Env, tenantId: string | null): Promise<AgentIdM
   return SAMPLE_MANIFEST;
 }
 
-function grantStore(env: Env, tenantId: string | null, manifest: AgentIdManifest) {
+function authorizationStore(env: Env, tenantId: string | null, manifest: AgentIdManifest) {
   const key = tenantId || stringValue(manifest.agent?.id) || "default";
   return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName(key));
 }
 
-function parseRoute(pathname: string): { tenantId: string | null; endpoint: string } {
+function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "tenants" && parts[1]) {
-    return { tenantId: parts[1], endpoint: parts[2] ?? "" };
+    return {
+      tenantId: parts[1],
+      endpoint: parts[2] ?? "",
+      resourceId: parts[3] ?? "",
+      action: parts[4] ?? "",
+    };
   }
-  return { tenantId: null, endpoint: parts[0] ?? "" };
+  return { tenantId: null, endpoint: parts[0] ?? "", resourceId: parts[1] ?? "", action: parts[2] ?? "" };
 }
 
 function declaredCapabilities(manifest: AgentIdManifest): Array<Record<string, unknown>> {
@@ -641,6 +836,25 @@ function grantTtlSeconds(manifest: AgentIdManifest, tool: Record<string, unknown
   const defaultTtl = manifest.jit_authorization?.default_ttl_seconds;
   if (typeof defaultTtl === "number" && defaultTtl > 0) return defaultTtl;
   return 300;
+}
+
+function approvalRequired(tool: Record<string, unknown>): boolean {
+  return APPROVAL_REQUIRED.has(stringValue(tool.approval));
+}
+
+function matchingFinding(field: string, approvedValue: unknown, requestedValue: unknown): string {
+  if (!hasValue(approvedValue)) return "";
+  if (!hasValue(requestedValue) || stringValue(approvedValue) !== stringValue(requestedValue)) {
+    return `approval request ${field} mismatch`;
+  }
+  return "";
+}
+
+function findingsFromPayload(payload: Record<string, unknown>): string[] {
+  const findings = payload.findings;
+  if (Array.isArray(findings)) return findings.map(String);
+  if (typeof findings === "string") return [findings];
+  return [];
 }
 
 async function authenticate(
@@ -724,6 +938,7 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   const scopes = oidc.required_scopes || {};
   if (endpoint === "authorize") return stringValue(scopes.authorize);
   if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
+  if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
   return "";
 }
@@ -837,6 +1052,60 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
 
 function stringValue(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
+}
+
+const RESERVED_CONTEXT_FIELDS = new Set([
+  "agent_id",
+  "tool",
+  "capability",
+  "skill_id",
+  "skill_hash",
+  "action",
+  "data_from",
+  "data_to",
+  "approved",
+  "jit_grant_id",
+  "approval_id",
+  "resource",
+  "called_agent",
+  "delegated_tool",
+  "delegation_depth",
+  "delegation_grant_id",
+  "approval_source",
+  "approval_agent",
+  "tenant_id",
+  "user_id",
+  "job_id",
+  "case_id",
+  "customer_id",
+  "context",
+  "requested_by",
+  "reason",
+  "decided_by",
+  "findings",
+]);
+
+function stringContext(payload: Record<string, unknown>): Record<string, string> {
+  const context: Record<string, string> = {};
+  if (payload.context && typeof payload.context === "object" && !Array.isArray(payload.context)) {
+    for (const [key, value] of Object.entries(payload.context as Record<string, unknown>)) {
+      if (isContextScalar(value)) context[key] = stringValue(value);
+    }
+  }
+  for (const [key, value] of Object.entries(payload)) {
+    if (!RESERVED_CONTEXT_FIELDS.has(key) && isContextScalar(value)) {
+      context[key] = stringValue(value);
+    }
+  }
+  return context;
+}
+
+function isContextScalar(value: unknown): boolean {
+  return ["string", "number", "boolean"].includes(typeof value) && value !== null;
+}
+
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value) !== "";
 }
 
 function json(payload: unknown, status = 200): Response {

@@ -9,12 +9,18 @@ allow/deny/JIT decisions before tool execution:
 | `GET /health` | Check active manifest and tenant context |
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
-| `POST /jit-grants` | Issue a single-use JIT grant |
+| `POST /approval-requests` | Create a durable approval request |
+| `GET /approval-requests/<approval-id>` | Read approval status and bound context |
+| `POST /approval-requests/<approval-id>/approve` | Approve an approval request |
+| `POST /approval-requests/<approval-id>/deny` | Deny an approval request |
+| `POST /jit-grants` | Issue a single-use JIT grant after approval checks |
+| `POST /tenants/<tenant-id>/approval-requests` | Create a tenant-scoped approval request |
 | `POST /tenants/<tenant-id>/authorize` | Authorize against a tenant manifest from KV |
-| `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant |
+| `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant after approval checks |
 
-JIT grants are stored in a SQLite-backed Durable Object namespace. This keeps
-single-use grant enforcement durable across Worker isolates.
+Approval requests and JIT grants are stored in a SQLite-backed Durable Object
+namespace. This keeps approval state and single-use grant enforcement durable
+across Worker isolates.
 
 ## Local development
 
@@ -31,6 +37,23 @@ curl -s http://127.0.0.1:8787/health
 curl -s http://127.0.0.1:8787/authorize \
   -H 'content-type: application/json' \
   -d '{"agent_id":"customer-support-refund-agent","tool":"zendesk.search_tickets","action":"read","data_from":"zendesk","data_to":"stripe"}'
+```
+
+For approval-gated JIT tools, create and approve a request before issuing the
+grant:
+
+```bash
+curl -s http://127.0.0.1:8787/approval-requests \
+  -H 'content-type: application/json' \
+  -d '{"approval_id":"approval-1","tool":"stripe.create_refund","action":"write","resource":"refund/re_123","requested_by":"user-1","reason":"approved refund"}'
+
+curl -s http://127.0.0.1:8787/approval-requests/approval-1/approve \
+  -H 'content-type: application/json' \
+  -d '{"decided_by":"manager-1"}'
+
+curl -s http://127.0.0.1:8787/jit-grants \
+  -H 'content-type: application/json' \
+  -d '{"approval_id":"approval-1","tool":"stripe.create_refund","action":"write","resource":"refund/re_123","user_id":"user-1"}'
 ```
 
 ## Deploy

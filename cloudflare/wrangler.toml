@@ -11,6 +11,7 @@ compatibility_date = "2026-05-24"
 # For a single-tenant gateway, set AGENTID_MANIFEST_JSON as a Worker variable.
 # For multi-tenant SaaS, bind AGENTID_MANIFESTS to Workers KV and store each
 # tenant manifest JSON under its tenant ID. Routes then use:
+#   /tenants/<tenant-id>/approval-requests
 #   /tenants/<tenant-id>/authorize
 #   /tenants/<tenant-id>/jit-grants
 

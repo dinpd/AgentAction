@@ -442,8 +442,8 @@ MCP gateway that performs the actual traffic forwarding. It exposes:
 Set `AGENTID_GATEWAY_API_KEY` or pass `--api-key` to require `Authorization: Bearer <key>`.
 
 For edge deployment, see [`cloudflare/`](cloudflare/) for a Cloudflare Workers
-gateway with Durable Object-backed JIT grants and a GitHub Actions deployment
-workflow.
+gateway with Durable Object-backed approval requests and JIT grants, plus a
+GitHub Actions deployment workflow.
 
 ## MCP Gateway Adapter
 
@@ -494,7 +494,7 @@ sequenceDiagram
     participant IdP as Customer IdP
     participant Gateway as AgentID Gateway
     participant KV as Tenant Manifest Store
-    participant DO as JIT Grant Store
+    participant DO as Approval/JIT Store
     participant Tool as Downstream Tool
 
     User->>App: Run agent workflow
@@ -569,7 +569,8 @@ Implemented:
 - GitHub Action for PR validation and risk-threshold checks
 - Web-based manifest builder
 - Python authorization service
-- Cloudflare Workers gateway with KV tenant manifests and Durable Object JIT grants
+- Cloudflare Workers gateway with KV tenant manifests and Durable Object
+  approval requests and JIT grants
 - OIDC claim/scopes section in manifests
 - Scoped agent-to-agent delegation checks
 - Job-to-be-done boundary checks
@@ -632,8 +633,8 @@ Next:
 - Audit log normalization and a versioned decision-event spec for agent ID,
   user ID, tool, action, resource, job boundary, decision, findings, and JIT
   grant metadata
-- Durable approval and JIT stores with revocation, webhook callbacks, and
-  approval audit trail
+- Revocation, webhook callbacks, and approval audit trail for durable
+  approval and JIT stores
 - Additional SDK and middleware helpers for Python, MCP gateways, HTTP apps, and
   Cloudflare Workers
 - Delegation-chain visualization

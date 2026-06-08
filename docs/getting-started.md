@@ -189,7 +189,7 @@ await agentid.assertAllowed("tenant-a", {
 The `cloudflare/` directory contains a Workers gateway with:
 
 - Tenant manifests in KV.
-- Single-use JIT grants in Durable Objects.
+- Approval requests and single-use JIT grants in Durable Objects.
 - Static API-key bootstrap support.
 - Demo HS256 JWT support.
 - Production RS256/JWKS validation path.
