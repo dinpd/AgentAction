@@ -8,6 +8,10 @@ compatibility_date = "2026-05-24"
 # For the self-contained demo OIDC mode:
 #   npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
 #
+# Optional audit export:
+#   npx wrangler secret put AGENTID_AUDIT_WEBHOOK_URL
+#   npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
+#
 # For a single-tenant gateway, set AGENTID_MANIFEST_JSON as a Worker variable.
 # For multi-tenant SaaS, bind AGENTID_MANIFESTS to Workers KV and store each
 # tenant manifest JSON under its tenant ID. Routes then use:

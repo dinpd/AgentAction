@@ -69,6 +69,16 @@ Set an API key for production:
 npx wrangler secret put AGENTID_API_KEY
 ```
 
+Optionally configure audit export. When `AGENTID_AUDIT_WEBHOOK_URL` is set,
+the Worker emits authorization decisions, approval events, and JIT grant events
+as JSON. `AGENTID_AUDIT_WEBHOOK_TOKEN` is optional and is sent as a bearer
+token when present.
+
+```bash
+npx wrangler secret put AGENTID_AUDIT_WEBHOOK_URL
+npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
+```
+
 For the self-contained OIDC demo, set a shared demo signing secret on the
 gateway and demo Worker:
 

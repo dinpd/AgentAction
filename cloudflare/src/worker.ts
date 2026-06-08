@@ -1,5 +1,7 @@
 type Env = {
   AGENTID_API_KEY?: string;
+  AGENTID_AUDIT_WEBHOOK_TOKEN?: string;
+  AGENTID_AUDIT_WEBHOOK_URL?: string;
   AGENTID_DEMO_OIDC_SECRET?: string;
   AGENTID_MANIFEST_JSON?: string;
   AGENTID_MANIFESTS?: {
@@ -118,7 +120,7 @@ const SAMPLE_MANIFEST: AgentIdManifest = {
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
       if (request.method === "OPTIONS") {
         return empty(204);
@@ -156,6 +158,17 @@ export default {
       if (request.method === "POST" && route.endpoint === "authorize") {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
+        ctx.waitUntil(
+          emitAudit(env, {
+            type: "agentid.decision",
+            tenant_id: route.tenantId,
+            agent_id: stringValue(decision.event.agent_id),
+            allow: decision.allow,
+            findings: decision.findings,
+            event: decision.event,
+            auth: auth.context,
+          }),
+        );
         return json(
           {
             allow: decision.allow,
@@ -179,6 +192,18 @@ export default {
           }),
         );
         const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.approval.created",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(body.agent_id),
+              approval_id: stringValue(body.approval_id),
+              approval: body,
+              auth: auth.context,
+            }),
+          );
+        }
         body.auth = auth.context;
         return json(body, stored.status);
       }
@@ -198,6 +223,19 @@ export default {
           }),
         );
         const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.approval.decided",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(body.agent_id),
+              approval_id: stringValue(body.approval_id),
+              approval_status: stringValue(body.status),
+              approval: body,
+              auth: auth.context,
+            }),
+          );
+        }
         body.auth = auth.context;
         return json(body, stored.status);
       }
@@ -213,6 +251,19 @@ export default {
         );
         if (!checked.ok) {
           const body = await checked.json() as Record<string, unknown>;
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.jit.denied",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(manifest.agent?.id),
+              approval_id: stringValue(payload.approval_id),
+              tool: stringValue(payload.tool),
+              action: stringValue(payload.action),
+              resource: stringValue(payload.resource),
+              error: stringValue(body.error),
+              auth: auth.context,
+            }),
+          );
           body.auth = auth.context;
           return json(body, checked.status);
         }
@@ -225,6 +276,19 @@ export default {
           }),
         );
         const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.jit.issued",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(body.agent_id),
+              approval_id: stringValue(body.approval_id),
+              jit_grant_id: stringValue(body.jit_grant_id),
+              grant: body,
+              auth: auth.context,
+            }),
+          );
+        }
         body.auth = auth.context;
         return json(body, stored.status);
       }
@@ -941,6 +1005,31 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
   return "";
+}
+
+async function emitAudit(env: Env, payload: Record<string, unknown>): Promise<void> {
+  if (!env.AGENTID_AUDIT_WEBHOOK_URL) return;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "user-agent": "agentid-cloudflare-gateway",
+  };
+  if (env.AGENTID_AUDIT_WEBHOOK_TOKEN) {
+    headers.authorization = `Bearer ${env.AGENTID_AUDIT_WEBHOOK_TOKEN}`;
+  }
+
+  try {
+    await fetch(env.AGENTID_AUDIT_WEBHOOK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        schema_version: "agentid.audit.v1",
+        emitted_at: new Date().toISOString(),
+        ...payload,
+      }),
+    });
+  } catch (error) {
+    console.log(`agentid audit webhook failed: ${(error as Error).message}`);
+  }
 }
 
 function scopesFromClaims(claims: Record<string, unknown>): string[] {

@@ -633,7 +633,7 @@ Next:
 - Audit log normalization and a versioned decision-event spec for agent ID,
   user ID, tool, action, resource, job boundary, decision, findings, and JIT
   grant metadata
-- Revocation, webhook callbacks, and approval audit trail for durable
+- Revocation, approval callbacks, and richer audit trail controls for durable
   approval and JIT stores
 - Additional SDK and middleware helpers for Python, MCP gateways, HTTP apps, and
   Cloudflare Workers
