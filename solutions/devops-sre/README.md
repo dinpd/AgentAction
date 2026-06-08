@@ -131,7 +131,47 @@ curl -s http://127.0.0.1:8788 \
   -d @solutions/devops-sre/fixtures/denied-prod-deploy-no-jit.json
 ```
 
-For high-risk actions, the gateway should request or receive a JIT grant first:
+For high-risk actions, the gateway should create an approval request, receive a
+decision, and then request a scoped JIT grant.
+
+Create an approval request:
+
+```bash
+curl -s http://127.0.0.1:8787/approval-requests \
+  -H 'Authorization: Bearer dev-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "approval_id": "approval-1",
+    "tool": "devops.deploy.production",
+    "action": "execute",
+    "resource": "service/checkout-api/environment/production",
+    "requested_by": "user-1",
+    "reason": "Deploy checkout-api after change approval",
+    "job_id": "production_deploy",
+    "environment": "production",
+    "service_id": "checkout-api",
+    "repo": "github.com/example/checkout",
+    "workflow_id": "deploy-production.yml",
+    "branch": "main",
+    "commit_sha": "abc123",
+    "change_request_id": "CHG-1042",
+    "incident_id": "INC-2048"
+  }'
+```
+
+Approve it:
+
+```bash
+curl -s http://127.0.0.1:8787/approval-requests/approval-1/approve \
+  -H 'Authorization: Bearer dev-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "decided_by": "release-manager-1",
+    "findings": ["change request verified"]
+  }'
+```
+
+Request a JIT grant bound to the approved context:
 
 ```bash
 curl -s http://127.0.0.1:8787/jit-grants \
@@ -178,8 +218,8 @@ For a real pilot:
 
 1. Run AgentID as an internal authorization service or Cloudflare Worker.
 2. Store tenant manifests outside process memory.
-3. Persist JIT grants in Durable Objects, Redis, Postgres, or another
-   single-use grant store.
+3. Persist approval requests and JIT grants in Durable Objects, Redis,
+   Postgres, or another auditable store.
 4. Validate OIDC/JWT access tokens from the customer IdP.
 5. Sign provider receipts with managed keys and publish JWKS.
 6. Export decision logs to the existing audit/SIEM pipeline.

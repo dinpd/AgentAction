@@ -128,12 +128,10 @@ Try the first vertical solution pack:
   for deploys, rollbacks, and infrastructure changes.
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
-For ecosystem positioning and business requirements, see [`docs/ecosystem-positioning.md`](docs/ecosystem-positioning.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
 For provider MCP contract CI checks, see [`docs/provider-mcp-ci.md`](docs/provider-mcp-ci.md).
-For provider MCP positioning and adoption ideas, see [`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md).
 For receipt profiles and canonicalization, see [`docs/receipt-profiles.md`](docs/receipt-profiles.md).
 For skill-local guardrail contracts, see [`docs/skills-authorization.md`](docs/skills-authorization.md).
 For DID, Verifiable Credential, OAuth/OIDC, MCP, A2A, AGNTCY, and NIST alignment, see [`docs/standards-alignment.md`](docs/standards-alignment.md).
@@ -304,9 +302,7 @@ This keeps the enterprise and provider responsibilities separate: AgentID
 proves the enterprise authorized the agent-originated request, while the
 provider still decides whether the underlying business operation may execute.
 See [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
-for the receipt contract and execution plan, and
-[`docs/provider-mcp-positioning.md`](docs/provider-mcp-positioning.md) for the
-adoption narrative around auth-first MCP provider tools.
+for the receipt contract and execution plan.
 
 ---
 
@@ -437,7 +433,11 @@ MCP gateway that performs the actual traffic forwarding. It exposes:
 | `GET /health` | Check gateway health and active agent ID |
 | `GET /policy?target=opa` | Return generated policy for the active manifest |
 | `POST /authorize` | Authorize a proposed tool call against the manifest |
-| `POST /jit-grants` | Issue an in-memory JIT grant for a just-in-time tool |
+| `POST /approval-requests` | Create an in-memory approval request for an approval-gated tool |
+| `GET /approval-requests/:id` | Return approval request status and bound context |
+| `POST /approval-requests/:id/approve` | Mark an approval request approved |
+| `POST /approval-requests/:id/deny` | Mark an approval request denied |
+| `POST /jit-grants` | Issue an in-memory JIT grant for a just-in-time tool after approval checks |
 
 Set `AGENTID_GATEWAY_API_KEY` or pass `--api-key` to require `Authorization: Bearer <key>`.
 
@@ -586,7 +586,6 @@ Implemented:
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Provider-side MCP authorization guide with CRM/billing use case, receipt
   contract, and execution plan
-- Provider MCP positioning guide for auth-first API-to-MCP adoption
 - Article: "Turn Your API Into MCP, Safely"
 - Provider MCP authorization demo with local receipt verification
 - Provider MCP contract validator for high-blast-radius tool requirements
@@ -633,8 +632,8 @@ Next:
 - Audit log normalization and a versioned decision-event spec for agent ID,
   user ID, tool, action, resource, job boundary, decision, findings, and JIT
   grant metadata
-- Richer JIT approval flow with approval request objects, revocation, webhook
-  callbacks, and approval audit trail
+- Durable approval and JIT stores with revocation, webhook callbacks, and
+  approval audit trail
 - Additional SDK and middleware helpers for Python, MCP gateways, HTTP apps, and
   Cloudflare Workers
 - Delegation-chain visualization

@@ -218,7 +218,7 @@ matters:
 MCP is the known surface. Provider action authority is the durable layer
 underneath it.
 
-That is the positioning I think will matter most:
+The provider-facing pattern is:
 
 **Turn your API into MCP without giving agents a blank check.**
 

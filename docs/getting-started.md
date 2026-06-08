@@ -11,8 +11,9 @@ and the enterprise overlays local policy. The provider knows what each tool can
 do; the enterprise knows which agents, users, jobs, customers, and approval
 workflows are allowed.
 
-For the broader ecosystem model, see
-[`ecosystem-positioning.md`](ecosystem-positioning.md).
+For runtime integration patterns, see
+[`integration-patterns.md`](integration-patterns.md) and
+[`mcp-gateway-integration.md`](mcp-gateway-integration.md).
 
 ## 1. Install
 

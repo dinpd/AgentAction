@@ -1,3 +1,5 @@
+import pytest
+
 from agentid.config_ui import write_config_ui
 from agentid.gateway import AgentGateway
 
@@ -45,6 +47,20 @@ def _manifest():
     }
 
 
+def _approve_request(gateway, **overrides):
+    request = {
+        "tool": "zendesk.ticket.update",
+        "action": "write",
+        "resource": "tickets/123",
+        "requested_by": "user-1",
+        "reason": "approved maintenance",
+    }
+    request.update(overrides)
+    approval = gateway.create_approval_request(request)
+    gateway.approve_approval_request(approval.approval_id, {"decided_by": "manager-1"})
+    return approval
+
+
 def test_gateway_allows_manifest_authorized_read():
     gateway = AgentGateway(_manifest())
 
@@ -80,12 +96,13 @@ def test_gateway_denies_jit_tool_without_grant():
 
 def test_gateway_allows_jit_tool_with_bound_grant_once():
     gateway = AgentGateway(_manifest())
+    approval = _approve_request(gateway)
     grant = gateway.create_jit_grant(
         {
             "tool": "zendesk.ticket.update",
             "action": "write",
             "resource": "tickets/123",
-            "approval_id": "approval-1",
+            "approval_id": approval.approval_id,
             "user_id": "user-1",
         }
     )
@@ -114,6 +131,106 @@ def test_gateway_allows_jit_tool_with_bound_grant_once():
     assert first_decision.allow
     assert not second_decision.allow
     assert "JIT grant was already used" in second_decision.findings
+
+
+def test_gateway_requires_approved_request_for_jit_grant():
+    gateway = AgentGateway(_manifest())
+    approval = gateway.create_approval_request(
+        {
+            "approval_id": "approval-1",
+            "tool": "zendesk.ticket.update",
+            "action": "write",
+            "resource": "tickets/123",
+            "requested_by": "user-1",
+            "reason": "update a production ticket",
+        }
+    )
+
+    with pytest.raises(ValueError, match="approval request is not approved"):
+        gateway.create_jit_grant(
+            {
+                "tool": "zendesk.ticket.update",
+                "action": "write",
+                "resource": "tickets/123",
+                "approval_id": approval.approval_id,
+                "user_id": "user-1",
+            }
+        )
+
+    gateway.approve_approval_request(approval.approval_id, {"decided_by": "manager-1"})
+    grant = gateway.create_jit_grant(
+        {
+            "tool": "zendesk.ticket.update",
+            "action": "write",
+            "resource": "tickets/123",
+            "approval_id": approval.approval_id,
+            "user_id": "user-1",
+        }
+    )
+
+    assert grant.approval_id == approval.approval_id
+
+
+def test_gateway_rejects_denied_approval_request_for_jit_grant():
+    gateway = AgentGateway(_manifest())
+    approval = gateway.create_approval_request(
+        {
+            "tool": "zendesk.ticket.update",
+            "action": "write",
+            "resource": "tickets/123",
+            "requested_by": "user-1",
+            "reason": "update a production ticket",
+        }
+    )
+    gateway.deny_approval_request(approval.approval_id, {"decided_by": "manager-1"})
+
+    with pytest.raises(ValueError, match="approval request is denied"):
+        gateway.create_jit_grant(
+            {
+                "tool": "zendesk.ticket.update",
+                "action": "write",
+                "resource": "tickets/123",
+                "approval_id": approval.approval_id,
+                "user_id": "user-1",
+            }
+        )
+
+
+def test_gateway_rejects_jit_grant_when_approval_context_drifts():
+    manifest = _manifest()
+    manifest["tools"][1]["name"] = "devops.deploy.production"
+    manifest["tools"][1]["access"] = "execute"
+    manifest["tools"][1]["constraints"] = {
+        "token_ttl_seconds": 300,
+        "required_context": ["environment", "service_id", "change_request_id", "commit_sha"],
+        "allowed_values": {"environment": ["production"], "service_id": ["checkout-api"]},
+    }
+    gateway = AgentGateway(manifest)
+    approval = _approve_request(
+        gateway,
+        tool="devops.deploy.production",
+        action="execute",
+        resource="service/checkout-api/environment/production",
+        environment="production",
+        service_id="checkout-api",
+        change_request_id="CHG-1042",
+        commit_sha="abc123",
+    )
+
+    with pytest.raises(ValueError, match="approval request environment mismatch"):
+        gateway.create_jit_grant(
+            {
+                "tool": "devops.deploy.production",
+                "action": "execute",
+                "resource": "service/checkout-api/environment/production",
+                "approval_id": approval.approval_id,
+                "user_id": "user-1",
+                "environment": "staging",
+                "service_id": "checkout-api",
+                "change_request_id": "CHG-1042",
+                "commit_sha": "abc123",
+            }
+        )
 
 
 def test_gateway_enforces_scoped_agent_delegation():
@@ -238,6 +355,13 @@ def test_gateway_binds_jit_grant_to_job_boundary_fields():
         "bind_authorization_to": ["job_id", "case_id", "customer_id"],
     }
     gateway = AgentGateway(manifest)
+    approval = _approve_request(
+        gateway,
+        resource="tickets/123",
+        job_id="refund_triage",
+        case_id="case-1042",
+        customer_id="cus_123",
+    )
     grant = gateway.create_jit_grant(
         {
             "tool": "zendesk.ticket.update",
@@ -246,7 +370,7 @@ def test_gateway_binds_jit_grant_to_job_boundary_fields():
             "job_id": "refund_triage",
             "case_id": "case-1042",
             "customer_id": "cus_123",
-            "approval_id": "approval-1",
+            "approval_id": approval.approval_id,
             "user_id": "user-1",
         }
     )
@@ -279,12 +403,22 @@ def test_gateway_enforces_required_context_and_allowed_values():
         "allowed_values": {"environment": ["production"], "service_id": ["checkout-api"]},
     }
     gateway = AgentGateway(manifest)
+    approval = _approve_request(
+        gateway,
+        tool="devops.deploy.production",
+        action="execute",
+        resource="service/checkout-api/environment/production",
+        environment="production",
+        service_id="checkout-api",
+        change_request_id="CHG-1042",
+        commit_sha="abc123",
+    )
     grant = gateway.create_jit_grant(
         {
             "tool": "devops.deploy.production",
             "action": "execute",
             "resource": "service/checkout-api/environment/production",
-            "approval_id": "approval-1",
+            "approval_id": approval.approval_id,
             "user_id": "user-1",
             "environment": "production",
             "service_id": "checkout-api",

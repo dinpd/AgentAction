@@ -395,7 +395,6 @@ introspection.
 The implementation lives in:
 
 - [`provider-mcp-authorization.md`](provider-mcp-authorization.md)
-- [`provider-mcp-positioning.md`](provider-mcp-positioning.md)
 - [`mcp-gateway-integration.md`](mcp-gateway-integration.md)
 
 The adoption message is:
