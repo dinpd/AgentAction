@@ -476,6 +476,8 @@ export class AgentIdJitGrants {
       event.jit_grant_agent_id = grant.agent_id;
       event.jit_grant_tool = grant.tool;
       event.jit_grant_action = grant.action;
+      event.jit_grant_approval_id = grant.approval_id;
+      event.approval_id = event.approval_id || grant.approval_id;
       event.jit_grant_job_id = grant.job_id;
       event.jit_grant_case_id = grant.case_id;
       event.jit_grant_customer_id = grant.customer_id;
