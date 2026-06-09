@@ -16,10 +16,11 @@ when available. The browser never sees gateway credentials. For the
 self-contained demo, the Worker mints a short-lived HS256-signed OIDC-style JWT
 and the gateway validates it against the DevOps/SRE tenant manifest.
 
-The UI includes guard-agent settings for preflight checks and post-dispatch
-canary monitoring. Those settings are reflected in the approval request and
-JIT-bound context so the demo can show both a passing controlled deploy and a
-blocked deploy when guard thresholds are too strict.
+The UI includes guard-agent settings plus emulated external outcomes for
+preflight checks and post-dispatch canary monitoring. Users can change CI
+status, freeze-window state, service health, cloud status, and canary metrics to
+see how different outcomes affect approval, JIT issuance, deploy forwarding,
+and rollback-JIT handling.
 
 ## Local Development
 

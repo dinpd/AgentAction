@@ -32,6 +32,21 @@ type GuardSettings = {
   rollback_error_rate_percent: number;
 };
 
+type GuardConditions = {
+  ci_status: string;
+  freeze_window_active: boolean;
+  current_error_rate_percent: number;
+  current_p95_latency_ms: number;
+  cloud_status: string;
+};
+
+type CanaryMetrics = {
+  canary_error_rate_percent: number;
+  canary_p95_latency_ms: number;
+  window_minutes: number;
+  samples: number;
+};
+
 type GuardEvaluation = {
   allow: boolean;
   findings: string[];
@@ -136,7 +151,7 @@ const HTML = String.raw`<!doctype html>
     button.primary { border-color: var(--green); background: var(--green); color: #fff; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 750; }
-    input {
+    input, select {
       min-height: 38px;
       width: 100%;
       border: 1px solid var(--line);
@@ -147,6 +162,7 @@ const HTML = String.raw`<!doctype html>
       font-size: 14px;
       padding: 8px 10px;
     }
+    select { appearance: auto; }
     .check {
       display: flex;
       grid-template-columns: none;
@@ -291,6 +307,20 @@ const HTML = String.raw`<!doctype html>
         <label>Canary minutes<input id="canaryWindow" type="number" min="1" step="1" value="10"></label>
         <label>Rollback error %<input id="rollbackError" type="number" min="0" max="100" step="0.1" value="2.5"></label>
       </div>
+      <h2 style="margin-bottom:0">Emulated Preflight</h2>
+      <div class="grid-2">
+        <label>CI status<select id="ciStatus"><option value="success">success</option><option value="failed">failed</option><option value="pending">pending</option></select></label>
+        <label class="check"><input id="freezeActive" type="checkbox">Freeze active</label>
+        <label>Current error %<input id="currentError" type="number" min="0" max="100" step="0.01" value="0.18"></label>
+        <label>Current p95 ms<input id="currentLatency" type="number" min="1" step="1" value="212"></label>
+        <label>Cloud status<select id="cloudStatus"><option value="operational">operational</option><option value="degraded">degraded</option><option value="major_outage">major outage</option></select></label>
+      </div>
+      <h2 style="margin-bottom:0">Emulated Canary</h2>
+      <div class="grid-2">
+        <label>Canary error %<input id="canaryError" type="number" min="0" max="100" step="0.01" value="0.42"></label>
+        <label>Canary p95 ms<input id="canaryLatency" type="number" min="1" step="1" value="238"></label>
+        <label>Samples<input id="canarySamples" type="number" min="1" step="1" value="6400"></label>
+      </div>
       <div class="rail">
         <div class="node">Agent<span>Release request</span></div>
         <div class="arrow">→</div>
@@ -339,6 +369,14 @@ const HTML = String.raw`<!doctype html>
       maxLatency: document.getElementById("maxLatency"),
       canaryWindow: document.getElementById("canaryWindow"),
       rollbackError: document.getElementById("rollbackError"),
+      ciStatus: document.getElementById("ciStatus"),
+      freezeActive: document.getElementById("freezeActive"),
+      currentError: document.getElementById("currentError"),
+      currentLatency: document.getElementById("currentLatency"),
+      cloudStatus: document.getElementById("cloudStatus"),
+      canaryError: document.getElementById("canaryError"),
+      canaryLatency: document.getElementById("canaryLatency"),
+      canarySamples: document.getElementById("canarySamples"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
       payload: document.getElementById("payload"),
@@ -380,7 +418,9 @@ const HTML = String.raw`<!doctype html>
           body: JSON.stringify({
             commit_sha: els.commit.value,
             incident_id: els.incident.value,
-            guard_settings: collectGuardSettings()
+            guard_settings: collectGuardSettings(),
+            guard_conditions: collectGuardConditions(),
+            canary_metrics: collectCanaryMetrics()
           })
         });
         const body = await response.json();
@@ -388,7 +428,7 @@ const HTML = String.raw`<!doctype html>
         if (body.approval_id) {
           els.auditLink.href = (body.audit_url || "__AUDIT_URL__") + "?approval_id=" + encodeURIComponent(body.approval_id);
         }
-        setStatus(body.ok ? "Controlled deploy complete: production action allowed only after scoped approval and JIT." : "Controlled deploy ended with a policy denial.", body.ok ? "allow" : "deny");
+        setStatus(statusMessage(body), body.ok ? "allow" : "deny");
       } catch (error) {
         setStatus("Demo error: " + error.message, "deny");
       } finally {
@@ -407,6 +447,28 @@ const HTML = String.raw`<!doctype html>
         canary_window_minutes: Number(els.canaryWindow.value),
         rollback_error_rate_percent: Number(els.rollbackError.value)
       };
+    }
+    function collectGuardConditions() {
+      return {
+        ci_status: els.ciStatus.value,
+        freeze_window_active: els.freezeActive.checked,
+        current_error_rate_percent: Number(els.currentError.value),
+        current_p95_latency_ms: Number(els.currentLatency.value),
+        cloud_status: els.cloudStatus.value
+      };
+    }
+    function collectCanaryMetrics() {
+      return {
+        canary_error_rate_percent: Number(els.canaryError.value),
+        canary_p95_latency_ms: Number(els.canaryLatency.value),
+        samples: Number(els.canarySamples.value)
+      };
+    }
+    function statusMessage(body) {
+      if (body.outcome === "complete") return "Controlled deploy complete: production action allowed only after scoped approval and JIT.";
+      if (body.outcome === "preflight_blocked") return "Guard preflight blocked the deploy before approval or JIT.";
+      if (body.outcome === "rollback_jit_required") return "Guard monitor would request a separate rollback JIT grant.";
+      return "Controlled deploy ended with a policy denial.";
     }
     els.run.addEventListener("click", run);
     els.reset.addEventListener("click", reset);
@@ -433,6 +495,8 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   const input = await readJson(request);
   const ctx = demoContext(input);
   const settings = guardSettings(input.guard_settings);
+  const conditions = guardConditionsFromInput(input.guard_conditions);
+  const canaryMetrics = canaryMetricsFromInput(input.canary_metrics, settings);
   const approvalId = `approval-${Date.now()}`;
   const steps: Step[] = [];
 
@@ -450,11 +514,11 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   };
   const read = await gateway(env, "authorize", readPayload);
   steps.push(step("read", read.body.allow ? "Production logs read allowed" : "Production logs read denied", read.body.allow ? "Diagnostics are low-risk and stay inside the declared runtime log flow." : findings(read), read.body.allow ? "allow" : "deny", readPayload, read.body));
-  if (!read.body.allow) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (!read.body.allow) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
-  const preflight = evaluatePreflight(settings, ctx);
+  const preflight = evaluatePreflight(settings, ctx, conditions);
   steps.push(step("guard-preflight", preflight.allow ? "Guard preflight passed" : "Guard preflight blocked deploy", preflight.allow ? "External conditions are inside the configured guard thresholds and can be bound to the approval/JIT request." : preflight.findings.join("; "), preflight.allow ? "allow" : "deny", preflight.payload, preflight.response));
-  if (!preflight.allow) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (!preflight.allow) return json({ ok: false, outcome: "preflight_blocked", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const deniedDeployPayload = deployAuthorizePayload(ctx, preflight.context);
   const deniedDeploy = await gateway(env, "authorize", deniedDeployPayload);
@@ -467,7 +531,7 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   };
   const approval = await gateway(env, "approval-requests", approvalPayload);
   steps.push(step("approval-created", approval.status === 201 ? "Approval request created" : "Approval request failed", approval.status === 201 ? "The request is bound to service, production environment, branch, commit, change request, incident, and guard preflight evidence." : errorText(approval), approval.status === 201 ? "info" : "deny", approvalPayload, approval.body));
-  if (approval.status !== 201) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (approval.status !== 201) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const pendingGrantPayload = deployGrantPayload(ctx, approvalId, preflight.context);
   const pendingGrant = await gateway(env, "jit-grants", pendingGrantPayload);
@@ -478,12 +542,12 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
     findings: ["change request verified", "guard preflight evidence reviewed", "production deploy window open"],
   });
   steps.push(step("approval-approved", approvalDecision.status === 200 ? "Release manager approved" : "Approval decision failed", approvalDecision.status === 200 ? "Approval state changed to approved without exposing broad production credentials." : errorText(approvalDecision), approvalDecision.status === 200 ? "allow" : "deny", { decided_by: "release-manager-1" }, approvalDecision.body));
-  if (approvalDecision.status !== 200) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (approvalDecision.status !== 200) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const grantPayload = deployGrantPayload(ctx, approvalId, preflight.context);
   const grant = await gateway(env, "jit-grants", grantPayload);
   steps.push(step("jit-issued", grant.status === 201 ? "Scoped JIT grant issued" : "JIT grant denied", grant.status === 201 ? "The grant is short-lived, single-use, and bound to the approved production-change and guard evidence context." : errorText(grant), grant.status === 201 ? "allow" : "deny", grantPayload, grant.body));
-  if (grant.status !== 201) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (grant.status !== 201) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const allowedDeployPayload = {
     ...deployAuthorizePayload(ctx, preflight.context),
@@ -492,7 +556,7 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   };
   const allowedDeploy = await gateway(env, "authorize", allowedDeployPayload);
   steps.push(step("deploy-allowed", allowedDeploy.body.allow ? "Production deploy authorized" : "Production deploy denied", allowedDeploy.body.allow ? "The deploy can be forwarded because approval, JIT, job, resource, and context bindings all match." : findings(allowedDeploy), allowedDeploy.body.allow ? "allow" : "deny", allowedDeployPayload, allowedDeploy.body));
-  if (!allowedDeploy.body.allow) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (!allowedDeploy.body.allow) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const providerReceipt = {
     provider: "github-actions",
@@ -506,10 +570,10 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   };
   steps.push(step("provider-dry-run", "GitHub Actions dry-run accepted", "The provider wrapper would dispatch the production workflow only after verifying the AgentID receipt.", "allow", { workflow_dispatch: providerReceipt }, providerReceipt));
 
-  const canary = evaluateCanary(settings, ctx, stringValue(grant.body.jit_grant_id));
+  const canary = evaluateCanary(settings, ctx, stringValue(grant.body.jit_grant_id), canaryMetrics);
   steps.push(step("guard-monitor", canary.allow ? "Guard monitor passed" : "Guard monitor would request rollback JIT", canary.allow ? "Canary metrics stayed inside guard thresholds; rollback authority was not requested." : canary.findings.join("; "), canary.allow ? "allow" : "deny", canary.payload, canary.response));
 
-  return json({ ok: canary.allow, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  return json({ ok: canary.allow, outcome: canary.allow ? "complete" : "rollback_jit_required", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 }
 
 function demoContext(input: Record<string, unknown>) {
@@ -565,19 +629,34 @@ function guardSettings(value: unknown): GuardSettings {
   };
 }
 
-function evaluatePreflight(settings: GuardSettings, ctx: ReturnType<typeof demoContext>): GuardEvaluation {
-  const conditions = {
-    ci_status: "success",
-    freeze_window_active: false,
-    current_error_rate_percent: 0.18,
-    current_p95_latency_ms: 212,
-    cloud_status: "operational",
+function guardConditionsFromInput(value: unknown): GuardConditions {
+  const raw = recordValue(value);
+  return {
+    ci_status: stringChoice(raw.ci_status, "success", ["success", "failed", "pending"]),
+    freeze_window_active: booleanValue(raw.freeze_window_active, false),
+    current_error_rate_percent: numberValue(raw.current_error_rate_percent, 0.18),
+    current_p95_latency_ms: numberValue(raw.current_p95_latency_ms, 212),
+    cloud_status: stringChoice(raw.cloud_status, "operational", ["operational", "degraded", "major_outage"]),
   };
+}
+
+function canaryMetricsFromInput(value: unknown, settings: GuardSettings): CanaryMetrics {
+  const raw = recordValue(value);
+  return {
+    canary_error_rate_percent: numberValue(raw.canary_error_rate_percent, 0.42),
+    canary_p95_latency_ms: numberValue(raw.canary_p95_latency_ms, 238),
+    window_minutes: settings.canary_window_minutes,
+    samples: numberValue(raw.samples, 6400),
+  };
+}
+
+function evaluatePreflight(settings: GuardSettings, ctx: ReturnType<typeof demoContext>, conditions: GuardConditions): GuardEvaluation {
   const findings: string[] = [];
   if (settings.require_green_ci && conditions.ci_status !== "success") findings.push("CI is not green");
   if (settings.block_freeze_window && conditions.freeze_window_active) findings.push("deploy freeze window is active");
   if (conditions.current_error_rate_percent > settings.max_error_rate_percent) findings.push("current error rate exceeds guard threshold");
   if (conditions.current_p95_latency_ms > settings.max_p95_latency_ms) findings.push("current p95 latency exceeds guard threshold");
+  if (conditions.cloud_status !== "operational") findings.push("cloud provider status is not operational");
 
   const context = {
     preflight_check_id: `preflight-${Date.now()}`,
@@ -608,16 +687,13 @@ function evaluatePreflight(settings: GuardSettings, ctx: ReturnType<typeof demoC
   };
 }
 
-function evaluateCanary(settings: GuardSettings, ctx: ReturnType<typeof demoContext>, grantId: string): GuardEvaluation {
-  const metrics = {
-    canary_error_rate_percent: 0.42,
-    canary_p95_latency_ms: 238,
-    window_minutes: settings.canary_window_minutes,
-    samples: 6400,
-  };
+function evaluateCanary(settings: GuardSettings, ctx: ReturnType<typeof demoContext>, grantId: string, metrics: CanaryMetrics): GuardEvaluation {
   const findings: string[] = [];
   if (metrics.canary_error_rate_percent > settings.rollback_error_rate_percent) {
     findings.push("canary error rate exceeds rollback threshold");
+  }
+  if (metrics.canary_p95_latency_ms > settings.max_p95_latency_ms) {
+    findings.push("canary p95 latency exceeds guard threshold");
   }
 
   return {
@@ -711,6 +787,11 @@ function numberValue(value: unknown, fallback: number): number {
 
 function booleanValue(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function stringChoice(value: unknown, fallback: string, allowed: string[]): string {
+  const raw = stringValue(value);
+  return allowed.includes(raw) ? raw : fallback;
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
