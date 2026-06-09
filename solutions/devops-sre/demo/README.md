@@ -22,6 +22,11 @@ status, freeze-window state, service health, cloud status, and canary metrics to
 see how different outcomes affect approval, JIT issuance, deploy forwarding,
 and rollback-JIT handling.
 
+The `Auto approve` toggle lets the same UI run either as a single-pass demo or
+pause at a pending approval request. In manual mode, the Approval Review panel
+shows the gateway approval payload and lets the user approve or deny before JIT
+issuance.
+
 ## Local Development
 
 ```bash

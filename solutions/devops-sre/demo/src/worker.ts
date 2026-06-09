@@ -55,6 +55,14 @@ type GuardEvaluation = {
   context: Record<string, string>;
 };
 
+type Continuation = {
+  approval_id: string;
+  ctx: ReturnType<typeof demoContext>;
+  guard_context: Record<string, string>;
+  settings: GuardSettings;
+  canary_metrics: CanaryMetrics;
+};
+
 const HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -149,7 +157,9 @@ const HTML = String.raw`<!doctype html>
       text-decoration: none;
     }
     button.primary { border-color: var(--green); background: var(--green); color: #fff; }
+    button.danger { border-color: var(--red); background: var(--red); color: #fff; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
+    [hidden] { display: none !important; }
     label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 750; }
     input, select {
       min-height: 38px;
@@ -300,6 +310,7 @@ const HTML = String.raw`<!doctype html>
       <label>Incident ID<input id="incident" value="INC-2048"></label>
       <h2 style="margin-bottom:0">Guard Agent Settings</h2>
       <div class="grid-2">
+        <label class="check"><input id="autoApprove" type="checkbox" checked>Auto approve</label>
         <label class="check"><input id="requireCi" type="checkbox" checked>Require green CI</label>
         <label class="check"><input id="blockFreeze" type="checkbox" checked>Block freeze windows</label>
         <label>Max error %<input id="maxError" type="number" min="0" max="100" step="0.1" value="1.0"></label>
@@ -344,6 +355,14 @@ const HTML = String.raw`<!doctype html>
           <label>Samples<input id="canarySamples" type="number" min="1" step="1" value="6400"></label>
         </div>
       </div>
+      <div id="approvalReview" hidden>
+        <h2>Approval Review</h2>
+        <pre id="approvalPayload">{}</pre>
+        <div class="toolbar">
+          <button class="primary" id="approve">Approve</button>
+          <button class="danger" id="deny">Deny</button>
+        </div>
+      </div>
       <div>
         <h2>Request Payload</h2>
         <pre id="payload">{}</pre>
@@ -366,6 +385,7 @@ const HTML = String.raw`<!doctype html>
       reset: document.getElementById("reset"),
       commit: document.getElementById("commit"),
       incident: document.getElementById("incident"),
+      autoApprove: document.getElementById("autoApprove"),
       requireCi: document.getElementById("requireCi"),
       blockFreeze: document.getElementById("blockFreeze"),
       maxError: document.getElementById("maxError"),
@@ -384,9 +404,14 @@ const HTML = String.raw`<!doctype html>
       timeline: document.getElementById("timeline"),
       payload: document.getElementById("payload"),
       response: document.getElementById("response"),
-      auditLink: document.getElementById("auditLink")
+      auditLink: document.getElementById("auditLink"),
+      approvalReview: document.getElementById("approvalReview"),
+      approvalPayload: document.getElementById("approvalPayload"),
+      approve: document.getElementById("approve"),
+      deny: document.getElementById("deny")
     };
     let steps = [];
+    let continuation = null;
     function setStatus(text, kind = "") {
       els.status.className = "status " + kind;
       els.status.textContent = text;
@@ -396,6 +421,11 @@ const HTML = String.raw`<!doctype html>
       els.timeline.innerHTML = "";
       els.payload.textContent = "{}";
       els.response.textContent = "{}";
+      els.approvalPayload.textContent = "{}";
+      els.approvalReview.hidden = true;
+      els.approve.disabled = true;
+      els.deny.disabled = true;
+      continuation = null;
       els.auditLink.href = "__AUDIT_URL__";
       setStatus("Ready to run the DevOps/SRE control flow.");
     }
@@ -421,6 +451,7 @@ const HTML = String.raw`<!doctype html>
           body: JSON.stringify({
             commit_sha: els.commit.value,
             incident_id: els.incident.value,
+            auto_approve: els.autoApprove.checked,
             guard_settings: collectGuardSettings(),
             guard_conditions: collectGuardConditions(),
             canary_metrics: collectCanaryMetrics()
@@ -431,7 +462,8 @@ const HTML = String.raw`<!doctype html>
         if (body.approval_id) {
           els.auditLink.href = (body.audit_url || "__AUDIT_URL__") + "?approval_id=" + encodeURIComponent(body.approval_id);
         }
-        setStatus(statusMessage(body), body.ok ? "allow" : "deny");
+        if (body.continuation) showApprovalReview(body);
+        setStatus(statusMessage(body), statusKind(body));
       } catch (error) {
         setStatus("Demo error: " + error.message, "deny");
       } finally {
@@ -469,12 +501,48 @@ const HTML = String.raw`<!doctype html>
     }
     function statusMessage(body) {
       if (body.outcome === "complete") return "Controlled deploy complete: production action allowed only after scoped approval and JIT.";
+      if (body.outcome === "approval_pending") return "Approval request is pending. Review the evidence, then approve or deny.";
+      if (body.outcome === "approval_denied") return "Approval was denied; no JIT grant was issued.";
       if (body.outcome === "preflight_blocked") return "Guard preflight blocked the deploy before approval or JIT.";
       if (body.outcome === "rollback_jit_required") return "Guard monitor would request a separate rollback JIT grant.";
       return "Controlled deploy ended with a policy denial.";
     }
+    function statusKind(body) {
+      if (body.ok) return "allow";
+      if (body.outcome === "approval_pending") return "info";
+      return "deny";
+    }
+    function showApprovalReview(body) {
+      continuation = body.continuation;
+      els.approvalPayload.textContent = JSON.stringify(body.approval || {}, null, 2);
+      els.approvalReview.hidden = false;
+      els.approve.disabled = false;
+      els.deny.disabled = false;
+    }
+    async function decide(action) {
+      if (!continuation) return;
+      els.approve.disabled = true;
+      els.deny.disabled = true;
+      try {
+        const response = await fetch("/api/approval/" + action, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ continuation })
+        });
+        const body = await response.json();
+        for (const step of body.steps || []) addStep(step);
+        els.approvalPayload.textContent = JSON.stringify(body.approval || {}, null, 2);
+        continuation = null;
+        els.approvalReview.hidden = true;
+        setStatus(statusMessage(body), statusKind(body));
+      } catch (error) {
+        setStatus("Demo error: " + error.message, "deny");
+      }
+    }
     els.run.addEventListener("click", run);
     els.reset.addEventListener("click", reset);
+    els.approve.addEventListener("click", () => decide("approve"));
+    els.deny.addEventListener("click", () => decide("deny"));
     reset();
   </script>
 </body>
@@ -486,6 +554,8 @@ export default {
     if (request.method === "OPTIONS") return empty();
     if (request.method === "GET" && url.pathname === "/") return html(renderHtml(env));
     if (request.method === "POST" && url.pathname === "/api/run") return runDemo(request, env);
+    if (request.method === "POST" && url.pathname === "/api/approval/approve") return decideApproval(request, env, "approve");
+    if (request.method === "POST" && url.pathname === "/api/approval/deny") return decideApproval(request, env, "deny");
     return json({ error: "not found" }, 404);
   },
 };
@@ -500,6 +570,7 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   const settings = guardSettings(input.guard_settings);
   const conditions = guardConditionsFromInput(input.guard_conditions);
   const canaryMetrics = canaryMetricsFromInput(input.canary_metrics, settings);
+  const autoApprove = input.auto_approve !== false;
   const approvalId = `approval-${Date.now()}`;
   const steps: Step[] = [];
 
@@ -540,26 +611,96 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   const pendingGrant = await gateway(env, "jit-grants", pendingGrantPayload);
   steps.push(step("pending-jit-denied", pendingGrant.status === 400 ? "JIT denied while approval is pending" : "Pending JIT result", pendingGrant.status === 400 ? "The gateway refuses to mint production authority until the approval request is approved." : errorText(pendingGrant), pendingGrant.status === 400 ? "deny" : "info", pendingGrantPayload, pendingGrant.body));
 
+  const continuation = approvalContinuation(approvalId, ctx, preflight.context, settings, canaryMetrics);
+  if (!autoApprove) {
+    return json({
+      ok: false,
+      outcome: "approval_pending",
+      approval_id: approvalId,
+      audit_url: env.AGENTID_AUDIT_URL,
+      approval: approval.body,
+      continuation,
+      steps,
+    });
+  }
+
+  const continued = await continueAfterApproval(env, continuation);
+  return json({
+    ok: continued.ok,
+    outcome: continued.outcome,
+    approval_id: approvalId,
+    audit_url: env.AGENTID_AUDIT_URL,
+    approval: continued.approval,
+    steps: [...steps, ...continued.steps],
+  });
+}
+
+async function decideApproval(request: Request, env: Env, action: "approve" | "deny"): Promise<Response> {
+  const input = await readJson(request);
+  const continuation = continuationFromInput(input.continuation);
+  if (!continuation.approval_id) return json({ error: "approval continuation is missing" }, 400);
+
+  if (action === "deny") {
+    const denial = await gateway(env, `approval-requests/${continuation.approval_id}/deny`, {
+      decided_by: "release-manager-1",
+      findings: ["manual approval denied"],
+    });
+    const denialStep = step(
+      "approval-denied",
+      denial.status === 200 ? "Release manager denied" : "Approval denial failed",
+      denial.status === 200 ? "The request stopped before JIT authority could be issued." : errorText(denial),
+      denial.status === 200 ? "deny" : "info",
+      { decided_by: "release-manager-1" },
+      denial.body,
+    );
+    return json({
+      ok: false,
+      outcome: "approval_denied",
+      approval_id: continuation.approval_id,
+      audit_url: env.AGENTID_AUDIT_URL,
+      approval: denial.body,
+      steps: [denialStep],
+    });
+  }
+
+  const continued = await continueAfterApproval(env, continuation);
+  return json({
+    ok: continued.ok,
+    outcome: continued.outcome,
+    approval_id: continuation.approval_id,
+    audit_url: env.AGENTID_AUDIT_URL,
+    approval: continued.approval,
+    steps: continued.steps,
+  });
+}
+
+async function continueAfterApproval(
+  env: Env,
+  continuation: Continuation,
+): Promise<{ ok: boolean; outcome: string; approval?: unknown; steps: Step[] }> {
+  const { approval_id: approvalId, ctx, guard_context: guardContext, canary_metrics: canaryMetrics, settings } = continuation;
+  const steps: Step[] = [];
+
   const approvalDecision = await gateway(env, `approval-requests/${approvalId}/approve`, {
     decided_by: "release-manager-1",
     findings: ["change request verified", "guard preflight evidence reviewed", "production deploy window open"],
   });
   steps.push(step("approval-approved", approvalDecision.status === 200 ? "Release manager approved" : "Approval decision failed", approvalDecision.status === 200 ? "Approval state changed to approved without exposing broad production credentials." : errorText(approvalDecision), approvalDecision.status === 200 ? "allow" : "deny", { decided_by: "release-manager-1" }, approvalDecision.body));
-  if (approvalDecision.status !== 200) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (approvalDecision.status !== 200) return { ok: false, outcome: "policy_denied", approval: approvalDecision.body, steps };
 
-  const grantPayload = deployGrantPayload(ctx, approvalId, preflight.context);
+  const grantPayload = deployGrantPayload(ctx, approvalId, guardContext);
   const grant = await gateway(env, "jit-grants", grantPayload);
   steps.push(step("jit-issued", grant.status === 201 ? "Scoped JIT grant issued" : "JIT grant denied", grant.status === 201 ? "The grant is short-lived, single-use, and bound to the approved production-change and guard evidence context." : errorText(grant), grant.status === 201 ? "allow" : "deny", grantPayload, grant.body));
-  if (grant.status !== 201) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (grant.status !== 201) return { ok: false, outcome: "policy_denied", approval: approvalDecision.body, steps };
 
   const allowedDeployPayload = {
-    ...deployAuthorizePayload(ctx, preflight.context),
+    ...deployAuthorizePayload(ctx, guardContext),
     approved: true,
     jit_grant_id: grant.body.jit_grant_id,
   };
   const allowedDeploy = await gateway(env, "authorize", allowedDeployPayload);
   steps.push(step("deploy-allowed", allowedDeploy.body.allow ? "Production deploy authorized" : "Production deploy denied", allowedDeploy.body.allow ? "The deploy can be forwarded because approval, JIT, job, resource, and context bindings all match." : findings(allowedDeploy), allowedDeploy.body.allow ? "allow" : "deny", allowedDeployPayload, allowedDeploy.body));
-  if (!allowedDeploy.body.allow) return json({ ok: false, outcome: "policy_denied", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  if (!allowedDeploy.body.allow) return { ok: false, outcome: "policy_denied", approval: approvalDecision.body, steps };
 
   const providerReceipt = {
     provider: "github-actions",
@@ -576,7 +717,7 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   const canary = evaluateCanary(settings, ctx, stringValue(grant.body.jit_grant_id), canaryMetrics);
   steps.push(step("guard-monitor", canary.allow ? "Guard monitor passed" : "Guard monitor would request rollback JIT", canary.allow ? "Canary metrics stayed inside guard thresholds; rollback authority was not requested." : canary.findings.join("; "), canary.allow ? "allow" : "deny", canary.payload, canary.response));
 
-  return json({ ok: canary.allow, outcome: canary.allow ? "complete" : "rollback_jit_required", approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  return { ok: canary.allow, outcome: canary.allow ? "complete" : "rollback_jit_required", approval: approvalDecision.body, steps };
 }
 
 function demoContext(input: Record<string, unknown>) {
@@ -617,6 +758,47 @@ function deployGrantPayload(ctx: ReturnType<typeof demoContext>, approvalId: str
     job_id: "production_deploy",
     ...ctx,
     ...guardContext,
+  };
+}
+
+function approvalContinuation(
+  approvalId: string,
+  ctx: ReturnType<typeof demoContext>,
+  guardContext: Record<string, string>,
+  settings: GuardSettings,
+  canaryMetrics: CanaryMetrics,
+): Continuation {
+  return {
+    approval_id: approvalId,
+    ctx,
+    guard_context: guardContext,
+    settings,
+    canary_metrics: canaryMetrics,
+  };
+}
+
+function continuationFromInput(value: unknown): Continuation {
+  const raw = recordValue(value);
+  return approvalContinuation(
+    stringValue(raw.approval_id),
+    demoContextFromValue(raw.ctx),
+    stringRecord(raw.guard_context),
+    guardSettings(raw.settings),
+    canaryMetricsFromInput(raw.canary_metrics, guardSettings(raw.settings)),
+  );
+}
+
+function demoContextFromValue(value: unknown): ReturnType<typeof demoContext> {
+  const raw = recordValue(value);
+  return {
+    environment: stringValue(raw.environment) || "production",
+    service_id: stringValue(raw.service_id) || "checkout-api",
+    repo: stringValue(raw.repo) || "github.com/example/checkout",
+    workflow_id: stringValue(raw.workflow_id) || "deploy-production.yml",
+    branch: stringValue(raw.branch) || "main",
+    commit_sha: stringValue(raw.commit_sha) || "abc123def456",
+    change_request_id: stringValue(raw.change_request_id) || "CHG-1042",
+    incident_id: stringValue(raw.incident_id) || "INC-2048",
   };
 }
 
@@ -795,6 +977,13 @@ function booleanValue(value: unknown, fallback: boolean): boolean {
 function stringChoice(value: unknown, fallback: string, allowed: string[]): string {
   const raw = stringValue(value);
   return allowed.includes(raw) ? raw : fallback;
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  const raw = recordValue(value);
+  const output: Record<string, string> = {};
+  for (const [key, item] of Object.entries(raw)) output[key] = stringValue(item);
+  return output;
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
