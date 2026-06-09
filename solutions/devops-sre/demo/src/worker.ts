@@ -307,14 +307,6 @@ const HTML = String.raw`<!doctype html>
         <label>Canary minutes<input id="canaryWindow" type="number" min="1" step="1" value="10"></label>
         <label>Rollback error %<input id="rollbackError" type="number" min="0" max="100" step="0.1" value="2.5"></label>
       </div>
-      <h2 style="margin-bottom:0">Emulated Preflight</h2>
-      <div class="grid-2">
-        <label>CI status<select id="ciStatus"><option value="success">success</option><option value="failed">failed</option><option value="pending">pending</option></select></label>
-        <label class="check"><input id="freezeActive" type="checkbox">Freeze active</label>
-        <label>Current error %<input id="currentError" type="number" min="0" max="100" step="0.01" value="0.18"></label>
-        <label>Current p95 ms<input id="currentLatency" type="number" min="1" step="1" value="212"></label>
-        <label>Cloud status<select id="cloudStatus"><option value="operational">operational</option><option value="degraded">degraded</option><option value="major_outage">major outage</option></select></label>
-      </div>
       <h2 style="margin-bottom:0">Emulated Canary</h2>
       <div class="grid-2">
         <label>Canary error %<input id="canaryError" type="number" min="0" max="100" step="0.01" value="0.42"></label>
@@ -341,6 +333,16 @@ const HTML = String.raw`<!doctype html>
     </section>
 
     <aside class="details">
+      <div>
+        <h2>Emulated Preflight</h2>
+        <div class="grid-2">
+          <label>CI status<select id="ciStatus"><option value="success">success</option><option value="failed">failed</option><option value="pending">pending</option></select></label>
+          <label class="check"><input id="freezeActive" type="checkbox">Freeze active</label>
+          <label>Current error %<input id="currentError" type="number" min="0" max="100" step="0.01" value="0.18"></label>
+          <label>Current p95 ms<input id="currentLatency" type="number" min="1" step="1" value="212"></label>
+          <label>Cloud status<select id="cloudStatus"><option value="operational">operational</option><option value="degraded">degraded</option><option value="major_outage">major outage</option></select></label>
+        </div>
+      </div>
       <div>
         <h2>Request Payload</h2>
         <pre id="payload">{}</pre>
