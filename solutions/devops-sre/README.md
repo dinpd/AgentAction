@@ -22,6 +22,8 @@ rollbacks, and infrastructure apply actions.
 - `github-actions-provider.ts` - GitHub Actions MCP provider wrapper that
   verifies AgentID receipts before dispatching a workflow.
 - `fixtures/` - sample JSON-RPC calls for allowed and denied flows.
+- `demo/` - hosted Cloudflare Worker demo for the approval, JIT, dry-run
+  deploy, and audit flow.
 
 ## Operational Controls
 
@@ -71,9 +73,9 @@ SRE / release agent
 ```
 
 For a hosted interactive version of this flow, see
-[`demo-devops/`](../../demo-devops/). The demo walks through production log
-inspection, a denied production deploy without JIT, approval, scoped JIT
-issuance, dry-run GitHub Actions dispatch, and audit-console visibility.
+[`demo/`](demo/). The demo walks through production log inspection, a denied
+production deploy without JIT, approval, scoped JIT issuance, dry-run GitHub
+Actions dispatch, and audit-console visibility.
 
 ## Run The Local Demo
 

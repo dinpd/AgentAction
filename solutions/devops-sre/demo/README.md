@@ -19,7 +19,7 @@ and the gateway validates it against the DevOps/SRE tenant manifest.
 ## Local Development
 
 ```bash
-cd demo-devops
+cd solutions/devops-sre/demo
 npm install
 npm run dev
 ```
@@ -27,7 +27,7 @@ npm run dev
 ## Deploy
 
 ```bash
-cd demo-devops
+cd solutions/devops-sre/demo
 npm run deploy
 ```
 

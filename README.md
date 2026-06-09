@@ -127,9 +127,9 @@ Try the first vertical solution pack:
 - DevOps/SRE: [`solutions/devops-sre/`](solutions/devops-sre/) shows how to let
   agents inspect production systems while requiring short-lived scoped authority
   for deploys, rollbacks, and infrastructure changes.
-- DevOps-control demo: [`demo-devops/`](demo-devops/) shows the same pattern as
-  an interactive production-change flow with approval, JIT, dry-run provider
-  dispatch, and audit visibility.
+- DevOps-control demo: [`solutions/devops-sre/demo/`](solutions/devops-sre/demo/)
+  shows the same pattern as an interactive production-change flow with
+  approval, JIT, dry-run provider dispatch, and audit visibility.
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
