@@ -23,6 +23,23 @@ type GatewayResult = {
   body: Record<string, any>;
 };
 
+type GuardSettings = {
+  require_green_ci: boolean;
+  block_freeze_window: boolean;
+  max_error_rate_percent: number;
+  max_p95_latency_ms: number;
+  canary_window_minutes: number;
+  rollback_error_rate_percent: number;
+};
+
+type GuardEvaluation = {
+  allow: boolean;
+  findings: string[];
+  payload: Record<string, unknown>;
+  response: Record<string, unknown>;
+  context: Record<string, string>;
+};
+
 const HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -129,6 +146,20 @@ const HTML = String.raw`<!doctype html>
       font: inherit;
       font-size: 14px;
       padding: 8px 10px;
+    }
+    .check {
+      display: flex;
+      grid-template-columns: none;
+      gap: 8px;
+      align-items: center;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .check input {
+      width: 16px;
+      min-height: 16px;
+      accent-color: var(--green);
     }
     .stack { display: grid; gap: 12px; }
     .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -251,6 +282,15 @@ const HTML = String.raw`<!doctype html>
       </div>
       <label>Commit SHA<input id="commit" value="abc123def456"></label>
       <label>Incident ID<input id="incident" value="INC-2048"></label>
+      <h2 style="margin-bottom:0">Guard Agent Settings</h2>
+      <div class="grid-2">
+        <label class="check"><input id="requireCi" type="checkbox" checked>Require green CI</label>
+        <label class="check"><input id="blockFreeze" type="checkbox" checked>Block freeze windows</label>
+        <label>Max error %<input id="maxError" type="number" min="0" max="100" step="0.1" value="1.0"></label>
+        <label>Max p95 ms<input id="maxLatency" type="number" min="1" step="1" value="400"></label>
+        <label>Canary minutes<input id="canaryWindow" type="number" min="1" step="1" value="10"></label>
+        <label>Rollback error %<input id="rollbackError" type="number" min="0" max="100" step="0.1" value="2.5"></label>
+      </div>
       <div class="rail">
         <div class="node">Agent<span>Release request</span></div>
         <div class="arrow">→</div>
@@ -293,6 +333,12 @@ const HTML = String.raw`<!doctype html>
       reset: document.getElementById("reset"),
       commit: document.getElementById("commit"),
       incident: document.getElementById("incident"),
+      requireCi: document.getElementById("requireCi"),
+      blockFreeze: document.getElementById("blockFreeze"),
+      maxError: document.getElementById("maxError"),
+      maxLatency: document.getElementById("maxLatency"),
+      canaryWindow: document.getElementById("canaryWindow"),
+      rollbackError: document.getElementById("rollbackError"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
       payload: document.getElementById("payload"),
@@ -331,7 +377,11 @@ const HTML = String.raw`<!doctype html>
         const response = await fetch("/api/run", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ commit_sha: els.commit.value, incident_id: els.incident.value })
+          body: JSON.stringify({
+            commit_sha: els.commit.value,
+            incident_id: els.incident.value,
+            guard_settings: collectGuardSettings()
+          })
         });
         const body = await response.json();
         for (const step of body.steps || []) addStep(step);
@@ -347,6 +397,16 @@ const HTML = String.raw`<!doctype html>
     }
     function esc(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+    }
+    function collectGuardSettings() {
+      return {
+        require_green_ci: els.requireCi.checked,
+        block_freeze_window: els.blockFreeze.checked,
+        max_error_rate_percent: Number(els.maxError.value),
+        max_p95_latency_ms: Number(els.maxLatency.value),
+        canary_window_minutes: Number(els.canaryWindow.value),
+        rollback_error_rate_percent: Number(els.rollbackError.value)
+      };
     }
     els.run.addEventListener("click", run);
     els.reset.addEventListener("click", reset);
@@ -372,6 +432,7 @@ function renderHtml(env: Env): string {
 async function runDemo(request: Request, env: Env): Promise<Response> {
   const input = await readJson(request);
   const ctx = demoContext(input);
+  const settings = guardSettings(input.guard_settings);
   const approvalId = `approval-${Date.now()}`;
   const steps: Step[] = [];
 
@@ -391,35 +452,41 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   steps.push(step("read", read.body.allow ? "Production logs read allowed" : "Production logs read denied", read.body.allow ? "Diagnostics are low-risk and stay inside the declared runtime log flow." : findings(read), read.body.allow ? "allow" : "deny", readPayload, read.body));
   if (!read.body.allow) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
-  const deniedDeployPayload = deployAuthorizePayload(ctx);
+  const preflight = evaluatePreflight(settings, ctx);
+  steps.push(step("guard-preflight", preflight.allow ? "Guard preflight passed" : "Guard preflight blocked deploy", preflight.allow ? "External conditions are inside the configured guard thresholds and can be bound to the approval/JIT request." : preflight.findings.join("; "), preflight.allow ? "allow" : "deny", preflight.payload, preflight.response));
+  if (!preflight.allow) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+
+  const deniedDeployPayload = deployAuthorizePayload(ctx, preflight.context);
   const deniedDeploy = await gateway(env, "authorize", deniedDeployPayload);
   steps.push(step("deploy-denied", deniedDeploy.body.allow ? "Deploy unexpectedly allowed" : "Production deploy denied without JIT", deniedDeploy.body.allow ? "The deploy was allowed." : "The gateway requires approval and a scoped JIT grant before production deploy execution.", deniedDeploy.body.allow ? "allow" : "deny", deniedDeployPayload, deniedDeploy.body));
 
   const approvalPayload = {
-    ...deployGrantPayload(ctx, approvalId),
+    ...deployGrantPayload(ctx, approvalId, preflight.context),
     requested_by: "sre-on-call",
-    reason: "Deploy checkout-api after change approval and incident verification",
+    reason: "Deploy checkout-api after guard preflight, change approval, and incident verification",
   };
   const approval = await gateway(env, "approval-requests", approvalPayload);
-  steps.push(step("approval-created", approval.status === 201 ? "Approval request created" : "Approval request failed", approval.status === 201 ? "The request is bound to service, production environment, branch, commit, change request, and incident." : errorText(approval), approval.status === 201 ? "info" : "deny", approvalPayload, approval.body));
+  steps.push(step("approval-created", approval.status === 201 ? "Approval request created" : "Approval request failed", approval.status === 201 ? "The request is bound to service, production environment, branch, commit, change request, incident, and guard preflight evidence." : errorText(approval), approval.status === 201 ? "info" : "deny", approvalPayload, approval.body));
   if (approval.status !== 201) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
-  const pendingGrant = await gateway(env, "jit-grants", deployGrantPayload(ctx, approvalId));
-  steps.push(step("pending-jit-denied", pendingGrant.status === 400 ? "JIT denied while approval is pending" : "Pending JIT result", pendingGrant.status === 400 ? "The gateway refuses to mint production authority until the approval request is approved." : errorText(pendingGrant), pendingGrant.status === 400 ? "deny" : "info", deployGrantPayload(ctx, approvalId), pendingGrant.body));
+  const pendingGrantPayload = deployGrantPayload(ctx, approvalId, preflight.context);
+  const pendingGrant = await gateway(env, "jit-grants", pendingGrantPayload);
+  steps.push(step("pending-jit-denied", pendingGrant.status === 400 ? "JIT denied while approval is pending" : "Pending JIT result", pendingGrant.status === 400 ? "The gateway refuses to mint production authority until the approval request is approved." : errorText(pendingGrant), pendingGrant.status === 400 ? "deny" : "info", pendingGrantPayload, pendingGrant.body));
 
   const approvalDecision = await gateway(env, `approval-requests/${approvalId}/approve`, {
     decided_by: "release-manager-1",
-    findings: ["change request verified", "production deploy window open"],
+    findings: ["change request verified", "guard preflight evidence reviewed", "production deploy window open"],
   });
   steps.push(step("approval-approved", approvalDecision.status === 200 ? "Release manager approved" : "Approval decision failed", approvalDecision.status === 200 ? "Approval state changed to approved without exposing broad production credentials." : errorText(approvalDecision), approvalDecision.status === 200 ? "allow" : "deny", { decided_by: "release-manager-1" }, approvalDecision.body));
   if (approvalDecision.status !== 200) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
-  const grant = await gateway(env, "jit-grants", deployGrantPayload(ctx, approvalId));
-  steps.push(step("jit-issued", grant.status === 201 ? "Scoped JIT grant issued" : "JIT grant denied", grant.status === 201 ? "The grant is short-lived, single-use, and bound to the approved production-change context." : errorText(grant), grant.status === 201 ? "allow" : "deny", deployGrantPayload(ctx, approvalId), grant.body));
+  const grantPayload = deployGrantPayload(ctx, approvalId, preflight.context);
+  const grant = await gateway(env, "jit-grants", grantPayload);
+  steps.push(step("jit-issued", grant.status === 201 ? "Scoped JIT grant issued" : "JIT grant denied", grant.status === 201 ? "The grant is short-lived, single-use, and bound to the approved production-change and guard evidence context." : errorText(grant), grant.status === 201 ? "allow" : "deny", grantPayload, grant.body));
   if (grant.status !== 201) return json({ ok: false, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 
   const allowedDeployPayload = {
-    ...deployAuthorizePayload(ctx),
+    ...deployAuthorizePayload(ctx, preflight.context),
     approved: true,
     jit_grant_id: grant.body.jit_grant_id,
   };
@@ -439,7 +506,10 @@ async function runDemo(request: Request, env: Env): Promise<Response> {
   };
   steps.push(step("provider-dry-run", "GitHub Actions dry-run accepted", "The provider wrapper would dispatch the production workflow only after verifying the AgentID receipt.", "allow", { workflow_dispatch: providerReceipt }, providerReceipt));
 
-  return json({ ok: true, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
+  const canary = evaluateCanary(settings, ctx, stringValue(grant.body.jit_grant_id));
+  steps.push(step("guard-monitor", canary.allow ? "Guard monitor passed" : "Guard monitor would request rollback JIT", canary.allow ? "Canary metrics stayed inside guard thresholds; rollback authority was not requested." : canary.findings.join("; "), canary.allow ? "allow" : "deny", canary.payload, canary.response));
+
+  return json({ ok: canary.allow, approval_id: approvalId, audit_url: env.AGENTID_AUDIT_URL, steps });
 }
 
 function demoContext(input: Record<string, unknown>) {
@@ -455,7 +525,7 @@ function demoContext(input: Record<string, unknown>) {
   };
 }
 
-function deployAuthorizePayload(ctx: ReturnType<typeof demoContext>) {
+function deployAuthorizePayload(ctx: ReturnType<typeof demoContext>, guardContext: Record<string, string> = {}) {
   return {
     agent_id: "platform-release-agent",
     tool: "devops.deploy.production",
@@ -466,10 +536,11 @@ function deployAuthorizePayload(ctx: ReturnType<typeof demoContext>) {
     job_id: "production_deploy",
     approved: false,
     ...ctx,
+    ...guardContext,
   };
 }
 
-function deployGrantPayload(ctx: ReturnType<typeof demoContext>, approvalId: string) {
+function deployGrantPayload(ctx: ReturnType<typeof demoContext>, approvalId: string, guardContext: Record<string, string> = {}) {
   return {
     tool: "devops.deploy.production",
     action: "execute",
@@ -478,6 +549,95 @@ function deployGrantPayload(ctx: ReturnType<typeof demoContext>, approvalId: str
     user_id: "sre-on-call",
     job_id: "production_deploy",
     ...ctx,
+    ...guardContext,
+  };
+}
+
+function guardSettings(value: unknown): GuardSettings {
+  const raw = recordValue(value);
+  return {
+    require_green_ci: booleanValue(raw.require_green_ci, true),
+    block_freeze_window: booleanValue(raw.block_freeze_window, true),
+    max_error_rate_percent: numberValue(raw.max_error_rate_percent, 1),
+    max_p95_latency_ms: numberValue(raw.max_p95_latency_ms, 400),
+    canary_window_minutes: numberValue(raw.canary_window_minutes, 10),
+    rollback_error_rate_percent: numberValue(raw.rollback_error_rate_percent, 2.5),
+  };
+}
+
+function evaluatePreflight(settings: GuardSettings, ctx: ReturnType<typeof demoContext>): GuardEvaluation {
+  const conditions = {
+    ci_status: "success",
+    freeze_window_active: false,
+    current_error_rate_percent: 0.18,
+    current_p95_latency_ms: 212,
+    cloud_status: "operational",
+  };
+  const findings: string[] = [];
+  if (settings.require_green_ci && conditions.ci_status !== "success") findings.push("CI is not green");
+  if (settings.block_freeze_window && conditions.freeze_window_active) findings.push("deploy freeze window is active");
+  if (conditions.current_error_rate_percent > settings.max_error_rate_percent) findings.push("current error rate exceeds guard threshold");
+  if (conditions.current_p95_latency_ms > settings.max_p95_latency_ms) findings.push("current p95 latency exceeds guard threshold");
+
+  const context = {
+    preflight_check_id: `preflight-${Date.now()}`,
+    guard_policy_version: "guard-demo-2026-06-09",
+    guard_max_error_rate_percent: String(settings.max_error_rate_percent),
+    guard_max_p95_latency_ms: String(settings.max_p95_latency_ms),
+    guard_canary_window_minutes: String(settings.canary_window_minutes),
+  };
+
+  return {
+    allow: findings.length === 0,
+    findings,
+    context,
+    payload: {
+      agent_id: "platform-release-agent",
+      service_id: ctx.service_id,
+      environment: ctx.environment,
+      change_request_id: ctx.change_request_id,
+      commit_sha: ctx.commit_sha,
+      guard_settings: settings,
+      external_conditions: conditions,
+    },
+    response: {
+      decision: findings.length === 0 ? "pass" : "block",
+      findings,
+      context,
+    },
+  };
+}
+
+function evaluateCanary(settings: GuardSettings, ctx: ReturnType<typeof demoContext>, grantId: string): GuardEvaluation {
+  const metrics = {
+    canary_error_rate_percent: 0.42,
+    canary_p95_latency_ms: 238,
+    window_minutes: settings.canary_window_minutes,
+    samples: 6400,
+  };
+  const findings: string[] = [];
+  if (metrics.canary_error_rate_percent > settings.rollback_error_rate_percent) {
+    findings.push("canary error rate exceeds rollback threshold");
+  }
+
+  return {
+    allow: findings.length === 0,
+    findings,
+    context: {},
+    payload: {
+      agent_id: "platform-release-agent",
+      service_id: ctx.service_id,
+      environment: ctx.environment,
+      jit_grant_id: grantId,
+      rollback_error_rate_percent: settings.rollback_error_rate_percent,
+      canary_window_minutes: settings.canary_window_minutes,
+    },
+    response: {
+      decision: findings.length === 0 ? "continue" : "request_rollback_jit",
+      findings,
+      metrics,
+      rollback_authority: findings.length === 0 ? "not_requested" : "requires_separate_jit_grant",
+    },
   };
 }
 
@@ -542,6 +702,19 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
 
 function stringValue(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 function base64UrlEncode(value: string | ArrayBuffer): string {
