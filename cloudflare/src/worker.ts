@@ -558,6 +558,7 @@ async function authorize(
     case_id: payload.case_id,
     customer_id: payload.customer_id,
   };
+  Object.assign(event, stringContext(payload));
   const findings: string[] = [];
   const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
 

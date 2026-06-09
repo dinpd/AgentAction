@@ -1,0 +1,13 @@
+{
+  "name": "agentid-devops-control-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8791",
+    "deploy": "wrangler deploy",
+    "dry-run": "wrangler deploy --dry-run --outdir /tmp/agentid-devops-demo-worker-dist"
+  },
+  "devDependencies": {
+    "wrangler": "^4.94.0"
+  }
+}

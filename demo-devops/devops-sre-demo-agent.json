@@ -1,0 +1,308 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json",
+  "agent": {
+    "id": "platform-release-agent",
+    "name": "Platform Release Agent",
+    "owner": "platform-engineering",
+    "environment": "production",
+    "purpose": "Helps SRE and platform teams investigate incidents, inspect deployment state, and request scoped operational actions.",
+    "expires_at": "2026-12-31"
+  },
+  "delegation": {
+    "acts_for": {
+      "type": "user",
+      "required": true
+    },
+    "allowed_subjects": [
+      "sre_on_call",
+      "release_manager",
+      "platform_engineer"
+    ]
+  },
+  "delegation_chain": {
+    "may_call_agents": false,
+    "allowed_agents": [],
+    "max_depth": 1
+  },
+  "intent": {
+    "confirmation_required_for": [
+      "production_deploy",
+      "production_rollback",
+      "infrastructure_apply",
+      "secrets_access",
+      "permission_change",
+      "break_glass"
+    ]
+  },
+  "job_boundary": {
+    "required": true,
+    "allowed_jobs": [
+      "incident_diagnostics",
+      "deployment_status_check",
+      "production_deploy",
+      "production_rollback",
+      "terraform_plan",
+      "terraform_apply"
+    ],
+    "out_of_scope": [
+      "terraform_destroy",
+      "production_secret_read",
+      "iam_policy_change"
+    ],
+    "require_job_id": true,
+    "bind_authorization_to": [
+      "job_id"
+    ]
+  },
+  "oidc": {
+    "enabled": true,
+    "issuer": "https://demo.agentid.local",
+    "audiences": [
+      "agentid-gateway"
+    ],
+    "token_validation": "demo_hs256",
+    "claim_mapping": {
+      "tenant_id": "tid",
+      "user_id": "sub",
+      "agent_id": "agent_id",
+      "groups": "groups",
+      "email": "email"
+    },
+    "required_scopes": {
+      "authorize": "agentid.authorize",
+      "policy_read": "agentid.policy.read",
+      "policy_write": "agentid.policy.write",
+      "jit_grant": "agentid.jit.grant",
+      "approval_request": "agentid.jit.grant"
+    }
+  },
+  "jit_authorization": {
+    "enabled": true,
+    "default_ttl_seconds": 300,
+    "require_fresh_context": true,
+    "bind_token_to": [
+      "agent_id",
+      "user_id",
+      "tool",
+      "action",
+      "resource",
+      "approval_id",
+      "job_id",
+      "environment",
+      "service_id",
+      "repo",
+      "workflow_id",
+      "branch",
+      "commit_sha",
+      "change_request_id",
+      "incident_id",
+      "deployment_id",
+      "rollback_plan_id",
+      "workspace"
+    ],
+    "revoke_after_use": true,
+    "max_session_extensions": 0
+  },
+  "mcp_gateway": {
+    "mode": "enterprise_proxy",
+    "provider": "devops-platform",
+    "downstream_server": "devops-control-plane-mcp",
+    "tool_argument_mapping": {
+      "devops.logs.read": {
+        "action": "read",
+        "resource_template": "service/{service_id}/environment/{environment}/logs",
+        "job_id_arg": "job_id",
+        "context_args": {
+          "service_id": "service_id",
+          "environment": "environment",
+          "incident_id": "incident_id"
+        }
+      },
+      "devops.deploy.production": {
+        "action": "execute",
+        "resource_template": "service/{service_id}/environment/{environment}",
+        "job_id_arg": "job_id",
+        "approved_arg": "approved",
+        "jit_grant_id_arg": "jit_grant_id",
+        "approval_id_arg": "approval_id",
+        "context_args": {
+          "service_id": "service_id",
+          "environment": "environment",
+          "repo": "repo",
+          "workflow_id": "workflow_id",
+          "branch": "branch",
+          "commit_sha": "commit_sha",
+          "change_request_id": "change_request_id",
+          "incident_id": "incident_id"
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "devops.logs.read",
+      "access": "read",
+      "auth_mode": "delegated",
+      "approval": "none",
+      "constraints": {
+        "required_context": [
+          "environment",
+          "service_id",
+          "incident_id"
+        ]
+      }
+    },
+    {
+      "name": "devops.deployment.status",
+      "access": "read",
+      "auth_mode": "delegated",
+      "approval": "none",
+      "constraints": {
+        "required_context": [
+          "environment",
+          "service_id"
+        ]
+      }
+    },
+    {
+      "name": "devops.deploy.production",
+      "access": "execute",
+      "auth_mode": "just_in_time",
+      "approval": "human_confirm",
+      "constraints": {
+        "token_ttl_seconds": 300,
+        "resource": "service/*/environment/production",
+        "required_context": [
+          "environment",
+          "service_id",
+          "repo",
+          "workflow_id",
+          "branch",
+          "commit_sha",
+          "change_request_id"
+        ],
+        "allowed_values": {
+          "environment": [
+            "production"
+          ]
+        }
+      }
+    },
+    {
+      "name": "devops.rollback.production",
+      "access": "execute",
+      "auth_mode": "just_in_time",
+      "approval": "human_confirm",
+      "constraints": {
+        "token_ttl_seconds": 180,
+        "resource": "service/*/environment/production/rollback",
+        "required_context": [
+          "environment",
+          "service_id",
+          "incident_id",
+          "deployment_id",
+          "rollback_plan_id"
+        ],
+        "allowed_values": {
+          "environment": [
+            "production"
+          ]
+        }
+      }
+    },
+    {
+      "name": "devops.terraform.plan",
+      "access": "read",
+      "auth_mode": "delegated",
+      "approval": "notify",
+      "constraints": {
+        "required_context": [
+          "repo",
+          "workspace"
+        ]
+      }
+    },
+    {
+      "name": "devops.terraform.apply",
+      "access": "admin",
+      "auth_mode": "just_in_time",
+      "approval": "manager",
+      "constraints": {
+        "token_ttl_seconds": 180,
+        "resource": "repo/*/workspace/*/apply",
+        "required_context": [
+          "repo",
+          "workspace",
+          "change_request_id"
+        ]
+      }
+    }
+  ],
+  "data_flows": [
+    {
+      "from": "runtime_logs",
+      "to": "agent_context",
+      "allowed": true
+    },
+    {
+      "from": "deployment_control_plane",
+      "to": "agent_context",
+      "allowed": true
+    },
+    {
+      "from": "release_pipeline",
+      "to": "production_runtime",
+      "allowed": true
+    },
+    {
+      "from": "incident_response_plan",
+      "to": "production_runtime",
+      "allowed": true
+    },
+    {
+      "from": "infrastructure_state",
+      "to": "agent_context",
+      "allowed": true
+    },
+    {
+      "from": "infrastructure_change",
+      "to": "cloud_control_plane",
+      "allowed": true
+    },
+    {
+      "from": "secrets_manager",
+      "to": "agent_context",
+      "allowed": false
+    }
+  ],
+  "risk_tiers": {
+    "low": {
+      "approval": "none"
+    },
+    "medium": {
+      "approval": "notify"
+    },
+    "high": {
+      "approval": "human_confirm"
+    },
+    "critical": {
+      "approval": "manager"
+    }
+  },
+  "runtime": {
+    "enforce_manifest": true,
+    "detect_tool_drift": true,
+    "detect_new_destinations": true
+  },
+  "audit": {
+    "log_prompt_summary": true,
+    "log_tool_calls": true,
+    "log_decisions": true,
+    "log_jit_grants": true,
+    "retain_days": 365
+  },
+  "kill_switch": {
+    "enabled": true,
+    "revoke_on_policy_violation": true
+  }
+}

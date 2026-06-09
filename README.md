@@ -119,6 +119,7 @@ agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 Try the hosted demo:
 
 - Gateway-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
+- DevOps-control demo: [`agentid-devops-demo.drisw.workers.dev`](https://agentid-devops-demo.drisw.workers.dev/)
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
 Try the first vertical solution pack:
@@ -126,6 +127,9 @@ Try the first vertical solution pack:
 - DevOps/SRE: [`solutions/devops-sre/`](solutions/devops-sre/) shows how to let
   agents inspect production systems while requiring short-lived scoped authority
   for deploys, rollbacks, and infrastructure changes.
+- DevOps-control demo: [`demo-devops/`](demo-devops/) shows the same pattern as
+  an interactive production-change flow with approval, JIT, dry-run provider
+  dispatch, and audit visibility.
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
@@ -607,6 +611,8 @@ Implemented:
 - DevOps/SRE solution pack for production deploys, rollbacks, Terraform apply,
   and incident diagnostics
 - Hosted gateway-control demo with SaaS and MCP flows
+- Hosted DevOps-control demo with approval, JIT, dry-run deploy dispatch, and
+  audit console visibility
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
 Next:

@@ -70,6 +70,11 @@ SRE / release agent
   -> downstream DevOps MCP server
 ```
 
+For a hosted interactive version of this flow, see
+[`demo-devops/`](../../demo-devops/). The demo walks through production log
+inspection, a denied production deploy without JIT, approval, scoped JIT
+issuance, dry-run GitHub Actions dispatch, and audit-console visibility.
+
 ## Run The Local Demo
 
 Terminal 1: start the AgentID authorization service.

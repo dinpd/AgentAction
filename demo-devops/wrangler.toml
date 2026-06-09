@@ -1,0 +1,22 @@
+name = "agentid-devops-demo"
+main = "src/worker.ts"
+compatibility_date = "2026-05-24"
+workers_dev = true
+preview_urls = true
+
+[vars]
+AGENTID_GATEWAY_URL = "https://agentid-gateway.drisw.workers.dev"
+AGENTID_TENANT_ID = "devops-sre-demo-agent"
+AGENTID_OIDC_ISSUER = "https://demo.agentid.local"
+AGENTID_OIDC_AUDIENCE = "agentid-gateway"
+AGENTID_AUDIT_URL = "https://agentid-gateway.drisw.workers.dev/audit"
+
+[[services]]
+binding = "AGENTID_GATEWAY"
+service = "agentid-gateway"
+
+# Set the demo OIDC signing secret on both this Worker and the gateway:
+#   npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
+#
+# Optional fallback for static gateway-token demos:
+#   npx wrangler secret put AGENTID_GATEWAY_TOKEN
