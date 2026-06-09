@@ -72,18 +72,19 @@ Set an API key for production:
 npx wrangler secret put AGENTID_API_KEY
 ```
 
-Optionally configure audit export. When `AGENTID_AUDIT_WEBHOOK_URL` is set,
-the Worker emits authorization decisions, approval events, and JIT grant events
-as JSON. `AGENTID_AUDIT_WEBHOOK_TOKEN` is optional and is sent as a bearer
-token when present. Set the URL to this Worker's audit webhook route to use the
-built-in audit console.
+The built-in audit console records authorization decisions, approval events,
+and JIT grant events in the Durable Object store automatically. Optionally
+configure audit export for an external sink. When `AGENTID_AUDIT_WEBHOOK_URL`
+is set, the Worker emits the same events as JSON. `AGENTID_AUDIT_WEBHOOK_TOKEN`
+is optional and is sent as a bearer token when present.
 
 ```bash
 npx wrangler secret put AGENTID_AUDIT_WEBHOOK_URL
 npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
 ```
 
-For this Worker, the webhook URL is:
+The built-in audit webhook route is also available for external systems that
+need to push AgentID audit events into the console:
 
 ```text
 https://<worker-host>/audit/webhook/agentid
@@ -96,7 +97,8 @@ https://<worker-host>/audit
 ```
 
 The event API uses the same bearer token as the gateway API. The incoming
-webhook route uses `AGENTID_AUDIT_WEBHOOK_TOKEN`.
+webhook route uses `AGENTID_AUDIT_WEBHOOK_TOKEN` when the gateway API key is
+configured.
 
 For the self-contained OIDC demo, set a shared demo signing secret on the
 gateway and demo Worker:

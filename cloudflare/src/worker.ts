@@ -1097,7 +1097,20 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
 }
 
 async function emitAudit(env: Env, payload: Record<string, unknown>): Promise<void> {
+  await auditStore(env).fetch(
+    new Request("https://agentid.local/audit-events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        schema_version: "agentid.audit.v1",
+        emitted_at: new Date().toISOString(),
+        ...payload,
+      }),
+    }),
+  );
+
   if (!env.AGENTID_AUDIT_WEBHOOK_URL) return;
+  if (isBuiltInAuditWebhook(env.AGENTID_AUDIT_WEBHOOK_URL)) return;
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "user-agent": "agentid-cloudflare-gateway",
@@ -1118,6 +1131,14 @@ async function emitAudit(env: Env, payload: Record<string, unknown>): Promise<vo
     });
   } catch (error) {
     console.log(`agentid audit webhook failed: ${(error as Error).message}`);
+  }
+}
+
+function isBuiltInAuditWebhook(url: string): boolean {
+  try {
+    return new URL(url).pathname === "/audit/webhook/agentid";
+  } catch {
+    return false;
   }
 }
 
