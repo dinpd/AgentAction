@@ -67,6 +67,21 @@ type ApprovalRequest = {
   context?: Record<string, string>;
   findings?: string[];
 };
+type AuditRecord = {
+  audit_id: string;
+  received_at: string;
+  schema_version: string;
+  type: string;
+  tenant_id?: string | null;
+  agent_id?: string;
+  tool?: string;
+  action?: string;
+  resource?: string;
+  approval_id?: string;
+  jit_grant_id?: string;
+  allow?: boolean;
+  payload: Record<string, unknown>;
+};
 type Route = {
   tenantId: string | null;
   endpoint: string;
@@ -128,6 +143,25 @@ export default {
 
       const url = new URL(request.url);
       const route = parseRoute(url.pathname);
+
+      if (request.method === "GET" && route.endpoint === "audit" && !route.resourceId) {
+        return html(AUDIT_UI_HTML);
+      }
+
+      if (request.method === "POST" && route.endpoint === "audit" && route.resourceId === "webhook" && route.action === "agentid") {
+        const inbound = authenticateAuditWebhook(request, env);
+        if (!inbound.ok) return json({ error: inbound.error }, inbound.status);
+        const payload = await readJson(request);
+        const stored = await auditStore(env).fetch(
+          new Request("https://agentid.local/audit-events", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          }),
+        );
+        return json(await stored.json(), stored.status);
+      }
+
       const manifest = await loadManifest(env, route.tenantId);
       const auth = await authenticate(request, env, manifest, route.tenantId, route.endpoint);
       if (!auth.ok) {
@@ -144,6 +178,14 @@ export default {
           return json({ error: "Only target=opa is currently supported." }, 400);
         }
         return text(generateOpaPolicy(manifest));
+      }
+
+      if (request.method === "GET" && route.endpoint === "audit" && route.resourceId === "events") {
+        const search = new URLSearchParams(url.searchParams);
+        const stored = await auditStore(env).fetch(new Request(`https://agentid.local/audit-events?${search.toString()}`));
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
       }
 
       if (request.method === "GET" && route.endpoint === "approval-requests" && route.resourceId) {
@@ -320,6 +362,37 @@ export class AgentIdJitGrants {
       const grant = payload as Grant;
       await this.state.storage.put(grant.jit_grant_id, grant);
       return json(grant, 201);
+    }
+
+    if (request.method === "POST" && url.pathname === "/audit-events") {
+      const record = auditRecord(payload);
+      const index = await this.state.storage.get<string[]>("audit:index") || [];
+      index.unshift(record.audit_id);
+      const capped = index.slice(0, 250);
+      await this.state.storage.put(`audit:${record.audit_id}`, record);
+      await this.state.storage.put("audit:index", capped);
+      return json(record, 202);
+    }
+
+    if (request.method === "GET" && url.pathname === "/audit-events") {
+      const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || "100"), 1), 250);
+      const filters = {
+        type: url.searchParams.get("type") || "",
+        tenant_id: url.searchParams.get("tenant_id") || "",
+        agent_id: url.searchParams.get("agent_id") || "",
+        tool: url.searchParams.get("tool") || "",
+        approval_id: url.searchParams.get("approval_id") || "",
+        jit_grant_id: url.searchParams.get("jit_grant_id") || "",
+      };
+      const index = await this.state.storage.get<string[]>("audit:index") || [];
+      const events: AuditRecord[] = [];
+      for (const id of index) {
+        const record = await this.state.storage.get<AuditRecord>(`audit:${id}`);
+        if (!record || !auditMatches(record, filters)) continue;
+        events.push(record);
+        if (events.length >= limit) break;
+      }
+      return json({ events, count: events.length });
     }
 
     if (request.method === "POST" && url.pathname === "/approvals") {
@@ -857,6 +930,10 @@ function authorizationStore(env: Env, tenantId: string | null, manifest: AgentId
   return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName(key));
 }
 
+function auditStore(env: Env) {
+  return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName("audit"));
+}
+
 function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "tenants" && parts[1]) {
@@ -919,6 +996,18 @@ function findingsFromPayload(payload: Record<string, unknown>): string[] {
   if (Array.isArray(findings)) return findings.map(String);
   if (typeof findings === "string") return [findings];
   return [];
+}
+
+function authenticateAuditWebhook(request: Request, env: Env): { ok: true } | { ok: false; status: number; error: string } {
+  if (!env.AGENTID_AUDIT_WEBHOOK_TOKEN) {
+    if (!env.AGENTID_API_KEY) return { ok: true };
+    return { ok: false, status: 500, error: "audit webhook token is not configured" };
+  }
+  const authorization = request.headers.get("authorization") || "";
+  if (authorization !== `Bearer ${env.AGENTID_AUDIT_WEBHOOK_TOKEN}`) {
+    return { ok: false, status: 401, error: "unauthorized" };
+  }
+  return { ok: true };
 }
 
 async function authenticate(
@@ -1030,6 +1119,51 @@ async function emitAudit(env: Env, payload: Record<string, unknown>): Promise<vo
   } catch (error) {
     console.log(`agentid audit webhook failed: ${(error as Error).message}`);
   }
+}
+
+function auditRecord(payload: Record<string, unknown>): AuditRecord {
+  const nestedEvent = recordValue(payload.event);
+  const nestedApproval = recordValue(payload.approval);
+  const nestedGrant = recordValue(payload.grant);
+  return {
+    audit_id: crypto.randomUUID(),
+    received_at: new Date().toISOString(),
+    schema_version: stringValue(payload.schema_version || "agentid.audit.v1"),
+    type: stringValue(payload.type || "agentid.audit"),
+    tenant_id: typeof payload.tenant_id === "string" ? payload.tenant_id : payload.tenant_id === null ? null : undefined,
+    agent_id: firstString(payload.agent_id, nestedEvent.agent_id, nestedApproval.agent_id, nestedGrant.agent_id),
+    tool: firstString(payload.tool, nestedEvent.tool, nestedApproval.tool, nestedGrant.tool),
+    action: firstString(payload.action, nestedEvent.action, nestedApproval.action, nestedGrant.action),
+    resource: firstString(payload.resource, nestedEvent.resource, nestedApproval.resource, nestedGrant.resource),
+    approval_id: firstString(payload.approval_id, nestedEvent.approval_id, nestedApproval.approval_id, nestedGrant.approval_id),
+    jit_grant_id: firstString(payload.jit_grant_id, nestedEvent.jit_grant_id, nestedGrant.jit_grant_id),
+    allow: typeof payload.allow === "boolean" ? payload.allow : undefined,
+    payload,
+  };
+}
+
+function auditMatches(record: AuditRecord, filters: Record<string, string>): boolean {
+  for (const [field, expected] of Object.entries(filters)) {
+    if (!expected) continue;
+    if (field === "tenant_id" && stringValue(record.tenant_id) !== expected) return false;
+    if (field === "type" && record.type !== expected) return false;
+    if (field === "agent_id" && stringValue(record.agent_id) !== expected) return false;
+    if (field === "tool" && stringValue(record.tool) !== expected) return false;
+    if (field === "approval_id" && stringValue(record.approval_id) !== expected) return false;
+    if (field === "jit_grant_id" && stringValue(record.jit_grant_id) !== expected) return false;
+  }
+  return true;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
 }
 
 function scopesFromClaims(claims: Record<string, unknown>): string[] {
@@ -1204,12 +1338,114 @@ function json(payload: unknown, status = 200): Response {
   });
 }
 
+function html(payload: string, status = 200): Response {
+  return new Response(payload, {
+    status,
+    headers: cors({ "content-type": "text/html; charset=utf-8" }),
+  });
+}
+
 function text(payload: string, status = 200): Response {
   return new Response(payload, {
     status,
     headers: cors({ "content-type": "text/plain; charset=utf-8" }),
   });
 }
+
+const AUDIT_UI_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentID Audit Console</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #f6f7f8; color: #182026; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #d9dee3; background: #fff; }
+    h1 { margin: 0; font-size: 18px; font-weight: 650; }
+    main { padding: 18px 24px 28px; }
+    .toolbar { display: grid; grid-template-columns: 1.4fr repeat(5, minmax(120px, 1fr)) auto; gap: 8px; align-items: end; margin-bottom: 14px; }
+    label { display: grid; gap: 4px; font-size: 11px; font-weight: 650; color: #53606b; text-transform: uppercase; }
+    input, select, button { height: 34px; border: 1px solid #c7ced6; border-radius: 6px; background: #fff; color: #182026; font: inherit; font-size: 13px; padding: 0 10px; }
+    button { cursor: pointer; font-weight: 650; background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9dee3; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #e8ebef; text-align: left; font-size: 13px; vertical-align: top; }
+    th { font-size: 11px; color: #53606b; text-transform: uppercase; background: #f9fafb; }
+    tr:hover td { background: #f6faff; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .status { font-size: 13px; color: #53606b; }
+    .pill { display: inline-block; padding: 2px 7px; border-radius: 999px; background: #eef2f7; font-size: 12px; }
+    .allow { background: #dff7e8; color: #176c35; }
+    .deny { background: #fde7e7; color: #9f1d1d; }
+    dialog { width: min(960px, calc(100vw - 32px)); border: 1px solid #c7ced6; border-radius: 8px; padding: 0; }
+    dialog header { padding: 12px 14px; }
+    pre { margin: 0; padding: 14px; max-height: 70vh; overflow: auto; background: #0f1720; color: #dce7f3; font-size: 12px; }
+    @media (max-width: 980px) { .toolbar { grid-template-columns: 1fr 1fr; } table { display: block; overflow-x: auto; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentID Audit Console</h1>
+    <div class="status" id="status">Idle</div>
+  </header>
+  <main>
+    <section class="toolbar">
+      <label>API Key <input id="token" type="password" autocomplete="off" placeholder="Bearer token"></label>
+      <label>Type <select id="type"><option value="">All</option><option>agentid.decision</option><option>agentid.approval.created</option><option>agentid.approval.decided</option><option>agentid.jit.denied</option><option>agentid.jit.issued</option></select></label>
+      <label>Agent <input id="agent_id" placeholder="agent id"></label>
+      <label>Tool <input id="tool" placeholder="tool"></label>
+      <label>Approval <input id="approval_id" placeholder="approval id"></label>
+      <label>JIT Grant <input id="jit_grant_id" placeholder="grant id"></label>
+      <button id="refresh">Refresh</button>
+    </section>
+    <table>
+      <thead><tr><th>Received</th><th>Type</th><th>Decision</th><th>Agent</th><th>Tool</th><th>Approval</th><th>JIT Grant</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+  <dialog id="details">
+    <header><h1>Audit Event</h1><button id="close">Close</button></header>
+    <pre id="json"></pre>
+  </dialog>
+  <script>
+    const ids = ["token", "type", "agent_id", "tool", "approval_id", "jit_grant_id"];
+    const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+    const rows = document.getElementById("rows");
+    const status = document.getElementById("status");
+    const details = document.getElementById("details");
+    const json = document.getElementById("json");
+    el.token.value = sessionStorage.getItem("agentid.audit.token") || "";
+    document.getElementById("refresh").addEventListener("click", load);
+    document.getElementById("close").addEventListener("click", () => details.close());
+    async function load() {
+      sessionStorage.setItem("agentid.audit.token", el.token.value);
+      const params = new URLSearchParams({ limit: "100" });
+      for (const id of ids.slice(1)) if (el[id].value) params.set(id, el[id].value);
+      status.textContent = "Loading";
+      rows.innerHTML = "";
+      const response = await fetch("/audit/events?" + params.toString(), {
+        headers: el.token.value ? { authorization: "Bearer " + el.token.value } : {},
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        status.textContent = body.error || "Request failed";
+        return;
+      }
+      status.textContent = body.count + " events";
+      for (const event of body.events || []) {
+        const tr = document.createElement("tr");
+        const decision = event.allow === true ? '<span class="pill allow">allow</span>' : event.allow === false ? '<span class="pill deny">deny</span>' : "";
+        tr.innerHTML = "<td><code>" + esc(event.received_at || "") + "</code></td><td>" + esc(event.type || "") + "</td><td>" + decision + "</td><td>" + esc(event.agent_id || "") + "</td><td>" + esc(event.tool || "") + "</td><td><code>" + esc(event.approval_id || "") + "</code></td><td><code>" + esc(event.jit_grant_id || "") + "</code></td>";
+        tr.addEventListener("click", () => { json.textContent = JSON.stringify(event, null, 2); details.showModal(); });
+        rows.appendChild(tr);
+      }
+    }
+    function esc(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    }
+  </script>
+</body>
+</html>`;
 
 function empty(status = 204): Response {
   return new Response(null, { status, headers: cors({}) });

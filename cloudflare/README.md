@@ -17,6 +17,9 @@ allow/deny/JIT decisions before tool execution:
 | `POST /tenants/<tenant-id>/approval-requests` | Create a tenant-scoped approval request |
 | `POST /tenants/<tenant-id>/authorize` | Authorize against a tenant manifest from KV |
 | `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant after approval checks |
+| `GET /audit` | Open the audit console UI |
+| `GET /audit/events` | Read recent audit events with optional filters |
+| `POST /audit/webhook/agentid` | Receive AgentID audit webhook events |
 
 Approval requests and JIT grants are stored in a SQLite-backed Durable Object
 namespace. This keeps approval state and single-use grant enforcement durable
@@ -72,12 +75,28 @@ npx wrangler secret put AGENTID_API_KEY
 Optionally configure audit export. When `AGENTID_AUDIT_WEBHOOK_URL` is set,
 the Worker emits authorization decisions, approval events, and JIT grant events
 as JSON. `AGENTID_AUDIT_WEBHOOK_TOKEN` is optional and is sent as a bearer
-token when present.
+token when present. Set the URL to this Worker's audit webhook route to use the
+built-in audit console.
 
 ```bash
 npx wrangler secret put AGENTID_AUDIT_WEBHOOK_URL
 npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
 ```
+
+For this Worker, the webhook URL is:
+
+```text
+https://<worker-host>/audit/webhook/agentid
+```
+
+Open the console at:
+
+```text
+https://<worker-host>/audit
+```
+
+The event API uses the same bearer token as the gateway API. The incoming
+webhook route uses `AGENTID_AUDIT_WEBHOOK_TOKEN`.
 
 For the self-contained OIDC demo, set a shared demo signing secret on the
 gateway and demo Worker:
