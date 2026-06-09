@@ -639,6 +639,9 @@ Next:
 - Audit log normalization and a versioned decision-event spec for agent ID,
   user ID, tool, action, resource, job boundary, decision, findings, and JIT
   grant metadata
+- DevOps deployment-guard agent example that checks external preflight
+  conditions, binds the evidence to approval/JIT context, monitors canary
+  metrics after dispatch, and requires a separate scoped JIT grant for rollback
 - Revocation, approval callbacks, and richer audit trail controls for durable
   approval and JIT stores
 - Additional SDK and middleware helpers for Python, MCP gateways, HTTP apps, and
