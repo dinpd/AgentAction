@@ -16,7 +16,7 @@ defines the missing authorization contract for agent tool calls across SaaS
 apps, internal systems, cloud control planes, databases, provider-hosted tools,
 skills, and MCP gateways.
 
-![AgentPass gives MCP gateways an authorization contract](docs/AgentPassMCPAuthorizationContract.png)
+![AgentPass gives AI agents just-in-time authority](docs/AgentPassMCPAuthorizationContract.png)
 
 The core idea is simple:
 
