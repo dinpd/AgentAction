@@ -36,7 +36,7 @@ npm run build
 Start the AgentPass authorization service:
 
 ```bash
-agentid gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
+agentpass gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
 ```
 
 Start the adapter:

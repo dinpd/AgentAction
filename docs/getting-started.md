@@ -28,9 +28,9 @@ python -m pip install -e ".[dev]"
 Start with the included provider MCP support manifest:
 
 ```bash
-agentid validate examples/provider-mcp-support-agent.yaml
-agentid explain examples/provider-mcp-support-agent.yaml
-agentid risk-score examples/provider-mcp-support-agent.yaml
+agentpass validate examples/provider-mcp-support-agent.yaml
+agentpass explain examples/provider-mcp-support-agent.yaml
+agentpass risk-score examples/provider-mcp-support-agent.yaml
 ```
 
 The manifest declares:
@@ -47,7 +47,7 @@ The manifest declares:
 AgentPass ships a JSON Schema:
 
 ```bash
-agentid schema > schema/agentid.schema.json
+agentpass schema > schema/agentid.schema.json
 ```
 
 Add this to your manifest for editor validation:
@@ -61,7 +61,7 @@ $schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.s
 Generate starter OPA/Rego policy from a manifest:
 
 ```bash
-agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
 The manifest remains the portable source of truth. OPA is one target runtime
@@ -72,7 +72,7 @@ format for teams that already use Open Policy Agent.
 Generate the browser-based policy builder:
 
 ```bash
-agentid config-ui --output agentid-policy-builder.html
+agentpass config-ui --output agentpass-policy-builder.html
 ```
 
 Or use the hosted version:
@@ -85,7 +85,7 @@ requests.
 ## 6. Run the Gateway Locally
 
 ```bash
-agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
+agentpass gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 Then authorize a tool call:

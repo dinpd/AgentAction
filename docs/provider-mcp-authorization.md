@@ -167,7 +167,7 @@ For local validation and CI tests, providers can verify a receipt without
 running the mock server:
 
 ```bash
-agentid provider verify-receipt examples/provider-signed-receipt.json \
+agentpass provider verify-receipt examples/provider-signed-receipt.json \
   --secret dev-provider-receipt-secret \
   --require-signed \
   --tool provider.crm.update_customer \

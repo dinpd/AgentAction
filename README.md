@@ -111,13 +111,14 @@ If you are here for MCP provider authorization:
 git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass
 python -m pip install -e ".[dev]"
-agentid validate examples/provider-mcp-support-agent.yaml
-agentid risk-score examples/provider-mcp-support-agent.yaml
-agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentpass validate examples/provider-mcp-support-agent.yaml
+agentpass risk-score examples/provider-mcp-support-agent.yaml
+agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
-AgentPass currently keeps the legacy `agentid` CLI, Python package, schema
-filenames, environment variables, and receipt field names for compatibility.
+AgentPass installs `agentpass` as the primary CLI and keeps `agentid` as a
+legacy command alias. The Python package, schema filenames, environment
+variables, and receipt field names still use `agentid` for compatibility.
 
 Try the hosted demo:
 
@@ -316,27 +317,27 @@ for the receipt contract and execution plan.
 ## CLI
 
 ```bash
-agentid validate examples/provider-mcp-support-agent.yaml
-agentid explain examples/provider-mcp-support-agent.yaml
-agentid risk-score examples/provider-mcp-support-agent.yaml
-agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
-agentid audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
-agentid mcp analyze examples/mcp-tools-list-risky.json
-agentid mcp analyze examples/mcp-tools-list-risky.json --json
-agentid mcp fetch https://mcp.example.com/mcp --output tools-list.json
-agentid mcp check tools-list.json --max-risk high
-agentid mcp diff old-tools-list.json new-tools-list.json
-agentid mcp ui --output agentid-mcp-analyzer.html
-agentid mcp serve-ui --host 127.0.0.1 --port 8799
-agentid provider schema > schema/provider-mcp-contract.schema.json
-agentid provider validate examples/provider-mcp-contract.yaml
-agentid provider diff old-provider-contract.yaml new-provider-contract.yaml
-agentid provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
-agentid provider from-openapi examples/provider-openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
-agentid provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
-agentid schema > schema/agentid.schema.json
-agentid config-ui --output agentid-policy-builder.html
-agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
+agentpass validate examples/provider-mcp-support-agent.yaml
+agentpass explain examples/provider-mcp-support-agent.yaml
+agentpass risk-score examples/provider-mcp-support-agent.yaml
+agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentpass audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
+agentpass mcp analyze examples/mcp-tools-list-risky.json
+agentpass mcp analyze examples/mcp-tools-list-risky.json --json
+agentpass mcp fetch https://mcp.example.com/mcp --output tools-list.json
+agentpass mcp check tools-list.json --max-risk high
+agentpass mcp diff old-tools-list.json new-tools-list.json
+agentpass mcp ui --output agentpass-mcp-analyzer.html
+agentpass mcp serve-ui --host 127.0.0.1 --port 8799
+agentpass provider schema > schema/provider-mcp-contract.schema.json
+agentpass provider validate examples/provider-mcp-contract.yaml
+agentpass provider diff old-provider-contract.yaml new-provider-contract.yaml
+agentpass provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
+agentpass provider from-openapi examples/provider-openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
+agentpass provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
+agentpass schema > schema/agentid.schema.json
+agentpass config-ui --output agentpass-policy-builder.html
+agentpass gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 `config-ui` writes a self-contained browser UI for building an AgentPass manifest and starter OPA policy.
@@ -380,7 +381,7 @@ rule, default binding fields, allowed outcomes, and privacy-preserving basis
 handling so verifiers know how to interpret signed receipts.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](schema/agentid.schema.json)
-and can be emitted with `agentid schema`. Add this to a manifest for editor
+and can be emitted with `agentpass schema`. Add this to a manifest for editor
 validation:
 
 ```yaml
@@ -389,7 +390,7 @@ $schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.s
 
 The provider MCP contract JSON Schema is available at
 [`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
-and can be emitted with `agentid provider schema`. Add this to a provider
+and can be emitted with `agentpass provider schema`. Add this to a provider
 contract for editor validation:
 
 ```yaml

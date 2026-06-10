@@ -16,8 +16,8 @@ CI should answer four questions:
 ## Minimal Check
 
 ```bash
-python -m pip install "agentid @ git+https://github.com/dinpd/AgentPass.git@main"
-agentid provider validate provider-mcp-contract.yaml
+python -m pip install "agentpass @ git+https://github.com/dinpd/AgentPass.git@main"
+agentpass provider validate provider-mcp-contract.yaml
 ```
 
 This validates AgentPass's provider-specific rules. In particular, high-risk
@@ -37,7 +37,7 @@ tools must declare:
 Use the provider contract schema for editor and CI validation:
 
 ```bash
-agentid provider schema > provider-mcp-contract.schema.json
+agentpass provider schema > provider-mcp-contract.schema.json
 ```
 
 Contracts can also point at the hosted schema:
@@ -67,7 +67,7 @@ Draft202012Validator(schema).validate(contract)
 Compare a proposed contract against the reviewed contract on the base branch:
 
 ```bash
-agentid provider diff old-provider-mcp-contract.yaml provider-mcp-contract.yaml
+agentpass provider diff old-provider-mcp-contract.yaml provider-mcp-contract.yaml
 ```
 
 The diff reports:

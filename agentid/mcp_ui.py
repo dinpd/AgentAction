@@ -334,7 +334,7 @@ MCP_UI_HTML = r"""<!doctype html>
         <div class="row">
           <button id="fetchRemote">Fetch tools</button>
         </div>
-        <p class="hint">Remote fetch requires <code>agentid mcp serve-ui</code>. Headers stay on localhost.</p>
+        <p class="hint">Remote fetch requires <code>agentpass mcp serve-ui</code>. Headers stay on localhost.</p>
       </div>
       <textarea id="input" spellcheck="false" placeholder='{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'></textarea>
       <div class="row">
@@ -935,7 +935,7 @@ MCP_UI_HTML = r"""<!doctype html>
         currentDiff = null;
         render(analyzeTools(toolsFromPayload(payload.tools_list)));
       } catch (err) {
-        error.textContent = `${err.message} If this is the static HTML file, run agentid mcp serve-ui and open that local URL.`;
+        error.textContent = `${err.message} If this is the static HTML file, run agentpass mcp serve-ui and open that local URL.`;
       }
     });
 

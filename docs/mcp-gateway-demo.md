@@ -25,7 +25,7 @@ The demo takes about ten minutes and shows five behaviors:
 From the repo root in terminal 1:
 
 ```bash
-agentid gateway examples/provider-mcp-support-agent.yaml \
+agentpass gateway examples/provider-mcp-support-agent.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token

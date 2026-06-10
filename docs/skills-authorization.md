@@ -64,8 +64,8 @@ agentid_skill:
 Validate it with:
 
 ```bash
-agentid skill validate ./skills/support-refund-workflow
-agentid skill validate examples/skill-guardrail-contract.yaml
+agentpass skill validate ./skills/support-refund-workflow
+agentpass skill validate examples/skill-guardrail-contract.yaml
 ```
 
 The skill-local contract is not a permission grant. It is the skill's requested

@@ -39,25 +39,25 @@ It declares:
 Validate it before running the demo:
 
 ```bash
-agentid provider validate examples/provider-mcp-contract.yaml
+agentpass provider validate examples/provider-mcp-contract.yaml
 ```
 
 Emit the JSON Schema for editor or CI validation:
 
 ```bash
-agentid provider schema > schema/provider-mcp-contract.schema.json
+agentpass provider schema > schema/provider-mcp-contract.schema.json
 ```
 
 Compare reviewed versions before enabling updated provider tools:
 
 ```bash
-agentid provider diff old-provider-contract.yaml new-provider-contract.yaml
+agentpass provider diff old-provider-contract.yaml new-provider-contract.yaml
 ```
 
 Generate a reviewable enterprise AgentPass manifest starter:
 
 ```bash
-agentid provider import examples/provider-mcp-contract.yaml \
+agentpass provider import examples/provider-mcp-contract.yaml \
   --agent enterprise-support-agent \
   --output generated-agent.yaml
 ```
@@ -66,7 +66,7 @@ For providers starting from an existing OpenAPI document, generate a contract
 starter first:
 
 ```bash
-agentid provider from-openapi examples/provider-openapi.yaml \
+agentpass provider from-openapi examples/provider-openapi.yaml \
   --provider example-crm \
   --output provider-mcp-contract.yaml
 ```
@@ -84,7 +84,7 @@ OpenAPI description
 You can also verify a signed receipt fixture directly from the CLI:
 
 ```bash
-agentid provider verify-receipt examples/provider-signed-receipt.json \
+agentpass provider verify-receipt examples/provider-signed-receipt.json \
   --secret dev-provider-receipt-secret \
   --require-signed \
   --tenant tenant-a \
@@ -98,7 +98,7 @@ For JWS/JWKS receipts, pass the provider's trusted JWKS and expected issuer or
 audience:
 
 ```bash
-agentid provider verify-receipt receipt.json \
+agentpass provider verify-receipt receipt.json \
   --jwks enterprise-jwks.json \
   --issuer https://enterprise.example.com \
   --audience provider-crm-mcp \
@@ -108,7 +108,7 @@ agentid provider verify-receipt receipt.json \
 You can also trust a remote key set directly:
 
 ```bash
-agentid provider verify-receipt receipt.json \
+agentpass provider verify-receipt receipt.json \
   --jwks-uri https://enterprise.example.com/.well-known/jwks.json \
   --issuer https://enterprise.example.com \
   --audience provider-crm-mcp \
@@ -125,7 +125,7 @@ expiry.
 From the repo root in terminal 1:
 
 ```bash
-agentid gateway examples/provider-mcp-support-agent.yaml \
+agentpass gateway examples/provider-mcp-support-agent.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token
@@ -186,7 +186,7 @@ introspection rather than a static demo secret in config.
 The same receipt semantics are available in two places:
 
 - the TypeScript adapter helper at `mcp-gateway-adapter/src/receipts.ts`
-- the Python CLI verifier via `agentid provider verify-receipt`
+- the Python CLI verifier via `agentpass provider verify-receipt`
 
 ## 4. Read Call: Enterprise Allows, Provider Executes
 

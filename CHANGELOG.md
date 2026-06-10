@@ -33,12 +33,12 @@
   authorization, argument mapping, denial responses, and structured decision
   logs.
 - Added the MCP gateway adapter demo with a mock provider server.
-- Added `agentid mcp fetch` for fetching `tools/list` from HTTP MCP servers.
-- Added `agentid mcp analyze` for scoring saved MCP `tools/list` output.
-- Added `agentid mcp check` for CI-friendly MCP risk gates.
-- Added `agentid mcp diff` for detecting newly exposed tools and tool schema drift.
-- Added `agentid mcp ui` for writing a self-contained browser MCP analyzer.
-- Added `agentid mcp serve-ui` for localhost MCP analysis with local remote-fetch support.
+- Added `agentpass mcp fetch` for fetching `tools/list` from HTTP MCP servers.
+- Added `agentpass mcp analyze` for scoring saved MCP `tools/list` output.
+- Added `agentpass mcp check` for CI-friendly MCP risk gates.
+- Added `agentpass mcp diff` for detecting newly exposed tools and tool schema drift.
+- Added `agentpass mcp ui` for writing a self-contained browser MCP analyzer.
+- Added `agentpass mcp serve-ui` for localhost MCP analysis with local remote-fetch support.
 - Added MCP analyzer UI compare mode and Markdown report export.
 - Added MCP analyzer manifest snippet generation and JSON export support.
 - Added a sample MCP `tools/list` response for analyzer testing.

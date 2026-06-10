@@ -57,10 +57,10 @@ The authorization decision is bound to operational context:
 From the repository root:
 
 ```bash
-agentid provider validate solutions/devops-sre/provider-contract.yaml
-agentid validate solutions/devops-sre/enterprise-agent-manifest.yaml
-agentid mcp analyze solutions/devops-sre/tools-list.json
-agentid mcp check solutions/devops-sre/tools-list.json --max-risk critical
+agentpass provider validate solutions/devops-sre/provider-contract.yaml
+agentpass validate solutions/devops-sre/enterprise-agent-manifest.yaml
+agentpass mcp analyze solutions/devops-sre/tools-list.json
+agentpass mcp check solutions/devops-sre/tools-list.json --max-risk critical
 ```
 
 ## Runtime Flow
@@ -82,7 +82,7 @@ Actions dispatch, and audit-console visibility.
 Terminal 1: start the AgentPass authorization service.
 
 ```bash
-python -m agentid.cli gateway solutions/devops-sre/enterprise-agent-manifest.yaml \
+agentpass gateway solutions/devops-sre/enterprise-agent-manifest.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token

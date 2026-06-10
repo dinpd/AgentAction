@@ -368,19 +368,19 @@ Start with the provider demo:
 Useful commands:
 
 ```bash
-agentid provider schema > schema/provider-mcp-contract.schema.json
+agentpass provider schema > schema/provider-mcp-contract.schema.json
 
-agentid provider from-openapi examples/provider-openapi.yaml \
+agentpass provider from-openapi examples/provider-openapi.yaml \
   --provider example-crm \
   --output provider-mcp-contract.yaml
 
-agentid provider validate examples/provider-mcp-contract.yaml
+agentpass provider validate examples/provider-mcp-contract.yaml
 
-agentid provider import examples/provider-mcp-contract.yaml \
+agentpass provider import examples/provider-mcp-contract.yaml \
   --agent enterprise-support-agent \
   --output generated-agent.yaml
 
-agentid provider verify-receipt examples/provider-signed-receipt.json \
+agentpass provider verify-receipt examples/provider-signed-receipt.json \
   --secret dev-provider-receipt-secret \
   --require-signed \
   --tool provider.crm.update_customer \

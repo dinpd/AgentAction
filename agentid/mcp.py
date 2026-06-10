@@ -178,7 +178,7 @@ def fetch_tools_list(
                 "params": {
                     "protocolVersion": protocol_version,
                     "capabilities": {},
-                    "clientInfo": {"name": "agentid", "version": "0.2.0"},
+                    "clientInfo": {"name": "agentpass", "version": "0.2.0"},
                 },
             },
             request_headers,

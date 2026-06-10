@@ -48,7 +48,7 @@ from agentid.skill import SkillContractError, load_skill_contract, validate_skil
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="agentid",
+        prog="agentpass",
         description="Validate, explain, score, generate policy for, and audit AI agent authority manifests.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("schema", help="Print the AgentPass JSON Schema.")
 
     config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
-    config_ui_parser.add_argument("--output", default="agentid-policy-builder.html")
+    config_ui_parser.add_argument("--output", default="agentpass-policy-builder.html")
 
     gateway_parser = subparsers.add_parser("gateway", help="Run the AgentPass authorization gateway.")
     gateway_parser.add_argument("manifest")
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     mcp_check_parser.add_argument("--fail-on-drift", action="store_true")
     mcp_check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mcp_ui_parser = mcp_subparsers.add_parser("ui", help="Write the browser-based MCP analyzer UI.")
-    mcp_ui_parser.add_argument("--output", default="agentid-mcp-analyzer.html")
+    mcp_ui_parser.add_argument("--output", default="agentpass-mcp-analyzer.html")
     mcp_fetch_parser = mcp_subparsers.add_parser("fetch", help="Fetch tools/list from an HTTP MCP server.")
     mcp_fetch_parser.add_argument("url")
     mcp_fetch_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
