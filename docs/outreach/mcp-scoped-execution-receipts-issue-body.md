@@ -138,11 +138,11 @@ provider execution.
 
 ## Related implementation
 
-I have been working on AgentID, which implements this as provider-published MCP
+I have been working on AgentPass, which implements this as provider-published MCP
 authorization contracts, short-lived JIT grants, signed authorization receipts,
 provider-side receipt verification, and provider execution receipts.
 
-Reference: https://github.com/dinpd/AgentID/blob/main/docs/provider-mcp-authorization.md
+Reference: https://github.com/dinpd/AgentPass/blob/main/docs/provider-mcp-authorization.md
 
 If this pattern fits the project direction, I can turn this into a small docs PR
 as an example/security consideration rather than a normative protocol change.

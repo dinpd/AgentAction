@@ -359,7 +359,7 @@ def serve(manifest_path: str | Path, host: str, port: int, api_key: str | None =
     gateway = AgentGateway(load_manifest(manifest_path))
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AgentIDGateway/0.1"
+        server_version = "AgentPassGateway/0.1"
 
         def do_GET(self) -> None:
             if not self._authorized():
@@ -493,7 +493,7 @@ def serve(manifest_path: str | Path, host: str, port: int, api_key: str | None =
             self.send_header("access-control-allow-headers", "authorization, content-type")
 
     httpd = ThreadingHTTPServer((host, port), Handler)
-    print(f"AgentID gateway listening on http://{host}:{port}")
+    print(f"AgentPass gateway listening on http://{host}:{port}")
     httpd.serve_forever()
 
 

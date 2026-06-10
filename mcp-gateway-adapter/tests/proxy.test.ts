@@ -29,7 +29,7 @@ test("filters tools/list to configured tools", async () => {
   });
 });
 
-test("denies tools/call when AgentID denies", async () => {
+test("denies tools/call when AgentPass denies", async () => {
   const calls: string[] = [];
   const logs: AuthorizationDecisionLog[] = [];
   const response = await handleJsonRpc(
@@ -75,7 +75,7 @@ test("denies tools/call when AgentID denies", async () => {
     id: 2,
     error: {
       code: -32003,
-      message: "AgentID denied MCP tool call",
+      message: "AgentPass denied MCP tool call",
       data: {
         findings: ["blocked"],
         event: { tool: "provider.crm.search_customer" },
@@ -84,7 +84,7 @@ test("denies tools/call when AgentID denies", async () => {
   });
 });
 
-test("forwards tools/call when AgentID allows", async () => {
+test("forwards tools/call when AgentPass allows", async () => {
   const calls: string[] = [];
   const logs: AuthorizationDecisionLog[] = [];
   let forwardedRequest: any;

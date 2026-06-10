@@ -4,7 +4,7 @@ import test from "node:test";
 import { mapToolCallToAuthorize } from "../src/mapper.ts";
 import type { AdapterConfig } from "../src/types.ts";
 
-test("maps MCP tool arguments to AgentID authorize payload", () => {
+test("maps MCP tool arguments to AgentPass authorize payload", () => {
   const payload = mapToolCallToAuthorize(config, "provider.crm.update_customer", {
     customer_id: "cus_123",
     job_id: "support_case_resolution",

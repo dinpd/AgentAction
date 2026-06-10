@@ -51,4 +51,4 @@ def test_skill_capability_manifest_matches_json_schema():
 def test_schema_cli_payload_is_json():
     payload = json.loads(schema_json())
 
-    assert payload["title"] == "AgentID Manifest"
+    assert payload["title"] == "AgentPass Manifest"

@@ -1,18 +1,18 @@
 # MCP Gateway Integration
 
-AgentID is a natural fit for enterprise-controlled MCP gateways. The gateway
+AgentPass is a natural fit for enterprise-controlled MCP gateways. The gateway
 already sits between an agent and tools, so it is the right place to ask whether
 a tool call should proceed.
 
 ```text
-Enterprise Agent -> Enterprise MCP Gateway -> AgentID Check -> Internal or Provider MCP Server
+Enterprise Agent -> Enterprise MCP Gateway -> AgentPass Check -> Internal or Provider MCP Server
 ```
 
-AgentID is not required to be the network gateway or MCP proxy. In this
-topology, the enterprise MCP gateway or app runtime calls AgentID as an
+AgentPass is not required to be the network gateway or MCP proxy. In this
+topology, the enterprise MCP gateway or app runtime calls AgentPass as an
 authorization decision service before forwarding tool calls.
 
-The enterprise owns the gateway and the AgentID manifest. The downstream MCP
+The enterprise owns the gateway and the AgentPass manifest. The downstream MCP
 server may be an internal enterprise server or a provider-hosted server.
 
 ## Why This Matters
@@ -28,7 +28,7 @@ control point for:
 - Which tool changes count as unreviewed drift.
 - Which audit events the enterprise keeps independently of the provider.
 
-AgentID supplies the reviewable authority contract and runtime check for that
+AgentPass supplies the reviewable authority contract and runtime check for that
 control point.
 
 ## Request Flow
@@ -37,21 +37,21 @@ control point.
 sequenceDiagram
     participant Agent as Enterprise Agent
     participant MCP as Enterprise MCP Gateway
-    participant AgentID as AgentID Authorization Service
+    participant AgentPass as AgentPass Authorization Service
     participant Server as MCP Server
     participant Tool as Tool
 
     Agent->>MCP: MCP tools/call
-    MCP->>MCP: Map tool name and arguments to AgentID event
-    MCP->>AgentID: POST /authorize
-    AgentID-->>MCP: allow/deny + findings
+    MCP->>MCP: Map tool name and arguments to AgentPass event
+    MCP->>AgentPass: POST /authorize
+    AgentPass-->>MCP: allow/deny + findings
     alt allowed
         MCP->>Server: Forward MCP tools/call
         Server->>Tool: Execute tool
         Server-->>MCP: Tool result
         MCP-->>Agent: Tool result
     else denied
-        MCP-->>Agent: MCP tool error with AgentID findings
+        MCP-->>Agent: MCP tool error with AgentPass findings
     end
 ```
 
@@ -59,13 +59,13 @@ For sensitive calls, the gateway should request or require a JIT grant before
 forwarding the MCP call:
 
 ```text
-MCP Gateway -> AgentID /jit-grants -> AgentID /authorize with jit_grant_id -> MCP Server
+MCP Gateway -> AgentPass /jit-grants -> AgentPass /authorize with jit_grant_id -> MCP Server
 ```
 
-## Mapping MCP Calls to AgentID
+## Mapping MCP Calls to AgentPass
 
 An MCP `tools/call` request has a tool name and arguments. The gateway maps
-those into an AgentID authorization event:
+those into an AgentPass authorization event:
 
 ```json
 {
@@ -124,7 +124,7 @@ reference MCP gateway adapter should support.
 
 ## Manifest Pattern
 
-The corresponding AgentID manifest should declare downstream MCP tools explicitly:
+The corresponding AgentPass manifest should declare downstream MCP tools explicitly:
 
 ```yaml
 tools:
@@ -156,7 +156,7 @@ for a complete example.
 
 ## Boundary of Responsibility
 
-AgentID controls the enterprise-side authorization decision before the gateway
+AgentPass controls the enterprise-side authorization decision before the gateway
 forwards the call:
 
 - Agent identity.
@@ -175,7 +175,7 @@ The downstream MCP server still controls its own behavior:
 - Tool implementation.
 - Server audit and retention.
 
-Use both. AgentID prevents unapproved outbound calls from the enterprise gateway
+Use both. AgentPass prevents unapproved outbound calls from the enterprise gateway
 or app runtime; internal systems and providers still enforce their own platform
 rules.
 
@@ -199,8 +199,8 @@ The repository includes a minimal reference adapter in
 
 - Proxy `tools/list` from a downstream MCP server.
 - Intercept `tools/call`.
-- Map tool name and arguments to an AgentID authorization event.
-- Call AgentID `/authorize`.
+- Map tool name and arguments to an AgentPass authorization event.
+- Call AgentPass `/authorize`.
 - Return an MCP tool error on deny.
 - Forward the call to the downstream MCP server on allow.
 

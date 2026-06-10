@@ -8,7 +8,7 @@ MCP_UI_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentID MCP Analyzer</title>
+  <title>AgentPass MCP Analyzer</title>
   <style>
     :root {
       color-scheme: light;
@@ -311,7 +311,7 @@ MCP_UI_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentID MCP Analyzer</h1>
+    <h1>AgentPass MCP Analyzer</h1>
     <div class="row">
       <button id="loadSample">Load sample</button>
       <button id="exportJson" disabled>Export JSON</button>
@@ -720,7 +720,7 @@ MCP_UI_HTML = r"""<!doctype html>
           ${list(selectedTool.remediation)}
         </div>
         <div>
-          <h2>AgentID Manifest Snippet</h2>
+          <h2>AgentPass Manifest Snippet</h2>
           <pre>${escapeHtml(manifestSnippet(selectedTool))}</pre>
         </div>
       `;
@@ -793,7 +793,7 @@ MCP_UI_HTML = r"""<!doctype html>
         .slice(0, 8)
         .map((tool) => `- ${tool.name}: ${tool.risk_score}/100 (${tool.risk_label}, ${tool.action})`);
       const lines = [
-        "# AgentID MCP Analysis",
+        "# AgentPass MCP Analysis",
         "",
         `Risk score: ${currentAnalysis.risk_score}/100 (${currentAnalysis.risk_label})`,
         `Tools analyzed: ${currentAnalysis.tool_count}`,
@@ -813,7 +813,7 @@ MCP_UI_HTML = r"""<!doctype html>
         "- Bind authorization to user, agent, job, resource, and time window.",
         "- Log decisions and track tool drift in CI.",
         "",
-        "## Starter AgentID Manifest Snippet",
+        "## Starter AgentPass Manifest Snippet",
         "```yaml",
         reportManifestSnippet(currentAnalysis),
         "```"
@@ -844,7 +844,7 @@ MCP_UI_HTML = r"""<!doctype html>
       if (["secrets", "identity/access", "admin"].some((category) => categories.has(category))) {
         remediation.push("add audit logging and a kill-switch for this capability");
       }
-      if (!remediation.length) remediation.push("declare this tool in an AgentID manifest and audit usage");
+      if (!remediation.length) remediation.push("declare this tool in an AgentPass manifest and audit usage");
       return remediation;
     }
 

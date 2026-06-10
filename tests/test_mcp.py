@@ -143,7 +143,7 @@ def test_mcp_ui_writer_creates_browser_analyzer(tmp_path):
     output = write_mcp_ui(tmp_path / "mcp-analyzer.html")
     html = output.read_text(encoding="utf-8")
 
-    assert "AgentID MCP Analyzer" in html
+    assert "AgentPass MCP Analyzer" in html
     assert "Analysis runs in this browser tab" in html
     assert "Compare Drift" in html
     assert "Copy Markdown" in html
@@ -159,7 +159,7 @@ def test_cli_mcp_ui(tmp_path, capsys):
 
     assert code == 0
     assert "Wrote MCP analyzer UI" in capsys.readouterr().out
-    assert "AgentID MCP Analyzer" in output.read_text(encoding="utf-8")
+    assert "AgentPass MCP Analyzer" in output.read_text(encoding="utf-8")
 
 
 def test_fetch_tools_list_initializes_and_lists_tools():

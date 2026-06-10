@@ -65,7 +65,7 @@ export class AgentIdDeniedError extends Error {
   response: AuthorizeResponse;
 
   constructor(response: AuthorizeResponse) {
-    super(`AgentID denied tool call: ${response.findings.join("; ") || response.decision}`);
+    super(`AgentPass denied tool call: ${response.findings.join("; ") || response.decision}`);
     this.name = "AgentIdDeniedError";
     this.response = response;
   }
@@ -76,7 +76,7 @@ export class AgentIdHttpError extends Error {
   body: unknown;
 
   constructor(status: number, body: unknown) {
-    super(`AgentID gateway request failed with status ${status}`);
+    super(`AgentPass gateway request failed with status ${status}`);
     this.name = "AgentIdHttpError";
     this.status = status;
     this.body = body;

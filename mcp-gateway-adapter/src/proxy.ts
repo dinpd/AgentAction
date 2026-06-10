@@ -68,7 +68,7 @@ async function handleSingle(
   const decision = await agentid.authorize(authorizePayload);
   context.logger?.(authorizationLog(authorizePayload, decision));
   if (!decision.allow) {
-    return errorResponse(request.id, DENIED, "AgentID denied MCP tool call", {
+    return errorResponse(request.id, DENIED, "AgentPass denied MCP tool call", {
       findings: decision.findings,
       event: decision.event,
     });

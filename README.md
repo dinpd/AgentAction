@@ -1,22 +1,22 @@
-# AgentID
+# AgentPass
 
 **Just-in-time authority for high-risk AI agent tool actions.**
 
-AgentID helps platform, SRE, security, MCP gateway, and SaaS provider teams
+AgentPass helps platform, SRE, security, MCP gateway, and SaaS provider teams
 avoid giving agents standing authority over production systems, customer data,
 payments, external sends, secrets, and administrative tools.
 
-AgentID answers one runtime question:
+AgentPass answers one runtime question:
 
 > Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
 
 OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
-package workflows and supporting instructions. AgentID
+package workflows and supporting instructions. AgentPass
 defines the missing authorization contract for agent tool calls across SaaS
 apps, internal systems, cloud control planes, databases, provider-hosted tools,
 skills, and MCP gateways.
 
-![AgentID gives MCP gateways an authorization contract](docs/AgentIDMCPAuthorizationContract.png)
+![AgentPass gives MCP gateways an authorization contract](docs/AgentPassMCPAuthorizationContract.png)
 
 The core idea is simple:
 
@@ -24,11 +24,11 @@ The core idea is simple:
 > who owns it, what it can request, when authority should be issued just in
 > time, where data can flow, when it needs approval, and how it can be stopped.
 
-AgentID does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
+AgentPass does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
 ## Core Concepts
 
-AgentID separates three concepts that are often blurred in agent systems:
+AgentPass separates three concepts that are often blurred in agent systems:
 
 ```text
 Skill = workflow package
@@ -44,17 +44,17 @@ Flow = data movement boundary
 - **Skill:** a reusable workflow package that may call one or more tools, such
   as `support-refund-workflow`. Skill policy answers whether the agent may
   activate that workflow and which downstream tools it may invoke through
-  `may_invoke`. A skill-carried AgentID contract is a requested authority
+  `may_invoke`. A skill-carried AgentPass contract is a requested authority
   envelope, not a permission grant.
 - **Flow:** a source-to-destination data boundary, such as
   `provider_crm -> agent_context` or `customer_records -> external_email`.
   Flow policy answers where data may move and which destinations are blocked.
 
-AgentID needs all three because they catch different failure modes: tool policy
+AgentPass needs all three because they catch different failure modes: tool policy
 stops dangerous operations, skill policy stops workflow escalation, and flow
 policy stops data moving to the wrong place.
 
-## Who AgentID is for
+## Who AgentPass is for
 
 - **Platform engineering and SRE teams** letting agents inspect systems while
   gating production deploys, rollbacks, Terraform applies, Kubernetes changes,
@@ -69,14 +69,14 @@ policy stops data moving to the wrong place.
 - **API platform and monetization teams** preserving entitlements, quotas,
   metering, and billing controls as APIs become agent-callable tools.
 - **Skill authors and platform teams** packaging reusable workflows with
-  explicit AgentID guardrails.
+  explicit AgentPass guardrails.
 
-For gateway deployments, AgentID is meant to run at an enterprise-controlled
+For gateway deployments, AgentPass is meant to run at an enterprise-controlled
 boundary as the authorization decision service, not necessarily as the network
 gateway or MCP proxy:
 
 ```text
-Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentID Check -> Internal, SaaS, or MCP Tool
+Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentPass Check -> Internal, SaaS, or MCP Tool
 ```
 
 The DevOps/SRE solution pack shows one concrete deployment pattern: agents can
@@ -85,7 +85,7 @@ just-in-time authority, approval, and audit. The same model applies to SaaS and
 provider MCP tools where reads are low-friction and writes, refunds, exports,
 sends, deletes, admin changes, and high-cost actions require stronger controls.
 
-For providers turning APIs into MCP servers, AgentID also defines an
+For providers turning APIs into MCP servers, AgentPass also defines an
 auth-first pattern: publish a provider MCP authorization contract, let
 enterprises review and overlay local agent policy, require scoped receipts for
 high-blast-radius actions, and keep provider business authorization in the
@@ -108,13 +108,16 @@ If you are here for MCP provider authorization:
 ## Quick Start
 
 ```bash
-git clone https://github.com/dinpd/AgentID.git
-cd AgentID
+git clone https://github.com/dinpd/AgentPass.git
+cd AgentPass
 python -m pip install -e ".[dev]"
 agentid validate examples/provider-mcp-support-agent.yaml
 agentid risk-score examples/provider-mcp-support-agent.yaml
 agentid generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
+
+AgentPass currently keeps the legacy `agentid` CLI, Python package, schema
+filenames, environment variables, and receipt field names for compatibility.
 
 Try the hosted demo:
 
@@ -151,7 +154,7 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 Most agent projects define tools and credentials in ad hoc config files. As
 agents move into production, those tools span internal services, SaaS APIs, MCP
 servers, cloud control planes, databases, and provider-hosted capabilities.
-AgentID gives teams a local policy checkpoint before those calls execute.
+AgentPass gives teams a local policy checkpoint before those calls execute.
 
 What is often missing is a clear answer to:
 
@@ -167,23 +170,23 @@ What is often missing is a clear answer to:
 - What should be logged?
 - How can it be stopped?
 
-AgentID turns those questions into a small manifest that can be reviewed by developers, security teams, platform teams, and product owners.
+AgentPass turns those questions into a small manifest that can be reviewed by developers, security teams, platform teams, and product owners.
 
-AgentID can also describe how callers authenticate to a gateway. The `oidc`
-section maps customer identity-provider claims to AgentID concepts such as
+AgentPass can also describe how callers authenticate to a gateway. The `oidc`
+section maps customer identity-provider claims to AgentPass concepts such as
 tenant, user, and agent, then declares the scopes required to authorize tool
 calls, read policies, or issue JIT grants.
 
-AgentID can also carry optional distributed identity metadata. A manifest may
+AgentPass can also carry optional distributed identity metadata. A manifest may
 bind an agent to a DID, declare trusted issuers, and include VC-style
 attestations for security review, provider approval, compliance status, or
 operational readiness. These fields are evidence inputs for runtime policy; they
-do not replace AgentID's action-level authorization decision. See
+do not replace AgentPass's action-level authorization decision. See
 [`docs/standards-alignment.md`](docs/standards-alignment.md).
 
 ## Positioning in one minute
 
-AgentID sits between agent identity and tool execution.
+AgentPass sits between agent identity and tool execution.
 
 It does not replace OAuth, IAM, OPA, Cedar, OpenFGA, MCP authorization, or
 provider business rules. It gives those systems a shared contract for agent
@@ -205,7 +208,7 @@ Identity is necessary, but not sufficient.
 
 A valid agent identity does not imply a valid action. An agent can have the right token and still take the wrong action because the task was ambiguous, the context was poisoned, or a downstream tool interpreted the request differently.
 
-AgentID treats identity as the foundation, runtime authorization as the control plane, and audit as the accountability layer.
+AgentPass treats identity as the foundation, runtime authorization as the control plane, and audit as the accountability layer.
 
 The manifest should not be treated as a broad permission grant. It should be treated as an **eligibility contract**: what the agent may request, under what conditions, for how long, and with what approval.
 
@@ -215,7 +218,7 @@ For sensitive actions, actual authority should be issued **just in time** and bo
 
 ## Authority model
 
-AgentID models agent authority as a runtime decision, not a static role.
+AgentPass models agent authority as a runtime decision, not a static role.
 
 ```mermaid
 flowchart LR
@@ -230,7 +233,7 @@ flowchart LR
     Identity --> Job --> Tool --> Flow --> Approval --> Delegation --> Decision
 ```
 
-At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentID
+At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentPass
 decision endpoint before tool execution. In MCP deployments, the enterprise MCP
 gateway performs this check before forwarding a `tools/call` request to an
 internal or provider MCP server. The gateway evaluates:
@@ -251,13 +254,13 @@ the tool.
 
 ## Two-sided MCP authorization
 
-For provider-hosted MCP tools, AgentID supports a two-sided authorization
+For provider-hosted MCP tools, AgentPass supports a two-sided authorization
 pattern:
 
 ```text
 Enterprise Agent
   -> Enterprise MCP Gateway
-  -> AgentID enterprise authorization
+  -> AgentPass enterprise authorization
   -> Provider MCP Server
   -> Provider receipt verification
   -> Provider business authorization
@@ -302,7 +305,7 @@ support agents:
 - `provider.billing.issue_credit` should require stronger approval, amount
   limits, and provider-side business checks.
 
-This keeps the enterprise and provider responsibilities separate: AgentID
+This keeps the enterprise and provider responsibilities separate: AgentPass
 proves the enterprise authorized the agent-originated request, while the
 provider still decides whether the underlying business operation may execute.
 See [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
@@ -336,7 +339,7 @@ agentid config-ui --output agentid-policy-builder.html
 agentid gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
-`config-ui` writes a self-contained browser UI for building an AgentID manifest and starter OPA policy.
+`config-ui` writes a self-contained browser UI for building an AgentPass manifest and starter OPA policy.
 
 `mcp fetch` connects to an HTTP MCP server, performs the MCP initialize flow,
 calls `tools/list`, and writes the JSON response for analysis. `mcp analyze`
@@ -348,7 +351,7 @@ responses to detect newly exposed tools, schema changes, and increased tool
 risk. `mcp ui` writes a self-contained browser analyzer with paste/upload
 analysis, compare mode, Markdown reports, JSON export, and starter manifest
 exports. `mcp serve-ui` serves the same analyzer on localhost with a local-only
-fetch endpoint, so the UI can ask the AgentID CLI process to fetch a remote MCP
+fetch endpoint, so the UI can ask the AgentPass CLI process to fetch a remote MCP
 server without sending credentials to a hosted page.
 
 `provider validate` checks provider-published MCP authorization contracts for
@@ -358,7 +361,7 @@ receipt binding fields, JIT and approval expectations, receipt TTL, and
 single-use requirements. `provider diff` compares two provider contracts for
 added, removed, and changed tools, including risk increases, changed protected
 resources, changed receipt bindings, changed TTLs, and input-schema drift.
-`provider import` turns a provider contract into a reviewable AgentID manifest
+`provider import` turns a provider contract into a reviewable AgentPass manifest
 starter that enterprises can tighten with local agent, job, approval, OIDC, and
 data-flow policy. `provider from-openapi` creates a provider MCP authorization
 contract starter from an OpenAPI document, inferring operation names, resource
@@ -381,7 +384,7 @@ and can be emitted with `agentid schema`. Add this to a manifest for editor
 validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json
 ```
 
 The provider MCP contract JSON Schema is available at
@@ -390,20 +393,20 @@ and can be emitted with `agentid provider schema`. Add this to a provider
 contract for editor validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
 ```
 
-AgentID also ships a GitHub Action for PR checks:
+AgentPass also ships a GitHub Action for PR checks:
 
 ```yaml
-name: AgentID
+name: AgentPass
 on: [pull_request]
 jobs:
-  agentid:
+  agentpass:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dinpd/AgentID@main
+      - uses: dinpd/AgentPass@main
         with:
           manifests: "agents/*.yaml"
           max-risk: "75"
@@ -452,14 +455,14 @@ GitHub Actions deployment workflow.
 ## MCP Gateway Adapter
 
 The reference adapter in [`mcp-gateway-adapter/`](mcp-gateway-adapter/) shows
-how an enterprise MCP gateway can enforce AgentID before forwarding tool calls:
+how an enterprise MCP gateway can enforce AgentPass before forwarding tool calls:
 
 ```text
-MCP client -> MCP gateway adapter -> AgentID /authorize -> downstream MCP server
+MCP client -> MCP gateway adapter -> AgentPass /authorize -> downstream MCP server
 ```
 
 It accepts HTTP JSON-RPC requests, filters `tools/list`, intercepts
-`tools/call`, maps MCP tool arguments to AgentID fields such as `job_id`,
+`tools/call`, maps MCP tool arguments to AgentPass fields such as `job_id`,
 `case_id`, `customer_id`, `resource`, `data_from`, and `data_to`, then returns
 an MCP error on deny or forwards the call on allow.
 
@@ -481,22 +484,22 @@ for the enterprise gateway and provider-side authorization patterns.
 
 The hosted gateway-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
-It shows the broader AgentID model in two concrete flows: a SaaS support app
-consulting AgentID before refund actions, and an MCP gateway checking provider
+It shows the broader AgentPass model in two concrete flows: a SaaS support app
+consulting AgentPass before refund actions, and an MCP gateway checking provider
 CRM tool calls before forwarding them. The MCP flow filters provider tools,
 allows a declared CRM read, denies a CRM write without JIT, and then allows the
 write after a scoped grant. The demo Worker mints a short-lived OIDC-style JWT
 server-side, and the gateway validates its claims against the tenant manifest.
 Demo source lives in [`demo/`](demo/).
 
-![AgentID Gateway Control Demo](docs/AgentIDRefundControlDemo.png)
+![AgentPass Gateway Control Demo](docs/AgentPassRefundControlDemo.png)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant App as App / Agent Runtime / MCP Gateway
     participant IdP as Customer IdP
-    participant Gateway as AgentID Gateway
+    participant Gateway as AgentPass Gateway
     participant KV as Tenant Manifest Store
     participant DO as Approval/JIT Store
     participant Tool as Downstream Tool
@@ -586,7 +589,7 @@ Implemented:
 - CI-friendly MCP risk check for maximum allowed risk and drift findings
 - MCP tool drift diff for newly exposed tools and schema changes
 - Browser/local MCP analyzer UI for pasted or uploaded `tools/list` JSON,
-  Markdown reports, JSON export, and starter AgentID manifest export
+  Markdown reports, JSON export, and starter AgentPass manifest export
 - Local MCP analyzer UI server with localhost remote-fetch support
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Provider-side MCP authorization guide with CRM/billing use case, receipt
@@ -625,7 +628,7 @@ Next:
 - MCP blast-radius analyzer improvements for authorization posture, data-flow
   exposure, manifest snippet generation, and live gateway metadata
 - Browser/local MCP analyzer UI improvements for richer blast-radius summaries,
-  remote fetch options, and generated AgentID manifest snippets
+  remote fetch options, and generated AgentPass manifest snippets
 - Hosted MCP analyzer demo after the local/browser workflow is useful, with a
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default

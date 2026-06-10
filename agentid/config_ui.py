@@ -8,7 +8,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentID Policy Builder</title>
+  <title>AgentPass Policy Builder</title>
   <style>
     :root {
       color-scheme: light;
@@ -231,7 +231,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentID Policy Builder</h1>
+    <h1>AgentPass Policy Builder</h1>
     <div class="toolbar">
       <button id="addTool">Add tool</button>
       <button id="addSkill">Add skill</button>
@@ -287,7 +287,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
           <label>Provider<input id="mcpProvider" value="example-crm"></label>
           <label>Downstream server<input id="mcpServer" value="provider-crm-mcp"></label>
         </div>
-        <p class="hint">The generated mapping derives AgentID fields from MCP tool arguments such as job_id, case_id, and customer_id.</p>
+        <p class="hint">The generated mapping derives AgentPass fields from MCP tool arguments such as job_id, case_id, and customer_id.</p>
       </section>
 
       <section>

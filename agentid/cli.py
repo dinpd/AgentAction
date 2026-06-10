@@ -53,37 +53,37 @@ def main(argv: list[str] | None = None) -> int:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    validate_parser = subparsers.add_parser("validate", help="Validate an AgentID manifest.")
+    validate_parser = subparsers.add_parser("validate", help="Validate an AgentPass manifest.")
     validate_parser.add_argument("manifest")
 
-    explain_parser = subparsers.add_parser("explain", help="Explain an AgentID manifest in plain English.")
+    explain_parser = subparsers.add_parser("explain", help="Explain an AgentPass manifest in plain English.")
     explain_parser.add_argument("manifest")
 
-    risk_parser = subparsers.add_parser("risk-score", help="Generate a rough risk score for an AgentID manifest.")
+    risk_parser = subparsers.add_parser("risk-score", help="Generate a rough risk score for an AgentPass manifest.")
     risk_parser.add_argument("manifest")
 
-    policy_parser = subparsers.add_parser("generate-policy", help="Generate starter policy from an AgentID manifest.")
+    policy_parser = subparsers.add_parser("generate-policy", help="Generate starter policy from an AgentPass manifest.")
     policy_parser.add_argument("manifest")
     policy_parser.add_argument("--target", choices=["opa"], default="opa")
 
-    subparsers.add_parser("schema", help="Print the AgentID JSON Schema.")
+    subparsers.add_parser("schema", help="Print the AgentPass JSON Schema.")
 
     config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
     config_ui_parser.add_argument("--output", default="agentid-policy-builder.html")
 
-    gateway_parser = subparsers.add_parser("gateway", help="Run the AgentID authorization gateway.")
+    gateway_parser = subparsers.add_parser("gateway", help="Run the AgentPass authorization gateway.")
     gateway_parser.add_argument("manifest")
     gateway_parser.add_argument("--host", default="127.0.0.1")
     gateway_parser.add_argument("--port", type=int, default=8787)
     gateway_parser.add_argument("--api-key", default=os.environ.get("AGENTID_GATEWAY_API_KEY"))
 
-    audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentID manifest.")
+    audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentPass manifest.")
     audit_parser.add_argument("audit_log")
     audit_parser.add_argument("--manifest", required=True)
 
-    skill_parser = subparsers.add_parser("skill", help="Work with skill-local AgentID guardrail contracts.")
+    skill_parser = subparsers.add_parser("skill", help="Work with skill-local AgentPass guardrail contracts.")
     skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
-    skill_validate_parser = skill_subparsers.add_parser("validate", help="Validate a skill AgentID guardrail contract.")
+    skill_validate_parser = skill_subparsers.add_parser("validate", help="Validate a skill AgentPass guardrail contract.")
     skill_validate_parser.add_argument("skill", help="Skill directory, SKILL.md, or agentid skill contract YAML.")
 
     mcp_parser = subparsers.add_parser("mcp", help="Analyze MCP tool surfaces.")
@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     provider_diff_parser.add_argument("before")
     provider_diff_parser.add_argument("after")
     provider_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    provider_import_parser = provider_subparsers.add_parser("import", help="Generate a reviewable AgentID manifest from a provider contract.")
+    provider_import_parser = provider_subparsers.add_parser("import", help="Generate a reviewable AgentPass manifest from a provider contract.")
     provider_import_parser.add_argument("contract")
     provider_import_parser.add_argument("--agent", required=True, help="Agent ID for the generated manifest.")
     provider_import_parser.add_argument("--name", help="Agent display name for the generated manifest.")
@@ -302,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 with open(args.output, "w", encoding="utf-8") as handle:
                     handle.write(output)
-                print(f"Wrote AgentID manifest: {args.output}")
+                print(f"Wrote AgentPass manifest: {args.output}")
             return 0
         if args.provider_command == "from-openapi":
             try:
@@ -386,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.skill_command == "validate":
             result = validate_skill_contract(contract)
             if result.ok:
-                print("Skill AgentID guardrail contract is valid.")
+                print("Skill AgentPass guardrail contract is valid.")
             _print_validation(result, include_success=False)
             return 0 if result.ok else 1
 

@@ -8,7 +8,7 @@ export function mapToolCallToAuthorize(
 ): AgentIdAuthorizeRequest {
   const mapping = config.tools[toolName];
   if (!mapping) {
-    throw new Error(`No AgentID mapping configured for MCP tool: ${toolName}`);
+    throw new Error(`No AgentPass mapping configured for MCP tool: ${toolName}`);
   }
 
   return compactPayload({

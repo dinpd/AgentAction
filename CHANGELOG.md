@@ -49,9 +49,9 @@
   out-of-scope checks.
 - Added scoped agent-to-agent delegation checks for allowed agents, delegated
   tools, depth, and approvals.
-- Added skill capability guardrails for skill-carried AgentID contracts and
+- Added skill capability guardrails for skill-carried AgentPass contracts and
   allowed downstream tool invocation.
-- Clarified AgentID core concepts around skills, tools, flows, runtime
+- Clarified AgentPass core concepts around skills, tools, flows, runtime
   authorization, and provider business authorization.
 
 ### Docs, standards, and positioning
@@ -79,7 +79,7 @@
 
 ## 0.1.1
 
-- Reframed AgentID as an agent authority contract, not just an identity manifest.
+- Reframed AgentPass as an agent authority contract, not just an identity manifest.
 - Added support for `intent`, `data_flows`, `delegation_chain`, `risk_tiers`, and `runtime`.
 - Added validation warnings for missing runtime, intent, delegation-chain, and data-flow controls.
 - Updated risk scoring to account for data-flow and agent-to-agent delegation risk.

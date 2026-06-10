@@ -66,7 +66,7 @@ const tools = [
   },
   {
     name: "provider.admin.delete_customer",
-    description: "Administrative delete operation intentionally not mapped in AgentID.",
+    description: "Administrative delete operation intentionally not mapped in AgentPass.",
     inputSchema: {
       type: "object",
       properties: {

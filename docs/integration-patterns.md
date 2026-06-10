@@ -1,6 +1,6 @@
 # Agent Tool-Call Integration Patterns
 
-AgentID is intended to sit in the narrow path between an agent runtime and the
+AgentPass is intended to sit in the narrow path between an agent runtime and the
 tools it wants to call. It should answer one runtime question:
 
 > Is this agent eligible to request this tool action, with this data flow, for
@@ -17,7 +17,7 @@ flowchart LR
     User["User"]
     App["App / Agent Runtime / MCP Gateway"]
     IdP["Customer IdP"]
-    AgentID["AgentID Gateway"]
+    AgentPass["AgentPass Gateway"]
     Manifest["Tenant Manifest Store"]
     JIT["JIT Grant Store"]
     Authz["Business Authz / OPA / OpenFGA / Cedar"]
@@ -26,30 +26,30 @@ flowchart LR
 
     User --> App
     App --> IdP
-    App --> AgentID
-    AgentID --> Manifest
-    AgentID --> JIT
-    AgentID --> Audit
+    App --> AgentPass
+    AgentPass --> Manifest
+    AgentPass --> JIT
+    AgentPass --> Audit
     App --> Authz
     App --> Tool
     Tool --> Audit
 ```
 
-Use AgentID as an early guardrail before a tool executes. Keep business-object
+Use AgentPass as an early guardrail before a tool executes. Keep business-object
 authorization in your existing authorization layer.
 
 ## Integration Steps
 
-1. Define one AgentID manifest per agent or agent class.
+1. Define one AgentPass manifest per agent or agent class.
 2. Add OIDC issuer, audience, JWKS URI, claim mappings, and required scopes.
 3. Store manifests in your control plane or in the Cloudflare gateway KV store.
-4. Put an AgentID check immediately before every tool call.
+4. Put an AgentPass check immediately before every tool call.
 5. Include `job_id` and case context when the manifest declares a job boundary.
 6. Require JIT grants for writes, external sends, financial operations, admin
    actions, destructive changes, and high-risk data movement.
 7. Log every decision, denial, JIT issuance, JIT consumption, and downstream
    tool execution.
-8. Validate manifests in CI with the AgentID GitHub Action.
+8. Validate manifests in CI with the AgentPass GitHub Action.
 
 ## Enforcement Point
 
@@ -170,12 +170,12 @@ Production deployments should validate access tokens from the customer's IdP:
 - `claim_mappings` map token claims to tenant, user, and agent identity.
 - `required_scopes` separate policy read, authorization, and JIT issuance.
 
-AgentID should reject a request if the token validates cryptographically but
+AgentPass should reject a request if the token validates cryptographically but
 does not map to the expected tenant, agent, audience, or scopes.
 
 ## Relationship to OPA, Cedar, and OpenFGA
 
-AgentID is most useful as the agent authority layer:
+AgentPass is most useful as the agent authority layer:
 
 - May this agent call this tool?
 - May this agent call another agent?
@@ -193,12 +193,12 @@ business-object decisions:
 - May this team deploy this service?
 - May this role update this billing setting?
 
-In production, use both. AgentID constrains the agent's runtime authority;
+In production, use both. AgentPass constrains the agent's runtime authority;
 your existing authorization system constrains the underlying business action.
 
 ## Agent-to-Agent Delegation
 
-AgentID supports scoped checks for agent-to-agent calls. Use this when one
+AgentPass supports scoped checks for agent-to-agent calls. Use this when one
 agent may ask a specialist agent to perform a narrow part of a workflow.
 
 The important constraint is that delegation should be narrower than the source
@@ -239,16 +239,16 @@ for a refund-case manifest.
 Add the GitHub Action to the repository that owns your agent manifests:
 
 ```yaml
-name: AgentID Check
+name: AgentPass Check
 
 on: [pull_request]
 
 jobs:
-  agentid:
+  agentpass:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dinpd/AgentID@main
+      - uses: dinpd/AgentPass@main
         with:
           manifests: "agents/*.yaml"
           max-risk: "75"

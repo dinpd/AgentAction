@@ -1,12 +1,12 @@
-# Getting Started with AgentID
+# Getting Started with AgentPass
 
-This walkthrough shows how to use AgentID as an authorization contract for AI
+This walkthrough shows how to use AgentPass as an authorization contract for AI
 agent tool calls across app runtimes, internal systems, SaaS APIs, and MCP
 gateways.
 
 ## Before You Start
 
-AgentID works best when the provider publishes tool authorization requirements
+AgentPass works best when the provider publishes tool authorization requirements
 and the enterprise overlays local policy. The provider knows what each tool can
 do; the enterprise knows which agents, users, jobs, customers, and approval
 workflows are allowed.
@@ -18,8 +18,8 @@ For runtime integration patterns, see
 ## 1. Install
 
 ```bash
-git clone https://github.com/dinpd/AgentID.git
-cd AgentID
+git clone https://github.com/dinpd/AgentPass.git
+cd AgentPass
 python -m pip install -e ".[dev]"
 ```
 
@@ -44,7 +44,7 @@ The manifest declares:
 
 ## 3. Use JSON Schema in Your Editor
 
-AgentID ships a JSON Schema:
+AgentPass ships a JSON Schema:
 
 ```bash
 agentid schema > schema/agentid.schema.json
@@ -53,7 +53,7 @@ agentid schema > schema/agentid.schema.json
 Add this to your manifest for editor validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/agentid.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json
 ```
 
 ## 4. Generate Starter Policy
@@ -111,19 +111,19 @@ with OIDC/JWKS validation.
 
 ## 7. Add PR Checks
 
-Use the AgentID GitHub Action in your own repo:
+Use the AgentPass GitHub Action in your own repo:
 
 ```yaml
-name: AgentID Check
+name: AgentPass Check
 
 on: [pull_request]
 
 jobs:
-  agentid:
+  agentpass:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dinpd/AgentID@main
+      - uses: dinpd/AgentPass@main
         with:
           manifests: "agents/*.yaml"
           max-risk: "75"
@@ -204,7 +204,7 @@ See [`cloudflare/README.md`](../cloudflare/README.md) for details.
 
 ## 10. Try the Hosted Gateway Demo
 
-The hosted demo shows a SaaS support app and MCP gateway consulting AgentID
+The hosted demo shows a SaaS support app and MCP gateway consulting AgentPass
 before tool execution:
 
 https://agentid-refund-demo.drisw.workers.dev

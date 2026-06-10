@@ -4,7 +4,7 @@ Authorization contracts for agent tools
 
 Links:
 
-- Code: [`github.com/dinpd/AgentID`](https://github.com/dinpd/AgentID)
+- Code: [`github.com/dinpd/AgentPass`](https://github.com/dinpd/AgentPass)
 - Demo: [`provider-mcp-demo.md`](provider-mcp-demo.md)
 - Schema: [`provider-mcp-contract.schema.json`](../schema/provider-mcp-contract.schema.json)
 - Example contract: [`provider-mcp-contract.yaml`](../examples/provider-mcp-contract.yaml)
@@ -306,14 +306,14 @@ or rate limiting in its normal UI/API, the MCP version should verify a scoped
 authorization receipt before executing.
 ```
 
-## What AgentID Provides
+## What AgentPass Provides
 
-AgentID gives this pattern a concrete shape:
+AgentPass gives this pattern a concrete shape:
 
 - provider-published MCP authorization contracts
 - a provider MCP contract JSON Schema for editor and CI validation
 - OpenAPI-to-provider-contract generation for auth-first onboarding
-- enterprise-reviewed AgentID manifests
+- enterprise-reviewed AgentPass manifests
 - runtime authorization checks before tool calls
 - short-lived JIT grants for sensitive actions
 - authorization receipts bound to tool, action, resource, user, job, case, and
@@ -327,7 +327,7 @@ The concrete path looks like this:
 ```text
 OpenAPI description
   -> provider MCP authorization contract
-  -> enterprise AgentID manifest starter
+  -> enterprise AgentPass manifest starter
   -> gateway authorization
   -> signed authorization receipt
   -> provider receipt verification
@@ -344,8 +344,8 @@ The reference flow is intentionally small:
 
 ```text
 MCP client
-  -> AgentID MCP gateway adapter
-  -> AgentID /authorize
+  -> AgentPass MCP gateway adapter
+  -> AgentPass /authorize
   -> mock provider MCP server
   -> provider receipt verification
   -> provider business authorization

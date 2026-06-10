@@ -182,7 +182,7 @@ export function createAgentIdReceiptMiddleware(options: AgentIdProviderExpressOp
           return;
         }
         res.status(403).json({
-          error: "AgentID provider authorization receipt denied",
+          error: "AgentPass provider authorization receipt denied",
           findings: verification.findings,
         });
         return;

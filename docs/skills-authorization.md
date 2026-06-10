@@ -1,19 +1,19 @@
 # Skill Authorization
 
 Skills package agent workflow knowledge: instructions, examples, scripts,
-templates, and domain playbooks. AgentID authorization contracts should travel
+templates, and domain playbooks. AgentPass authorization contracts should travel
 with those skills so each skill declares the tools it may call, the resources it
 may touch, the approvals it needs, and the evidence it must emit.
 
-AgentID treats a skill as a capability that can be reviewed before activation
+AgentPass treats a skill as a capability that can be reviewed before activation
 and constrained before it invokes downstream tools.
 
 MCP remains the runtime integration surface for external tools. Skills are the
-workflow packaging surface. AgentID should govern both.
+workflow packaging surface. AgentPass should govern both.
 
 ## Skill, tool, and flow
 
-AgentID uses these terms deliberately:
+AgentPass uses these terms deliberately:
 
 ```text
 Skill = workflow package
@@ -28,14 +28,14 @@ Flow = data movement boundary
 - A **flow** is the movement of data between sources and destinations, such as
   `provider_billing -> agent_context`.
 
-For a skill-originated call, AgentID can check both the skill and the tool: the
+For a skill-originated call, AgentPass can check both the skill and the tool: the
 skill must be declared and allowed to invoke the downstream tool through
 `may_invoke`, and the downstream tool must still satisfy its own approval, JIT,
 resource, and data-flow rules.
 
 ## Skill-local guardrails
 
-A skill can carry its own AgentID guardrail contract in one of these places:
+A skill can carry its own AgentPass guardrail contract in one of these places:
 
 - `agentid.yaml`
 - `agentid.skill.yaml`
@@ -75,7 +75,7 @@ the skill declares what it needs, while the runtime decides what is allowed.
 
 ## Enterprise manifest support
 
-AgentID manifests now support `capabilities` alongside the legacy `tools`
+AgentPass manifests now support `capabilities` alongside the legacy `tools`
 field:
 
 ```yaml
@@ -115,7 +115,7 @@ Skill-aware enforcement should happen at two points:
    tool or API operation with these arguments?
 
 Audit events can include `skill_id` to bind downstream calls to the skill that
-initiated them. AgentID checks whether the declared skill exists and whether
+initiated them. AgentPass checks whether the declared skill exists and whether
 the downstream tool is listed in `may_invoke`.
 
 Receipts for skill-originated calls should include the skill identity and

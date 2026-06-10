@@ -1381,7 +1381,7 @@ const AUDIT_UI_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentID Audit Console</title>
+  <title>AgentPass Audit Console</title>
   <style>
     :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f6f7f8; color: #182026; }
@@ -1409,7 +1409,7 @@ const AUDIT_UI_HTML = `<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentID Audit Console</h1>
+    <h1>AgentPass Audit Console</h1>
     <div class="status" id="status">Idle</div>
   </header>
   <main>

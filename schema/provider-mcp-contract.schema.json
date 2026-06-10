@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json",
-  "title": "AgentID Provider MCP Authorization Contract",
+  "$id": "https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json",
+  "title": "AgentPass Provider MCP Authorization Contract",
   "description": "Provider-published authorization metadata for MCP tools, including action semantics, resource mappings, approval expectations, receipt requirements, and blast-radius controls.",
   "type": "object",
   "additionalProperties": true,

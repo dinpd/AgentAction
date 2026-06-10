@@ -1,15 +1,15 @@
 # @agentid/provider-express
 
-Express-compatible middleware for provider-side AgentID receipt verification.
+Express-compatible middleware for provider-side AgentPass receipt verification.
 
 Use this when an MCP provider wants to verify that a forwarded `tools/call`
-contains a scoped AgentID authorization receipt before executing high-risk
+contains a scoped AgentPass authorization receipt before executing high-risk
 tools. It is designed to complement provider business authorization, not replace
 it.
 
 ## Install
 
-This package is currently part of the AgentID repository and is marked private
+This package is currently part of the AgentPass repository and is marked private
 while the provider receipt contract settles.
 
 ```bash

@@ -23,7 +23,7 @@ const HTML = String.raw`<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentID Gateway Control Demo</title>
+  <title>AgentPass Gateway Control Demo</title>
   <style>
     :root {
       color-scheme: light;
@@ -311,7 +311,7 @@ const HTML = String.raw`<!doctype html>
 <body>
   <header>
     <div>
-      <h1>AgentID Gateway Control Demo</h1>
+      <h1>AgentPass Gateway Control Demo</h1>
       <p style="color:var(--muted);font-size:13px;margin-top:3px">Runtime, skill, and MCP gateway checks before agent tool execution.</p>
     </div>
     <div class="toolbar">
@@ -479,7 +479,7 @@ const HTML = String.raw`<!doctype html>
         addStep({
           id: "read",
           title: "Read customer support context",
-          detail: "The app asks AgentID if the support agent can read Zendesk context for this case.",
+          detail: "The app asks AgentPass if the support agent can read Zendesk context for this case.",
           status: "running"
         });
         const readPayload = {
@@ -503,7 +503,7 @@ const HTML = String.raw`<!doctype html>
         addStep({
           id: "history",
           title: "Check customer refund history",
-          detail: "Before any refund, the app asks AgentID if the agent can read billing history for repeat-refund risk.",
+          detail: "Before any refund, the app asks AgentPass if the agent can read billing history for repeat-refund risk.",
           status: "running"
         });
         const historyPayload = {
@@ -602,8 +602,8 @@ const HTML = String.raw`<!doctype html>
         });
 
         setStatus(refund.body.allow
-          ? "Refund approved by AgentID controls: " + money(months) + " for " + months + " month" + (months === 1 ? "." : "s.")
-          : "Refund blocked by AgentID controls.",
+          ? "Refund approved by AgentPass controls: " + money(months) + " for " + months + " month" + (months === 1 ? "." : "s.")
+          : "Refund blocked by AgentPass controls.",
           refund.body.allow ? "allow" : "deny");
       } catch (error) {
         setStatus("Demo error: " + error.message, "deny");
@@ -620,7 +620,7 @@ const HTML = String.raw`<!doctype html>
         addStep({
           id: "mcp-list",
           title: "Filter MCP tools/list",
-          detail: "The enterprise MCP gateway exposes only provider tools mapped to AgentID policy.",
+          detail: "The enterprise MCP gateway exposes only provider tools mapped to AgentPass policy.",
           status: "running"
         });
         const toolsListPayload = { jsonrpc: "2.0", id: 1, method: "tools/list" };
@@ -657,7 +657,7 @@ const HTML = String.raw`<!doctype html>
         addStep({
           id: "mcp-read",
           title: "Authorize provider CRM read",
-          detail: "The adapter maps MCP tool arguments into AgentID job, case, customer, resource, and data-flow fields.",
+          detail: "The adapter maps MCP tool arguments into AgentPass job, case, customer, resource, and data-flow fields.",
           status: "running",
           payload: readPayload
         });
@@ -751,7 +751,7 @@ const HTML = String.raw`<!doctype html>
       try {
         addStep({
           id: "skill-contract",
-          title: "Review skill-carried AgentID contract",
+          title: "Review skill-carried AgentPass contract",
           detail: "The skill declares its source, hash, approval/JIT requirements, and the downstream tools listed in may_invoke.",
           status: "info",
           payload: {
@@ -807,7 +807,7 @@ const HTML = String.raw`<!doctype html>
         addStep({
           id: "skill-activation",
           title: activate.body.allow ? "Skill activation allowed" : "Skill activation denied",
-          detail: activate.body.allow ? "AgentID allowed the reviewed skill to run for this scoped refund-triage job." : activate.body.findings.join("; "),
+          detail: activate.body.allow ? "AgentPass allowed the reviewed skill to run for this scoped refund-triage job." : activate.body.findings.join("; "),
           status: activate.body.allow ? "allow" : "deny",
           payload: activatePayload,
           response: activate.body

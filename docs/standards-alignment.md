@@ -1,6 +1,6 @@
 # Standards Alignment
 
-AgentID should align with distributed identity standards without becoming a
+AgentPass should align with distributed identity standards without becoming a
 replacement for them.
 
 The core distinction is:
@@ -9,10 +9,10 @@ The core distinction is:
 OAuth/OIDC proves access to an enterprise or provider boundary.
 DID proves portable cryptographic identity.
 Verifiable Credentials prove signed claims about an agent.
-AgentID decides what the verified agent may do at tool-execution time.
+AgentPass decides what the verified agent may do at tool-execution time.
 ```
 
-AgentID's primary job remains action-level authorization: whether a specific
+AgentPass's primary job remains action-level authorization: whether a specific
 agent may call a specific tool action on a specific resource for a specific
 user, job, case, customer, approval, and time window. DID and Verifiable
 Credential support should make that authority portable, independently
@@ -34,7 +34,7 @@ Keep these items ahead of the DID/VC track:
 Fold DID/VC work into those areas as production hardening:
 
 ```text
-AgentID manifest
+AgentPass manifest
   -> DID-bound agent identity
   -> trusted issuer policy
   -> VC-style attestations
@@ -46,7 +46,7 @@ AgentID manifest
 
 ## Manifest Fields
 
-AgentID manifests can carry an optional DID for the agent:
+AgentPass manifests can carry an optional DID for the agent:
 
 ```yaml
 agent:
@@ -162,7 +162,7 @@ grant should be attenuated, auditable, short-lived, and revocable.
 
 ## Visibility and Contribution Targets
 
-AgentID should engage standards projects by contributing examples and
+AgentPass should engage standards projects by contributing examples and
 implementation guidance, not by claiming to replace their identity layers.
 
 Useful targets:
@@ -170,7 +170,7 @@ Useful targets:
 - OpenID Foundation AI Identity Management Community Group: contribute the
   distinction between agent identity, delegated user identity, and
   action-level authority.
-- NIST AI Agent Standards Initiative: publish an AgentID response describing
+- NIST AI Agent Standards Initiative: publish an AgentPass response describing
   identification, authorization, auditing, non-repudiation, prompt-injection
   controls, JIT grants, and execution receipts.
 - MCP authorization: contribute examples for argument-sensitive authorization,
@@ -178,12 +178,12 @@ Useful targets:
 - A2A: propose an Agent Card extension or example for
   `authorization_contract_uri`, `authority_manifest_uri`, signed Agent Cards,
   and delegated-task receipt requirements.
-- AGNTCY/OASF: contribute an example mapping an AgentID authority contract into
+- AGNTCY/OASF: contribute an example mapping an AgentPass authority contract into
   Agent Badge or OASF metadata.
 
 The external message should be:
 
-> AgentID does not compete with distributed identity standards. It gives them
+> AgentPass does not compete with distributed identity standards. It gives them
 > the missing authorization payload: what the verified agent may do, under
 > which context, and what evidence must exist before execution.
 

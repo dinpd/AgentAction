@@ -95,12 +95,12 @@ provider execution.
 
 - Do not replace OAuth or MCP authorization.
 - Do not require a specific receipt issuer.
-- Do not require AgentID specifically.
+- Do not require AgentPass specifically.
 - Do not make the provider receipt a business authorization override.
 
-## Relevant AgentID example
+## Relevant AgentPass example
 
-AgentID implements this as provider-published MCP authorization contracts,
+AgentPass implements this as provider-published MCP authorization contracts,
 short-lived JIT grants, signed authorization receipts, provider-side receipt
 verification, and provider execution receipts.
 

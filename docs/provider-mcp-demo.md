@@ -7,8 +7,8 @@ The flow is:
 
 ```text
 MCP client
-  -> AgentID MCP gateway adapter
-  -> AgentID /authorize
+  -> AgentPass MCP gateway adapter
+  -> AgentPass /authorize
   -> mock provider MCP server
   -> provider receipt verification
   -> provider business authorization
@@ -54,7 +54,7 @@ Compare reviewed versions before enabling updated provider tools:
 agentid provider diff old-provider-contract.yaml new-provider-contract.yaml
 ```
 
-Generate a reviewable enterprise AgentID manifest starter:
+Generate a reviewable enterprise AgentPass manifest starter:
 
 ```bash
 agentid provider import examples/provider-mcp-contract.yaml \
@@ -76,7 +76,7 @@ That gives a concrete migration path:
 ```text
 OpenAPI description
   -> provider MCP authorization contract
-  -> enterprise AgentID manifest starter
+  -> enterprise AgentPass manifest starter
   -> gateway authorization
   -> provider receipt verification
 ```
@@ -120,7 +120,7 @@ up to 5 more minutes on refresh failures, and force a refresh when a receipt
 `kid` is missing from the cached JWKS so key rotation does not wait for TTL
 expiry.
 
-## 1. Start AgentID
+## 1. Start AgentPass
 
 From the repo root in terminal 1:
 
@@ -165,7 +165,7 @@ npm run dev
 
 The adapter listens on `http://127.0.0.1:8788`.
 
-When AgentID allows a tool call, the adapter forwards the downstream MCP request
+When AgentPass allows a tool call, the adapter forwards the downstream MCP request
 with a receipt in `_agentid_receipt`. The example config signs the receipt with
 `provider_receipts.hmac_secret`:
 
@@ -207,7 +207,7 @@ curl -s http://127.0.0.1:8788 \
   --data @mcp-gateway-adapter/examples/denied-update-customer.json
 ```
 
-`provider.crm.update_customer` is a high-risk write. AgentID denies it before
+`provider.crm.update_customer` is a high-risk write. AgentPass denies it before
 the request reaches the provider because no JIT grant is present.
 
 ## 6. Provider Denies Missing Receipt
@@ -305,6 +305,6 @@ the over-limit fixture even if the enterprise receipt is otherwise valid.
 This is the intended split:
 
 ```text
-AgentID receipt proves enterprise-side agent authorization.
+AgentPass receipt proves enterprise-side agent authorization.
 Provider business authorization decides whether the operation may execute.
 ```

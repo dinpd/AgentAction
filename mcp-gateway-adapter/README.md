@@ -1,10 +1,10 @@
-# AgentID MCP Gateway Adapter
+# AgentPass MCP Gateway Adapter
 
-This is a reference MCP gateway adapter for enforcing AgentID checks before MCP
+This is a reference MCP gateway adapter for enforcing AgentPass checks before MCP
 tool calls.
 
 ```text
-MCP client -> AgentID MCP gateway adapter -> AgentID /authorize -> downstream MCP server
+MCP client -> AgentPass MCP gateway adapter -> AgentPass /authorize -> downstream MCP server
 ```
 
 The adapter is intentionally small. It demonstrates the enforcement pattern
@@ -16,10 +16,10 @@ without trying to be a production MCP gateway.
 - Proxies non-tool MCP methods to a downstream MCP server.
 - Filters `tools/list` to tools configured in the adapter.
 - Intercepts `tools/call`.
-- Maps MCP tool name and arguments to an AgentID authorization event.
-- Calls AgentID `/authorize`.
-- Logs each AgentID authorization decision as a structured JSON line.
-- Returns a JSON-RPC error when AgentID denies the call.
+- Maps MCP tool name and arguments to an AgentPass authorization event.
+- Calls AgentPass `/authorize`.
+- Logs each AgentPass authorization decision as a structured JSON line.
+- Returns a JSON-RPC error when AgentPass denies the call.
 - Forwards allowed calls to the downstream MCP server.
 
 ## Run Locally
@@ -33,7 +33,7 @@ npm test
 npm run build
 ```
 
-Start the AgentID authorization service:
+Start the AgentPass authorization service:
 
 ```bash
 agentid gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
@@ -55,7 +55,7 @@ requests, see [`../docs/mcp-gateway-demo.md`](../docs/mcp-gateway-demo.md).
 
 See [`examples/config.json`](examples/config.json).
 
-Each tool mapping tells the adapter how to build an AgentID authorize payload:
+Each tool mapping tells the adapter how to build an AgentPass authorize payload:
 
 ```json
 {

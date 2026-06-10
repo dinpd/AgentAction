@@ -1,4 +1,4 @@
-$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
 provider_agentid:
   provider: devops-platform
   mcp_server: devops-control-plane-mcp

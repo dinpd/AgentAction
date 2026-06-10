@@ -524,7 +524,7 @@ def remediation_for(score: int, action: str, categories: set[str], sensitive_arg
     if {"secrets", "identity/access", "admin"} & categories:
         remediation.append("add audit logging and a kill-switch for this capability")
     if not remediation:
-        remediation.append("declare this tool in an AgentID manifest and audit usage")
+        remediation.append("declare this tool in an AgentPass manifest and audit usage")
     return remediation
 
 

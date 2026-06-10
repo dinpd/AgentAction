@@ -1,6 +1,6 @@
 # MCP Gateway Adapter Demo
 
-This demo shows the reference MCP gateway adapter enforcing AgentID before
+This demo shows the reference MCP gateway adapter enforcing AgentPass before
 forwarding tool calls to a mock provider MCP server.
 
 For the companion provider-side receipt verification flow, see
@@ -9,7 +9,7 @@ For the companion provider-side receipt verification flow, see
 The flow is:
 
 ```text
-MCP client -> AgentID MCP gateway adapter -> AgentID /authorize -> mock provider MCP server
+MCP client -> AgentPass MCP gateway adapter -> AgentPass /authorize -> mock provider MCP server
 ```
 
 The demo takes about ten minutes and shows five behaviors:
@@ -20,7 +20,7 @@ The demo takes about ten minutes and shows five behaviors:
 - The same write is allowed with a scoped JIT grant.
 - Reusing the single-use JIT grant is denied.
 
-## 1. Start AgentID
+## 1. Start AgentPass
 
 From the repo root in terminal 1:
 
@@ -55,7 +55,7 @@ npm run dev
 The adapter listens on `http://127.0.0.1:8788`.
 
 Keep this terminal visible. It prints one structured JSON line for every
-AgentID authorization decision.
+AgentPass authorization decision.
 
 ## 4. Filter tools/list
 
@@ -86,7 +86,7 @@ Expected shape, trimmed to the tool names:
 }
 ```
 
-There is no AgentID decision log for `tools/list`; the adapter only logs
+There is no AgentPass decision log for `tools/list`; the adapter only logs
 intercepted `tools/call` authorization decisions.
 
 ## 5. Allow a Read Tool
@@ -97,7 +97,7 @@ curl -s http://127.0.0.1:8788 \
   --data @mcp-gateway-adapter/examples/allowed-search-customer.json
 ```
 
-The adapter maps the MCP arguments into an AgentID event and forwards the call
+The adapter maps the MCP arguments into an AgentPass event and forwards the call
 because `provider.crm.search_customer` is a declared read tool for the current
 job and customer case.
 
@@ -144,7 +144,7 @@ curl -s http://127.0.0.1:8788 \
   --data @mcp-gateway-adapter/examples/denied-update-customer.json
 ```
 
-AgentID denies the call because `provider.crm.update_customer` is a
+AgentPass denies the call because `provider.crm.update_customer` is a
 just-in-time write tool and no JIT grant is present.
 
 Expected response shape:
@@ -155,7 +155,7 @@ Expected response shape:
   "id": 2,
   "error": {
     "code": -32003,
-    "message": "AgentID denied MCP tool call",
+    "message": "AgentPass denied MCP tool call",
     "data": {
       "findings": [
         "missing jit_grant_id",
@@ -275,7 +275,7 @@ Expected response shape:
   "id": 4,
   "error": {
     "code": -32003,
-    "message": "AgentID denied MCP tool call",
+    "message": "AgentPass denied MCP tool call",
     "data": {
       "findings": [
         "JIT grant was already used",
@@ -309,10 +309,10 @@ Expected adapter log shape:
 
 ## What This Proves
 
-The adapter demonstrates the upstream integration shape AgentID should take:
+The adapter demonstrates the upstream integration shape AgentPass should take:
 
-- A gateway or router can enforce AgentID before forwarding `tools/call`.
-- Downstream MCP servers do not need to know about AgentID.
+- A gateway or router can enforce AgentPass before forwarding `tools/call`.
+- Downstream MCP servers do not need to know about AgentPass.
 - Tool-list filtering prevents unmapped tools from being advertised.
 - Sensitive writes require scoped, short-lived authority.
 - Decision logs give maintainers and security reviewers concrete audit evidence.

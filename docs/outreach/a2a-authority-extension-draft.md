@@ -80,12 +80,12 @@ It also supports common enterprise checks:
 - Do not define a new identity system.
 - Do not replace A2A authentication or authorization.
 - Do not require public Agent Cards to expose sensitive policy internals.
-- Do not require AgentID specifically; AgentID can be one implementation of the
+- Do not require AgentPass specifically; AgentPass can be one implementation of the
   authority contract URI.
 
-## Relevant AgentID example
+## Relevant AgentPass example
 
-AgentID uses a manifest to express action-level authority: tool, action,
+AgentPass uses a manifest to express action-level authority: tool, action,
 resource, job, user, approval, JIT grant, data flow, delegation, audit, and kill
 switch behavior.
 

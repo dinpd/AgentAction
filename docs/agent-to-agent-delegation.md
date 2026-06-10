@@ -1,6 +1,6 @@
 # Agent-to-Agent Delegation
 
-AgentID should allow agents to involve other agents, but it should not let an
+AgentPass should allow agents to involve other agents, but it should not let an
 agent mint broad privileges for another agent.
 
 The model is scoped delegation:
@@ -120,6 +120,6 @@ Still needed for a full transferable-privilege model:
   own manifest before allowing downstream tool execution.
 - Revocation and audit events for delegation issuance and consumption.
 
-Until those pieces are implemented, AgentID can enforce whether a proposed
+Until those pieces are implemented, AgentPass can enforce whether a proposed
 agent-to-agent call is allowed, but it should not be treated as a complete
 subdelegation grant system.

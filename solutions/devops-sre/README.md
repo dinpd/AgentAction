@@ -1,4 +1,4 @@
-# AgentID DevOps/SRE Solution Pack
+# AgentPass DevOps/SRE Solution Pack
 
 This pack demonstrates an operational safety pattern for AI agents:
 
@@ -12,7 +12,7 @@ rollbacks, and infrastructure apply actions.
 
 - `provider-contract.yaml` - provider-published MCP authorization contract for
   DevOps control-plane tools.
-- `enterprise-agent-manifest.yaml` - enterprise-side AgentID manifest for the
+- `enterprise-agent-manifest.yaml` - enterprise-side AgentPass manifest for the
   platform release agent.
 - `gateway-config.json` - reference MCP gateway adapter config using
   `context_args` for ops-specific bindings.
@@ -20,7 +20,7 @@ rollbacks, and infrastructure apply actions.
 - `mock-provider.ts` - mock DevOps MCP provider that verifies high-risk
   receipts and applies provider-side operational policy.
 - `github-actions-provider.ts` - GitHub Actions MCP provider wrapper that
-  verifies AgentID receipts before dispatching a workflow.
+  verifies AgentPass receipts before dispatching a workflow.
 - `fixtures/` - sample JSON-RPC calls for allowed and denied flows.
 - `demo/` - hosted Cloudflare Worker demo for the approval, JIT, dry-run
   deploy, and audit flow.
@@ -68,7 +68,7 @@ agentid mcp check solutions/devops-sre/tools-list.json --max-risk critical
 ```text
 SRE / release agent
   -> enterprise MCP gateway
-  -> AgentID /authorize
+  -> AgentPass /authorize
   -> downstream DevOps MCP server
 ```
 
@@ -79,7 +79,7 @@ Actions dispatch, and audit-console visibility.
 
 ## Run The Local Demo
 
-Terminal 1: start the AgentID authorization service.
+Terminal 1: start the AgentPass authorization service.
 
 ```bash
 python -m agentid.cli gateway solutions/devops-sre/enterprise-agent-manifest.yaml \
@@ -129,7 +129,7 @@ curl -s http://127.0.0.1:8788 \
   -d @solutions/devops-sre/fixtures/allowed-read-logs.json
 ```
 
-From the repository root, try a production deploy without JIT. AgentID should
+From the repository root, try a production deploy without JIT. AgentPass should
 deny it:
 
 ```bash
@@ -208,14 +208,14 @@ The returned `jit_grant_id` is then inserted into
 The allowed deploy then flows through both checks:
 
 ```text
-AgentID allows the scoped tool call
+AgentPass allows the scoped tool call
   -> gateway forwards a signed HMAC demo receipt
   -> mock provider verifies the receipt
   -> mock provider logs agentid.provider.execution
 ```
 
 Try the blocked Terraform workspace fixture after issuing a matching grant for
-`devops.terraform.apply`. AgentID can authorize a scoped apply, but the mock
+`devops.terraform.apply`. AgentPass can authorize a scoped apply, but the mock
 provider still denies `workspace=production-destroy` as provider business
 authorization.
 
@@ -223,7 +223,7 @@ authorization.
 
 For a real pilot:
 
-1. Run AgentID as an internal authorization service or Cloudflare Worker.
+1. Run AgentPass as an internal authorization service or Cloudflare Worker.
 2. Store tenant manifests outside process memory.
 3. Persist approval requests and JIT grants in Durable Objects, Redis,
    Postgres, or another auditable store.

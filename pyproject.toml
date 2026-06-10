@@ -9,7 +9,7 @@ description = "Authorization contracts, policy checks, and receipts for AI agent
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "AgentID contributors" }]
+authors = [{ name = "AgentPass contributors" }]
 dependencies = ["PyYAML>=6.0.1", "PyJWT[crypto]>=2.8.0"]
 
 [project.optional-dependencies]

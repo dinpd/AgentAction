@@ -1,4 +1,4 @@
-name: AgentID Check
+name: AgentPass Check
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ on:
       - "tests/**"
       - "pyproject.toml"
       - "action.yml"
-      - ".github/workflows/agentid-check.yml"
+      - ".github/workflows/agentpass-check.yml"
 
 jobs:
   test:

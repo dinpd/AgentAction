@@ -51,7 +51,7 @@ def test_cli_provider_schema_payload_is_json(capsys):
     payload = yaml.safe_load(capsys.readouterr().out)
 
     assert code == 0
-    assert payload["title"] == "AgentID Provider MCP Authorization Contract"
+    assert payload["title"] == "AgentPass Provider MCP Authorization Contract"
     assert yaml.safe_load(provider_schema_json())["$id"].endswith("/provider-mcp-contract.schema.json")
 
 
@@ -273,7 +273,7 @@ def test_cli_provider_import_writes_manifest(tmp_path, capsys):
     manifest = yaml.safe_load(output.read_text(encoding="utf-8"))
 
     assert code == 0
-    assert "Wrote AgentID manifest" in message
+    assert "Wrote AgentPass manifest" in message
     assert manifest["agent"]["id"] == "enterprise-support-agent"
     assert validate_manifest(manifest).ok
 

@@ -452,7 +452,7 @@ def test_config_ui_writer_creates_browser_builder(tmp_path):
 
     html = output.read_text()
 
-    assert "AgentID Policy Builder" in html
+    assert "AgentPass Policy Builder" in html
     assert "Manifest YAML" in html
     assert "OPA Policy" in html
     assert "Skill Guardrails" in html

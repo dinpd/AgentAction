@@ -11,7 +11,7 @@ are stable.
 
 ## Current State
 
-AgentID currently supports:
+AgentPass currently supports:
 
 - raw provider authorization receipts
 - HMAC-signed provider receipt envelopes for local demos

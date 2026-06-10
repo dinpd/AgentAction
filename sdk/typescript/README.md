@@ -1,6 +1,6 @@
-# AgentID TypeScript Client
+# AgentPass TypeScript Client
 
-Small helper client for calling an AgentID gateway from a SaaS app or agent
+Small helper client for calling an AgentPass gateway from a SaaS app or agent
 runtime.
 
 ```ts

@@ -1,8 +1,8 @@
-# Draft AGNTCY/OASF Issue: AgentID Authority Metadata in Agent Badges
+# Draft AGNTCY/OASF Issue: AgentPass Authority Metadata in Agent Badges
 
 ## Proposed title
 
-Example: carrying AgentID authority metadata in an Agent Badge
+Example: carrying AgentPass authority metadata in an Agent Badge
 
 ## Context
 
@@ -11,13 +11,13 @@ whose subject contains agent metadata, including OASF definitions or A2A Agent
 Cards. The examples also describe well-known access to Agent Badges and support
 for multiple proof envelopes including JOSE.
 
-AgentID is a machine-readable authority contract for agent tool execution. It
+AgentPass is a machine-readable authority contract for agent tool execution. It
 does not replace the identity badge; it describes what the verified agent may
 attempt at runtime.
 
 ## Proposal
 
-Add an example showing how an Agent Badge can point to AgentID authority
+Add an example showing how an Agent Badge can point to AgentPass authority
 metadata.
 
 Example credential subject:
@@ -35,7 +35,7 @@ Example credential subject:
       }
     ],
     "authorization": {
-      "type": "AgentIDAuthorityContract",
+      "type": "AgentPassAuthorityContract",
       "manifest_uri": "https://agent.example.com/.well-known/agentid.json",
       "provider_contracts": [
         "https://provider.example.com/.well-known/agentid-provider-contract.json"
@@ -55,19 +55,19 @@ This lets an AGNTCY verifier discover both:
 - where to find the runtime authority contract governing high-risk tool calls
 
 It preserves the split between identity and authority. The Agent Badge remains
-the verifiable identity/provenance envelope; AgentID supplies the action-level
+the verifiable identity/provenance envelope; AgentPass supplies the action-level
 authorization metadata.
 
 ## Non-goals
 
-- Do not require AGNTCY to adopt AgentID.
+- Do not require AGNTCY to adopt AgentPass.
 - Do not embed full enterprise policy in public badges.
 - Do not replace OASF or A2A Agent Card schemas.
 - Do not treat authority metadata as provider business authorization.
 
-## Relevant AgentID example
+## Relevant AgentPass example
 
-AgentID manifests declare agent identity, tool authority, JIT requirements,
+AgentPass manifests declare agent identity, tool authority, JIT requirements,
 approval rules, receipt binding fields, delegation limits, audit expectations,
 and kill-switch behavior.
 

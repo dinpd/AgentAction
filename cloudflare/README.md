@@ -1,6 +1,6 @@
-# AgentID Cloudflare Gateway
+# AgentPass Cloudflare Gateway
 
-This Worker exposes the AgentID gateway API on Cloudflare Workers. It can sit
+This Worker exposes the AgentPass gateway API on Cloudflare Workers. It can sit
 behind a SaaS app, internal agent platform, or MCP gateway and return
 allow/deny/JIT decisions before tool execution:
 
@@ -19,7 +19,7 @@ allow/deny/JIT decisions before tool execution:
 | `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant after approval checks |
 | `GET /audit` | Open the audit console UI |
 | `GET /audit/events` | Read recent audit events with optional filters |
-| `POST /audit/webhook/agentid` | Receive AgentID audit webhook events |
+| `POST /audit/webhook/agentid` | Receive AgentPass audit webhook events |
 
 Approval requests and JIT grants are stored in a SQLite-backed Durable Object
 namespace. This keeps approval state and single-use grant enforcement durable
@@ -84,7 +84,7 @@ npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
 ```
 
 The built-in audit webhook route is also available for external systems that
-need to push AgentID audit events into the console:
+need to push AgentPass audit events into the console:
 
 ```text
 https://<worker-host>/audit/webhook/agentid

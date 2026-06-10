@@ -16,11 +16,11 @@ CI should answer four questions:
 ## Minimal Check
 
 ```bash
-python -m pip install "agentid @ git+https://github.com/dinpd/AgentID.git@main"
+python -m pip install "agentid @ git+https://github.com/dinpd/AgentPass.git@main"
 agentid provider validate provider-mcp-contract.yaml
 ```
 
-This validates AgentID's provider-specific rules. In particular, high-risk
+This validates AgentPass's provider-specific rules. In particular, high-risk
 tools must declare:
 
 - `receipt_required: true`
@@ -43,7 +43,7 @@ agentid provider schema > provider-mcp-contract.schema.json
 Contracts can also point at the hosted schema:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
 ```
 
 In Python CI:
@@ -55,7 +55,7 @@ import urllib.request
 import yaml
 from jsonschema import Draft202012Validator
 
-schema_url = "https://raw.githubusercontent.com/dinpd/AgentID/main/schema/provider-mcp-contract.schema.json"
+schema_url = "https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json"
 schema = json.load(urllib.request.urlopen(schema_url))
 contract = yaml.safe_load(open("provider-mcp-contract.yaml", encoding="utf-8"))
 Draft202012Validator.check_schema(schema)
@@ -95,7 +95,7 @@ To use it in another repository:
 
 1. Copy the file to `.github/workflows/provider-contract-check.yml`.
 2. Put the provider contract at `provider-mcp-contract.yaml`, or adjust the path.
-3. Ensure the workflow installs AgentID and `jsonschema`.
+3. Ensure the workflow installs AgentPass and `jsonschema`.
 4. Require the workflow before publishing an updated MCP server or toolset.
 
 ## Recommended Review Policy

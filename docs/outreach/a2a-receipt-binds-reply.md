@@ -8,7 +8,7 @@ I agree the Agent Card should separate:
 The detailed policy should stay in the linked authority contract, but a small
 public hint like `receipt_transport`, `receipt_binds`, and
 `receipt_verification` gives clients/gateways enough information to interoperate
-without baking AgentID-specific behavior into A2A.
+without baking AgentPass-specific behavior into A2A.
 
 I like the proposed shape:
 
@@ -32,7 +32,7 @@ binding set. The linked authority contract can still define stricter
 provider/tool-specific bindings, such as approval ID, JIT grant ID,
 customer/case/resource fields, amount, or tenant-specific constraints.
 
-This lines up with the AgentID implementation direction: identity/capability
+This lines up with the AgentPass implementation direction: identity/capability
 discovery stays in the card, authority policy stays in the linked contract, and
 each high-risk task carries a short-lived signed receipt bound to the concrete
 action/resource.

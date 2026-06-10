@@ -1,10 +1,10 @@
-# AgentID Receipt Profiles
+# AgentPass Receipt Profiles
 
 Receipt profiles describe how a scoped authorization receipt should be
 interpreted. They keep discovery metadata generic while allowing a provider,
 enterprise, or domain group to define precise outcome semantics.
 
-AgentID uses profiles for provider-side MCP authorization receipts. A provider
+AgentPass uses profiles for provider-side MCP authorization receipts. A provider
 contract can advertise a profile in `provider_agentid.receipt.profile`:
 
 ```yaml
@@ -36,14 +36,14 @@ receipt:
       reference_field: basis_ref
 ```
 
-The profile URI identifies the rules. AgentID examples use `ALLOW`, `REFER`,
+The profile URI identifies the rules. AgentPass examples use `ALLOW`, `REFER`,
 and `DENY`, but the schema does not hard-code those as the only valid outcomes.
 Payment, support, healthcare, infrastructure, or compliance profiles can define
 closed vocabularies that fit their own verifier rules.
 
 ## Canonicalization
 
-`agentid_canonical_json_v1` is the default AgentID canonicalization rule for
+`agentid_canonical_json_v1` is the default AgentPass canonicalization rule for
 receipt-bound fields:
 
 1. Build a JSON object containing only the fields named by the profile and the
@@ -107,5 +107,5 @@ Before executing a high-risk provider action, a verifier should check:
 - profile-defined outcome semantics
 
 Provider business authorization still runs after receipt verification. A valid
-AgentID receipt proves enterprise-side runtime authorization; it does not prove
+AgentPass receipt proves enterprise-side runtime authorization; it does not prove
 the provider should mutate state.

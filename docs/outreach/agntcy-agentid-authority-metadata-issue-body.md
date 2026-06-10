@@ -7,7 +7,7 @@ whose subject contains agent metadata, including OASF definitions or A2A Agent
 Cards. The examples also describe well-known access to Agent Badges and support
 for multiple proof envelopes including JOSE.
 
-AgentID is a machine-readable authority contract for agent tool execution. It
+AgentPass is a machine-readable authority contract for agent tool execution. It
 does not replace the identity badge; it describes what the verified agent may
 attempt at runtime.
 
@@ -31,7 +31,7 @@ Example credential subject:
       }
     ],
     "authorization": {
-      "type": "AgentIDAuthorityContract",
+      "type": "AgentPassAuthorityContract",
       "manifest_uri": "https://agent.example.com/.well-known/agentid.json",
       "provider_contracts": [
         "https://provider.example.com/.well-known/agentid-provider-contract.json"
@@ -56,18 +56,18 @@ action-level authorization metadata.
 
 ## Non-goals
 
-- Do not require AGNTCY to adopt AgentID.
+- Do not require AGNTCY to adopt AgentPass.
 - Do not embed full enterprise policy in public badges.
 - Do not replace OASF or A2A Agent Card schemas.
 - Do not treat authority metadata as provider business authorization.
 
 ## Related implementation
 
-I have been working on AgentID, which declares agent identity, tool authority,
+I have been working on AgentPass, which declares agent identity, tool authority,
 JIT requirements, approval rules, receipt binding fields, delegation limits,
 audit expectations, and kill-switch behavior.
 
-Reference: https://github.com/dinpd/AgentID/blob/main/docs/standards-alignment.md
+Reference: https://github.com/dinpd/AgentPass/blob/main/docs/standards-alignment.md
 
 If this direction fits, I can turn it into a small docs/example PR. I am also
 happy to adjust the shape if this belongs better in OASF examples rather than

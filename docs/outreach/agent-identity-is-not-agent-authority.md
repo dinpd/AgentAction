@@ -58,7 +58,7 @@ The runtime authority question is narrower and more operational:
 - Can the provider verify the enterprise-side authorization decision?
 - What audit evidence exists if the call is allowed or denied?
 
-This is the layer AgentID is focused on.
+This is the layer AgentPass is focused on.
 
 ## A Practical Split
 
@@ -68,10 +68,10 @@ A useful architecture separates the layers:
 OAuth/OIDC proves access to an enterprise or provider boundary.
 DID proves portable cryptographic identity.
 Verifiable Credentials prove signed claims about an agent.
-AgentID decides what the verified agent may do at tool-execution time.
+AgentPass decides what the verified agent may do at tool-execution time.
 ```
 
-That means AgentID should not replace distributed identity standards. It should
+That means AgentPass should not replace distributed identity standards. It should
 make them more useful by giving them an authorization payload:
 
 ```text
@@ -114,7 +114,7 @@ receipt -> provider-verifiable proof
 execution receipt -> shared audit handle
 ```
 
-That is where AgentID fits.
+That is where AgentPass fits.
 
 The goal is not another identity system or another gateway. The goal is an
 authorization contract that gateways, agent runtimes, providers, and security

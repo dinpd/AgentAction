@@ -76,16 +76,16 @@ It also supports common enterprise checks:
 - Do not define a new identity system.
 - Do not replace A2A authentication or authorization.
 - Do not require public Agent Cards to expose sensitive policy internals.
-- Do not require AgentID specifically; AgentID can be one implementation of the
+- Do not require AgentPass specifically; AgentPass can be one implementation of the
   authority contract URI.
 
 ## Related implementation
 
-I have been working on AgentID, which uses a manifest to express action-level
+I have been working on AgentPass, which uses a manifest to express action-level
 authority: tool, action, resource, job, user, approval, JIT grant, data flow,
 delegation, audit, and kill-switch behavior.
 
 The extension above would let A2A clients discover that such a contract exists
 and where to retrieve it, without changing the core A2A task model.
 
-Reference: https://github.com/dinpd/AgentID/blob/main/docs/standards-alignment.md
+Reference: https://github.com/dinpd/AgentPass/blob/main/docs/standards-alignment.md
