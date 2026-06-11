@@ -9,6 +9,7 @@ import yaml
 
 from agentid.audit import audit_events, load_audit_log
 from agentid.config_ui import write_config_ui
+from agentid.config_ui_server import serve_config_ui
 from agentid.explain import explain_manifest
 from agentid.gateway import serve
 from agentid.manifest import ManifestError, load_manifest, validate_manifest
@@ -70,6 +71,9 @@ def main(argv: list[str] | None = None) -> int:
 
     config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
     config_ui_parser.add_argument("--output", default="agentpass-policy-builder.html")
+    config_ui_parser.add_argument("--serve", action="store_true", help="Serve the policy builder with local MCP fetch support.")
+    config_ui_parser.add_argument("--host", default="127.0.0.1")
+    config_ui_parser.add_argument("--port", type=int, default=8798)
 
     gateway_parser = subparsers.add_parser("gateway", help="Run the AgentPass authorization gateway.")
     gateway_parser.add_argument("manifest")
@@ -174,6 +178,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "config-ui":
+        if args.serve:
+            serve_config_ui(args.host, args.port)
+            return 0
         path = write_config_ui(args.output)
         print(f"Wrote config UI: {path}")
         return 0

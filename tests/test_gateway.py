@@ -1,6 +1,7 @@
 import pytest
 
 from agentid.config_ui import write_config_ui
+from agentid.config_ui_server import create_config_ui_server
 from agentid.gateway import AgentGateway
 
 
@@ -456,4 +457,35 @@ def test_config_ui_writer_creates_browser_builder(tmp_path):
     assert "Manifest YAML" in html
     assert "OPA Policy" in html
     assert "Skill Guardrails" in html
+    assert "1. Source" in html
+    assert "2. Review Tools" in html
+    assert "Policy Summary" in html
+    assert "Review & Export" in html
+    assert "Import MCP Tools" in html
+    assert "Build From MCP" in html
+    assert "Build policy from MCP" in html
+    assert "quickMcpUrl" in html
+    assert "agentpass config-ui --serve" in html
+    assert "Analyze import" in html
+    assert "Apply selected tools" in html
+    assert "Accept safe defaults" in html
+    assert "analyzeMcpImportText" in html
+    assert "buildPolicyFromMcp" in html
+    assert "/api/fetch-tools" in html
     assert "support-refund-workflow" in html
+
+
+def test_config_ui_server_uses_policy_builder_handler(monkeypatch):
+    created = {}
+
+    class FakeServer:
+        def __init__(self, server_address, handler_class):
+            created["server_address"] = server_address
+            created["handler_class"] = handler_class
+
+    monkeypatch.setattr("agentid.config_ui_server.ThreadingHTTPServer", FakeServer)
+
+    create_config_ui_server("127.0.0.1", 8798)
+
+    assert created["server_address"] == ("127.0.0.1", 8798)
+    assert created["handler_class"].server_version == "AgentPassPolicyBuilder/0.1"
