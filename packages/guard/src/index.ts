@@ -26,6 +26,7 @@ export type ToolPolicy = {
 export type FlowPolicy = {
   from: string;
   to: string;
+  destinationType?: string;
   decision?: "allow" | "deny";
   requiresApproval?: boolean;
   dataClassification?: string[];
@@ -390,6 +391,7 @@ function isSensitiveDestination(input: GuardCheck, policy: GuardPolicy): boolean
 function matchesFlow(flow: FlowPolicy, input: GuardCheck): boolean {
   if (!matchesPattern(flow.from, input.dataFrom || "")) return false;
   if (!matchesPattern(flow.to, input.dataTo || "")) return false;
+  if (flow.destinationType && !matchesPattern(flow.destinationType, input.destinationType || "")) return false;
   if (!flow.dataClassification || flow.dataClassification.length === 0) return true;
 
   const actual = new Set((input.dataClassification || []).map(normalize));

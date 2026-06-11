@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "demo": "node --import tsx examples/support-refund-demo.ts",
+    "demo:pii": "node --import tsx examples/pii-exfiltration-demo.ts",
     "test": "node --test --import tsx tests/*.test.ts"
   },
   "devDependencies": {

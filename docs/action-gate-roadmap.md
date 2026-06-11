@@ -156,6 +156,7 @@ Test gate:
 - `npm test`
 - `npm run build`
 - `npm run demo`
+- `npm run demo:pii`
 
 Expected outcomes:
 
@@ -229,6 +230,7 @@ Example policy shape:
 flows:
   - from: provider_crm
     to: agent_context
+    destination_type: agent_context
     data_classification:
       - customer_data
       - pii
@@ -241,6 +243,7 @@ flows:
 
   - from: provider_crm
     to: external_email
+    destination_type: external_email
     data_classification:
       - customer_data
       - pii
@@ -251,6 +254,19 @@ flows:
       - ssn
       - access_token
       - payment_method
+
+  - from: provider_crm
+    to: model_provider
+    destination_type: model_provider
+    data_classification:
+      - pii
+    decision: deny
+    blocked_fields:
+      - ssn
+      - access_token
+      - payment_method
+      - full_date_of_birth
+      - health_record_id
 
   - from: secrets_manager
     to: model_provider

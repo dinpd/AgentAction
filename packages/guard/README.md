@@ -75,12 +75,22 @@ service layer.
 ```bash
 npm test
 npm run demo
+npm run demo:pii
 ```
 
-The demo shows the intended first MVP story:
+The refund demo shows the intended first MVP story:
 
 1. A support agent proposes a refund.
 2. The guard returns `challenge_required`.
 3. The approved refund succeeds once.
 4. A retry with the same idempotency key is denied.
 5. A PII email to an unapproved destination is denied.
+
+The PII demo shows destination-specific data movement rules:
+
+1. CRM PII read into agent context is allowed.
+2. Customer email requires approval.
+3. Unknown webhook destinations are denied.
+4. Raw PII prompts to model providers are denied.
+5. Bulk file exports are capped by record count.
+6. High-risk fields are blocked for browser automation.

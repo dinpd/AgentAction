@@ -139,13 +139,13 @@ test("blocked PII fields are denied", () => {
   assert.ok(decision.reasons.includes("field is blocked by flow: ssn"));
 });
 
-test("sensitive data to model provider is denied without explicit allowed flow", () => {
+test("sensitive data to model provider is denied by destination flow", () => {
   const guard = createGuard({ policy: policy(), idGenerator: ids() });
 
   const decision = guard.check({
     agentId: "support-agent",
     jobId: "case-1042",
-    tool: "gmail.send",
+    tool: "llm.prompt",
     action: "send",
     dataFrom: "provider_crm",
     dataTo: "model_provider",
@@ -155,7 +155,106 @@ test("sensitive data to model provider is denied without explicit allowed flow",
   });
 
   assert.equal(decision.type, "deny");
-  assert.ok(decision.reasons.includes("sensitive data movement has no allowed flow: provider_crm -> model_provider"));
+  assert.ok(decision.reasons.includes("flow is denied: provider_crm -> model_provider"));
+});
+
+test("PII exfiltration matrix enforces destination-specific decisions", () => {
+  const guard = createGuard({ policy: policy(), idGenerator: ids() });
+
+  const internalRead = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "crm.read_customer",
+    action: "read",
+    dataFrom: "provider_crm",
+    dataTo: "agent_context",
+    destinationType: "agent_context",
+    dataClassification: ["customer_data", "pii"],
+    fieldSet: ["customer_id", "case_id", "plan"],
+    recordCount: 1,
+  });
+  assert.equal(internalRead.type, "allow");
+
+  const approvedCustomerEmailMissingApproval = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "gmail.send",
+    action: "send",
+    dataFrom: "provider_crm",
+    dataTo: "external_email",
+    destinationType: "external_email",
+    externalDomain: "alice.customer.example",
+    dataClassification: ["customer_data", "pii"],
+    fieldSet: ["customer_id", "case_id"],
+    recordCount: 1,
+  });
+  assert.equal(approvedCustomerEmailMissingApproval.type, "challenge_required");
+
+  const unapprovedWebhook = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "webhook.post",
+    action: "send",
+    dataFrom: "provider_crm",
+    dataTo: "partner_webhook",
+    destinationType: "webhook",
+    externalDomain: "unknown.example",
+    dataClassification: ["customer_data", "pii"],
+    fieldSet: ["customer_id", "case_id"],
+    recordCount: 1,
+    approvalId: "approval-1",
+  });
+  assert.equal(unapprovedWebhook.type, "deny");
+  assert.ok(unapprovedWebhook.reasons.includes("externalDomain is not allowed: unknown.example"));
+
+  const rawPiiPrompt = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "llm.prompt",
+    action: "send",
+    dataFrom: "provider_crm",
+    dataTo: "model_provider",
+    destinationType: "model_provider",
+    dataClassification: ["pii"],
+    fieldSet: ["customer_id", "full_date_of_birth"],
+    recordCount: 1,
+    approvalId: "approval-1",
+  });
+  assert.equal(rawPiiPrompt.type, "deny");
+  assert.ok(rawPiiPrompt.reasons.includes("flow is denied: provider_crm -> model_provider"));
+
+  const fileExportTooLarge = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "file.export",
+    action: "export",
+    dataFrom: "provider_crm",
+    dataTo: "file_export",
+    destinationType: "file_export",
+    dataClassification: ["customer_data", "pii"],
+    fieldSet: ["customer_id", "case_id"],
+    recordCount: 51,
+    approvalId: "approval-1",
+  });
+  assert.equal(fileExportTooLarge.type, "deny");
+  assert.ok(fileExportTooLarge.reasons.includes("recordCount exceeds maxRecords 50"));
+
+  const browserFormWithHealthRecord = guard.check({
+    agentId: "support-agent",
+    jobId: "case-pii",
+    tool: "browser.fill_form",
+    action: "send",
+    dataFrom: "provider_crm",
+    dataTo: "browser_form",
+    destinationType: "browser_form",
+    externalDomain: "forms.customer.example",
+    dataClassification: ["pii"],
+    fieldSet: ["customer_id", "health_record_id"],
+    recordCount: 1,
+    approvalId: "approval-1",
+  });
+  assert.equal(browserFormWithHealthRecord.type, "deny");
+  assert.ok(browserFormWithHealthRecord.reasons.includes("field is blocked: health_record_id"));
 });
 
 test("job budgets deny runaway tool loops", () => {
@@ -251,7 +350,28 @@ function policy(): GuardPolicy {
         action: "send",
         requiresApprovalIfPii: true,
         allowedDomains: ["customer.example"],
-        blockedFields: ["ssn", "access_token", "payment_method"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      "webhook.post": {
+        action: "send",
+        requiresApprovalIfPii: true,
+        allowedDomains: ["approved.partner.example"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      "llm.prompt": {
+        action: "send",
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      "file.export": {
+        action: "export",
+        requiresApprovalIfPii: true,
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      "browser.fill_form": {
+        action: "send",
+        requiresApprovalIfPii: true,
+        allowedDomains: ["customer.example"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
       },
       "crm.update_customer": {
         action: "write",
@@ -273,10 +393,46 @@ function policy(): GuardPolicy {
       {
         from: "provider_crm",
         to: "external_email",
+        destinationType: "external_email",
         dataClassification: ["customer_data", "pii"],
         requiresApproval: true,
         allowedDomains: ["customer.example"],
-        blockedFields: ["ssn", "access_token", "payment_method"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "partner_webhook",
+        destinationType: "webhook",
+        dataClassification: ["customer_data", "pii"],
+        requiresApproval: true,
+        allowedDomains: ["approved.partner.example"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "browser_form",
+        destinationType: "browser_form",
+        dataClassification: ["customer_data", "pii"],
+        requiresApproval: true,
+        allowedDomains: ["customer.example"],
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "file_export",
+        destinationType: "file_export",
+        dataClassification: ["customer_data", "pii"],
+        requiresApproval: true,
+        maxRecords: 50,
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "model_provider",
+        destinationType: "model_provider",
+        dataClassification: ["pii"],
+        decision: "deny",
+        blockedFields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
       },
       {
         from: "secrets_manager",
