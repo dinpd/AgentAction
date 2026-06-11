@@ -28,9 +28,13 @@ const guard = createGuard({
       }
     },
     budgets: {
+      challengeAfterEstimatedCostUsdPerJob: 0.75,
       maxToolCallsPerJob: 20,
+      maxSameToolCallsPerJob: 10,
+      maxIdenticalToolCallsPerJob: 2,
       maxRetriesPerTool: 2,
-      maxEstimatedCostUsdPerJob: 1
+      maxEstimatedCostUsdPerJob: 1,
+      maxRuntimeMsPerJob: 300000
     }
   }
 });
@@ -94,7 +98,10 @@ return execution.result;
 - PII/sensitive-data movement to unsafe destinations
 - Field allowlists and blocked fields
 - Destination domain allowlists
-- Per-job tool-call, retry, token, and estimated-cost budgets
+- Per-job tool-call, same-tool, identical-call, retry, token, cost, and runtime budgets
+- Soft budget thresholds that return `challenge_required` before hard denial
+- Optional `callFingerprint` values for detecting repeated tool calls without
+  storing full tool parameters
 
 This package is intentionally local and in-memory for the first MVP. Persistent
 approvals, JIT grants, signed receipts, and audit export belong in the runtime
@@ -105,6 +112,7 @@ service layer.
 ```bash
 npm test
 npm run demo
+npm run demo:circuit
 npm run demo:gate
 npm run demo:pii
 ```
@@ -116,6 +124,12 @@ The refund demo shows the intended first MVP story:
 3. The approved refund succeeds once.
 4. A retry with the same idempotency key is denied.
 5. A PII email to an unapproved destination is denied.
+
+The circuit-breaker demo shows tool-thrashing and spend controls:
+
+1. Repeated identical tool calls are denied.
+2. Soft token/cost thresholds pause for approval.
+3. Hard token/cost caps deny execution even after approval.
 
 The PII demo shows destination-specific data movement rules:
 

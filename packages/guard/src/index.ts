@@ -37,10 +37,17 @@ export type FlowPolicy = {
 };
 
 export type BudgetPolicy = {
+  challengeAfterToolCallsPerJob?: number;
+  challengeAfterTokensPerJob?: number;
+  challengeAfterEstimatedCostUsdPerJob?: number;
+  challengeAfterRuntimeMsPerJob?: number;
   maxToolCallsPerJob?: number;
+  maxSameToolCallsPerJob?: number;
+  maxIdenticalToolCallsPerJob?: number;
   maxRetriesPerTool?: number;
   maxTokensPerJob?: number;
   maxEstimatedCostUsdPerJob?: number;
+  maxRuntimeMsPerJob?: number;
 };
 
 export type GuardPolicy = {
@@ -59,6 +66,7 @@ export type GuardCheck = {
   jobId?: string;
   userId?: string;
   resource?: string;
+  callFingerprint?: string;
   amountUsd?: number;
   idempotencyKey?: string;
   retryCount?: number;
@@ -106,6 +114,7 @@ export type GuardDecisionEvent = {
   jobId?: string;
   userId?: string;
   resource?: string;
+  callFingerprint?: string;
   amountUsd?: number;
   idempotencyKey?: string;
   approvalId?: string;
@@ -151,10 +160,12 @@ export type GuardedToolExecutionResult<TResult> =
 export type AgentPassToolGateOptions = AgentPassGuardOptions | { guard: AgentPassGuard };
 
 type JobUsage = {
+  startedAtMs: number;
   toolCalls: number;
   tokens: number;
   estimatedCostUsd: number;
   toolAttempts: Map<string, number>;
+  toolCallsByName: Map<string, number>;
 };
 
 const DEFAULT_SENSITIVE_CLASSIFICATIONS = [
@@ -200,7 +211,7 @@ export class AgentPassGuard {
 
     this.evaluateToolPolicy(input, toolPolicy, reasons, challengeFor);
     this.evaluateFlowPolicy(input, toolPolicy, reasons, challengeFor);
-    this.evaluateBudgetPolicy(input, reasons);
+    this.evaluateBudgetPolicy(input, reasons, challengeFor);
 
     if (reasons.length > 0) return this.decision("deny", input, reasons);
     if (challengeFor.size > 0) {
@@ -297,25 +308,62 @@ export class AgentPassGuard {
     }
   }
 
-  private evaluateBudgetPolicy(input: GuardCheck, reasons: string[]): void {
+  private evaluateBudgetPolicy(
+    input: GuardCheck,
+    reasons: string[],
+    challengeFor: Set<"tool" | "flow" | "pii" | "budget">,
+  ): void {
     const budget = this.policy.budgets;
     if (!budget || !input.jobId) return;
 
-    const usage = this.usageByJob.get(input.jobId) || newJobUsage();
+    const nowMs = this.now().getTime();
+    const usage = this.usageByJob.get(input.jobId) || newJobUsage(nowMs);
     const nextToolCalls = usage.toolCalls + 1;
+    const nextSameToolCalls = (usage.toolCallsByName.get(input.tool) || 0) + 1;
     const nextTokens = usage.tokens + (input.estimatedTokens || 0);
     const nextCost = usage.estimatedCostUsd + (input.estimatedCostUsd || 0);
+    const nextRuntimeMs = nowMs - usage.startedAtMs;
     const attemptKey = attemptKeyFor(input);
     const attempts = (usage.toolAttempts.get(attemptKey) || 0) + 1;
 
+    if (!input.approvalId) {
+      if (
+        budget.challengeAfterToolCallsPerJob !== undefined &&
+        nextToolCalls > budget.challengeAfterToolCallsPerJob
+      ) {
+        challengeFor.add("budget");
+      }
+      if (budget.challengeAfterTokensPerJob !== undefined && nextTokens > budget.challengeAfterTokensPerJob) {
+        challengeFor.add("budget");
+      }
+      if (
+        budget.challengeAfterEstimatedCostUsdPerJob !== undefined &&
+        nextCost > budget.challengeAfterEstimatedCostUsdPerJob
+      ) {
+        challengeFor.add("budget");
+      }
+      if (budget.challengeAfterRuntimeMsPerJob !== undefined && nextRuntimeMs > budget.challengeAfterRuntimeMsPerJob) {
+        challengeFor.add("budget");
+      }
+    }
+
     if (budget.maxToolCallsPerJob !== undefined && nextToolCalls > budget.maxToolCallsPerJob) {
       reasons.push(`job exceeds maxToolCallsPerJob ${budget.maxToolCallsPerJob}`);
+    }
+    if (budget.maxSameToolCallsPerJob !== undefined && nextSameToolCalls > budget.maxSameToolCallsPerJob) {
+      reasons.push(`job exceeds maxSameToolCallsPerJob ${budget.maxSameToolCallsPerJob}`);
+    }
+    if (budget.maxIdenticalToolCallsPerJob !== undefined && attempts > budget.maxIdenticalToolCallsPerJob) {
+      reasons.push(`job exceeds maxIdenticalToolCallsPerJob ${budget.maxIdenticalToolCallsPerJob}`);
     }
     if (budget.maxTokensPerJob !== undefined && nextTokens > budget.maxTokensPerJob) {
       reasons.push(`job exceeds maxTokensPerJob ${budget.maxTokensPerJob}`);
     }
     if (budget.maxEstimatedCostUsdPerJob !== undefined && nextCost > budget.maxEstimatedCostUsdPerJob) {
       reasons.push(`job exceeds maxEstimatedCostUsdPerJob ${budget.maxEstimatedCostUsdPerJob}`);
+    }
+    if (budget.maxRuntimeMsPerJob !== undefined && nextRuntimeMs > budget.maxRuntimeMsPerJob) {
+      reasons.push(`job exceeds maxRuntimeMsPerJob ${budget.maxRuntimeMsPerJob}`);
     }
     if (budget.maxRetriesPerTool !== undefined && attempts > budget.maxRetriesPerTool + 1) {
       reasons.push(`tool exceeds maxRetriesPerTool ${budget.maxRetriesPerTool}`);
@@ -328,12 +376,13 @@ export class AgentPassGuard {
     }
     if (!input.jobId) return;
 
-    const usage = this.usageByJob.get(input.jobId) || newJobUsage();
+    const usage = this.usageByJob.get(input.jobId) || newJobUsage(this.now().getTime());
     usage.toolCalls += 1;
     usage.tokens += input.estimatedTokens || 0;
     usage.estimatedCostUsd += input.estimatedCostUsd || 0;
     const attemptKey = attemptKeyFor(input);
     usage.toolAttempts.set(attemptKey, (usage.toolAttempts.get(attemptKey) || 0) + 1);
+    usage.toolCallsByName.set(input.tool, (usage.toolCallsByName.get(input.tool) || 0) + 1);
     this.usageByJob.set(input.jobId, usage);
   }
 
@@ -380,6 +429,7 @@ export class AgentPassGuard {
       jobId: input.jobId,
       userId: input.userId,
       resource: input.resource,
+      callFingerprint: input.callFingerprint,
       amountUsd: input.amountUsd,
       idempotencyKey: input.idempotencyKey,
       approvalId: input.approvalId,
@@ -486,15 +536,17 @@ function matchesAnyDomain(domain: string, allowedDomains: string[]): boolean {
 }
 
 function attemptKeyFor(input: GuardCheck): string {
-  return [input.tool, input.action, input.resource || "", input.idempotencyKey || ""].join("|");
+  return [input.tool, input.action, input.callFingerprint || input.resource || "", input.idempotencyKey || ""].join("|");
 }
 
-function newJobUsage(): JobUsage {
+function newJobUsage(startedAtMs: number): JobUsage {
   return {
+    startedAtMs,
     toolCalls: 0,
     tokens: 0,
     estimatedCostUsd: 0,
     toolAttempts: new Map<string, number>(),
+    toolCallsByName: new Map<string, number>(),
   };
 }
 

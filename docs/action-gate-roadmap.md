@@ -156,6 +156,7 @@ Test gate:
 - `npm test`
 - `npm run build`
 - `npm run demo`
+- `npm run demo:circuit`
 - `npm run demo:gate`
 - `npm run demo:pii`
 
@@ -167,6 +168,8 @@ Expected outcomes:
 - Duplicate refund retries are denied by idempotency.
 - PII sends to unapproved destinations are denied.
 - Tool-call, retry, token, and estimated-cost budgets are enforced.
+- Tool-thrashing circuit breakers stop repeated identical calls and same-tool
+  loops.
 
 ### Phase 3: PII And Sensitive-Data Exfiltration Rules
 

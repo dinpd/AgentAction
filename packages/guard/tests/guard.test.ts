@@ -287,6 +287,142 @@ test("job budgets deny runaway tool loops", () => {
   assert.ok(denied.reasons.includes("job exceeds maxToolCallsPerJob 5"));
 });
 
+test("job budgets can require approval before hard caps", () => {
+  const guard = createGuard({
+    policy: circuitBreakerPolicy({
+      challengeAfterToolCallsPerJob: 1,
+      maxToolCallsPerJob: 3,
+    }),
+    idGenerator: ids(),
+  });
+
+  const first = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:refund policy",
+  });
+
+  const challenged = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:refund policy details",
+  });
+
+  const approved = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:refund policy details",
+    approvalId: "approval-budget-1",
+  });
+
+  assert.equal(first.type, "allow");
+  assert.equal(challenged.type, "challenge_required");
+  assert.deepEqual(challenged.challenge?.requiredApprovalFor, ["budget"]);
+  assert.equal(approved.type, "allow");
+});
+
+test("same-tool circuit breaker denies thrashing", () => {
+  const guard = createGuard({
+    policy: circuitBreakerPolicy({
+      maxSameToolCallsPerJob: 2,
+    }),
+    idGenerator: ids(),
+  });
+
+  for (const resource of ["query:one", "query:two"]) {
+    const decision = guard.check({
+      agentId: "research-agent",
+      jobId: "research-loop",
+      tool: "web.search",
+      action: "read",
+      resource,
+    });
+    assert.equal(decision.type, "allow");
+  }
+
+  const denied = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:three",
+  });
+
+  assert.equal(denied.type, "deny");
+  assert.ok(denied.reasons.includes("job exceeds maxSameToolCallsPerJob 2"));
+});
+
+test("identical-call circuit breaker denies repeated calls", () => {
+  const guard = createGuard({
+    policy: circuitBreakerPolicy({
+      maxIdenticalToolCallsPerJob: 2,
+    }),
+    idGenerator: ids(),
+  });
+
+  for (const resource of ["query:same?page=1", "query:same?page=2"]) {
+    const decision = guard.check({
+      agentId: "research-agent",
+      jobId: "research-loop",
+      tool: "web.search",
+      action: "read",
+      resource,
+      callFingerprint: "web.search:same",
+    });
+    assert.equal(decision.type, "allow");
+  }
+
+  const denied = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:same?page=3",
+    callFingerprint: "web.search:same",
+  });
+
+  assert.equal(denied.type, "deny");
+  assert.ok(denied.reasons.includes("job exceeds maxIdenticalToolCallsPerJob 2"));
+});
+
+test("runtime circuit breaker denies long-running jobs", () => {
+  let current = new Date("2026-06-11T12:00:00Z");
+  const guard = createGuard({
+    policy: circuitBreakerPolicy({
+      maxRuntimeMsPerJob: 1000,
+    }),
+    idGenerator: ids(),
+    now: () => current,
+  });
+
+  const first = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:first",
+  });
+  assert.equal(first.type, "allow");
+
+  current = new Date("2026-06-11T12:00:02Z");
+  const denied = guard.check({
+    agentId: "research-agent",
+    jobId: "research-loop",
+    tool: "web.search",
+    action: "read",
+    resource: "query:late",
+  });
+
+  assert.equal(denied.type, "deny");
+  assert.ok(denied.reasons.includes("job exceeds maxRuntimeMsPerJob 1000"));
+});
+
 test("decision events include audit context", () => {
   const guard = createGuard({
     policy: policy(),
@@ -320,6 +456,7 @@ test("decision events include audit context", () => {
     jobId: "case-1042",
     userId: "user-1",
     resource: "customer/cus_123",
+    callFingerprint: undefined,
     amountUsd: undefined,
     idempotencyKey: undefined,
     approvalId: undefined,
@@ -530,6 +667,17 @@ function policy(): GuardPolicy {
       maxTokensPerJob: 10000,
       maxEstimatedCostUsdPerJob: 1,
     },
+  };
+}
+
+function circuitBreakerPolicy(budgets: GuardPolicy["budgets"]): GuardPolicy {
+  return {
+    tools: {
+      "web.search": {
+        action: "read",
+      },
+    },
+    budgets,
   };
 }
 

@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "demo:circuit": "node --import tsx examples/circuit-breaker-demo.ts",
     "demo": "node --import tsx examples/support-refund-demo.ts",
     "demo:gate": "node --import tsx examples/tool-gate-demo.ts",
     "demo:pii": "node --import tsx examples/pii-exfiltration-demo.ts",
