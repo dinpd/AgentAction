@@ -4,14 +4,14 @@ Small helper client for calling an AgentPass gateway from a SaaS app or agent
 runtime.
 
 ```ts
-import { AgentIdClient } from "@agentid/client";
+import { AgentPassClient } from "@agentpass/client";
 
-const agentid = new AgentIdClient({
-  baseUrl: "https://agentid-gateway.example.com",
+const agentpass = new AgentPassClient({
+  baseUrl: "https://agentpass-gateway.example.com",
   token: async () => getAccessTokenFromYourIdP(),
 });
 
-await agentid.assertAllowed("tenant-a", {
+await agentpass.assertAllowed("tenant-a", {
   agent_id: "refund-agent",
   tool: "zendesk.search_tickets",
   action: "read",
@@ -19,7 +19,7 @@ await agentid.assertAllowed("tenant-a", {
   data_to: "agent_context",
 });
 
-const grant = await agentid.requestJitGrant("tenant-a", {
+const grant = await agentpass.requestJitGrant("tenant-a", {
   tool: "stripe.create_refund",
   action: "write",
   resource: "refund/case-1042",
@@ -27,7 +27,7 @@ const grant = await agentid.requestJitGrant("tenant-a", {
   user_id: "support-rep-17",
 });
 
-await agentid.assertAllowed("tenant-a", {
+await agentpass.assertAllowed("tenant-a", {
   agent_id: "refund-agent",
   tool: "stripe.create_refund",
   action: "write",
@@ -36,3 +36,5 @@ await agentid.assertAllowed("tenant-a", {
   jit_grant_id: grant.jit_grant_id,
 });
 ```
+
+The legacy `AgentIdClient` export remains available as a compatibility alias.

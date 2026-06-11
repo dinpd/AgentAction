@@ -6,6 +6,7 @@ import {
   MemoryReplayStore,
   RemoteJwksCache,
   createAgentIdReceiptMiddleware,
+  createAgentPassReceiptMiddleware,
   signProviderReceiptJws,
   signProviderReceipt,
   verifyProviderReceipt,
@@ -182,7 +183,7 @@ test("middleware attaches verified receipt and calls next", async () => {
   };
   const res = fakeResponse();
   let nextCalled = false;
-  const middleware = createAgentIdReceiptMiddleware({
+  const middleware = createAgentPassReceiptMiddleware({
     secret: "secret-1",
     now: () => new Date("2026-05-28T12:01:00Z"),
     tools: {
@@ -197,6 +198,7 @@ test("middleware attaches verified receipt and calls next", async () => {
 
   assert.equal(nextCalled, true);
   assert.equal(res.statusCode, undefined);
+  assert.equal(req.agentpassReceipt?.decision_id, "dec-1");
   assert.equal(req.agentidReceipt?.decision_id, "dec-1");
 });
 
@@ -206,7 +208,7 @@ test("middleware returns 403 for denied receipts", async () => {
   };
   const res = fakeResponse();
   let nextCalled = false;
-  const middleware = createAgentIdReceiptMiddleware({
+  const middleware = createAgentPassReceiptMiddleware({
     secret: "secret-1",
     tools: {
       "provider.crm.update_customer": policy,
@@ -229,7 +231,7 @@ test("middleware skips tools without a configured receipt policy", async () => {
   const req = { body: mcpRequest(undefined, "provider.crm.search_customer") };
   const res = fakeResponse();
   let nextCalled = false;
-  const middleware = createAgentIdReceiptMiddleware({
+  const middleware = createAgentPassReceiptMiddleware({
     tools: {
       "provider.crm.update_customer": policy,
     },
@@ -241,6 +243,10 @@ test("middleware skips tools without a configured receipt policy", async () => {
 
   assert.equal(nextCalled, true);
   assert.equal(res.statusCode, undefined);
+});
+
+test("legacy createAgentIdReceiptMiddleware export remains a compatibility alias", () => {
+  assert.equal(createAgentIdReceiptMiddleware, createAgentPassReceiptMiddleware);
 });
 
 const policy = {

@@ -137,14 +137,14 @@ fails if risk exceeds the threshold.
 Use the helper in `sdk/typescript`:
 
 ```ts
-import { AgentIdClient } from "@agentid/client";
+import { AgentPassClient } from "@agentpass/client";
 
-const agentid = new AgentIdClient({
-  baseUrl: "https://agentid-gateway.example.com",
+const agentpass = new AgentPassClient({
+  baseUrl: "https://agentpass-gateway.example.com",
   token: async () => getAccessTokenFromYourIdP(),
 });
 
-await agentid.assertAllowed("tenant-a", {
+await agentpass.assertAllowed("tenant-a", {
   agent_id: "enterprise-support-agent",
   job_id: "support_case_resolution",
   case_id: "case-1042",
@@ -160,7 +160,7 @@ await agentid.assertAllowed("tenant-a", {
 For sensitive actions, request a JIT grant before executing the tool:
 
 ```ts
-const grant = await agentid.requestJitGrant("tenant-a", {
+const grant = await agentpass.requestJitGrant("tenant-a", {
   tool: "provider.crm.update_customer",
   action: "write",
   resource: "provider/customer/cus_123",
@@ -171,7 +171,7 @@ const grant = await agentid.requestJitGrant("tenant-a", {
   user_id: "support-rep-17",
 });
 
-await agentid.assertAllowed("tenant-a", {
+await agentpass.assertAllowed("tenant-a", {
   agent_id: "enterprise-support-agent",
   tool: "provider.crm.update_customer",
   action: "write",

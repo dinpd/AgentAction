@@ -1,0 +1,53 @@
+{
+  "tools": {
+    "stripe.refund": {
+      "action": "pay",
+      "requiresApproval": true,
+      "maxAmountUsd": 100,
+      "requireIdempotencyKey": true,
+      "singleUse": true
+    },
+    "gmail.send": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method"]
+    },
+    "crm.read_customer": {
+      "action": "read"
+    },
+    "crm.update_customer": {
+      "action": "write",
+      "requiresApproval": true,
+      "allowedFields": ["case_id", "plan", "renewal_date", "support_note"]
+    }
+  },
+  "flows": [
+    {
+      "from": "provider_crm",
+      "to": "agent_context",
+      "dataClassification": ["customer_data", "pii"],
+      "allowedFields": ["customer_id", "case_id", "plan", "renewal_date"],
+      "maxRecords": 10
+    },
+    {
+      "from": "provider_crm",
+      "to": "external_email",
+      "dataClassification": ["customer_data", "pii"],
+      "requiresApproval": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method"]
+    },
+    {
+      "from": "secrets_manager",
+      "to": "model_provider",
+      "decision": "deny"
+    }
+  ],
+  "budgets": {
+    "maxToolCallsPerJob": 5,
+    "maxRetriesPerTool": 1,
+    "maxTokensPerJob": 10000,
+    "maxEstimatedCostUsdPerJob": 1
+  }
+}

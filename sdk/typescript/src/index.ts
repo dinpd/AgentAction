@@ -1,8 +1,10 @@
-export type AgentIdClientOptions = {
+export type AgentPassClientOptions = {
   baseUrl: string;
   token?: string | (() => string | Promise<string>);
   fetch?: typeof fetch;
 };
+
+export type AgentIdClientOptions = AgentPassClientOptions;
 
 export type ToolCallRequest = {
   agent_id: string;
@@ -61,34 +63,34 @@ export type JitGrantResponse = {
   auth?: Record<string, unknown>;
 };
 
-export class AgentIdDeniedError extends Error {
+export class AgentPassDeniedError extends Error {
   response: AuthorizeResponse;
 
   constructor(response: AuthorizeResponse) {
     super(`AgentPass denied tool call: ${response.findings.join("; ") || response.decision}`);
-    this.name = "AgentIdDeniedError";
+    this.name = "AgentPassDeniedError";
     this.response = response;
   }
 }
 
-export class AgentIdHttpError extends Error {
+export class AgentPassHttpError extends Error {
   status: number;
   body: unknown;
 
   constructor(status: number, body: unknown) {
     super(`AgentPass gateway request failed with status ${status}`);
-    this.name = "AgentIdHttpError";
+    this.name = "AgentPassHttpError";
     this.status = status;
     this.body = body;
   }
 }
 
-export class AgentIdClient {
+export class AgentPassClient {
   private baseUrl: string;
-  private token?: AgentIdClientOptions["token"];
+  private token?: AgentPassClientOptions["token"];
   private fetchImpl: typeof fetch;
 
-  constructor(options: AgentIdClientOptions) {
+  constructor(options: AgentPassClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.token = options.token;
     this.fetchImpl = options.fetch || fetch;
@@ -100,7 +102,7 @@ export class AgentIdClient {
 
   async assertAllowed(tenantId: string, request: ToolCallRequest): Promise<AuthorizeResponse> {
     const response = await this.authorizeToolCall(tenantId, request);
-    if (!response.allow) throw new AgentIdDeniedError(response);
+    if (!response.allow) throw new AgentPassDeniedError(response);
     return response;
   }
 
@@ -120,7 +122,7 @@ export class AgentIdClient {
     });
     const body = await response.json().catch(() => ({}));
     if (!expectedStatuses.includes(response.status)) {
-      throw new AgentIdHttpError(response.status, body);
+      throw new AgentPassHttpError(response.status, body);
     }
     return body as T;
   }
@@ -131,3 +133,7 @@ export class AgentIdClient {
     return this.token;
   }
 }
+
+export const AgentIdDeniedError = AgentPassDeniedError;
+export const AgentIdHttpError = AgentPassHttpError;
+export const AgentIdClient = AgentPassClient;

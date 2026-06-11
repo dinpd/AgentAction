@@ -56,7 +56,7 @@ authorization in your existing authorization layer.
 The best enforcement point is the code path that already invokes tools:
 
 ```ts
-await agentid.assertAllowed(tenantId, {
+await agentpass.assertAllowed(tenantId, {
   agent_id: "enterprise-support-agent",
   job_id: "support_case_resolution",
   case_id: "case-1042",
@@ -83,7 +83,7 @@ For sensitive actions, split the workflow into two checks:
 3. Consume the JIT grant when the tool call executes.
 
 ```ts
-const grant = await agentid.requestJitGrant(tenantId, {
+const grant = await agentpass.requestJitGrant(tenantId, {
   tool: "provider.crm.update_customer",
   action: "write",
   resource: "provider/customer/cus_123",
@@ -94,7 +94,7 @@ const grant = await agentid.requestJitGrant(tenantId, {
   user_id: "support-rep-17",
 });
 
-await agentid.assertAllowed(tenantId, {
+await agentpass.assertAllowed(tenantId, {
   agent_id: "enterprise-support-agent",
   tool: "provider.crm.update_customer",
   action: "write",

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AgentIdClient, AgentIdDeniedError, AgentIdHttpError } from "../src/index.ts";
+import { AgentIdClient, AgentPassClient, AgentPassDeniedError, AgentPassHttpError } from "../src/index.ts";
 
 test("authorizeToolCall posts tenant authorize request with bearer token", async () => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
-  const client = new AgentIdClient({
+  const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com/",
     token: "token-1",
     fetch: async (url, init) => {
@@ -30,19 +30,19 @@ test("authorizeToolCall posts tenant authorize request with bearer token", async
 });
 
 test("assertAllowed throws on deny decisions", async () => {
-  const client = new AgentIdClient({
+  const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",
     fetch: async () => jsonResponse(403, { allow: false, decision: "deny", findings: ["blocked"], event: {} }),
   });
 
   await assert.rejects(
     () => client.assertAllowed("tenant-a", { agent_id: "agent-a", tool: "x", action: "write" }),
-    AgentIdDeniedError,
+    AgentPassDeniedError,
   );
 });
 
 test("requestJitGrant posts JIT grant request", async () => {
-  const client = new AgentIdClient({
+  const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",
     token: async () => "token-2",
     fetch: async (url, init) => {
@@ -71,16 +71,20 @@ test("requestJitGrant posts JIT grant request", async () => {
   assert.equal(response.jit_grant_id, "grant-1");
 });
 
-test("unexpected statuses throw AgentIdHttpError", async () => {
-  const client = new AgentIdClient({
+test("unexpected statuses throw AgentPassHttpError", async () => {
+  const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",
     fetch: async () => jsonResponse(500, { error: "broken" }),
   });
 
   await assert.rejects(
     () => client.authorizeToolCall("tenant-a", { agent_id: "agent-a", tool: "x", action: "read" }),
-    AgentIdHttpError,
+    AgentPassHttpError,
   );
+});
+
+test("legacy AgentIdClient export remains a compatibility alias", () => {
+  assert.equal(AgentIdClient, AgentPassClient);
 });
 
 function jsonResponse(status: number, body: unknown): Response {

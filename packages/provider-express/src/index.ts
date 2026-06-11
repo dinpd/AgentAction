@@ -56,7 +56,7 @@ export type ToolReceiptPolicy = {
   singleUse?: boolean;
 };
 
-export type AgentIdProviderExpressOptions = {
+export type AgentPassProviderExpressOptions = {
   secret?: string | (() => string | Promise<string>);
   jwks?: JsonWebKeySet | (() => JsonWebKeySet | Promise<JsonWebKeySet>);
   jwksUri?: string;
@@ -79,8 +79,11 @@ export type AgentIdProviderExpressOptions = {
   ) => unknown | Promise<unknown>;
 };
 
+export type AgentIdProviderExpressOptions = AgentPassProviderExpressOptions;
+
 export type RequestLike = {
   body?: unknown;
+  agentpassReceipt?: ProviderAuthorizationReceipt;
   agentidReceipt?: ProviderAuthorizationReceipt;
 };
 
@@ -142,12 +145,12 @@ export class MemoryReplayStore implements ReplayStore {
   }
 }
 
-export function createAgentIdReceiptMiddleware(options: AgentIdProviderExpressOptions = {}) {
+export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpressOptions = {}) {
   const receiptArgument = options.receiptArgument || "_agentid_receipt";
   const requireSigned = options.requireSigned !== false;
   const now = options.now || (() => new Date());
 
-  return async function agentIdReceiptMiddleware(req: RequestLike, res: ResponseLike, next: NextFunction) {
+  return async function agentPassReceiptMiddleware(req: RequestLike, res: ResponseLike, next: NextFunction) {
     try {
       const parsed = parseMcpToolCall(req.body);
       if (!parsed) return next();
@@ -188,6 +191,7 @@ export function createAgentIdReceiptMiddleware(options: AgentIdProviderExpressOp
         return;
       }
 
+      req.agentpassReceipt = verification.receipt;
       req.agentidReceipt = verification.receipt;
       next();
     } catch (error) {
@@ -195,6 +199,8 @@ export function createAgentIdReceiptMiddleware(options: AgentIdProviderExpressOp
     }
   };
 }
+
+export const createAgentIdReceiptMiddleware = createAgentPassReceiptMiddleware;
 
 export function signProviderReceipt(
   receipt: ProviderAuthorizationReceipt,
@@ -482,13 +488,13 @@ function parseMcpToolCall(body: unknown): { tool: string; args: Record<string, u
   return { tool, args };
 }
 
-async function resolveSecret(secret: AgentIdProviderExpressOptions["secret"]): Promise<string | undefined> {
+async function resolveSecret(secret: AgentPassProviderExpressOptions["secret"]): Promise<string | undefined> {
   if (!secret) return undefined;
   if (typeof secret === "function") return secret();
   return secret;
 }
 
-async function resolveJwks(jwks: AgentIdProviderExpressOptions["jwks"]): Promise<JsonWebKeySet | undefined> {
+async function resolveJwks(jwks: AgentPassProviderExpressOptions["jwks"]): Promise<JsonWebKeySet | undefined> {
   if (!jwks) return undefined;
   if (typeof jwks === "function") return jwks();
   return jwks;

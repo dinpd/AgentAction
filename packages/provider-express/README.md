@@ -1,11 +1,11 @@
-# @agentid/provider-express
+# @agentpass/provider-express
 
 Express-compatible middleware for provider-side AgentPass receipt verification.
 
 Use this when an MCP provider wants to verify that a forwarded `tools/call`
-contains a scoped AgentPass authorization receipt before executing high-risk
-tools. It is designed to complement provider business authorization, not replace
-it.
+contains a scoped AgentPass authorization receipt before executing a guarded
+high-risk tool. It is the provider-side verification companion to the runtime
+action gate; it complements provider business authorization, not replace it.
 
 ## Install
 
@@ -25,15 +25,15 @@ npm run build
 import express from "express";
 import {
   MemoryReplayStore,
-  createAgentIdReceiptMiddleware,
-} from "@agentid/provider-express";
+  createAgentPassReceiptMiddleware,
+} from "@agentpass/provider-express";
 
 const app = express();
 app.use(express.json());
 
 app.post(
   "/mcp",
-createAgentIdReceiptMiddleware({
+createAgentPassReceiptMiddleware({
     jwksUri: "https://enterprise.example.com/.well-known/jwks.json",
     issuer: "https://enterprise.example.com",
     audience: "provider-crm-mcp",
@@ -62,12 +62,15 @@ createAgentIdReceiptMiddleware({
     },
   }),
   async (req, res) => {
-    // req.agentidReceipt is available after successful verification.
+    // req.agentpassReceipt is available after successful verification.
     // Provider business authorization should still run here.
     res.json({ ok: true });
   },
 );
 ```
+
+The legacy `createAgentIdReceiptMiddleware` export and `req.agentidReceipt`
+property remain available as compatibility aliases.
 
 ## What It Checks
 

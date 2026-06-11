@@ -1,14 +1,28 @@
 # AgentPass
 
-**Just-in-time authority for high-risk AI agent tool actions.**
+**Runtime guardrails for AI agent tool calls.**
 
-AgentPass helps platform, SRE, security, MCP gateway, and SaaS provider teams
-avoid giving agents standing authority over production systems, customer data,
+AgentPass is a runtime action gate that sits before agents call tools, send
+messages, move money, update records, deploy code, export data, or touch
+sensitive systems.
+
+```text
+Agent proposes tool call -> AgentPass checks policy -> allow / deny / challenge
+```
+
+AgentPass helps builders ship bounded AI automations and agents without giving
+models unchecked execution authority over production systems, customer data,
 payments, external sends, secrets, and administrative tools.
 
 AgentPass answers one runtime question:
 
 > Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
+
+The first MVP is a local TypeScript guard for existing agent loops:
+
+- Package: [`packages/guard/`](packages/guard/)
+- Demo: [`packages/guard/examples/support-refund-demo.ts`](packages/guard/examples/support-refund-demo.ts)
+- Policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
 
 OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
 package workflows and supporting instructions. AgentPass
@@ -20,9 +34,9 @@ skills, and MCP gateways.
 
 The core idea is simple:
 
-> Every production agent should have an authority contract that says who it is,
-> who owns it, what it can request, when authority should be issued just in
-> time, where data can flow, when it needs approval, and how it can be stopped.
+> Every production agent should have a runtime action contract that says what it
+> can request, what must be challenged, where sensitive data can flow, which
+> retries are safe, and how execution should be stopped.
 
 AgentPass does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
 
@@ -103,6 +117,12 @@ If you are here for MCP provider authorization:
 - Example contract: [`examples/provider-mcp-contract.yaml`](examples/provider-mcp-contract.yaml)
 - Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 
+If you are here for the runtime action-gate MVP:
+
+- TypeScript guard package: [`packages/guard/`](packages/guard/)
+- Support/refund demo policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
+- Roadmap: [`docs/action-gate-roadmap.md`](docs/action-gate-roadmap.md)
+
 ---
 
 ## Quick Start
@@ -136,6 +156,7 @@ Try the first vertical solution pack:
   approval, JIT, dry-run provider dispatch, and audit visibility.
 
 For a full implementation walkthrough, see [`docs/getting-started.md`](docs/getting-started.md).
+For the action-gate product roadmap, see [`docs/action-gate-roadmap.md`](docs/action-gate-roadmap.md).
 For SaaS integration patterns, see [`docs/integration-patterns.md`](docs/integration-patterns.md).
 For MCP gateway integration, see [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md).
 For provider-side MCP authorization, see [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md).
