@@ -471,7 +471,7 @@ After the provider executes or denies the tool, it should emit an audit receipt:
 This gives the enterprise and provider matching audit handles for incident
 review, customer support, compliance export, and dispute resolution.
 
-## MVP Scope
+## Initial Scope
 
 The first provider-side implementation should stay narrow:
 
@@ -485,9 +485,9 @@ The first provider-side implementation should stay narrow:
 - Log provider execution receipts alongside existing gateway authorization logs.
 
 Do not start by building a full provider IAM layer, OAuth authorization server,
-or generalized entitlement engine. The MVP should demonstrate the boundary:
-enterprise authorization receipt first, provider business authorization second,
-execution only when both pass.
+or generalized entitlement engine. The first implementation should demonstrate
+the boundary: enterprise authorization receipt first, provider business
+authorization second, execution only when both pass.
 
 ## Execution Plan
 

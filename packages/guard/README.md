@@ -106,9 +106,9 @@ return execution.result;
 - Optional `callFingerprint` values for detecting repeated tool calls without
   storing full tool parameters
 
-This package is intentionally local and in-memory for the first MVP. Persistent
-approvals, policy distribution, shared counters, and audit export belong in the
-runtime service layer.
+This package is intentionally local and in-memory for the initial package.
+Persistent approvals, policy distribution, shared counters, and audit export
+belong in the runtime service layer.
 
 ## Local Demo
 
@@ -121,7 +121,7 @@ npm run demo:gate
 npm run demo:pii
 ```
 
-The refund demo shows the intended first MVP story:
+The refund demo shows the initial runtime-guard story:
 
 1. A support agent proposes a refund.
 2. The guard returns `challenge_required`.
