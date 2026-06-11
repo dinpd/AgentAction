@@ -22,6 +22,7 @@ The first MVP is a local TypeScript guard for existing agent loops:
 
 - Package: [`packages/guard/`](packages/guard/)
 - Demo: [`packages/guard/examples/support-refund-demo.ts`](packages/guard/examples/support-refund-demo.ts)
+- Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
 - Policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
 
 OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
@@ -121,6 +122,7 @@ If you are here for the runtime action-gate MVP:
 
 - TypeScript guard package: [`packages/guard/`](packages/guard/)
 - Support/refund demo policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
+- Drop-in tool-gate demo: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
 - Roadmap: [`docs/action-gate-roadmap.md`](docs/action-gate-roadmap.md)
 
 ---

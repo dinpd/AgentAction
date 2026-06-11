@@ -127,6 +127,29 @@ export type AgentPassGuardOptions = {
   idGenerator?: () => string;
 };
 
+export type ToolExecutionContext = {
+  check: GuardCheck;
+  decision: GuardDecision;
+};
+
+export type GuardedToolExecutor<TResult> = (
+  context: ToolExecutionContext,
+) => TResult | Promise<TResult>;
+
+export type GuardedToolExecutionResult<TResult> =
+  | {
+      executed: true;
+      decision: GuardDecision;
+      result: TResult;
+    }
+  | {
+      executed: false;
+      decision: GuardDecision;
+      result?: never;
+    };
+
+export type AgentPassToolGateOptions = AgentPassGuardOptions | { guard: AgentPassGuard };
+
 type JobUsage = {
   toolCalls: number;
   tokens: number;
@@ -376,6 +399,46 @@ export class AgentPassGuard {
 
 export function createGuard(options: AgentPassGuardOptions): AgentPassGuard {
   return new AgentPassGuard(options);
+}
+
+export class AgentPassToolGate {
+  readonly guard: AgentPassGuard;
+
+  constructor(options: AgentPassToolGateOptions) {
+    this.guard = "guard" in options ? options.guard : new AgentPassGuard(options);
+  }
+
+  check(input: GuardCheck): GuardDecision {
+    return this.guard.check(input);
+  }
+
+  async run<TResult>(
+    input: GuardCheck,
+    execute: GuardedToolExecutor<TResult>,
+  ): Promise<GuardedToolExecutionResult<TResult>> {
+    const decision = this.guard.check(input);
+    if (!decision.allow) {
+      return {
+        executed: false,
+        decision,
+      };
+    }
+
+    const result = await execute({ check: input, decision });
+    return {
+      executed: true,
+      decision,
+      result,
+    };
+  }
+
+  reset(): void {
+    this.guard.reset();
+  }
+}
+
+export function createToolGate(options: AgentPassToolGateOptions): AgentPassToolGate {
+  return new AgentPassToolGate(options);
 }
 
 function hasSensitiveData(input: GuardCheck, policy: GuardPolicy): boolean {

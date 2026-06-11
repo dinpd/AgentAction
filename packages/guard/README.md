@@ -54,6 +54,36 @@ if (decision.type === "deny") {
 }
 ```
 
+## Tool Gate
+
+Use `createToolGate` when you want AgentPass to sit directly in front of tool
+execution:
+
+```ts
+import { createToolGate } from "@agentpass/guard";
+
+const gate = createToolGate({ policy });
+
+const execution = await gate.run(
+  {
+    agentId: "support-agent",
+    jobId: "case-1042",
+    tool: "stripe.refund",
+    action: "pay",
+    resource: "payment/pi_123",
+    amountUsd: 49,
+    idempotencyKey: "refund-case-1042-pi_123"
+  },
+  () => stripe.refunds.create({ payment_intent: "pi_123", amount: 4900 })
+);
+
+if (!execution.executed) {
+  return execution.decision;
+}
+
+return execution.result;
+```
+
 ## What It Checks
 
 - Closed-world tool declarations
@@ -75,6 +105,7 @@ service layer.
 ```bash
 npm test
 npm run demo
+npm run demo:gate
 npm run demo:pii
 ```
 

@@ -156,6 +156,7 @@ Test gate:
 - `npm test`
 - `npm run build`
 - `npm run demo`
+- `npm run demo:gate`
 - `npm run demo:pii`
 
 Expected outcomes:

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGuard, type GuardPolicy } from "../src/index.ts";
+import { createGuard, createToolGate, type GuardPolicy } from "../src/index.ts";
 
 test("unknown tools are denied by default", () => {
   const guard = createGuard({ policy: policy(), idGenerator: ids() });
@@ -334,6 +334,90 @@ test("decision events include audit context", () => {
     estimatedCostUsd: undefined,
     issuedAt: "2026-06-11T12:00:00.000Z",
   });
+});
+
+test("tool gate executes allowed tool calls", async () => {
+  const gate = createToolGate({ policy: policy(), idGenerator: ids() });
+  let calls = 0;
+
+  const execution = await gate.run(
+    {
+      agentId: "support-agent",
+      jobId: "case-gate",
+      tool: "crm.read_customer",
+      action: "read",
+      resource: "customer/cus_123",
+      dataFrom: "provider_crm",
+      dataTo: "agent_context",
+      dataClassification: ["customer_data"],
+      fieldSet: ["customer_id"],
+      recordCount: 1,
+    },
+    async ({ check, decision }) => {
+      calls += 1;
+      return {
+        customerId: check.resource,
+        decisionId: decision.event.decisionId,
+      };
+    },
+  );
+
+  assert.equal(execution.executed, true);
+  assert.equal(calls, 1);
+  assert.equal(execution.decision.type, "allow");
+  assert.deepEqual(execution.result, {
+    customerId: "customer/cus_123",
+    decisionId: "dec-1",
+  });
+});
+
+test("tool gate does not execute denied tool calls", async () => {
+  const gate = createToolGate({ policy: policy(), idGenerator: ids() });
+  let calls = 0;
+
+  const execution = await gate.run(
+    {
+      agentId: "support-agent",
+      jobId: "case-gate",
+      tool: "shell.exec",
+      action: "admin",
+    },
+    async () => {
+      calls += 1;
+      return "should not run";
+    },
+  );
+
+  assert.equal(execution.executed, false);
+  assert.equal(calls, 0);
+  assert.equal(execution.decision.type, "deny");
+  assert.ok(execution.decision.reasons.includes("tool is not declared: shell.exec"));
+});
+
+test("tool gate does not execute challenge-required tool calls", async () => {
+  const gate = createToolGate({ policy: policy(), idGenerator: ids() });
+  let calls = 0;
+
+  const execution = await gate.run(
+    {
+      agentId: "support-agent",
+      jobId: "case-gate",
+      tool: "stripe.refund",
+      action: "pay",
+      resource: "payment/pi_123",
+      amountUsd: 49,
+      idempotencyKey: "refund-case-gate-pi_123",
+    },
+    async () => {
+      calls += 1;
+      return "should not run";
+    },
+  );
+
+  assert.equal(execution.executed, false);
+  assert.equal(calls, 0);
+  assert.equal(execution.decision.type, "challenge_required");
+  assert.deepEqual(execution.decision.challenge?.requiredApprovalFor, ["tool"]);
 });
 
 function policy(): GuardPolicy {
