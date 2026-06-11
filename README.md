@@ -26,6 +26,10 @@ The first MVP is a local TypeScript guard for existing agent loops:
 - Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
 - Policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
 
+The guard package is a prototype in this repo today, not a published npm
+package yet. The goal is to validate the policy shape and integration API before
+shipping registry packages and framework adapters.
+
 OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
 package workflows and supporting instructions. AgentPass
 defines the missing authorization contract for agent tool calls across SaaS
@@ -131,6 +135,54 @@ If you are here for the runtime action-gate MVP:
 
 ## Quick Start
 
+Try the runtime guard MVP:
+
+```bash
+git clone https://github.com/dinpd/AgentPass.git
+cd AgentPass/packages/guard
+npm install
+npm test
+npm run demo:circuit
+npm run demo:gate
+npm run demo:pii
+```
+
+Use it in an agent loop:
+
+```ts
+import { createToolGate } from "@agentpass/guard";
+
+const gate = createToolGate({ policy });
+
+const execution = await gate.run(
+  {
+    agentId: "support-agent",
+    jobId: "case-1042",
+    tool: "stripe.refund",
+    action: "pay",
+    resource: "payment/pi_123",
+    amountUsd: 49,
+    idempotencyKey: "refund-case-1042-pi_123"
+  },
+  () => stripe.refunds.create({ payment_intent: "pi_123", amount: 4900 })
+);
+
+if (!execution.executed) {
+  return execution.decision;
+}
+```
+
+The guard currently demonstrates:
+
+- Circuit breakers for runaway tool calls, repeated calls, token spend, cost,
+  and runtime.
+- Action controls for approvals, amount caps, and single-use idempotency.
+- PII/data-flow controls for approved destinations, blocked fields, record
+  counts, and model-provider prompts.
+- Audit events for every allow, deny, or challenge decision.
+
+The older manifest and provider-contract tooling is still available:
+
 ```bash
 git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass
@@ -143,6 +195,23 @@ agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
 AgentPass installs `agentpass` as the primary CLI and keeps `agentid` as a
 legacy command alias. The Python package, schema filenames, environment
 variables, and receipt field names still use `agentid` for compatibility.
+
+## Feedback Wanted
+
+This MVP is intentionally local-first. Before adding hosted gateways or account
+infrastructure, the next useful feedback is:
+
+- Which failure mode matters most in your agents: token spend, tool loops,
+  duplicate side effects, PII exfiltration, shell/browser actions, or something
+  else?
+- Does `allow` / `deny` / `challenge_required` fit how your agent runtime
+  handles tool calls?
+- What fields are missing from the guard check: tenant, customer, workspace,
+  channel, model, tool params, MCP server, approval source, or policy version?
+- Which adapter should come first: OpenClaw, OpenAI Agents SDK, LangGraph,
+  CrewAI, AutoGen, MCP gateway, or plain Express/FastAPI middleware?
+- Would you rather run this as an in-process package, a local sidecar, or a
+  hosted policy service?
 
 Try the hosted demo:
 

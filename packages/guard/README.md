@@ -5,6 +5,9 @@ Dependency-free runtime guard for AI agent tool calls.
 Use this package before an agent executes a tool, API call, browser action,
 message send, payment, refund, export, or production change.
 
+This package is a repo-local prototype today. It is not published to npm yet.
+Use the examples to test the API shape and policy model.
+
 The guard returns one of three decisions:
 
 - `allow`: execute the tool call.
@@ -110,6 +113,7 @@ service layer.
 ## Local Demo
 
 ```bash
+npm install
 npm test
 npm run demo
 npm run demo:circuit
