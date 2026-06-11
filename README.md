@@ -18,13 +18,18 @@ AgentPass answers one runtime question:
 
 > Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
 
-AgentPass has two complementary tracks:
+AgentPass is one control model with different entry points depending on where
+you sit in the agent stack:
 
-- **Runtime guard:** a local TypeScript package for developers who want to wrap
-  existing agent tool calls today.
-- **Enterprise governance:** manifests, gateway adapters, provider contracts,
-  receipts, and solution packs for teams operating agents across internal and
-  third-party systems.
+- **Agent developers** start with the local TypeScript guard to wrap tool calls
+  in an existing agent loop.
+- **Enterprise AI and platform teams** use manifests, approvals, gateways,
+  policy checks, and audit to govern agents across systems.
+- **MCP gateway builders** enforce AgentPass before forwarding `tools/call`.
+- **API and SaaS providers** publish provider contracts and verify scoped
+  receipts before executing agent-originated actions.
+- **Security and risk teams** review action policy, PII/data-flow controls,
+  decision events, JIT grants, and kill-switch behavior.
 
 The first package is the local TypeScript guard:
 
@@ -68,17 +73,17 @@ Flow = data movement boundary
   what access level it has, which resource it affects, and whether approval is
   required.
 - **Skill:** a reusable workflow package that may call one or more tools, such
-  as `support-refund-workflow`. Skill policy belongs to the enterprise
-  governance track when reusable workflows need explicit downstream tool limits.
+  as `support-refund-workflow`. Skill policy becomes relevant when reusable
+  workflows need explicit downstream tool limits.
 - **Flow:** a source-to-destination data boundary, such as
   `provider_crm -> agent_context` or `customer_records -> external_email`.
   Flow policy answers where data may move and which destinations are blocked.
 
-The local guard implements tool and flow checks first. Enterprise deployments can
-extend the same policy model with manifests, signed receipts, hosted gateways,
+The local guard implements tool and flow checks first. Larger deployments can
+apply the same policy model through manifests, signed receipts, hosted gateways,
 and provider-side verification.
 
-## Who AgentPass is for
+## Entry Points By Audience
 
 - **Platform engineering and SRE teams** letting agents inspect systems while
   gating production deploys, rollbacks, Terraform applies, Kubernetes changes,
@@ -103,13 +108,21 @@ MCP proxy:
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentPass Check -> Internal, SaaS, or MCP Tool
 ```
 
-If you are here for the runtime action-gate package:
+If you are an agent developer:
 
 - TypeScript guard package: [`packages/guard/`](packages/guard/)
 - Support/refund demo policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
 - Circuit-breaker demo: [`packages/guard/examples/circuit-breaker-demo.ts`](packages/guard/examples/circuit-breaker-demo.ts)
 - Drop-in tool-gate demo: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
 - Roadmap: [`docs/action-gate-roadmap.md`](docs/action-gate-roadmap.md)
+
+If you are evaluating enterprise governance, gateway enforcement, provider
+contracts, receipts, or standards alignment:
+
+- Enterprise governance: [`docs/enterprise-governance.md`](docs/enterprise-governance.md)
+- MCP gateway integration: [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md)
+- Provider MCP authorization: [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
+- Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 
 ---
 
@@ -194,10 +207,10 @@ account infrastructure, the next useful feedback is:
 - Would you rather run this as an in-process package, a local sidecar, or a
   hosted policy service?
 
-## Enterprise Governance
+## Broader Governance Scope
 
-The enterprise track uses the same action-gate model, but moves enforcement to
-shared boundaries such as app runtimes, MCP gateways, provider MCP servers, and
+The same action-gate model can move from an in-process guard to shared
+boundaries such as app runtimes, MCP gateways, provider MCP servers, and
 security-controlled policy services.
 
 For enterprise governance, gateway, provider-contract, receipt, and standards

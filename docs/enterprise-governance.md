@@ -1,12 +1,14 @@
-# Enterprise Governance
+# Enterprise Governance Scope
 
-AgentPass has a local runtime guard for developers and an enterprise governance
-track for teams that need shared enforcement across apps, MCP gateways,
-provider-hosted tools, and security-controlled policy services.
+AgentPass is one runtime authorization model for agent tool calls. This page
+describes the broader governance scope for teams that need shared enforcement
+across apps, MCP gateways, provider-hosted tools, and security-controlled policy
+services.
 
-Start with the runtime guard if you want to wrap tool calls in-process. Use this
-enterprise track when you need reviewable manifests, provider contracts, scoped
-receipts, centralized approvals, durable audit, or gateway-level enforcement.
+Start with the runtime guard if you want to wrap tool calls in-process. Extend
+the same model into this scope when you need reviewable manifests, provider
+contracts, scoped receipts, centralized approvals, durable audit, or gateway
+enforcement.
 
 ## Architecture
 
@@ -17,9 +19,9 @@ Enterprise Agent
   -> Internal Tool, SaaS API, or Provider MCP Server
 ```
 
-The enterprise track keeps normal business authorization in the downstream
-system. AgentPass answers whether the agent-originated action is eligible for
-execution under the current policy, job, user, approval, and data-flow context.
+AgentPass keeps normal business authorization in the downstream system. It
+answers whether the agent-originated action is eligible for execution under the
+current policy, job, user, approval, and data-flow context.
 
 ## What It Covers
 
@@ -91,22 +93,22 @@ in some places. The product-facing name is AgentPass.
 - Provider Express middleware: [packages/provider-express/](../packages/provider-express/)
 - Provider FastAPI helpers: [packages/provider-fastapi/](../packages/provider-fastapi/)
 
-## Relationship To The Runtime Guard
+## Relationship To The Local Guard
 
 The local guard in [packages/guard/](../packages/guard/) is the fastest path for
-agent developers to test the action-gate model. The enterprise track is for
-shared enforcement, policy distribution, provider interoperability, and audit
-across teams and systems.
+agent developers to test the action-gate model. The broader governance scope
+uses the same model for shared enforcement, policy distribution, provider
+interoperability, and audit across teams and systems.
 
 ## Detailed Enterprise Reference
 
 ## Enterprise Gateway And Provider Contracts
 
-The enterprise governance track covers manifests, JIT grants, provider-side
+The broader governance scope covers manifests, JIT grants, provider-side
 receipts, DID/VC metadata, Cloudflare gateway demos, and MCP provider
 authorization. Start with [`packages/guard/`](../packages/guard/) when you want
-the local runtime guard; use this reference when you need the enterprise
-manifest, gateway, provider, and standards architecture.
+the local runtime guard; use this reference when you need the manifest, gateway,
+provider, and standards architecture.
 
 ![AgentPass gives AI agents just-in-time authority](AgentPassMCPAuthorizationContract.png)
 
