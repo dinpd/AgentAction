@@ -107,8 +107,8 @@ return execution.result;
   storing full tool parameters
 
 This package is intentionally local and in-memory for the first MVP. Persistent
-approvals, JIT grants, signed receipts, and audit export belong in the runtime
-service layer.
+approvals, policy distribution, shared counters, and audit export belong in the
+runtime service layer.
 
 ## Local Demo
 

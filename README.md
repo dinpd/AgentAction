@@ -30,13 +30,9 @@ The guard package is a prototype in this repo today, not a published npm
 package yet. The goal is to validate the policy shape and integration API before
 shipping registry packages and framework adapters.
 
-OAuth can prove access to a server. MCP tool schemas describe inputs. Skills
-package workflows and supporting instructions. AgentPass
-defines the missing authorization contract for agent tool calls across SaaS
-apps, internal systems, cloud control planes, databases, provider-hosted tools,
-skills, and MCP gateways.
-
-![AgentPass gives AI agents just-in-time authority](docs/AgentPassMCPAuthorizationContract.png)
+OAuth can prove access to a server. MCP tool schemas describe inputs. Agent
+frameworks can decide which tools are visible to a model. AgentPass focuses on
+the runtime decision immediately before a tool executes.
 
 The core idea is simple:
 
@@ -44,7 +40,9 @@ The core idea is simple:
 > can request, what must be challenged, where sensitive data can flow, which
 > retries are safe, and how execution should be stopped.
 
-AgentPass does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or enterprise security tools. It sits one layer above them as a portable authorization contract for agent identity, delegation, tool access, intent confirmation, just-in-time authorization, data-flow boundaries, approval rules, runtime enforcement expectations, audit behavior, and kill-switch behavior.
+AgentPass does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or
+enterprise security tools. It gives agent runtimes a small policy checkpoint for
+tool calls, approvals, data movement, circuit breakers, and audit events.
 
 ## Core Concepts
 
@@ -59,20 +57,18 @@ Flow = data movement boundary
 - **Tool:** an operation the agent or runtime can call, such as
   `provider.crm.search_customer`, `stripe.create_refund`, or
   `email.send_external`. Tool policy answers what operation is being attempted,
-  what access level it has, which resource it affects, and whether approval or
-  JIT authority is required.
+  what access level it has, which resource it affects, and whether approval is
+  required.
 - **Skill:** a reusable workflow package that may call one or more tools, such
-  as `support-refund-workflow`. Skill policy answers whether the agent may
-  activate that workflow and which downstream tools it may invoke through
-  `may_invoke`. A skill-carried AgentPass contract is a requested authority
-  envelope, not a permission grant.
+  as `support-refund-workflow`. Skill policy is future/advanced work for
+  packaging reusable workflows with explicit downstream tool limits.
 - **Flow:** a source-to-destination data boundary, such as
   `provider_crm -> agent_context` or `customer_records -> external_email`.
   Flow policy answers where data may move and which destinations are blocked.
 
-AgentPass needs all three because they catch different failure modes: tool policy
-stops dangerous operations, skill policy stops workflow escalation, and flow
-policy stops data moving to the wrong place.
+The current MVP implements tool and flow checks first. Skill-carried contracts,
+signed receipts, and hosted gateway flows are older/advanced work kept in this
+repo for continuity.
 
 ## Who AgentPass is for
 
@@ -81,7 +77,7 @@ policy stops data moving to the wrong place.
   incident remediation, secrets, and IAM changes.
 - **Enterprise AI platform teams** reviewing which tools agents may use, under
   what conditions.
-- **Security teams** needing approval, JIT, audit, and kill-switch evidence for
+- **Security teams** needing approval, audit, and kill-switch evidence for
   high-risk agent actions.
 - **MCP gateway builders** enforcing policy before forwarding `tools/call`.
 - **API and SaaS providers** turning APIs into MCP tools without giving agents
@@ -91,37 +87,13 @@ policy stops data moving to the wrong place.
 - **Skill authors and platform teams** packaging reusable workflows with
   explicit AgentPass guardrails.
 
-For gateway deployments, AgentPass is meant to run at an enterprise-controlled
-boundary as the authorization decision service, not necessarily as the network
-gateway or MCP proxy:
+For gateway deployments, AgentPass can eventually run at an
+enterprise-controlled boundary as the authorization decision service, not
+necessarily as the network gateway or MCP proxy:
 
 ```text
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentPass Check -> Internal, SaaS, or MCP Tool
 ```
-
-The DevOps/SRE solution pack shows one concrete deployment pattern: agents can
-inspect production systems, while production-changing actions require scoped
-just-in-time authority, approval, and audit. The same model applies to SaaS and
-provider MCP tools where reads are low-friction and writes, refunds, exports,
-sends, deletes, admin changes, and high-cost actions require stronger controls.
-
-For providers turning APIs into MCP servers, AgentPass also defines an
-auth-first pattern: publish a provider MCP authorization contract, let
-enterprises review and overlay local agent policy, require scoped receipts for
-high-blast-radius actions, and keep provider business authorization in the
-execution path. This also helps providers preserve API business controls as
-tools become agent-callable: entitlement checks, quotas, usage metering,
-billable events, rate limits, and overage handling stay in the provider
-execution path. See [Two-sided MCP authorization](#two-sided-mcp-authorization)
-and [`docs/turn-your-api-into-mcp-safely.md`](docs/turn-your-api-into-mcp-safely.md).
-
-If you are here for MCP provider authorization:
-
-- Article: [`Turn Your API Into MCP, Safely`](docs/turn-your-api-into-mcp-safely.md)
-- Local demo: [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md)
-- Provider contract schema: [`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
-- Example contract: [`examples/provider-mcp-contract.yaml`](examples/provider-mcp-contract.yaml)
-- Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 
 If you are here for the runtime action-gate MVP:
 
@@ -181,7 +153,8 @@ The guard currently demonstrates:
   counts, and model-provider prompts.
 - Audit events for every allow, deny, or challenge decision.
 
-The older manifest and provider-contract tooling is still available:
+The older manifest and provider-contract tooling is still available, but it is
+not the fastest path for evaluating the runtime guard MVP:
 
 ```bash
 git clone https://github.com/dinpd/AgentPass.git
@@ -213,13 +186,37 @@ infrastructure, the next useful feedback is:
 - Would you rather run this as an in-process package, a local sidecar, or a
   hosted policy service?
 
-Try the hosted demo:
+## Advanced And Legacy Work
+
+The original AgentPass prototype explored manifests, JIT grants, provider-side
+receipts, DID/VC metadata, Cloudflare gateway demos, and MCP provider
+authorization. That work is still in the repo, but it is no longer the lead
+positioning for feedback. Start with [`packages/guard/`](packages/guard/) unless
+you specifically want the older manifest/gateway architecture.
+
+![AgentPass gives AI agents just-in-time authority](docs/AgentPassMCPAuthorizationContract.png)
+
+Older hosted demos:
 
 - Gateway-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
 - DevOps-control demo: [`agentid-devops-demo.drisw.workers.dev`](https://agentid-devops-demo.drisw.workers.dev/)
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
-Try the first vertical solution pack:
+Older MCP provider-authorization work:
+
+- Article: [`Turn Your API Into MCP, Safely`](docs/turn-your-api-into-mcp-safely.md)
+- Local demo: [`docs/provider-mcp-demo.md`](docs/provider-mcp-demo.md)
+- Provider contract schema: [`schema/provider-mcp-contract.schema.json`](schema/provider-mcp-contract.schema.json)
+- Example contract: [`examples/provider-mcp-contract.yaml`](examples/provider-mcp-contract.yaml)
+- Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
+
+The provider-contract work explores an auth-first pattern for turning APIs into
+MCP servers: publish a provider MCP authorization contract, let enterprises
+review and overlay local agent policy, require scoped receipts for
+high-blast-radius actions, and keep provider business authorization in the
+execution path.
+
+Older vertical solution pack:
 
 - DevOps/SRE: [`solutions/devops-sre/`](solutions/devops-sre/) shows how to let
   agents inspect production systems while requiring short-lived scoped authority
@@ -244,7 +241,7 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 
 ---
 
-## Why this exists
+## Why The Manifest Work Exists
 
 Most agent projects define tools and credentials in ad hoc config files. As
 agents move into production, those tools span internal services, SaaS APIs, MCP
@@ -279,7 +276,7 @@ operational readiness. These fields are evidence inputs for runtime policy; they
 do not replace AgentPass's action-level authorization decision. See
 [`docs/standards-alignment.md`](docs/standards-alignment.md).
 
-## Positioning in one minute
+## Manifest Positioning In One Minute
 
 AgentPass sits between agent identity and tool execution.
 
@@ -297,7 +294,7 @@ authority:
 
 ---
 
-## Important framing
+## Manifest Framing
 
 Identity is necessary, but not sufficient.
 
@@ -311,7 +308,7 @@ For sensitive actions, actual authority should be issued **just in time** and bo
 
 ---
 
-## Authority model
+## Advanced Authority Model
 
 AgentPass models agent authority as a runtime decision, not a static role.
 
@@ -347,7 +344,7 @@ the tool.
 
 ---
 
-## Two-sided MCP authorization
+## Two-Sided MCP Authorization
 
 For provider-hosted MCP tools, AgentPass supports a two-sided authorization
 pattern:
@@ -408,7 +405,7 @@ for the receipt contract and execution plan.
 
 ---
 
-## CLI
+## Manifest CLI
 
 ```bash
 agentpass validate examples/provider-mcp-support-agent.yaml
@@ -624,7 +621,7 @@ tokens from the customer's OIDC provider via JWKS.
 
 ---
 
-## Manifest concepts
+## Manifest Concepts
 
 | Concept | Meaning |
 |---|---|
@@ -648,7 +645,7 @@ tokens from the customer's OIDC provider via JWKS.
 
 ---
 
-## Design principles
+## Manifest Design Principles
 
 1. **Agents are first-class identities.**
 2. **Authority should be explicit.**
@@ -663,7 +660,7 @@ tokens from the customer's OIDC provider via JWKS.
 
 ---
 
-## Roadmap
+## Historical Roadmap
 
 Implemented:
 
