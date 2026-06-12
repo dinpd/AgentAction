@@ -1,4 +1,4 @@
-# @dinpd/guard
+# @dinpd/ai-agent-guard
 
 Dependency-free runtime guard for AI agent tool calls.
 
@@ -8,7 +8,7 @@ message send, payment, refund, export, or production change.
 Install it from npm:
 
 ```bash
-npm install @dinpd/guard
+npm install @dinpd/ai-agent-guard
 ```
 
 The first use case is simple: put a circuit breaker and approval gate in front
@@ -26,7 +26,7 @@ The guard returns one of three decisions:
 Install the package:
 
 ```bash
-npm install @dinpd/guard
+npm install @dinpd/ai-agent-guard
 ```
 
 Run the local demos:
@@ -63,7 +63,7 @@ Copy one of the starter policies and tighten it for your agent:
 ## Copy-Paste Wrapper
 
 ```ts
-import { createToolGate } from "@dinpd/guard";
+import { createToolGate } from "@dinpd/ai-agent-guard";
 
 const gate = createToolGate({
   policy: {
@@ -106,7 +106,7 @@ Use `createToolGate` when you want AgentPass to sit directly in front of tool
 execution:
 
 ```ts
-import { createToolGate } from "@dinpd/guard";
+import { createToolGate } from "@dinpd/ai-agent-guard";
 
 const gate = createToolGate({ policy });
 
@@ -136,7 +136,7 @@ Use `createMcpToolGate` when you want to guard MCP `tools/call` requests before
 forwarding them to a provider or internal MCP server:
 
 ```ts
-import { createMcpToolGate } from "@dinpd/guard";
+import { createMcpToolGate } from "@dinpd/ai-agent-guard";
 
 const gate = createMcpToolGate({
   policy,

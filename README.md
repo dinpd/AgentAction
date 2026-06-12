@@ -136,7 +136,7 @@ your agent executes tools.
 Install the package:
 
 ```bash
-npm install @dinpd/guard
+npm install @dinpd/ai-agent-guard
 ```
 
 Run the local demos:
@@ -156,7 +156,7 @@ npm run demo:pii
 Use it in an agent loop:
 
 ```ts
-import { createToolGate } from "@dinpd/guard";
+import { createToolGate } from "@dinpd/ai-agent-guard";
 
 const gate = createToolGate({ policy });
 
