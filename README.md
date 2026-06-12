@@ -148,7 +148,7 @@ npm run demo:pii
 Use it in an agent loop:
 
 ```ts
-import { createToolGate } from "@agentpass/guard";
+import { createToolGate } from "agentpass-guard";
 
 const gate = createToolGate({ policy });
 

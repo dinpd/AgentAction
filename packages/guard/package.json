@@ -1,5 +1,5 @@
 {
-  "name": "@agentpass/guard",
+  "name": "agentpass-guard",
   "version": "0.1.0",
   "description": "Runtime authorization guard for AI agent tool calls.",
   "license": "Apache-2.0",

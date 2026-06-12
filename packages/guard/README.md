@@ -1,4 +1,4 @@
-# @agentpass/guard
+# agentpass-guard
 
 Dependency-free runtime guard for AI agent tool calls.
 
@@ -52,7 +52,7 @@ Copy one of the starter policies and tighten it for your agent:
 ## Copy-Paste Wrapper
 
 ```ts
-import { createToolGate } from "@agentpass/guard";
+import { createToolGate } from "agentpass-guard";
 
 const gate = createToolGate({
   policy: {
@@ -95,7 +95,7 @@ Use `createToolGate` when you want AgentPass to sit directly in front of tool
 execution:
 
 ```ts
-import { createToolGate } from "@agentpass/guard";
+import { createToolGate } from "agentpass-guard";
 
 const gate = createToolGate({ policy });
 
@@ -125,7 +125,7 @@ Use `createMcpToolGate` when you want to guard MCP `tools/call` requests before
 forwarding them to a provider or internal MCP server:
 
 ```ts
-import { createMcpToolGate } from "@agentpass/guard";
+import { createMcpToolGate } from "agentpass-guard";
 
 const gate = createMcpToolGate({
   policy,
