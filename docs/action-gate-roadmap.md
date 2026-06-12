@@ -153,7 +153,8 @@ Developer-entrypoint work:
 - Make the package installable with a lockfile-backed `npm install` path.
 - Publish the package to npm once the API surface has one more round of external
   feedback.
-- Add one named framework wrapper first, based on feedback from the local guard
+- Add the first named adapter as a dependency-free MCP `tools/call` wrapper.
+- Add the next framework wrapper based on feedback from local guard and MCP
   users.
 
 Exit criteria:
@@ -168,6 +169,7 @@ Test gate:
 - `npm test`
 - `npm run build`
 - `npm run demo:quickstart`
+- `npm run demo:mcp`
 - `npm run demo`
 - `npm run demo:circuit`
 - `npm run demo:gate`
@@ -385,6 +387,7 @@ Goal: put the gate where developers already execute tools.
 Priority integrations:
 
 - Plain TypeScript tool wrapper.
+- MCP `tools/call` wrapper.
 - OpenAI Agents SDK wrapper.
 - Claude tool-use wrapper.
 - LangChain middleware.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGuard, createToolGate, type GuardPolicy } from "../src/index.ts";
+import { createGuard, createMcpToolGate, createToolGate, mcpToolCallToGuardCheck, type GuardPolicy } from "../src/index.ts";
 
 test("unknown tools are denied by default", () => {
   const guard = createGuard({ policy: policy(), idGenerator: ids() });
@@ -557,6 +557,159 @@ test("tool gate does not execute challenge-required tool calls", async () => {
   assert.deepEqual(execution.decision.challenge?.requiredApprovalFor, ["tool"]);
 });
 
+test("MCP tool gate maps tools/call requests into guard checks", () => {
+  const check = mcpToolCallToGuardCheck(
+    {
+      params: {
+        name: "provider.billing.issue_credit",
+        arguments: {
+          customerId: "cus_123",
+          amountUsd: 49,
+          idempotencyKey: "credit-case-1-cus_123",
+        },
+      },
+    },
+    {
+      agentId: "support-agent",
+      jobId: "case-mcp",
+      userId: "user-1",
+    },
+    {
+      mappings: {
+        "provider.billing.issue_credit": {
+          resource: (args) => `provider/customer/${String(args.customerId)}`,
+          amountUsd: (args) => Number(args.amountUsd),
+          idempotencyKey: (args) => String(args.idempotencyKey),
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(check, {
+    agentId: "support-agent",
+    jobId: "case-mcp",
+    userId: "user-1",
+    approvalId: undefined,
+    retryCount: undefined,
+    tool: "provider.billing.issue_credit",
+    action: "pay",
+    resource: "provider/customer/cus_123",
+    callFingerprint:
+      'provider.billing.issue_credit:{"amountUsd":49,"customerId":"cus_123","idempotencyKey":"credit-case-1-cus_123"}',
+    amountUsd: 49,
+    idempotencyKey: "credit-case-1-cus_123",
+    dataFrom: undefined,
+    dataTo: undefined,
+    destinationType: undefined,
+    externalDomain: undefined,
+    dataClassification: undefined,
+    fieldSet: undefined,
+    recordCount: undefined,
+    estimatedTokens: undefined,
+    estimatedCostUsd: undefined,
+  });
+});
+
+test("MCP tool gate prevents challenged provider tools from executing", async () => {
+  const gate = createMcpToolGate({
+    policy: mcpPolicy(),
+    idGenerator: ids(),
+    mappings: mcpMappings(),
+  });
+  let calls = 0;
+
+  const execution = await gate.run(
+    {
+      params: {
+        name: "provider.billing.issue_credit",
+        arguments: {
+          customerId: "cus_123",
+          amountUsd: 49,
+          idempotencyKey: "credit-case-1-cus_123",
+        },
+      },
+    },
+    {
+      agentId: "support-agent",
+      jobId: "case-mcp",
+    },
+    async () => {
+      calls += 1;
+      return "should not execute";
+    },
+  );
+
+  assert.equal(execution.executed, false);
+  assert.equal(calls, 0);
+  assert.equal(execution.decision.type, "challenge_required");
+  assert.deepEqual(execution.decision.challenge?.requiredApprovalFor, ["tool"]);
+});
+
+test("MCP tool gate executes approved provider tools", async () => {
+  const gate = createMcpToolGate({
+    policy: mcpPolicy(),
+    idGenerator: ids(),
+    mappings: mcpMappings(),
+  });
+
+  const execution = await gate.run(
+    {
+      name: "provider.billing.issue_credit",
+      arguments: {
+        customerId: "cus_123",
+        amountUsd: 49,
+        idempotencyKey: "credit-case-1-cus_123",
+      },
+    },
+    {
+      agentId: "support-agent",
+      jobId: "case-mcp",
+      approvalId: "approval-credit-1",
+    },
+    async ({ check, decision, call }) => ({
+      tool: call.name,
+      resource: check.resource,
+      decisionId: decision.event.decisionId,
+    }),
+  );
+
+  assert.equal(execution.executed, true);
+  assert.equal(execution.decision.type, "allow");
+  assert.deepEqual(execution.result, {
+    tool: "provider.billing.issue_credit",
+    resource: "provider/customer/cus_123",
+    decisionId: "dec-1",
+  });
+});
+
+test("MCP tool gate carries PII flow metadata into guard decisions", () => {
+  const gate = createMcpToolGate({
+    policy: mcpPolicy(),
+    idGenerator: ids(),
+    mappings: mcpMappings(),
+  });
+
+  const decision = gate.check(
+    {
+      name: "provider.email.send_external",
+      arguments: {
+        domain: "alice.customer.example",
+        fields: ["customer_id", "case_id"],
+      },
+    },
+    {
+      agentId: "support-agent",
+      jobId: "case-mcp",
+    },
+  );
+
+  assert.equal(decision.type, "challenge_required");
+  assert.deepEqual(decision.challenge?.requiredApprovalFor, ["pii", "flow"]);
+  assert.equal(decision.event.dataFrom, "provider_crm");
+  assert.equal(decision.event.dataTo, "external_email");
+  assert.deepEqual(decision.event.fieldSet, ["customer_id", "case_id"]);
+});
+
 function policy(): GuardPolicy {
   return {
     tools: {
@@ -678,6 +831,55 @@ function circuitBreakerPolicy(budgets: GuardPolicy["budgets"]): GuardPolicy {
       },
     },
     budgets,
+  };
+}
+
+function mcpPolicy(): GuardPolicy {
+  return {
+    tools: {
+      "provider.billing.issue_credit": {
+        action: "pay",
+        requiresApproval: true,
+        maxAmountUsd: 100,
+        requireIdempotencyKey: true,
+        singleUse: true,
+      },
+      "provider.email.send_external": {
+        action: "send",
+        requiresApprovalIfPii: true,
+        allowedDomains: ["customer.example"],
+        blockedFields: ["ssn", "access_token", "payment_method"],
+      },
+    },
+    flows: [
+      {
+        from: "provider_crm",
+        to: "external_email",
+        destinationType: "external_email",
+        dataClassification: ["customer_data", "pii"],
+        requiresApproval: true,
+        allowedDomains: ["customer.example"],
+        blockedFields: ["ssn", "access_token", "payment_method"],
+      },
+    ],
+  };
+}
+
+function mcpMappings(): Parameters<typeof createMcpToolGate>[0]["mappings"] {
+  return {
+    "provider.billing.issue_credit": {
+      resource: (args) => `provider/customer/${String(args.customerId)}`,
+      amountUsd: (args) => Number(args.amountUsd),
+      idempotencyKey: (args) => String(args.idempotencyKey),
+    },
+    "provider.email.send_external": {
+      dataFrom: "provider_crm",
+      dataTo: "external_email",
+      destinationType: "external_email",
+      externalDomain: (args) => String(args.domain),
+      dataClassification: ["customer_data", "pii"],
+      fieldSet: (args) => (Array.isArray(args.fields) ? args.fields.map(String) : []),
+    },
   };
 }
 

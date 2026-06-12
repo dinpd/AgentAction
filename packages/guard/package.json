@@ -1,14 +1,57 @@
 {
   "name": "@agentpass/guard",
   "version": "0.1.0",
-  "private": true,
+  "description": "Runtime authorization guard for AI agent tool calls.",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "policies",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dinpd/AgentPass.git",
+    "directory": "packages/guard"
+  },
+  "bugs": {
+    "url": "https://github.com/dinpd/AgentPass/issues"
+  },
+  "homepage": "https://github.com/dinpd/AgentPass/tree/main/packages/guard#readme",
+  "keywords": [
+    "ai-agents",
+    "agent",
+    "guardrails",
+    "tool-calling",
+    "mcp",
+    "authorization",
+    "policy",
+    "pii",
+    "circuit-breaker"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test && npm run build",
     "demo:quickstart": "node --import tsx examples/quickstart-agent-loop.ts",
     "demo:circuit": "node --import tsx examples/circuit-breaker-demo.ts",
+    "demo:mcp": "node --import tsx examples/mcp-tool-call-demo.ts",
     "demo": "node --import tsx examples/support-refund-demo.ts",
     "demo:gate": "node --import tsx examples/tool-gate-demo.ts",
     "demo:pii": "node --import tsx examples/pii-exfiltration-demo.ts",

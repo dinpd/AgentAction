@@ -25,6 +25,7 @@ git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass/packages/guard
 npm install
 npm run demo:quickstart
+npm run demo:mcp
 ```
 
 The quickstart demo shows the intended first integration:
@@ -118,6 +119,54 @@ if (!execution.executed) {
 return execution.result;
 ```
 
+## MCP Tool-Call Gate
+
+Use `createMcpToolGate` when you want to guard MCP `tools/call` requests before
+forwarding them to a provider or internal MCP server:
+
+```ts
+import { createMcpToolGate } from "@agentpass/guard";
+
+const gate = createMcpToolGate({
+  policy,
+  mappings: {
+    "provider.billing.issue_credit": {
+      resource: (args) => `provider/customer/${String(args.customerId)}`,
+      amountUsd: (args) => Number(args.amountUsd),
+      idempotencyKey: (args) => String(args.idempotencyKey)
+    }
+  }
+});
+
+const execution = await gate.run(
+  {
+    params: {
+      name: "provider.billing.issue_credit",
+      arguments: {
+        customerId: "cus_123",
+        amountUsd: 49,
+        idempotencyKey: "credit-case-1042-cus_123"
+      }
+    }
+  },
+  {
+    agentId: "support-agent",
+    jobId: "case-1042",
+    userId: "user-17"
+  },
+  ({ call }) => forwardMcpToolCall(call)
+);
+
+if (!execution.executed) {
+  return execution.decision;
+}
+```
+
+The MCP adapter is dependency-free. It accepts a plain MCP-style `{ params:
+{ name, arguments } }` object, maps arguments into an AgentPass guard check, and
+uses the same `allow` / `deny` / `challenge_required` result as the local tool
+gate.
+
 ## What It Checks
 
 - Closed-world tool declarations
@@ -143,6 +192,7 @@ belong in the runtime service layer.
 npm install
 npm test
 npm run demo:quickstart
+npm run demo:mcp
 npm run demo
 npm run demo:circuit
 npm run demo:gate

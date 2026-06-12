@@ -159,6 +159,60 @@ export type GuardedToolExecutionResult<TResult> =
 
 export type AgentPassToolGateOptions = AgentPassGuardOptions | { guard: AgentPassGuard };
 
+export type McpToolCall = {
+  name: string;
+  arguments?: Record<string, unknown>;
+};
+
+export type McpToolsCallRequest = {
+  params: McpToolCall;
+};
+
+export type McpGuardContext = {
+  agentId: string;
+  jobId?: string;
+  userId?: string;
+  approvalId?: string;
+  retryCount?: number;
+};
+
+type McpMappedValue<T> =
+  | T
+  | ((args: Record<string, unknown>, call: McpToolCall, context: McpGuardContext) => T | undefined);
+
+export type McpToolMapping = {
+  action?: McpMappedValue<AgentAction>;
+  resource?: McpMappedValue<string>;
+  callFingerprint?: McpMappedValue<string>;
+  amountUsd?: McpMappedValue<number>;
+  idempotencyKey?: McpMappedValue<string>;
+  dataFrom?: McpMappedValue<string>;
+  dataTo?: McpMappedValue<string>;
+  destinationType?: McpMappedValue<string>;
+  externalDomain?: McpMappedValue<string>;
+  dataClassification?: McpMappedValue<string[]>;
+  fieldSet?: McpMappedValue<string[]>;
+  recordCount?: McpMappedValue<number>;
+  estimatedTokens?: McpMappedValue<number>;
+  estimatedCostUsd?: McpMappedValue<number>;
+};
+
+export type McpToolCallAdapterOptions = {
+  mappings?: Record<string, McpToolMapping>;
+  defaultAction?: AgentAction;
+};
+
+export type AgentPassMcpToolGateOptions = AgentPassToolGateOptions & McpToolCallAdapterOptions;
+
+export type McpToolExecutionContext = ToolExecutionContext & {
+  call: McpToolCall;
+  arguments: Record<string, unknown>;
+};
+
+export type McpToolExecutor<TResult> = (
+  context: McpToolExecutionContext,
+) => TResult | Promise<TResult>;
+
 type JobUsage = {
   startedAtMs: number;
   toolCalls: number;
@@ -491,6 +545,89 @@ export function createToolGate(options: AgentPassToolGateOptions): AgentPassTool
   return new AgentPassToolGate(options);
 }
 
+export class AgentPassMcpToolGate {
+  readonly gate: AgentPassToolGate;
+  private mappings: Record<string, McpToolMapping>;
+  private defaultAction: AgentAction;
+
+  constructor(options: AgentPassMcpToolGateOptions) {
+    this.gate = "guard" in options ? new AgentPassToolGate({ guard: options.guard }) : new AgentPassToolGate(options);
+    this.mappings = options.mappings || {};
+    this.defaultAction = options.defaultAction || "read";
+  }
+
+  check(callOrRequest: McpToolCall | McpToolsCallRequest, context: McpGuardContext): GuardDecision {
+    return this.gate.check(this.toGuardCheck(callOrRequest, context));
+  }
+
+  async run<TResult>(
+    callOrRequest: McpToolCall | McpToolsCallRequest,
+    context: McpGuardContext,
+    execute: McpToolExecutor<TResult>,
+  ): Promise<GuardedToolExecutionResult<TResult>> {
+    const call = normalizeMcpToolCall(callOrRequest);
+    const check = this.toGuardCheck(call, context);
+    return this.gate.run(check, ({ decision }) =>
+      execute({
+        check,
+        decision,
+        call,
+        arguments: call.arguments || {},
+      }),
+    );
+  }
+
+  toGuardCheck(callOrRequest: McpToolCall | McpToolsCallRequest, context: McpGuardContext): GuardCheck {
+    return mcpToolCallToGuardCheck(callOrRequest, context, {
+      mappings: this.mappings,
+      defaultAction: this.defaultAction,
+    });
+  }
+
+  reset(): void {
+    this.gate.reset();
+  }
+}
+
+export function createMcpToolGate(options: AgentPassMcpToolGateOptions): AgentPassMcpToolGate {
+  return new AgentPassMcpToolGate(options);
+}
+
+export function mcpToolCallToGuardCheck(
+  callOrRequest: McpToolCall | McpToolsCallRequest,
+  context: McpGuardContext,
+  options: McpToolCallAdapterOptions = {},
+): GuardCheck {
+  const call = normalizeMcpToolCall(callOrRequest);
+  const args = call.arguments || {};
+  const mapping = options.mappings?.[call.name] || {};
+  const action = readMcpMappedValue(mapping.action, args, call, context) || inferMcpAction(call.name, options.defaultAction);
+
+  return {
+    agentId: context.agentId,
+    jobId: context.jobId,
+    userId: context.userId,
+    approvalId: context.approvalId,
+    retryCount: context.retryCount,
+    tool: call.name,
+    action,
+    resource: readMcpMappedValue(mapping.resource, args, call, context),
+    callFingerprint:
+      readMcpMappedValue(mapping.callFingerprint, args, call, context) || `${call.name}:${stableStringify(args)}`,
+    amountUsd: readMcpMappedValue(mapping.amountUsd, args, call, context),
+    idempotencyKey: readMcpMappedValue(mapping.idempotencyKey, args, call, context),
+    dataFrom: readMcpMappedValue(mapping.dataFrom, args, call, context),
+    dataTo: readMcpMappedValue(mapping.dataTo, args, call, context),
+    destinationType: readMcpMappedValue(mapping.destinationType, args, call, context),
+    externalDomain: readMcpMappedValue(mapping.externalDomain, args, call, context),
+    dataClassification: readMcpMappedValue(mapping.dataClassification, args, call, context),
+    fieldSet: readMcpMappedValue(mapping.fieldSet, args, call, context),
+    recordCount: readMcpMappedValue(mapping.recordCount, args, call, context),
+    estimatedTokens: readMcpMappedValue(mapping.estimatedTokens, args, call, context),
+    estimatedCostUsd: readMcpMappedValue(mapping.estimatedCostUsd, args, call, context),
+  };
+}
+
 function hasSensitiveData(input: GuardCheck, policy: GuardPolicy): boolean {
   const sensitive = new Set((policy.sensitiveClassifications || DEFAULT_SENSITIVE_CLASSIFICATIONS).map(normalize));
   return (input.dataClassification || []).some((classification) => sensitive.has(normalize(classification)));
@@ -556,4 +693,58 @@ function normalize(value: string): string {
 
 function randomDecisionId(): string {
   return `dec_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function normalizeMcpToolCall(callOrRequest: McpToolCall | McpToolsCallRequest): McpToolCall {
+  return "params" in callOrRequest ? callOrRequest.params : callOrRequest;
+}
+
+function readMcpMappedValue<T>(
+  value: McpMappedValue<T> | undefined,
+  args: Record<string, unknown>,
+  call: McpToolCall,
+  context: McpGuardContext,
+): T | undefined {
+  if (typeof value === "function") {
+    const mapper = value as (
+      args: Record<string, unknown>,
+      call: McpToolCall,
+      context: McpGuardContext,
+    ) => T | undefined;
+    return mapper(args, call, context);
+  }
+  return value;
+}
+
+function inferMcpAction(toolName: string, defaultAction: AgentAction = "read"): AgentAction {
+  const normalized = normalize(toolName);
+  if (containsAny(normalized, ["refund", "credit", "charge", "payment", "pay", "transfer"])) return "pay";
+  if (containsAny(normalized, ["send", "email", "message", "notify", "post"])) return "send";
+  if (containsAny(normalized, ["delete", "remove", "destroy"])) return "delete";
+  if (containsAny(normalized, ["deploy", "rollback", "release"])) return "deploy";
+  if (containsAny(normalized, ["export", "download", "dump"])) return "export";
+  if (containsAny(normalized, ["admin", "permission", "role", "iam", "secret", "shell", "exec"])) return "admin";
+  if (containsAny(normalized, ["update", "write", "create", "insert", "patch", "set"])) return "write";
+  if (containsAny(normalized, ["read", "get", "list", "search", "find", "lookup", "query"])) return "read";
+  return defaultAction;
+}
+
+function containsAny(value: string, needles: string[]): boolean {
+  return needles.some((needle) => value.includes(needle));
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(stableValue(value));
+}
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== "object") return value;
+
+  const input = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  for (const key of Object.keys(input).sort()) {
+    output[key] = stableValue(input[key]);
+  }
+  return output;
 }

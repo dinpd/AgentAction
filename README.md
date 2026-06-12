@@ -35,6 +35,7 @@ The first package is the local TypeScript guard:
 
 - Package: [`packages/guard/`](packages/guard/)
 - Quickstart demo: [`packages/guard/examples/quickstart-agent-loop.ts`](packages/guard/examples/quickstart-agent-loop.ts)
+- MCP tool-call demo: [`packages/guard/examples/mcp-tool-call-demo.ts`](packages/guard/examples/mcp-tool-call-demo.ts)
 - Demo: [`packages/guard/examples/support-refund-demo.ts`](packages/guard/examples/support-refund-demo.ts)
 - Circuit-breaker demo: [`packages/guard/examples/circuit-breaker-demo.ts`](packages/guard/examples/circuit-breaker-demo.ts)
 - Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
@@ -137,6 +138,7 @@ git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass/packages/guard
 npm install
 npm run demo:quickstart
+npm run demo:mcp
 npm test
 npm run demo:circuit
 npm run demo:gate
