@@ -41,9 +41,11 @@ The first package is the local TypeScript guard:
 - Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
 - Starter policies: [`packages/guard/policies/`](packages/guard/policies/)
 
-The guard package is a prototype in this repo today, not a published npm
-package yet. The goal is to validate the policy shape and integration API before
-shipping registry packages and framework adapters.
+The guard package is published on npm as
+[`@dinpd/ai-agent-guard`](https://www.npmjs.com/package/@dinpd/ai-agent-guard).
+The repo also includes local demos, starter policies, and the MCP tool-call
+adapter so developers can validate the policy shape inside an existing agent
+loop before adding broader gateway or enterprise enforcement.
 
 OAuth can prove access to a server. MCP tool schemas describe inputs. Agent
 frameworks can decide which tools are visible to a model. AgentPass focuses on
