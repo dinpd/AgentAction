@@ -16,9 +16,9 @@ payments, external sends, secrets, and administrative tools.
 
 ## Demo Video
 
-<video src="https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4" controls width="100%" title="The Action Gate: Securing AI Automations"></video>
+[![The Action Gate: Securing AI Automations](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked-sample.png)](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4)
 
-[Open the demo video](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4).
+[Watch the demo video](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4).
 
 AgentPass answers one runtime question:
 
