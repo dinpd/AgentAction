@@ -8,56 +8,83 @@ message send, payment, refund, export, or production change.
 This package is a repo-local prototype today. It is not published to npm yet.
 Use the examples to test the API shape and policy model.
 
+The first use case is simple: put a circuit breaker and approval gate in front
+of your agent's tools so loops, spend spikes, duplicate side effects, and PII
+egress are caught before execution.
+
 The guard returns one of three decisions:
 
 - `allow`: execute the tool call.
 - `challenge_required`: pause and ask for approval.
 - `deny`: block execution.
 
-## Example
+## Five-Minute Path
+
+```bash
+git clone https://github.com/dinpd/AgentPass.git
+cd AgentPass/packages/guard
+npm install
+npm run demo:quickstart
+```
+
+The quickstart demo shows the intended first integration:
+
+1. A normal tool call executes.
+2. A repeated tool call is allowed once.
+3. The third identical call is denied.
+4. A PII email pauses for approval.
+
+Copy one of the starter policies and tighten it for your agent:
+
+- [`policies/tool-spend-cap.json`](policies/tool-spend-cap.json): cap tool calls,
+  retries, tokens, runtime, and estimated cost per job.
+- [`policies/pii-egress.json`](policies/pii-egress.json): restrict PII movement
+  to approved destinations and block high-risk fields.
+- [`policies/refund-payment.json`](policies/refund-payment.json): require
+  approval, amount caps, idempotency keys, and single-use execution.
+- [`policies/shell-browser-guard.json`](policies/shell-browser-guard.json):
+  challenge shell/file/browser actions and block secrets in external flows.
+- [`policies/mcp-tool-gateway.json`](policies/mcp-tool-gateway.json): start a
+  provider-style MCP tool policy with reads, writes, credits, email, and PII
+  flows.
+
+## Copy-Paste Wrapper
 
 ```ts
-import { createGuard } from "@agentpass/guard";
+import { createToolGate } from "@agentpass/guard";
 
-const guard = createGuard({
+const gate = createToolGate({
   policy: {
     tools: {
-      "stripe.refund": {
-        action: "pay",
-        requiresApproval: true,
-        maxAmountUsd: 100,
-        requireIdempotencyKey: true,
-        singleUse: true
-      }
+      "web.search": { action: "read" }
     },
     budgets: {
-      challengeAfterEstimatedCostUsdPerJob: 0.75,
-      maxToolCallsPerJob: 20,
-      maxSameToolCallsPerJob: 10,
       maxIdenticalToolCallsPerJob: 2,
-      maxRetriesPerTool: 2,
-      maxEstimatedCostUsdPerJob: 1,
-      maxRuntimeMsPerJob: 300000
+      maxEstimatedCostUsdPerJob: 1
     }
   }
 });
 
-const decision = guard.check({
-  agentId: "support-agent",
-  jobId: "case-1042",
-  tool: "stripe.refund",
-  action: "pay",
-  resource: "payment/pi_123",
-  amountUsd: 49,
-  idempotencyKey: "refund-case-1042-pi_123"
-});
+async function runAgentTool(toolCall) {
+  const execution = await gate.run(
+    {
+      agentId: "research-agent",
+      jobId: toolCall.jobId,
+      tool: toolCall.name,
+      action: "read",
+      resource: toolCall.query,
+      callFingerprint: `${toolCall.name}:${toolCall.query}`,
+      estimatedTokens: toolCall.estimatedTokens,
+      estimatedCostUsd: toolCall.estimatedCostUsd
+    },
+    () => executeTool(toolCall)
+  );
 
-if (decision.type === "challenge_required") {
-  // Ask a human or approval workflow before executing.
-}
+  if (!execution.executed) {
+    return execution.decision;
+  }
 
-if (decision.type === "deny") {
-  throw new Error(decision.reasons.join("; "));
+  return execution.result;
 }
 ```
 
@@ -115,6 +142,7 @@ belong in the runtime service layer.
 ```bash
 npm install
 npm test
+npm run demo:quickstart
 npm run demo
 npm run demo:circuit
 npm run demo:gate

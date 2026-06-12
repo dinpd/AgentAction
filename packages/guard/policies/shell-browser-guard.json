@@ -1,0 +1,55 @@
+{
+  "tools": {
+    "browser.open": {
+      "action": "read",
+      "allowedDomains": ["docs.example", "github.com"]
+    },
+    "browser.fill_form": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["password", "access_token", "api_key", "ssn", "payment_method"]
+    },
+    "shell.exec": {
+      "action": "admin",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key"]
+    },
+    "file.write": {
+      "action": "write",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key"]
+    }
+  },
+  "flows": [
+    {
+      "from": "secrets_manager",
+      "to": "model_provider",
+      "decision": "deny"
+    },
+    {
+      "from": "local_files",
+      "to": "external_email",
+      "destinationType": "external_email",
+      "dataClassification": ["secret", "regulated"],
+      "decision": "deny"
+    },
+    {
+      "from": "local_files",
+      "to": "browser_form",
+      "destinationType": "browser_form",
+      "dataClassification": ["pii", "secret"],
+      "requiresApproval": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["password", "access_token", "api_key", "ssn", "payment_method"]
+    }
+  ],
+  "budgets": {
+    "challengeAfterRuntimeMsPerJob": 120000,
+    "maxRuntimeMsPerJob": 300000,
+    "maxToolCallsPerJob": 20,
+    "maxSameToolCallsPerJob": 8,
+    "maxIdenticalToolCallsPerJob": 2
+  },
+  "defaultSensitiveDestinationDecision": "deny"
+}

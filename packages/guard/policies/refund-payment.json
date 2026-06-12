@@ -1,0 +1,26 @@
+{
+  "tools": {
+    "stripe.refund": {
+      "action": "pay",
+      "requiresApproval": true,
+      "maxAmountUsd": 100,
+      "requireIdempotencyKey": true,
+      "singleUse": true
+    },
+    "crm.read_customer": {
+      "action": "read"
+    },
+    "crm.update_customer": {
+      "action": "write",
+      "requiresApproval": true,
+      "allowedFields": ["case_id", "plan", "renewal_date", "support_note"]
+    }
+  },
+  "budgets": {
+    "maxToolCallsPerJob": 10,
+    "maxSameToolCallsPerJob": 4,
+    "maxIdenticalToolCallsPerJob": 2,
+    "maxRetriesPerTool": 1,
+    "maxEstimatedCostUsdPerJob": 1
+  }
+}

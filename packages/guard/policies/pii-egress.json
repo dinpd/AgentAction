@@ -1,0 +1,75 @@
+{
+  "tools": {
+    "crm.read_customer": {
+      "action": "read"
+    },
+    "gmail.send": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    "webhook.post": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["approved.partner.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    "llm.prompt": {
+      "action": "send",
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    "file.export": {
+      "action": "export",
+      "requiresApprovalIfPii": true,
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    "browser.fill_form": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    }
+  },
+  "flows": [
+    {
+      "from": "provider_crm",
+      "to": "agent_context",
+      "dataClassification": ["customer_data", "pii"],
+      "allowedFields": ["customer_id", "case_id", "plan", "renewal_date"],
+      "maxRecords": 10
+    },
+    {
+      "from": "provider_crm",
+      "to": "external_email",
+      "destinationType": "external_email",
+      "dataClassification": ["customer_data", "pii"],
+      "requiresApproval": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    {
+      "from": "provider_crm",
+      "to": "model_provider",
+      "destinationType": "model_provider",
+      "dataClassification": ["pii"],
+      "decision": "deny",
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    {
+      "from": "provider_crm",
+      "to": "file_export",
+      "destinationType": "file_export",
+      "dataClassification": ["customer_data", "pii"],
+      "requiresApproval": true,
+      "maxRecords": 50,
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"]
+    },
+    {
+      "from": "secrets_manager",
+      "to": "model_provider",
+      "decision": "deny"
+    }
+  ],
+  "defaultSensitiveDestinationDecision": "deny"
+}

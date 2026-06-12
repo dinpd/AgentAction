@@ -1,0 +1,50 @@
+{
+  "tools": {
+    "provider.crm.search_customer": {
+      "action": "read"
+    },
+    "provider.crm.update_customer": {
+      "action": "write",
+      "requiresApproval": true,
+      "allowedFields": ["customer_id", "case_id", "support_note", "plan"]
+    },
+    "provider.billing.issue_credit": {
+      "action": "pay",
+      "requiresApproval": true,
+      "maxAmountUsd": 100,
+      "requireIdempotencyKey": true,
+      "singleUse": true
+    },
+    "provider.email.send_external": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth"]
+    }
+  },
+  "flows": [
+    {
+      "from": "provider_crm",
+      "to": "agent_context",
+      "dataClassification": ["customer_data", "pii"],
+      "allowedFields": ["customer_id", "case_id", "plan"],
+      "maxRecords": 10
+    },
+    {
+      "from": "provider_crm",
+      "to": "external_email",
+      "destinationType": "external_email",
+      "dataClassification": ["customer_data", "pii"],
+      "requiresApproval": true,
+      "allowedDomains": ["customer.example"],
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth"]
+    }
+  ],
+  "budgets": {
+    "maxToolCallsPerJob": 15,
+    "maxSameToolCallsPerJob": 6,
+    "maxIdenticalToolCallsPerJob": 2,
+    "maxEstimatedCostUsdPerJob": 1
+  },
+  "defaultSensitiveDestinationDecision": "deny"
+}

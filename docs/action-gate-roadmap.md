@@ -144,6 +144,18 @@ Capabilities:
 - Audit event on every decision.
 - Fail-closed behavior when required context is missing.
 
+Developer-entrypoint work:
+
+- Provide a five-minute local demo that shows a normal tool call, a repeated
+  tool-call denial, and a PII approval challenge.
+- Ship copy-paste starter policies for tool spend, PII egress, refunds/payments,
+  shell/browser tools, and MCP-style provider tools.
+- Make the package installable with a lockfile-backed `npm install` path.
+- Publish the package to npm once the API surface has one more round of external
+  feedback.
+- Add one named framework wrapper first, based on feedback from the local guard
+  users.
+
 Exit criteria:
 
 - A developer can add AgentPass before a tool call with a small code change.
@@ -155,6 +167,7 @@ Test gate:
 - `cd packages/guard`
 - `npm test`
 - `npm run build`
+- `npm run demo:quickstart`
 - `npm run demo`
 - `npm run demo:circuit`
 - `npm run demo:gate`
@@ -170,6 +183,8 @@ Expected outcomes:
 - Tool-call, retry, token, and estimated-cost budgets are enforced.
 - Tool-thrashing circuit breakers stop repeated identical calls and same-tool
   loops.
+- Starter policies exist for the first five developer problems: spend caps, PII
+  egress, refunds/payments, shell/browser actions, and MCP tool gateways.
 
 ### Phase 3: PII And Sensitive-Data Exfiltration Rules
 
@@ -369,6 +384,7 @@ Goal: put the gate where developers already execute tools.
 
 Priority integrations:
 
+- Plain TypeScript tool wrapper.
 - OpenAI Agents SDK wrapper.
 - Claude tool-use wrapper.
 - LangChain middleware.

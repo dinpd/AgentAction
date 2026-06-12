@@ -1,0 +1,24 @@
+{
+  "tools": {
+    "web.search": {
+      "action": "read"
+    },
+    "llm.complete": {
+      "action": "send"
+    },
+    "browser.open": {
+      "action": "read"
+    }
+  },
+  "budgets": {
+    "challengeAfterToolCallsPerJob": 8,
+    "challengeAfterTokensPerJob": 12000,
+    "challengeAfterEstimatedCostUsdPerJob": 0.75,
+    "maxToolCallsPerJob": 15,
+    "maxSameToolCallsPerJob": 6,
+    "maxIdenticalToolCallsPerJob": 2,
+    "maxRetriesPerTool": 2,
+    "maxTokensPerJob": 20000,
+    "maxEstimatedCostUsdPerJob": 1
+  }
+}

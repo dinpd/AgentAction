@@ -34,10 +34,11 @@ you sit in the agent stack:
 The first package is the local TypeScript guard:
 
 - Package: [`packages/guard/`](packages/guard/)
+- Quickstart demo: [`packages/guard/examples/quickstart-agent-loop.ts`](packages/guard/examples/quickstart-agent-loop.ts)
 - Demo: [`packages/guard/examples/support-refund-demo.ts`](packages/guard/examples/support-refund-demo.ts)
 - Circuit-breaker demo: [`packages/guard/examples/circuit-breaker-demo.ts`](packages/guard/examples/circuit-breaker-demo.ts)
 - Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
-- Policy: [`packages/guard/examples/support-refund-policy.json`](packages/guard/examples/support-refund-policy.json)
+- Starter policies: [`packages/guard/policies/`](packages/guard/policies/)
 
 The guard package is a prototype in this repo today, not a published npm
 package yet. The goal is to validate the policy shape and integration API before
@@ -128,12 +129,14 @@ contracts, receipts, or standards alignment:
 
 ## Quick Start
 
-Try the runtime guard package:
+Try the first developer wedge: add a circuit breaker and approval gate before
+your agent executes tools.
 
 ```bash
 git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass/packages/guard
 npm install
+npm run demo:quickstart
 npm test
 npm run demo:circuit
 npm run demo:gate
@@ -173,6 +176,19 @@ The guard currently demonstrates:
 - PII/data-flow controls for approved destinations, blocked fields, record
   counts, and model-provider prompts.
 - Audit events for every allow, deny, or challenge decision.
+
+Starter policies:
+
+- [`tool-spend-cap.json`](packages/guard/policies/tool-spend-cap.json) for tool
+  loops, retries, tokens, runtime, and estimated cost caps.
+- [`pii-egress.json`](packages/guard/policies/pii-egress.json) for PII movement
+  and blocked fields.
+- [`refund-payment.json`](packages/guard/policies/refund-payment.json) for
+  refunds, amount caps, idempotency, and single-use actions.
+- [`shell-browser-guard.json`](packages/guard/policies/shell-browser-guard.json)
+  for shell, file, browser, and secret-flow guardrails.
+- [`mcp-tool-gateway.json`](packages/guard/policies/mcp-tool-gateway.json) for
+  MCP-style provider tools.
 
 Enterprise manifest and provider-contract tooling is available when you need a
 reviewable governance layer beyond the local guard package:
