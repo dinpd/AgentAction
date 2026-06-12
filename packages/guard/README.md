@@ -5,8 +5,11 @@ Dependency-free runtime guard for AI agent tool calls.
 Use this package before an agent executes a tool, API call, browser action,
 message send, payment, refund, export, or production change.
 
-This package is a repo-local prototype today. It is not published to npm yet.
-Use the examples to test the API shape and policy model.
+Install it from npm:
+
+```bash
+npm install @dinpd/guard
+```
 
 The first use case is simple: put a circuit breaker and approval gate in front
 of your agent's tools so loops, spend spikes, duplicate side effects, and PII
@@ -19,6 +22,14 @@ The guard returns one of three decisions:
 - `deny`: block execution.
 
 ## Five-Minute Path
+
+Install the package:
+
+```bash
+npm install @dinpd/guard
+```
+
+Run the local demos:
 
 ```bash
 git clone https://github.com/dinpd/AgentPass.git

@@ -133,6 +133,14 @@ contracts, receipts, or standards alignment:
 Try the first developer wedge: add a circuit breaker and approval gate before
 your agent executes tools.
 
+Install the package:
+
+```bash
+npm install @dinpd/guard
+```
+
+Run the local demos:
+
 ```bash
 git clone https://github.com/dinpd/AgentPass.git
 cd AgentPass/packages/guard
