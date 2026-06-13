@@ -14,11 +14,11 @@ AgentPass helps builders ship bounded AI automations and agents without giving
 models unchecked execution authority over production systems, customer data,
 payments, external sends, secrets, and administrative tools.
 
-## Demo Video
+## Explainer Video
 
-[![The Action Gate: Securing AI Automations](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-preview.gif)](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4)
+[![The Action Gate: Securing AI Automations](https://img.youtube.com/vi/BHcrRMUYK18/maxresdefault.jpg)](https://youtu.be/BHcrRMUYK18)
 
-[Watch the demo video](https://github.com/dinpd/AgentPass/releases/download/v0.2.0/The_Action_Gate__Securing_AI_Automations-watermarked.mp4).
+[Watch the explainer video](https://youtu.be/BHcrRMUYK18).
 
 AgentPass answers one runtime question:
 
