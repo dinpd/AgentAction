@@ -16,9 +16,9 @@ payments, external sends, secrets, and administrative tools.
 
 ## Explainer Video
 
-[![The Action Gate: Securing AI Automations](https://img.youtube.com/vi/BHcrRMUYK18/maxresdefault.jpg)](https://youtu.be/BHcrRMUYK18)
+https://github.com/user-attachments/assets/277d6c1c-abe4-471a-9016-95b4e8b582fc
 
-[Watch the explainer video](https://youtu.be/BHcrRMUYK18).
+[Watch the full explainer on YouTube](https://youtu.be/BHcrRMUYK18).
 
 AgentPass answers one runtime question:
 
