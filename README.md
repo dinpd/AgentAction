@@ -16,7 +16,7 @@ payments, external sends, secrets, and administrative tools.
 
 ## Explainer Video
 
-https://github.com/user-attachments/assets/277d6c1c-abe4-471a-9016-95b4e8b582fc
+https://github.com/user-attachments/assets/4d5757f7-ffa0-4c0f-a5bc-1bde4336703a
 
 [Watch the full explainer on YouTube](https://youtu.be/BHcrRMUYK18).
 
