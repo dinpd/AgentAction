@@ -18,8 +18,6 @@ payments, external sends, secrets, and administrative tools.
 
 https://github.com/user-attachments/assets/4d5757f7-ffa0-4c0f-a5bc-1bde4336703a
 
-[Watch the full explainer on YouTube](https://youtu.be/BHcrRMUYK18).
-
 AgentPass answers one runtime question:
 
 > Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
