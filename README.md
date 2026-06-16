@@ -1,26 +1,32 @@
 # AgentPass
 
-**Runtime authorization for AI agent tool calls.**
+**Stateful guardrails around AI agent tool calls.**
 
-AgentPass is a runtime action gate that sits before agents call tools, send
-messages, move money, update records, deploy code, export data, or touch
-sensitive systems.
+AgentPass is a runtime gate that sits outside the agent loop and checks tool
+calls before execution.
 
 ```text
-Agent proposes tool call -> AgentPass checks policy -> allow / deny / challenge
+Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
 ```
 
-AgentPass helps builders ship bounded AI automations and agents without giving
-models unchecked execution authority over production systems, customer data,
-payments, external sends, secrets, and administrative tools.
+RBAC can say which identity may access a tool. Prompts can suggest how an agent
+should behave. AgentPass answers the runtime execution question:
 
-## Explainer Video
+> Should this specific tool call, with this payload, in this job state, execute right now?
 
-https://github.com/user-attachments/assets/4d5757f7-ffa0-4c0f-a5bc-1bde4336703a
+AgentPass is designed for failures that static access control and prompt rules
+do not catch:
 
-AgentPass answers one runtime question:
+- Duplicate side effects, such as repeated refunds, emails, exports, or writes.
+- Runaway tool loops and repeated calls.
+- Token, cost, runtime, and tool-call budget spikes.
+- PII or sensitive data flowing to the wrong destination.
+- Risky actions that need single-action approval.
+- Missing decision logs when something goes wrong.
 
-> Should this agent perform this capability or tool action on this resource, for this user, job, customer, approval, and time window?
+The gate should run outside the model context and outside agent-editable memory.
+If the agent can rewrite the rule, grant its own approval, or erase prior state,
+it is not a real guardrail.
 
 AgentPass is one control model with different entry points depending on where
 you sit in the agent stack:
@@ -55,11 +61,40 @@ OAuth can prove access to a server. MCP tool schemas describe inputs. Agent
 frameworks can decide which tools are visible to a model. AgentPass focuses on
 the runtime decision immediately before a tool executes.
 
-The core idea is simple:
+## Why A Stateful Gate
 
-> Every production agent should have a runtime action contract that says what it
-> can request, what must be challenged, where sensitive data can flow, which
-> retries are safe, and how execution should be stopped.
+Stateless checks can catch obvious policy violations: blocked tools, unsafe
+destinations, amount caps, and PII fields.
+
+Many agent failures are stateful:
+
+- The same refund was already issued.
+- The same email was already sent.
+- The same tool call keeps repeating.
+- The job has crossed a token, cost, runtime, or tool-call budget.
+- An approval was granted for one action, not an open-ended session.
+- A prior denial should stop the job before it keeps trying.
+
+That state has to live in the execution boundary, not in the agent's prompt or
+scratchpad. The agent can remember what it thinks happened. The gate remembers
+what actually executed.
+
+For side-effectful tools, AgentPass treats idempotency as part of the runtime
+boundary. A refund, payment, email, export, or production write should carry an
+idempotency key or call fingerprint that the gate can remember outside the agent
+loop.
+
+Approvals should be scoped to one proposed action: tool, resource, payload hash,
+amount, destination, job, and expiry. If any of those change, the agent needs a
+new approval.
+
+When every risky action passes through the same gate, audit is not bolted on
+afterward. The gate log becomes the record of what was proposed, allowed,
+denied, challenged, and why.
+
+## Explainer Video
+
+https://github.com/user-attachments/assets/4d5757f7-ffa0-4c0f-a5bc-1bde4336703a
 
 AgentPass does **not** replace IAM, OAuth, MCP gateways, OPA, Cedar, or
 enterprise security tools. It gives agent runtimes a small policy checkpoint for

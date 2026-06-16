@@ -1,9 +1,13 @@
 # @dinpd/ai-agent-guard
 
-Dependency-free runtime guard for AI agent tool calls.
+Stateful guardrails around AI agent tool calls.
 
 Use this package before an agent executes a tool, API call, browser action,
 message send, payment, refund, export, or production change.
+
+```text
+tool call + policy + job state -> allow / deny / challenge_required
+```
 
 Install it from npm:
 
@@ -11,9 +15,17 @@ Install it from npm:
 npm install @dinpd/ai-agent-guard
 ```
 
-The first use case is simple: put a circuit breaker and approval gate in front
-of your agent's tools so loops, spend spikes, duplicate side effects, and PII
-egress are caught before execution.
+The package is built for failure modes that prompts and RBAC do not solve:
+
+- Duplicate side effects.
+- Repeated tool calls and loops.
+- Token, cost, runtime, and tool-call budget spikes.
+- PII or sensitive data leaving the wrong boundary.
+- Risky actions that need scoped approval.
+- Audit events for each decision.
+
+The guard should sit outside the agent's editable context. The agent proposes
+actions. The guard decides whether those actions execute.
 
 The guard returns one of three decisions:
 
@@ -193,9 +205,23 @@ gate.
 - Optional `callFingerprint` values for detecting repeated tool calls without
   storing full tool parameters
 
-This package is intentionally local and in-memory for the initial package.
-Persistent approvals, policy distribution, shared counters, and audit export
-belong in the runtime service layer.
+## Stateful Runtime Memory
+
+The guard tracks per-job state for repeated calls, idempotency keys, approvals,
+budgets, token estimates, cost estimates, and runtime.
+
+This is the part that should not live in the agent context. A model can
+summarize what it thinks happened, but the gate needs its own execution memory:
+
+- Which side-effectful actions already ran.
+- Which approval was granted for which exact call.
+- How many times this job called the same tool.
+- How many times this exact call fingerprint appeared.
+- How much token, cost, and runtime budget has been consumed.
+
+The initial package keeps this state in memory. Production deployments should
+move shared counters, approval records, audit export, and policy distribution
+into the runtime service layer.
 
 ## Local Demo
 
