@@ -41,6 +41,12 @@ The product should therefore feel less like identity infrastructure and more
 like Stripe idempotency, GitHub branch protection, API gateway policy, and a
 payment circuit breaker for agent tool calls.
 
+Community-feedback artifacts from the June 2026 `r/aiagents` tool-call
+guardrails thread are tracked in:
+
+- [`community-feedback/reddit-tool-guardrails-issue-drafts.md`](community-feedback/reddit-tool-guardrails-issue-drafts.md)
+- [`community-feedback/reddit-tool-guardrails-response-drafts.md`](community-feedback/reddit-tool-guardrails-response-drafts.md)
+
 The lead wedge should be external side effects and sensitive data, not token
 cost alone. Token spend matters, but it is usually a symptom of an unbounded
 agent loop. The stronger product story is:
@@ -65,15 +71,53 @@ Recommended public line:
 
 ## Roadmap
 
-### Phase 1: Reposition Without Renaming
+### Current Status Snapshot
+
+As of 2026-06-17, this roadmap is no longer a pure future plan. The public
+README now leads with the runtime tool-call guardrail story, the local
+TypeScript guard is implemented and published as `@dinpd/ai-agent-guard`, and
+the repo includes runnable demos, starter policies, a dependency-free MCP
+tool-call adapter in the guard package, a separate MCP gateway adapter,
+provider-side Express and FastAPI middleware, and a Cloudflare gateway runtime
+with durable approvals, JIT grants, tenant manifests, OIDC checks, and audit
+events.
+
+The remaining near-term work is less about proving the basic guard pattern and
+more about hardening the production boundary:
+
+- make result replay for idempotent side effects explicit;
+- make approval evidence and decision context consistent across SDK, gateway,
+  UI, and audit events;
+- close the provider trust gate with signed contracts, drift detection, and
+  provider execution receipts;
+- document stateless versus stateful enforcement boundaries;
+- add more integration guides around the existing packages.
+
+### Phase 1: Reposition Without Renaming (complete)
 
 Goal: make the action-gate story obvious without changing packages, schemas, or
 existing integrations.
 
-Work:
+Completed:
 
-- Update the README and primary docs to lead with "runtime guardrails for AI
-  agent tool calls."
+- The README leads with "stateful guardrails around AI agent tool calls."
+- The primary execution diagram is in the README:
+
+  ```text
+  Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+  ```
+
+- Identity/passport language is secondary to the runtime authorization story.
+- The README, guard docs, and demos now focus on concrete failures: duplicate
+  refunds, unsafe sends, payment approval, PII egress, production changes, and
+  runaway tool calls.
+- The deeper authority-contract model remains available for manifests,
+  gateways, provider contracts, receipts, and standards alignment.
+
+Original work items now satisfied:
+
+- Update the README and primary docs to lead with runtime guardrails for AI
+  agent tool calls.
 - Add the core execution diagram:
 
   ```text
@@ -92,16 +136,31 @@ Work:
   - repeated failed tool calls burning through a job budget
 - Keep the existing authority-contract model as the deeper policy layer.
 
-Exit criteria:
+Exit criteria status:
 
-- A new visitor understands AgentPass as a tool-call guard within 30 seconds.
-- The README shows where AgentPass sits in an existing agent loop.
-- The first examples describe action failures, not abstract identity gaps.
+- Done: a new visitor should understand AgentPass as a tool-call guard within
+  30 seconds.
+- Done: the README shows where AgentPass sits in an existing agent loop.
+- Done: the first examples describe action failures, not abstract identity
+  gaps.
 
-### Phase 2: Build The Drop-In Guard
+### Phase 2: Build The Drop-In Guard (mostly complete)
 
 Goal: provide the smallest useful runtime guard API for existing agents and
 automations.
+
+Completed:
+
+- Local TypeScript guard package exists at `packages/guard`.
+- The guard package is published on npm as `@dinpd/ai-agent-guard`.
+- `createToolGate` wraps arbitrary tool execution.
+- `createMcpToolGate` wraps MCP-style `tools/call` requests.
+- Structured decisions return `allow`, `deny`, or `challenge_required`.
+- Decision events are emitted for every check.
+- Starter policies exist for spend caps, PII egress, refunds/payments,
+  shell/browser actions, and MCP tool gateways.
+- Demos exist for quickstart, MCP, support refunds, circuit breakers, direct
+  tool gates, and PII exfiltration.
 
 Target shape:
 
@@ -144,24 +203,30 @@ Capabilities:
 - Audit event on every decision.
 - Fail-closed behavior when required context is missing.
 
-Developer-entrypoint work:
+Developer-entrypoint work status:
 
-- Provide a five-minute local demo that shows a normal tool call, a repeated
-  tool-call denial, and a PII approval challenge.
-- Ship copy-paste starter policies for tool spend, PII egress, refunds/payments,
-  shell/browser tools, and MCP-style provider tools.
-- Make the package installable with a lockfile-backed `npm install` path.
-- Publish the package to npm once the API surface has one more round of external
-  feedback.
-- Add the first named adapter as a dependency-free MCP `tools/call` wrapper.
-- Add the next framework wrapper based on feedback from local guard and MCP
-  users.
+- Done: provide a five-minute local demo that shows a normal tool call, a
+  repeated tool-call denial, and a PII approval challenge.
+- Done: ship copy-paste starter policies for tool spend, PII egress,
+  refunds/payments, shell/browser tools, and MCP-style provider tools.
+- Done: make the package installable with a lockfile-backed `npm install` path.
+- Done: publish the package to npm as `@dinpd/ai-agent-guard`.
+- Done: add the first named adapter as a dependency-free MCP `tools/call`
+  wrapper.
+- Partial: add the next framework wrapper based on feedback from local guard and
+  MCP users. Provider-side Express and FastAPI middleware exist; agent framework
+  wrappers such as OpenAI Agents SDK, Claude tool-use, and LangChain remain
+  future work.
 
-Exit criteria:
+Exit criteria status:
 
-- A developer can add AgentPass before a tool call with a small code change.
-- A deny/challenge result is structured enough to render in a UI or workflow.
-- The decision event contains enough context to debug and audit the action.
+- Done: a developer can add AgentPass before a tool call with a small code
+  change.
+- Done: a deny/challenge result is structured enough to render in a UI or
+  workflow.
+- Partial: the decision event contains enough context for local debugging, but
+  approval evidence, policy version, trust-gate failure class, and
+  provider-execution correlation need to be made consistent across all runtimes.
 
 Test gate:
 
@@ -188,10 +253,38 @@ Expected outcomes:
 - Starter policies exist for the first five developer problems: spend caps, PII
   egress, refunds/payments, shell/browser actions, and MCP tool gateways.
 
-### Phase 3: PII And Sensitive-Data Exfiltration Rules
+Remaining work:
+
+- Add optional cached-result replay for duplicate side-effect retries.
+- Promote approval evidence fields into SDK and gateway request/response types.
+- Add structured budget warning/degradation outputs beyond
+  `challenge_required`.
+
+### Phase 3: PII And Sensitive-Data Exfiltration Rules (mostly complete locally)
 
 Goal: make data movement a first-class runtime policy primitive, not a secondary
 audit concern.
+
+Completed in the local guard:
+
+- `dataFrom`, `dataTo`, `destinationType`, `dataClassification`, `fieldSet`,
+  `recordCount`, and `externalDomain` are part of `GuardCheck`.
+- Flow policies support allow/deny, approval requirements, destination allow
+  lists, field allowlists, blocked fields, and record caps.
+- Sensitive destinations include external email, webhooks, third-party SaaS,
+  file export, model providers, and browser forms.
+- PII exfiltration examples and tests cover model-provider prompts, external
+  destinations, blocked fields, and record thresholds.
+
+Remaining work:
+
+- Bring the richer local guard data-flow model into the hosted gateway and SDK
+  surfaces consistently.
+- Add redaction/tokenization status and retention-policy fields when available.
+- Document how tool-result-to-tool-call chains should be represented and
+  blocked.
+- Ensure audit export includes the same data-flow context as local decision
+  events.
 
 Agent systems fail when a harmless read is chained into an unsafe write, send,
 export, prompt, or tool call. AgentPass should model and enforce these flows
@@ -317,9 +410,26 @@ Expected outcomes:
   absent.
 - Blocked fields are denied even when the destination is approved.
 
-### Phase 4: Killer Demos
+### Phase 4: Killer Demos (partially complete)
 
 Goal: prove the product through concrete failure prevention.
+
+Completed:
+
+- Local guard demos cover quickstart, MCP tool calls, support refunds, circuit
+  breakers, direct tool gates, and PII exfiltration.
+- The README links the core demos and starter policies.
+- The guard package has tests covering repeated calls, budgets, PII flows,
+  approvals, and MCP mappings.
+
+Remaining work:
+
+- Turn the strongest demos into short guides with screenshots or console output.
+- Add a clearer timeout/retry flow where a duplicate side-effect retry returns a
+  cached prior result rather than only a denial.
+- Add visible end-to-end event streams for the hosted gateway demos.
+- Add one production-change demo around deploy/rollback/change-request
+  enforcement.
 
 Primary demo:
 
@@ -356,43 +466,63 @@ Test gate:
 - Demo output must include a decision event with `agentId`, `tool`, `action`,
   `jobId`, `resource`, reason list, and timestamp.
 
-### Phase 5: Approval And JIT Runtime
+### Phase 5: Approval And JIT Runtime (partially complete)
 
 Goal: make the runtime production-credible.
 
-Work:
+Completed:
 
-- Persistent JIT grant store.
-- Approval request lifecycle.
-- Approver identity and approval scope.
-- Grant expiration.
-- Single-use grant consumption.
-- JWS/JWKS receipt signing.
+- Cloudflare Worker gateway exposes `/authorize`, `/approval-requests`,
+  `/jit-grants`, tenant-scoped endpoints, `/policy`, and audit endpoints.
+- Approval requests and JIT grants use a SQLite-backed Durable Object namespace.
+- JIT grants support expiration and single-use consumption.
+- The gateway supports tenant manifests from KV.
+- The gateway supports API-key auth and OIDC/JWKS validation for production
+  tenant configs, plus demo HS256 mode.
+- The gateway emits audit events and can export them through a webhook.
+- Local provider demos support signed receipt-style verification paths.
+
+Still open:
+
+- Make approval evidence schema consistent across gateway, SDK, UI, and audit.
+- Tighten approver identity and approval scope validation.
+- Add production JWS/JWKS receipt signing as the default provider path.
 - JWKS endpoint.
 - Key rotation plan.
-- HMAC local-dev mode.
-- Stable audit event schema.
-- Audit export path.
+- Finish stable audit event schema and versioning.
+- Add execution receipts that correlate provider execution with enterprise
+  authorization.
+- Add trust-gate failure classification.
 
-Exit criteria:
+Exit criteria status:
 
-- Sensitive actions can be challenged, approved, executed, and audited.
-- Replays and expired grants are denied deterministically.
-- Providers can verify scoped receipts without trusting prompt text.
+- Partial: sensitive actions can be challenged, approved, granted, and audited
+  in the Cloudflare runtime.
+- Partial: replays and expired grants are denied deterministically for JIT
+  grants; cached-result replay for side-effect retries still needs design and
+  implementation.
+- Partial: providers can verify scoped receipts in demos, but production
+  JWS/JWKS, key rotation, and execution receipts remain open.
 
-### Phase 6: Integrations For Existing Builders
+### Phase 6: Integrations For Existing Builders (in progress)
 
 Goal: put the gate where developers already execute tools.
 
-Priority integrations:
+Implemented or started:
 
 - Plain TypeScript tool wrapper.
 - MCP `tools/call` wrapper.
+- MCP gateway adapter.
+- Provider-side Express middleware.
+- Provider-side FastAPI middleware.
+- Cloudflare gateway runtime.
+
+Priority integrations still open:
+
 - OpenAI Agents SDK wrapper.
 - Claude tool-use wrapper.
 - LangChain middleware.
 - MCP gateway middleware.
-- Express and FastAPI generic tool-call middleware.
 - Webhook guard for workflow systems.
 - OpenClaw-style local agent loop example.
 - n8n or Zapier-style examples if a clean integration path exists.

@@ -257,22 +257,31 @@ AgentPass installs `agentpass` as the primary CLI and keeps `agentid` as a
 compatibility command alias. The Python package, schema filenames, environment
 variables, and receipt field names still use `agentid` for compatibility.
 
-## Feedback Wanted
+## Current Status
 
-This package is intentionally local-first. Before adding hosted gateways or
-account infrastructure, the next useful feedback is:
+AgentPass currently includes:
 
-- Which failure mode matters most in your agents: token spend, tool loops,
-  duplicate side effects, PII exfiltration, shell/browser actions, or something
-  else?
-- Does `allow` / `deny` / `challenge_required` fit how your agent runtime
-  handles tool calls?
-- What fields are missing from the guard check: tenant, customer, workspace,
-  channel, model, tool params, MCP server, approval source, or policy version?
-- Which adapter should come first: OpenClaw, OpenAI Agents SDK, LangGraph,
-  CrewAI, AutoGen, MCP gateway, or plain Express/FastAPI middleware?
-- Would you rather run this as an in-process package, a local sidecar, or a
-  hosted policy service?
+- Published local TypeScript guard: `@dinpd/ai-agent-guard`
+- Tool-call and MCP `tools/call` wrappers
+- Starter policies for spend caps, PII egress, refunds/payments,
+  shell/browser tools, and MCP gateways
+- Runnable demos for refunds, circuit breakers, MCP calls, direct tool gates,
+  and PII flows
+- Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
+  checks, and audit events
+- Provider-side Express and FastAPI middleware
+
+## Roadmap Focus
+
+Near-term work is focused on production hardening:
+
+- Idempotency result replay for duplicate side-effect retries
+- Consistent approval evidence across SDK, gateway, UI, and audit events
+- Provider trust gate: signed contracts, drift detection, and execution receipts
+- Clear stateless vs stateful enforcement guidance
+- More integration guides for existing agent stacks
+
+For the full roadmap, see [Action Gate Roadmap](docs/action-gate-roadmap.md).
 
 ## Broader Governance Scope
 
