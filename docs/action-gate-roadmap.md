@@ -569,11 +569,10 @@ Tone:
 
 ## Naming
 
-Do not rename immediately.
+AgentPass remains the project and package family name.
 
-`AgentGuard` has strong semantic fit, but it is already crowded in adjacent AI
-agent security work. The safer path is to validate the action-gate wedge under
-the current AgentPass name while using more direct product language:
+Public positioning should use direct product language that explains the runtime
+role clearly:
 
 - runtime guard
 - action gate
@@ -582,5 +581,7 @@ the current AgentPass name while using more direct product language:
 - approval gate
 - data-flow gate
 
-Revisit naming after the drop-in guard API, data exfiltration controls, and
-killer demos are in place.
+Names such as `AgentGuard` are semantically close, but the agent-security
+namespace is crowded. A rename should only be considered if the current name
+creates measurable confusion after the drop-in guard, data-flow controls,
+provider trust gate, and core demos are documented and in use.
