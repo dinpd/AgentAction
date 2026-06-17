@@ -283,7 +283,18 @@ security-controlled policy services.
 For enterprise governance, gateway, provider-contract, receipt, and standards
 documentation, see [Enterprise Governance](docs/enterprise-governance.md).
 
-For the runtime guard roadmap, see [Action Gate Roadmap](docs/action-gate-roadmap.md).
+## Open Source Governance
+
+- [Contributing](CONTRIBUTING.md): development setup, review expectations, and
+  pull request checklist.
+- [Governance](GOVERNANCE.md): project scope, roles, decision making, and
+  security-sensitive change rules.
+- [Security Policy](SECURITY.md): private vulnerability reporting and response
+  process.
+- [Code of Conduct](CODE_OF_CONDUCT.md): community behavior expectations and
+  enforcement.
+- [Support](SUPPORT.md): where to ask questions and what to include.
+- [Maintainers](MAINTAINERS.md): current maintainers and review areas.
 
 ---
 

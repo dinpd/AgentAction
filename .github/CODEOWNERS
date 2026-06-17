@@ -1,0 +1,15 @@
+# Default review ownership. Keep this aligned with MAINTAINERS.md.
+* @dinpd
+
+/agentid/ @dinpd
+/schema/ @dinpd
+/tests/ @dinpd
+/packages/guard/ @dinpd
+/packages/provider-express/ @dinpd
+/packages/provider-fastapi/ @dinpd
+/sdk/typescript/ @dinpd
+/cloudflare/ @dinpd
+/demo/ @dinpd
+/solutions/devops-sre/ @dinpd
+/docs/ @dinpd
+/.github/ @dinpd

@@ -1,0 +1,41 @@
+name: Design change
+description: Propose a material API, schema, policy, receipt, or governance change
+title: "[Design]: "
+labels: ["design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for material changes before implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or integration problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the behavior, API, schema, receipt, policy, or process change.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security model
+      description: Explain trust boundaries, failure modes, and any effect on allow/deny/challenge behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility
+      description: Migration path, breaking changes, aliases, or deprecations.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

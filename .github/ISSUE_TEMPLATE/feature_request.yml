@@ -1,0 +1,42 @@
+name: Feature request
+description: Request a new capability or integration
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What are you trying to build or protect?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behavior
+      description: What should AgentPass do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Policy decisions
+        - Budgets or circuit breakers
+        - Approvals or JIT grants
+        - Receipts
+        - Replay or idempotency
+        - PII or data flow
+        - MCP gateway
+        - Provider middleware
+        - SDKs
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Compatibility, deployment, security, standards, or runtime constraints.

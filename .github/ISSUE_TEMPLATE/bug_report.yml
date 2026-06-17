@@ -1,0 +1,70 @@
+name: Bug report
+description: Report incorrect behavior in AgentPass
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include secrets, customer data, or private logs.
+        For security vulnerabilities, do not open a public issue. Follow SECURITY.md.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Python core
+        - TypeScript guard
+        - TypeScript client SDK
+        - Provider Express middleware
+        - Provider FastAPI middleware
+        - Cloudflare gateway
+        - Schemas
+        - Documentation
+        - Examples or demos
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "0.2.0, package version, commit SHA, or branch"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal steps, policy, receipt, schema, or tool call needed to reproduce. Redact secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python, Node.js, OS, gateway/provider/runtime details.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      render: shell
