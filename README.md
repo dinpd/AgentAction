@@ -92,6 +92,10 @@ When every risky action passes through the same gate, audit is not bolted on
 afterward. The gate log becomes the record of what was proposed, allowed,
 denied, challenged, and why.
 
+For concrete ecommerce and SRE examples, including the authorization context
+the runtime must supply and the evidence left after execution, see
+[`Authorization in Practice`](docs/authorization-in-practice.md).
+
 ## Explainer Video
 
 https://github.com/user-attachments/assets/4d5757f7-ffa0-4c0f-a5bc-1bde4336703a
