@@ -576,7 +576,12 @@ tokens from the customer's OIDC provider via JWKS.
 
 ---
 
-## Implementation Roadmap
+## Implementation Status
+
+This section inventories enterprise capabilities. It is not an ordered task
+list. Priority and sequencing are maintained in the
+[Action Gate Roadmap](action-gate-roadmap.md); GitHub issues are the execution
+units linked from that roadmap.
 
 Implemented:
 
@@ -626,7 +631,7 @@ Implemented:
   audit console visibility
 - CI checks for tests, schema validation, manifest risk, and TypeScript SDK
 
-Next:
+Capability backlog reference:
 
 - More ecommerce manifests and audit-log examples
 - Request-digest support for receipt profile canonicalization in provider

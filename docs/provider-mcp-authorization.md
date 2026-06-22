@@ -491,6 +491,13 @@ authorization second, execution only when both pass.
 
 ## Execution Plan
 
+Status: steps 1 through 6 were completed by the provider contract, gateway
+adapter, demo, schema, CLI, and middleware work. Step 7 is the remaining
+production trust-gate work and is prioritized as P4 in the
+[Action Gate Roadmap](action-gate-roadmap.md#p4-provider-trust-gate). This
+section preserves the implementation history; it is not a separate active
+backlog.
+
 1. **Document the contract**
 
    Finalize the provider metadata schema, authorization receipt fields, execution

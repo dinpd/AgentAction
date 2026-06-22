@@ -148,6 +148,10 @@ export default {
         return html(AUDIT_UI_HTML);
       }
 
+      if (request.method === "GET" && route.endpoint === "approvals" && !route.resourceId) {
+        return html(APPROVALS_UI_HTML);
+      }
+
       if (request.method === "POST" && route.endpoint === "audit" && route.resourceId === "webhook" && route.action === "agentid") {
         const inbound = authenticateAuditWebhook(request, env);
         if (!inbound.ok) return json({ error: inbound.error }, inbound.status);
@@ -1375,6 +1379,508 @@ function text(payload: string, status = 200): Response {
     headers: cors({ "content-type": "text/plain; charset=utf-8" }),
   });
 }
+
+const APPROVALS_UI_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentPass Approvals</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #16202a;
+      --muted: #617080;
+      --line: #d9e0e7;
+      --soft: #eef3f7;
+      --blue: #1967d2;
+      --green: #16794c;
+      --green-bg: #e1f7eb;
+      --red: #aa2e25;
+      --red-bg: #fde7e5;
+      --amber: #986700;
+      --amber-bg: #fff3cf;
+      --shadow: 0 14px 40px rgba(22, 32, 42, 0.10);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+    header.top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px 22px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: grid; gap: 2px; }
+    h1 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 720; letter-spacing: 0; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .token {
+      width: min(280px, 44vw);
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 13px;
+    }
+    .ghost, .primary, .danger {
+      height: 34px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 680;
+      background: #fff;
+      color: var(--ink);
+    }
+    .primary { background: var(--green); color: #fff; border-color: var(--green); }
+    .danger { background: var(--red); color: #fff; border-color: var(--red); }
+    main {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+      gap: 16px;
+      padding: 16px;
+      min-height: 0;
+    }
+    .queue, .detail {
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .queue-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+    }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .metric { border: 1px solid var(--line); border-radius: 6px; padding: 9px; background: #fbfcfd; }
+    .metric strong { display: block; font-size: 20px; line-height: 1; }
+    .metric span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 720; }
+    .filters { display: flex; gap: 8px; }
+    .filters button { flex: 1; height: 32px; border-radius: 6px; border: 1px solid var(--line); background: #fff; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .filters button.active { color: var(--blue); border-color: #9ec1ff; background: #eef5ff; }
+    .list { overflow: auto; max-height: calc(100vh - 178px); }
+    .item {
+      width: 100%;
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      color: inherit;
+      text-align: left;
+    }
+    .item:hover, .item.active { background: #f7fbff; }
+    .item.active { box-shadow: inset 3px 0 0 var(--blue); }
+    .item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .tool { font-size: 14px; font-weight: 730; overflow-wrap: anywhere; }
+    .resource { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .pill { display: inline-flex; align-items: center; justify-content: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 760; white-space: nowrap; }
+    .pending { background: var(--amber-bg); color: var(--amber); }
+    .approved { background: var(--green-bg); color: var(--green); }
+    .denied { background: var(--red-bg); color: var(--red); }
+    .risk-critical { background: var(--red-bg); color: var(--red); }
+    .risk-high { background: var(--amber-bg); color: var(--amber); }
+    .risk-medium { background: #e7f0ff; color: var(--blue); }
+    .detail { display: grid; grid-template-rows: auto 1fr auto; }
+    .detail-head {
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .detail-title { display: grid; gap: 8px; min-width: 0; }
+    .detail-title h2 { margin: 0; font-size: 24px; line-height: 1.15; letter-spacing: 0; overflow-wrap: anywhere; }
+    .summary { color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .reviewer { display: grid; gap: 6px; min-width: 220px; }
+    label { display: grid; gap: 5px; font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 750; }
+    .reviewer input {
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: #fff;
+      text-transform: none;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .detail-body { overflow: auto; padding: 16px 18px 20px; display: grid; gap: 16px; align-content: start; }
+    .section { display: grid; gap: 10px; }
+    .section h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .field { border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: #fbfcfd; min-width: 0; }
+    .field span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 750; margin-bottom: 5px; }
+    .field code, .field strong { font-size: 13px; overflow-wrap: anywhere; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .evidence { display: grid; gap: 8px; }
+    .evidence li { line-height: 1.4; }
+    .note {
+      width: 100%;
+      min-height: 76px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      color: var(--ink);
+    }
+    .payload {
+      margin: 0;
+      padding: 12px;
+      background: #101820;
+      color: #dce7f3;
+      border-radius: 6px;
+      overflow: auto;
+      font-size: 12px;
+      max-height: 230px;
+    }
+    .decision-bar {
+      padding: 12px 18px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: #fbfcfd;
+    }
+    .statusline { color: var(--muted); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+    .decision-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    @media (max-width: 920px) {
+      header.top, .detail-head, .decision-bar { align-items: stretch; flex-direction: column; }
+      main { grid-template-columns: 1fr; }
+      .list { max-height: none; }
+      .grid { grid-template-columns: 1fr; }
+      .top-actions { justify-content: stretch; }
+      .token { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div class="brand">
+        <h1>AgentPass Approvals</h1>
+        <div class="subtitle">Review exact agent tool actions before scoped authority is issued.</div>
+      </div>
+      <div class="top-actions">
+        <input class="token" id="token" type="password" autocomplete="off" placeholder="API key for live approvals">
+        <button class="ghost" id="loadLive">Load by ID</button>
+        <button class="ghost" id="resetMock">Reset Mock</button>
+      </div>
+    </header>
+    <main>
+      <aside class="queue">
+        <div class="queue-head">
+          <div class="metrics">
+            <div class="metric"><strong id="pendingCount">0</strong><span>Pending</span></div>
+            <div class="metric"><strong id="approvedCount">0</strong><span>Approved</span></div>
+            <div class="metric"><strong id="deniedCount">0</strong><span>Denied</span></div>
+          </div>
+          <div class="filters" role="tablist" aria-label="Approval filters">
+            <button class="active" data-filter="pending">Pending</button>
+            <button data-filter="all">All</button>
+            <button data-filter="decided">Decided</button>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+      </aside>
+      <section class="detail">
+        <div class="detail-head">
+          <div class="detail-title">
+            <div id="selectedPills"></div>
+            <h2 id="title">Select an approval</h2>
+            <div class="summary" id="summary"></div>
+          </div>
+          <div class="reviewer">
+            <label>Approver identity <input id="decidedBy" value="release-manager-1"></label>
+            <label>Findings <input id="finding" value="change request verified"></label>
+          </div>
+        </div>
+        <div class="detail-body">
+          <div class="section">
+            <h3>Scope</h3>
+            <div class="grid" id="scopeGrid"></div>
+          </div>
+          <div class="section">
+            <h3>Why Approval Is Required</h3>
+            <ul class="evidence" id="evidence"></ul>
+          </div>
+          <div class="section">
+            <h3>Reviewer Note</h3>
+            <textarea class="note" id="note" placeholder="Add context for the audit trail"></textarea>
+          </div>
+          <div class="section">
+            <h3>Request Payload</h3>
+            <pre class="payload" id="payload"></pre>
+          </div>
+        </div>
+        <div class="decision-bar">
+          <div class="statusline" id="statusline">Mock approval inbox ready.</div>
+          <div class="decision-actions">
+            <button class="danger" id="deny">Deny</button>
+            <button class="primary" id="approve">Approve Once</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    function initialApprovals() {
+      return [
+      {
+        approval_id: "approval-prod-deploy-1042",
+        status: "pending",
+        risk: "critical",
+        agent_id: "platform-release-agent",
+        tool: "devops.deploy.production",
+        action: "execute",
+        resource: "service/checkout-api/environment/production",
+        requested_by: "user-1",
+        reason: "Deploy checkout-api after approved change request",
+        created_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+        job_id: "production_deploy",
+        context: {
+          environment: "production",
+          service_id: "checkout-api",
+          repo: "github.com/example/checkout",
+          branch: "main",
+          commit_sha: "abc123def456",
+          change_request_id: "CHG-1042",
+          incident_id: "INC-2048"
+        },
+        evidence: [
+          "Production-changing tool requires human approval.",
+          "JIT grant will be single-use and bound to service, branch, commit, and change request.",
+          "Read-only diagnostics were allowed before this request."
+        ]
+      },
+      {
+        approval_id: "approval-refund-9917",
+        status: "pending",
+        risk: "high",
+        agent_id: "customer-support-refund-agent",
+        tool: "stripe.create_refund",
+        action: "write",
+        resource: "refund/re_9917/customer/cus_123",
+        requested_by: "support-rep-17",
+        reason: "Customer eligible for refund after duplicate charge review",
+        created_at: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+        job_id: "support_case_resolution",
+        case_id: "case-1042",
+        customer_id: "cus_123",
+        context: {
+          amount_usd: "84.20",
+          refund_window: "30d",
+          prior_refunds: "0",
+          ticket_url: "https://zendesk.example/tickets/1042"
+        },
+        evidence: [
+          "Payment mutation requires approval.",
+          "Refund amount is under policy maximum.",
+          "Customer and support case are bound into the approval."
+        ]
+      },
+      {
+        approval_id: "approval-email-5021",
+        status: "approved",
+        risk: "medium",
+        agent_id: "customer-success-agent",
+        tool: "email.send_external",
+        action: "write",
+        resource: "email/customer/cus_884",
+        requested_by: "ae-4",
+        reason: "Send renewal follow-up drafted from CRM notes",
+        created_at: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
+        decided_at: new Date(Date.now() - 23 * 60 * 1000).toISOString(),
+        decided_by: "account-manager-2",
+        findings: ["recipient verified", "no sensitive attachment"],
+        context: {
+          recipient_domain: "customer.example",
+          template_id: "renewal-followup",
+          contains_attachment: "false"
+        },
+        evidence: [
+          "External send requires human confirmation.",
+          "Recipient domain matches CRM account.",
+          "Approval is already decided."
+        ]
+      }
+      ];
+    }
+    let approvals = JSON.parse(sessionStorage.getItem("agentid.approvals.mock") || "null") || initialApprovals();
+    let selectedId = approvals[0]?.approval_id || "";
+    let filter = "pending";
+    const list = document.getElementById("list");
+    const token = document.getElementById("token");
+    const statusline = document.getElementById("statusline");
+    token.value = sessionStorage.getItem("agentid.approvals.token") || "";
+    document.getElementById("approve").addEventListener("click", () => decide("approve"));
+    document.getElementById("deny").addEventListener("click", () => decide("deny"));
+    document.getElementById("resetMock").addEventListener("click", () => {
+      approvals = initialApprovals();
+      selectedId = approvals[0].approval_id;
+      persist();
+      render();
+      statusline.textContent = "Mock data reset.";
+    });
+    document.getElementById("loadLive").addEventListener("click", loadLive);
+    for (const button of document.querySelectorAll(".filters button")) {
+      button.addEventListener("click", () => {
+        filter = button.dataset.filter;
+        for (const peer of document.querySelectorAll(".filters button")) peer.classList.toggle("active", peer === button);
+        renderList();
+      });
+    }
+    render();
+    function render() {
+      document.getElementById("pendingCount").textContent = approvals.filter((item) => item.status === "pending").length;
+      document.getElementById("approvedCount").textContent = approvals.filter((item) => item.status === "approved").length;
+      document.getElementById("deniedCount").textContent = approvals.filter((item) => item.status === "denied").length;
+      renderList();
+      renderDetail();
+    }
+    function renderList() {
+      const visible = approvals.filter((item) => filter === "all" || (filter === "decided" ? item.status !== "pending" : item.status === filter));
+      list.innerHTML = "";
+      for (const approval of visible) {
+        const button = document.createElement("button");
+        button.className = "item" + (approval.approval_id === selectedId ? " active" : "");
+        button.innerHTML =
+          '<div class="item-row"><div class="tool">' + esc(approval.tool) + '</div><span class="pill ' + esc(approval.status) + '">' + esc(approval.status) + '</span></div>' +
+          '<div class="resource">' + esc(approval.resource) + '</div>' +
+          '<div class="item-row"><span class="pill risk-' + esc(approval.risk || "medium") + '">' + esc(approval.risk || "medium") + '</span><span class="resource">' + age(approval.created_at) + '</span></div>';
+        button.addEventListener("click", () => { selectedId = approval.approval_id; render(); });
+        list.appendChild(button);
+      }
+      if (!visible.length) {
+        list.innerHTML = '<div class="item"><div class="tool">No approvals in this view</div><div class="resource">Switch filters or reset the mock inbox.</div></div>';
+      }
+    }
+    function renderDetail() {
+      const approval = selected();
+      if (!approval) return;
+      document.getElementById("selectedPills").innerHTML =
+        '<span class="pill ' + esc(approval.status) + '">' + esc(approval.status) + '</span> ' +
+        '<span class="pill risk-' + esc(approval.risk || "medium") + '">' + esc(approval.risk || "medium") + ' risk</span>';
+      document.getElementById("title").textContent = approval.tool;
+      document.getElementById("summary").textContent = approval.agent_id + " wants to " + approval.action + " " + approval.resource + ".";
+      const fields = {
+        "Approval ID": approval.approval_id,
+        "Agent": approval.agent_id,
+        "Requested By": approval.requested_by,
+        "Action": approval.action,
+        "Resource": approval.resource,
+        "Job": approval.job_id || "",
+        "Case": approval.case_id || "",
+        "Customer": approval.customer_id || "",
+        "Created": approval.created_at,
+        "Decided": approval.decided_at || ""
+      };
+      for (const [key, value] of Object.entries(approval.context || {})) fields[key] = value;
+      document.getElementById("scopeGrid").innerHTML = Object.entries(fields)
+        .filter(([, value]) => String(value || ""))
+        .map(([key, value]) => '<div class="field"><span>' + esc(key) + '</span><code>' + esc(value) + '</code></div>')
+        .join("");
+      document.getElementById("evidence").innerHTML = (approval.evidence || []).map((item) => '<li>' + esc(item) + '</li>').join("");
+      document.getElementById("payload").textContent = JSON.stringify(approval, null, 2);
+      document.getElementById("approve").disabled = approval.status !== "pending";
+      document.getElementById("deny").disabled = approval.status !== "pending";
+      statusline.textContent = approval.status === "pending"
+        ? "Approval is pending. Decision will be recorded against this exact scope."
+        : "Approval was " + approval.status + " by " + (approval.decided_by || "unknown") + ".";
+    }
+    async function decide(action) {
+      const approval = selected();
+      if (!approval || approval.status !== "pending") return;
+      const payload = {
+        decided_by: document.getElementById("decidedBy").value || "approver",
+        findings: [document.getElementById("finding").value || "reviewed", document.getElementById("note").value || ""].filter(Boolean)
+      };
+      if (!approval.approval_id.startsWith("approval-prod") && !approval.approval_id.startsWith("approval-refund") && !approval.approval_id.startsWith("approval-email")) {
+        try {
+          sessionStorage.setItem("agentid.approvals.token", token.value);
+          const response = await fetch("/approval-requests/" + encodeURIComponent(approval.approval_id) + "/" + action, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(token.value ? { authorization: "Bearer " + token.value } : {})
+            },
+            body: JSON.stringify(payload)
+          });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error || "approval request failed");
+          Object.assign(approval, body);
+          statusline.textContent = "Live approval " + action + " recorded.";
+        } catch (error) {
+          statusline.textContent = error.message;
+          return;
+        }
+      } else {
+        approval.status = action === "approve" ? "approved" : "denied";
+        approval.decided_at = new Date().toISOString();
+        approval.decided_by = payload.decided_by;
+        approval.findings = payload.findings;
+        statusline.textContent = "Mock approval " + approval.status + ".";
+      }
+      persist();
+      render();
+    }
+    async function loadLive() {
+      const id = prompt("Approval ID to load");
+      if (!id) return;
+      sessionStorage.setItem("agentid.approvals.token", token.value);
+      statusline.textContent = "Loading " + id + "...";
+      try {
+        const response = await fetch("/approval-requests/" + encodeURIComponent(id), {
+          headers: token.value ? { authorization: "Bearer " + token.value } : {}
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "approval not found");
+        body.risk = body.risk || "high";
+        body.evidence = body.evidence || ["Loaded from live approval store.", "Decision will use the real approval endpoint."];
+        approvals = [body, ...approvals.filter((item) => item.approval_id !== body.approval_id)];
+        selectedId = body.approval_id;
+        persist();
+        render();
+        statusline.textContent = "Loaded live approval " + id + ".";
+      } catch (error) {
+        statusline.textContent = error.message;
+      }
+    }
+    function selected() {
+      return approvals.find((item) => item.approval_id === selectedId) || approvals[0];
+    }
+    function persist() {
+      sessionStorage.setItem("agentid.approvals.mock", JSON.stringify(approvals));
+    }
+    function age(value) {
+      const ms = Date.now() - Date.parse(value);
+      const mins = Math.max(1, Math.round(ms / 60000));
+      return mins + "m ago";
+    }
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    }
+  </script>
+</body>
+</html>`;
 
 const AUDIT_UI_HTML = `<!doctype html>
 <html lang="en">

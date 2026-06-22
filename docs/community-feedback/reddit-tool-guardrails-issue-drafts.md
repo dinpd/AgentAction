@@ -3,8 +3,11 @@
 Source thread: "What guardrails are you using around agent tool calls?" on
 `r/aiagents`, June 2026.
 
-These are draft GitHub issues based on community feedback. They are written to
-be copied into repository issues with light editing.
+These are the original issue drafts based on community feedback. They are kept
+as historical source material; they are not a parallel backlog. The active
+issues are [#2 through #7](https://github.com/dinpd/AgentPass/issues), and their
+priority is maintained in the
+[Action Gate Roadmap](../action-gate-roadmap.md#demonstrable-feature-priority).
 
 ## Issue: Provider trust gate for signed contracts and drift detection
 

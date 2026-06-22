@@ -93,6 +93,175 @@ more about hardening the production boundary:
 - document stateless versus stateful enforcement boundaries;
 - add more integration guides around the existing packages.
 
+### Demonstrable Feature Priority
+
+Roadmap execution is prioritized by demonstrable behavior, not by the phase
+number or the amount of supporting infrastructure involved. A priority is done
+only when a user can run or view the complete flow, see the decision state
+change, inspect the audit evidence, and reproduce the result with an automated
+test.
+
+This document is the source of truth for priority and sequencing. GitHub issues
+are the implementation units and may be worked only when they advance the
+current priority or remove a direct blocker. Other `Next`, `Priority`, issue
+draft, and implementation-roadmap sections in the repository are supporting
+references, not separate ordered backlogs.
+
+Current issue mapping:
+
+| Priority | Demonstration | Tracking issues |
+| --- | --- | --- |
+| P0 | Hosted approval to single-use execution | [#3 approval evidence](https://github.com/dinpd/AgentPass/issues/3), [#4 decision audit context](https://github.com/dinpd/AgentPass/issues/4) |
+| P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
+| P2 | Hosted PII egress gate | [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
+| P3 | Production deploy action gate | Create a focused issue when P2 is complete; existing DevOps code is reference implementation |
+| P4 | Provider trust gate | [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
+| P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
+
+Issues [#6](https://github.com/dinpd/AgentPass/issues/6),
+[#7](https://github.com/dinpd/AgentPass/issues/7), and
+[#11](https://github.com/dinpd/AgentPass/issues/11) are supporting work. They
+should not displace the active demonstrable priority unless they become a
+blocker. Issue #12's guide is part of P1's completion gate, not a standalone
+documentation priority.
+
+#### P0: Hosted Approval To Single-Use Execution
+
+Demonstrate the core product loop in one visible flow:
+
+```text
+agent action -> challenge -> human review -> scoped JIT grant -> execute once
+             -> replay denied -> correlated audit trail
+```
+
+Ship together:
+
+- Approval inbox UI backed by durable approval requests, with mock mode only as
+  an unauthenticated preview.
+- One consistent approval evidence object across the guard SDK, Cloudflare
+  gateway, approval UI, JIT grant, and audit event.
+- Approver identity, exact action scope, policy findings, request digest,
+  expiration, and decision reason displayed before approval.
+- A visible event timeline linking the challenge, approval, grant consumption,
+  execution decision, and replay denial.
+
+Demo gate:
+
+- A reviewer can approve a production-like action from the UI.
+- The exact approved action succeeds once.
+- A changed resource, amount, destination, or payload is denied.
+- A replay or expired grant is denied.
+- Automated tests cover approval, scope mismatch, single-use consumption, and
+  audit correlation.
+
+#### P1: Double-Refund Protection With Result Replay
+
+Turn the strongest existing local demo into the clearest side-effect safety
+proof. When a provider completed a refund but the agent timed out, the retry
+must return the cached prior result instead of issuing a second refund or only
+returning a denial.
+
+Ship together:
+
+- Idempotency record lifecycle and cached-result replay.
+- Request digest validation so the same key cannot authorize changed inputs.
+- Provider execution receipt correlated with the authorization decision.
+- Console or UI timeline showing the first execution and replayed result.
+
+Demo gate:
+
+- Simulate a timeout after a successful refund.
+- Retry the identical request and return the original result without another
+  provider mutation.
+- Retry changed arguments under the same key and deny the request.
+- Prove with an automated test that the provider mutation ran exactly once.
+
+#### P2: Hosted PII Egress Gate
+
+Move the richer local data-flow enforcement into the hosted path and show that
+an allowed read cannot silently become an unsafe send, export, browser action,
+or model-provider prompt.
+
+Ship together:
+
+- Hosted and SDK parity for source, destination, classification, fields,
+  record count, external domain, redaction status, and retention context.
+- Approval UI evidence for the exact fields and destination under review.
+- Audit export containing the same data-flow context as the decision.
+
+Demo gate:
+
+- Allow an approved internal CRM read.
+- Deny blocked fields such as `ssn` and `access_token` at every destination.
+- Challenge an allowed PII export to a new external destination.
+- Allow the approved exact export and deny a changed domain or field set.
+- Cover email, webhook, browser form, model-provider prompt, and file export in
+  automated tests.
+
+#### P3: Production Deploy Action Gate
+
+Prove that the same runtime protects an operational action, not only payments
+and customer data.
+
+Ship together:
+
+- One real integration, starting with GitHub Actions workflow dispatch unless
+  implementation constraints make another target materially simpler.
+- Policy requiring environment, repository, branch, commit SHA, change request,
+  human approval, and a single-use grant.
+- A rollback path bound to an incident ID and rollback plan.
+
+Demo gate:
+
+- Read-only inspection succeeds without production authority.
+- Deploy without a change request or approval is challenged or denied.
+- An approved commit deploys once.
+- A different commit, environment, or replay is denied.
+- The decision and workflow execution are correlated in the audit timeline.
+
+#### P4: Provider Trust Gate
+
+Close the authorization loop at the provider boundary after the first three
+user-visible safety flows are complete.
+
+Ship together:
+
+- Production JWS authorization receipts and a JWKS endpoint.
+- Key rotation and unknown-`kid` refresh behavior.
+- Signed provider contracts and drift checks for high-risk tools.
+- Provider execution receipts correlated with enterprise authorization.
+- Structured trust-gate failure classes.
+
+Demo gate:
+
+- A valid scoped receipt executes at the provider.
+- Expired, replayed, wrongly scoped, unknown-key, and drifted-contract requests
+  fail closed with distinct machine-readable reasons.
+- Key rotation succeeds without disabling verification.
+
+#### P5: Framework And Workflow Distribution
+
+Add integrations only after the underlying feature being wrapped has a stable
+end-to-end demonstration. Select the next wrapper from real adopter demand;
+the current candidates are OpenAI Agents SDK, Claude tool use, LangChain,
+workflow webhooks, OpenClaw-style loops, and n8n or Zapier examples.
+
+Demo gate:
+
+- Each integration includes one minimal allow case and one high-risk
+  challenge/deny case.
+- Every adapter maps into the same decision, approval evidence, and audit event
+  types.
+- Missing required context fails closed.
+
+Work that does not directly unlock these demonstrations is lower priority:
+
+- additional positioning or naming work;
+- broad governance dashboard work;
+- multiple framework wrappers developed in parallel;
+- standalone documentation without a runnable flow;
+- structured budget degradation beyond the existing enforceable limits.
+
 ### Phase 1: Reposition Without Renaming (complete)
 
 Goal: make the action-gate story obvious without changing packages, schemas, or

@@ -120,6 +120,11 @@ Still needed for a full transferable-privilege model:
   own manifest before allowing downstream tool execution.
 - Revocation and audit events for delegation issuance and consumption.
 
+These items are not in the near-term execution order. Multi-agent delegation is
+a documented non-goal for the current product wedge; the
+[Action Gate Roadmap](action-gate-roadmap.md#near-term-non-goals) remains the
+source of truth for priority.
+
 Until those pieces are implemented, AgentPass can enforce whether a proposed
 agent-to-agent call is allowed, but it should not be treated as a complete
 subdelegation grant system.
