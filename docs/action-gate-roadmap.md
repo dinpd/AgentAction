@@ -190,6 +190,17 @@ Demo gate:
 - Retry changed arguments under the same key and deny the request.
 - Prove with an automated test that the provider mutation ran exactly once.
 
+Current status:
+
+- Initial local guard slice is implemented in `createToolGate`: successful
+  idempotent executions cache the provider result with a stable request digest
+  and provider execution receipt.
+- Identical retries replay the cached result without re-running the provider
+  mutation.
+- Changed refund arguments under the same idempotency key are denied.
+- Remaining P1 work is the hosted/console timeline that shows first execution,
+  cached replay, and changed-argument denial from the shared gateway path.
+
 #### P2: Hosted PII Egress Gate
 
 Move the richer local data-flow enforcement into the hosted path and show that

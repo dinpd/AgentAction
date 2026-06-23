@@ -269,6 +269,7 @@ AgentPass currently includes:
 - Tool-call and MCP `tools/call` wrappers
 - Starter policies for spend caps, PII egress, refunds/payments,
   shell/browser tools, and MCP gateways
+- Local idempotency result replay for retry-safe side-effect execution
 - Runnable demos for refunds, circuit breakers, MCP calls, direct tool gates,
   and PII flows
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC

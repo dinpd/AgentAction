@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Double-refund protection with result replay
+
+- Added local tool-gate idempotency result replay for side-effectful actions.
+- Added stable request digest validation so a used idempotency key cannot replay
+  changed refund arguments.
+- Added provider execution receipts for first execution and replayed results.
+- Updated refund tests and demo to prove an identical retry returns the original
+  result without running the provider mutation again.
+
 ### Hosted approval to single-use execution
 
 - Added a durable approval queue endpoint with status filtering and expiration.

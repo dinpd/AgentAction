@@ -139,6 +139,10 @@ if (!execution.executed) {
   return execution.decision;
 }
 
+if (execution.replayed) {
+  return execution.result; // cached provider result; no second mutation ran
+}
+
 return execution.result;
 ```
 
@@ -196,7 +200,7 @@ gate.
 - Tool/action mismatches
 - Approval requirements
 - Amount caps
-- Idempotency keys and single-use actions
+- Idempotency keys, single-use actions, and cached result replay
 - PII/sensitive-data movement to unsafe destinations
 - Field allowlists and blocked fields
 - Destination domain allowlists
@@ -207,13 +211,15 @@ gate.
 
 ## Stateful Runtime Memory
 
-The guard tracks per-job state for repeated calls, idempotency keys, approvals,
-budgets, token estimates, cost estimates, and runtime.
+The guard tracks per-job state for repeated calls, idempotency keys, cached
+execution results, approvals, budgets, token estimates, cost estimates, and
+runtime.
 
 This is the part that should not live in the agent context. A model can
 summarize what it thinks happened, but the gate needs its own execution memory:
 
 - Which side-effectful actions already ran.
+- Which provider result should be replayed for an identical retry.
 - Which approval was granted for which exact call.
 - How many times this job called the same tool.
 - How many times this exact call fingerprint appeared.
@@ -236,13 +242,14 @@ npm run demo:gate
 npm run demo:pii
 ```
 
-The refund demo shows the initial runtime-guard story:
+The refund demo shows the runtime-guard and replay story:
 
 1. A support agent proposes a refund.
 2. The guard returns `challenge_required`.
 3. The approved refund succeeds once.
-4. A retry with the same idempotency key is denied.
-5. A PII email to an unapproved destination is denied.
+4. An identical retry with the same idempotency key returns the cached result.
+5. A changed retry under the same idempotency key is denied.
+6. A PII email to an unapproved destination is denied.
 
 The circuit-breaker demo shows tool-thrashing and spend controls:
 

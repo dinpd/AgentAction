@@ -617,6 +617,83 @@ test("tool gate does not execute challenge-required tool calls", async () => {
   assert.deepEqual(execution.decision.challenge?.requiredApprovalFor, ["tool"]);
 });
 
+test("tool gate replays cached idempotent refund results without another provider mutation", async () => {
+  const gate = createToolGate({ policy: policy(), idGenerator: ids() });
+  const request = {
+    agentId: "support-agent",
+    userId: "user-17",
+    jobId: "case-gate",
+    tool: "stripe.refund",
+    action: "pay",
+    resource: "payment/pi_123",
+    amountUsd: 49,
+    idempotencyKey: "refund-case-gate-pi_123",
+    approvalId: "approval-refund-1",
+  };
+  let providerMutations = 0;
+
+  const first = await gate.run(request, async ({ decision }) => {
+    providerMutations += 1;
+    return {
+      refundId: "re_123",
+      providerMutation: providerMutations,
+      decisionId: decision.event.decisionId,
+    };
+  });
+  const retry = await gate.run({ ...request }, async () => {
+    providerMutations += 1;
+    return {
+      refundId: "should-not-run",
+      providerMutation: providerMutations,
+      decisionId: "should-not-run",
+    };
+  });
+
+  assert.equal(providerMutations, 1);
+  assert.equal(first.executed, true);
+  assert.equal(first.replayed, false);
+  assert.equal(first.receipt.status, "executed");
+  assert.equal(retry.executed, true);
+  assert.equal(retry.replayed, true);
+  assert.equal(retry.decision.type, "allow");
+  assert.deepEqual(retry.decision.reasons, ["idempotency result replayed"]);
+  assert.deepEqual(retry.result, first.result);
+  assert.equal(retry.receipt.status, "replayed");
+  assert.equal(retry.receipt.replayed_from_decision_id, first.decision.event.decisionId);
+  assert.equal(retry.receipt.replay_count, 1);
+  assert.equal(retry.receipt.request_digest, first.receipt.request_digest);
+});
+
+test("tool gate denies changed refund arguments under a used idempotency key", async () => {
+  const gate = createToolGate({ policy: policy(), idGenerator: ids() });
+  const request = {
+    agentId: "support-agent",
+    userId: "user-17",
+    jobId: "case-gate",
+    tool: "stripe.refund",
+    action: "pay",
+    resource: "payment/pi_123",
+    amountUsd: 49,
+    idempotencyKey: "refund-case-gate-pi_123",
+    approvalId: "approval-refund-1",
+  };
+  let providerMutations = 0;
+
+  await gate.run(request, async () => {
+    providerMutations += 1;
+    return { refundId: "re_123" };
+  });
+  const changed = await gate.run({ ...request, amountUsd: 50 }, async () => {
+    providerMutations += 1;
+    return { refundId: "should-not-run" };
+  });
+
+  assert.equal(providerMutations, 1);
+  assert.equal(changed.executed, false);
+  assert.equal(changed.decision.type, "deny");
+  assert.deepEqual(changed.decision.reasons, ["idempotencyKey was already used with different request digest"]);
+});
+
 test("MCP tool gate maps tools/call requests into guard checks", () => {
   const check = mcpToolCallToGuardCheck(
     {

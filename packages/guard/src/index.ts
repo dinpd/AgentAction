@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type AgentAction =
   | "read"
   | "write"
@@ -190,16 +192,36 @@ export type GuardedToolExecutor<TResult> = (
   context: ToolExecutionContext,
 ) => TResult | Promise<TResult>;
 
+export type ProviderExecutionReceipt = {
+  schema_version: "agentpass.provider-execution-receipt.v1";
+  decision_id: string;
+  tool: string;
+  action: AgentAction;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  idempotency_key?: string;
+  request_digest: string;
+  status: "executed" | "replayed";
+  executed_at: string;
+  replayed_from_decision_id?: string;
+  replay_count?: number;
+};
+
 export type GuardedToolExecutionResult<TResult> =
   | {
       executed: true;
       decision: GuardDecision;
       result: TResult;
+      replayed: boolean;
+      receipt: ProviderExecutionReceipt;
     }
   | {
       executed: false;
       decision: GuardDecision;
       result?: never;
+      replayed?: never;
+      receipt?: never;
     };
 
 export type AgentPassToolGateOptions = AgentPassGuardOptions | { guard: AgentPassGuard };
@@ -518,33 +540,7 @@ export class AgentPassGuard {
   }
 
   private event(type: DecisionType, input: GuardCheck, reasons: string[]): GuardDecisionEvent {
-    return {
-      decisionId: this.idGenerator(),
-      decision: type,
-      allowed: type === "allow",
-      reasons,
-      agentId: input.agentId,
-      tool: input.tool,
-      action: input.action,
-      jobId: input.jobId,
-      userId: input.userId,
-      resource: input.resource,
-      callFingerprint: input.callFingerprint,
-      amountUsd: input.amountUsd,
-      idempotencyKey: input.idempotencyKey,
-      approvalId: input.approvalId,
-      dataFrom: input.dataFrom,
-      dataTo: input.dataTo,
-      destinationType: input.destinationType,
-      externalDomain: input.externalDomain,
-      dataClassification: input.dataClassification || [],
-      fieldSet: input.fieldSet || [],
-      recordCount: input.recordCount,
-      estimatedTokens: input.estimatedTokens,
-      estimatedCostUsd: input.estimatedCostUsd,
-      issuedAt: this.now().toISOString(),
-      approvalEvidence: approvalEvidence(input, reasons),
-    };
+    return decisionEvent(type, input, reasons, this.idGenerator(), this.now().toISOString());
   }
 }
 
@@ -581,15 +577,73 @@ function approvalEvidence(input: GuardCheck, reasons: string[]): ApprovalEvidenc
   };
 }
 
+function syntheticDecision(
+  type: "allow" | "deny",
+  input: GuardCheck,
+  reasons: string[],
+  idGenerator: () => string,
+  now: () => Date,
+): GuardDecision {
+  const uniqueReasons = [...new Set(reasons)];
+  return {
+    type,
+    allow: type === "allow",
+    challengeRequired: false,
+    reasons: uniqueReasons,
+    event: decisionEvent(type, input, uniqueReasons, idGenerator(), now().toISOString()),
+  };
+}
+
+function decisionEvent(
+  type: DecisionType,
+  input: GuardCheck,
+  reasons: string[],
+  decisionId: string,
+  issuedAt: string,
+): GuardDecisionEvent {
+  return {
+    decisionId,
+    decision: type,
+    allowed: type === "allow",
+    reasons,
+    agentId: input.agentId,
+    tool: input.tool,
+    action: input.action,
+    jobId: input.jobId,
+    userId: input.userId,
+    resource: input.resource,
+    callFingerprint: input.callFingerprint,
+    amountUsd: input.amountUsd,
+    idempotencyKey: input.idempotencyKey,
+    approvalId: input.approvalId,
+    dataFrom: input.dataFrom,
+    dataTo: input.dataTo,
+    destinationType: input.destinationType,
+    externalDomain: input.externalDomain,
+    dataClassification: input.dataClassification || [],
+    fieldSet: input.fieldSet || [],
+    recordCount: input.recordCount,
+    estimatedTokens: input.estimatedTokens,
+    estimatedCostUsd: input.estimatedCostUsd,
+    issuedAt,
+    approvalEvidence: approvalEvidence(input, reasons),
+  };
+}
+
 export function createGuard(options: AgentPassGuardOptions): AgentPassGuard {
   return new AgentPassGuard(options);
 }
 
 export class AgentPassToolGate {
   readonly guard: AgentPassGuard;
+  private idempotencyResults = new Map<string, IdempotencyResultRecord<unknown>>();
+  private now: () => Date;
+  private idGenerator: () => string;
 
   constructor(options: AgentPassToolGateOptions) {
     this.guard = "guard" in options ? options.guard : new AgentPassGuard(options);
+    this.now = "guard" in options ? () => new Date() : options.now || (() => new Date());
+    this.idGenerator = "guard" in options ? randomDecisionId : options.idGenerator || randomDecisionId;
   }
 
   check(input: GuardCheck): GuardDecision {
@@ -600,6 +654,38 @@ export class AgentPassToolGate {
     input: GuardCheck,
     execute: GuardedToolExecutor<TResult>,
   ): Promise<GuardedToolExecutionResult<TResult>> {
+    const replayKey = input.idempotencyKey;
+    const requestDigest = requestDigestFor(input);
+    const replayRecord = replayKey ? this.idempotencyResults.get(replayKey) : undefined;
+    if (replayRecord) {
+      if (replayRecord.requestDigest !== requestDigest) {
+        return {
+          executed: false,
+          decision: syntheticDecision(
+            "deny",
+            input,
+            ["idempotencyKey was already used with different request digest"],
+            this.idGenerator,
+            this.now,
+          ),
+        };
+      }
+
+      replayRecord.replayCount += 1;
+      const decision = syntheticDecision("allow", input, ["idempotency result replayed"], this.idGenerator, this.now);
+      return {
+        executed: true,
+        decision,
+        result: replayRecord.result as TResult,
+        replayed: true,
+        receipt: providerExecutionReceipt(input, decision, requestDigest, "replayed", {
+          replayedFromDecisionId: replayRecord.receipt.decision_id,
+          replayCount: replayRecord.replayCount,
+          executedAt: this.now().toISOString(),
+        }),
+      };
+    }
+
     const decision = this.guard.check(input);
     if (!decision.allow) {
       return {
@@ -609,17 +695,38 @@ export class AgentPassToolGate {
     }
 
     const result = await execute({ check: input, decision });
+    const receipt = providerExecutionReceipt(input, decision, requestDigest, "executed", {
+      executedAt: this.now().toISOString(),
+    });
+    if (replayKey) {
+      this.idempotencyResults.set(replayKey, {
+        requestDigest,
+        result,
+        receipt,
+        replayCount: 0,
+      });
+    }
     return {
       executed: true,
       decision,
       result,
+      replayed: false,
+      receipt,
     };
   }
 
   reset(): void {
     this.guard.reset();
+    this.idempotencyResults.clear();
   }
 }
+
+type IdempotencyResultRecord<TResult> = {
+  requestDigest: string;
+  result: TResult;
+  receipt: ProviderExecutionReceipt;
+  replayCount: number;
+};
 
 export function createToolGate(options: AgentPassToolGateOptions): AgentPassToolGate {
   return new AgentPassToolGate(options);
@@ -754,6 +861,65 @@ function matchesAnyDomain(domain: string, allowedDomains: string[]): boolean {
 
 function attemptKeyFor(input: GuardCheck): string {
   return [input.tool, input.action, input.callFingerprint || input.resource || "", input.idempotencyKey || ""].join("|");
+}
+
+function requestDigestFor(input: GuardCheck): string {
+  if (input.requestDigest) return input.requestDigest;
+  return sha256(
+    stableStringify({
+      agentId: input.agentId,
+      tenantId: input.tenantId,
+      tool: input.tool,
+      action: input.action,
+      jobId: input.jobId,
+      caseId: input.caseId,
+      customerId: input.customerId,
+      userId: input.userId,
+      resource: input.resource,
+      callFingerprint: input.callFingerprint,
+      amountUsd: input.amountUsd,
+      currency: input.currency,
+      idempotencyKey: input.idempotencyKey,
+      approvalId: input.approvalId,
+      dataFrom: input.dataFrom,
+      dataTo: input.dataTo,
+      destinationType: input.destinationType,
+      externalDomain: input.externalDomain,
+      dataClassification: input.dataClassification,
+      fieldSet: input.fieldSet,
+      recordCount: input.recordCount,
+      basisCategory: input.basisCategory,
+      basisRef: input.basisRef,
+    }),
+  );
+}
+
+function providerExecutionReceipt(
+  input: GuardCheck,
+  decision: GuardDecision,
+  requestDigest: string,
+  status: ProviderExecutionReceipt["status"],
+  options: { executedAt: string; replayedFromDecisionId?: string; replayCount?: number },
+): ProviderExecutionReceipt {
+  return {
+    schema_version: "agentpass.provider-execution-receipt.v1",
+    decision_id: decision.event.decisionId,
+    tool: input.tool,
+    action: input.action,
+    resource: input.resource,
+    amount: input.amountUsd,
+    currency: input.currency || (input.amountUsd === undefined ? undefined : "USD"),
+    idempotency_key: input.idempotencyKey,
+    request_digest: requestDigest,
+    status,
+    executed_at: options.executedAt,
+    replayed_from_decision_id: options.replayedFromDecisionId,
+    replay_count: options.replayCount,
+  };
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function newJobUsage(startedAtMs: number): JobUsage {
