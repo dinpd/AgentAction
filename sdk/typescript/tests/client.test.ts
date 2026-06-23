@@ -71,6 +71,56 @@ test("requestJitGrant posts JIT grant request", async () => {
   assert.equal(response.jit_grant_id, "grant-1");
 });
 
+test("approval lifecycle methods use tenant-scoped endpoints", async () => {
+  const calls: Array<{ url: string; method: string }> = [];
+  const client = new AgentPassClient({
+    baseUrl: "https://gateway.example.com",
+    token: "token-3",
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), method: init?.method || "GET" });
+      if (String(url).includes("?status=pending&limit=25")) {
+        return jsonResponse(200, { approvals: [], count: 0 });
+      }
+      return jsonResponse(init?.method === "POST" && !String(url).endsWith("/approve") ? 201 : 200, {
+        approval_id: "approval-1",
+        status: "approved",
+      });
+    },
+  });
+
+  await client.createApprovalRequest("tenant-a", {
+    tool: "stripe.create_refund",
+    action: "write",
+    reason: "refund duplicate charge",
+  });
+  await client.listApprovalRequests("tenant-a", { status: "pending", limit: 25 });
+  await client.getApprovalRequest("tenant-a", "approval-1");
+  await client.decideApprovalRequest("tenant-a", "approval-1", "approve", {
+    decided_by: "manager-1",
+    decision_reason: "evidence verified",
+  });
+
+  assert.deepEqual(calls, [
+    { url: "https://gateway.example.com/tenants/tenant-a/approval-requests", method: "POST" },
+    { url: "https://gateway.example.com/tenants/tenant-a/approval-requests?status=pending&limit=25", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/approval-requests/approval-1", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/approval-requests/approval-1/approve", method: "POST" },
+  ]);
+});
+
+test("listAuditEvents filters by approval correlation", async () => {
+  const client = new AgentPassClient({
+    baseUrl: "https://gateway.example.com",
+    fetch: async (url) => {
+      assert.equal(String(url), "https://gateway.example.com/audit/events?tenant_id=tenant-a&approval_id=approval-1&limit=50");
+      return jsonResponse(200, { events: [], count: 0 });
+    },
+  });
+
+  const response = await client.listAuditEvents({ tenantId: "tenant-a", approvalId: "approval-1", limit: 50 });
+  assert.equal(response.count, 0);
+});
+
 test("unexpected statuses throw AgentPassHttpError", async () => {
   const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",

@@ -26,6 +26,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test approval lifecycle
+        run: npm test
+
+      - name: Verify Worker bundle
+        run: npm run dry-run
+
       - name: Check Cloudflare deploy secrets
         id: cloudflare-secrets
         run: |

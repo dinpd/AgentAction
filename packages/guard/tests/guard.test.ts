@@ -32,6 +32,36 @@ test("payment tools require approval before execution", () => {
   assert.equal(decision.type, "challenge_required");
   assert.equal(decision.challengeRequired, true);
   assert.deepEqual(decision.challenge?.requiredApprovalFor, ["tool"]);
+  assert.deepEqual(decision.challenge?.evidence, {
+    schema_version: "agentpass.approval-evidence.v1",
+    agent_id: "support-agent",
+    user_id: undefined,
+    tenant_id: undefined,
+    job_id: "case-1042",
+    case_id: undefined,
+    customer_id: undefined,
+    tool: "stripe.refund",
+    action: "pay",
+    resource: "payment/pi_123",
+    amount: 49,
+    currency: "USD",
+    data_from: undefined,
+    data_to: undefined,
+    destination_type: undefined,
+    external_domain: undefined,
+    field_set: [],
+    record_count: undefined,
+    idempotency_key: "refund-case-1042-pi_123",
+    call_fingerprint: undefined,
+    request_digest: undefined,
+    policy_version: undefined,
+    policy_findings: ["approval is required"],
+    prior_attempt_count: undefined,
+    budget_state: undefined,
+    expires_at: undefined,
+    basis_category: undefined,
+    basis_ref: undefined,
+  });
 });
 
 test("single-use idempotency blocks duplicate refunds", () => {
@@ -470,6 +500,36 @@ test("decision events include audit context", () => {
     estimatedTokens: undefined,
     estimatedCostUsd: undefined,
     issuedAt: "2026-06-11T12:00:00.000Z",
+    approvalEvidence: {
+      schema_version: "agentpass.approval-evidence.v1",
+      agent_id: "support-agent",
+      user_id: "user-1",
+      tenant_id: undefined,
+      job_id: "case-1042",
+      case_id: undefined,
+      customer_id: undefined,
+      tool: "crm.read_customer",
+      action: "read",
+      resource: "customer/cus_123",
+      amount: undefined,
+      currency: undefined,
+      data_from: "provider_crm",
+      data_to: "agent_context",
+      destination_type: undefined,
+      external_domain: undefined,
+      field_set: ["customer_id"],
+      record_count: 1,
+      idempotency_key: undefined,
+      call_fingerprint: undefined,
+      request_digest: undefined,
+      policy_version: undefined,
+      policy_findings: [],
+      prior_attempt_count: undefined,
+      budget_state: undefined,
+      expires_at: undefined,
+      basis_category: undefined,
+      basis_ref: undefined,
+    },
   });
 });
 

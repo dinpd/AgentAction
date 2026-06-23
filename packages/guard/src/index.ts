@@ -61,14 +61,26 @@ export type GuardPolicy = {
 
 export type GuardCheck = {
   agentId: string;
+  tenantId?: string;
   tool: string;
   action: AgentAction;
   jobId?: string;
+  caseId?: string;
+  customerId?: string;
   userId?: string;
   resource?: string;
   callFingerprint?: string;
   amountUsd?: number;
+  currency?: string;
   idempotencyKey?: string;
+  requestDigest?: string;
+  policyVersion?: string;
+  policyFindings?: string[];
+  priorAttemptCount?: number;
+  budgetState?: Record<string, unknown>;
+  approvalExpiresAt?: string;
+  basisCategory?: string;
+  basisRef?: string;
   retryCount?: number;
   approvalId?: string;
   dataFrom?: string;
@@ -101,6 +113,38 @@ export type GuardChallenge = {
   dataFrom?: string;
   dataTo?: string;
   externalDomain?: string;
+  evidence: ApprovalEvidence;
+};
+
+export type ApprovalEvidence = {
+  schema_version: "agentpass.approval-evidence.v1";
+  agent_id: string;
+  user_id?: string;
+  tenant_id?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  tool: string;
+  action: AgentAction;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  data_from?: string;
+  data_to?: string;
+  destination_type?: string;
+  external_domain?: string;
+  field_set: string[];
+  record_count?: number;
+  idempotency_key?: string;
+  call_fingerprint?: string;
+  request_digest?: string;
+  policy_version?: string;
+  policy_findings: string[];
+  prior_attempt_count?: number;
+  budget_state?: Record<string, unknown>;
+  expires_at?: string;
+  basis_category?: string;
+  basis_ref?: string;
 };
 
 export type GuardDecisionEvent = {
@@ -128,6 +172,7 @@ export type GuardDecisionEvent = {
   estimatedTokens?: number;
   estimatedCostUsd?: number;
   issuedAt: string;
+  approvalEvidence: ApprovalEvidence;
 };
 
 export type AgentPassGuardOptions = {
@@ -465,6 +510,7 @@ export class AgentPassGuard {
               dataFrom: input.dataFrom,
               dataTo: input.dataTo,
               externalDomain: input.externalDomain,
+              evidence: event.approvalEvidence,
             }
           : undefined,
       event,
@@ -497,8 +543,42 @@ export class AgentPassGuard {
       estimatedTokens: input.estimatedTokens,
       estimatedCostUsd: input.estimatedCostUsd,
       issuedAt: this.now().toISOString(),
+      approvalEvidence: approvalEvidence(input, reasons),
     };
   }
+}
+
+function approvalEvidence(input: GuardCheck, reasons: string[]): ApprovalEvidence {
+  return {
+    schema_version: "agentpass.approval-evidence.v1",
+    agent_id: input.agentId,
+    user_id: input.userId,
+    tenant_id: input.tenantId,
+    job_id: input.jobId,
+    case_id: input.caseId,
+    customer_id: input.customerId,
+    tool: input.tool,
+    action: input.action,
+    resource: input.resource,
+    amount: input.amountUsd,
+    currency: input.currency || (input.amountUsd === undefined ? undefined : "USD"),
+    data_from: input.dataFrom,
+    data_to: input.dataTo,
+    destination_type: input.destinationType,
+    external_domain: input.externalDomain,
+    field_set: input.fieldSet || [],
+    record_count: input.recordCount,
+    idempotency_key: input.idempotencyKey,
+    call_fingerprint: input.callFingerprint,
+    request_digest: input.requestDigest,
+    policy_version: input.policyVersion,
+    policy_findings: input.policyFindings || reasons,
+    prior_attempt_count: input.priorAttemptCount,
+    budget_state: input.budgetState,
+    expires_at: input.approvalExpiresAt,
+    basis_category: input.basisCategory,
+    basis_ref: input.basisRef,
+  };
 }
 
 export function createGuard(options: AgentPassGuardOptions): AgentPassGuard {

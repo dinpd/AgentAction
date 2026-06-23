@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Hosted approval to single-use execution
+
+- Added a durable approval queue endpoint with status filtering and expiration.
+- Added the versioned `agentpass.approval-evidence.v1` contract across the
+  local TypeScript guard, hosted gateway, JIT grants, TypeScript client, audit
+  events, and approval console.
+- Bound approval and JIT issuance to a canonical SHA-256 request digest covering
+  the exact action scope and custom context.
+- Required approver identity and a decision reason for hosted approval actions.
+- Added approval-console controls for queue review, approval or denial, JIT
+  issuance, one-time authorization, replay testing, and audit timelines.
+- Added hosted lifecycle tests for queue listing, scope mismatch, expiration,
+  single-use consumption, replay denial, and audit correlation.
+
 ## 0.2.0 - 2026-06-05
 
 ### Provider MCP authorization and receipts

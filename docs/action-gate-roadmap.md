@@ -125,7 +125,7 @@ should not displace the active demonstrable priority unless they become a
 blocker. Issue #12's guide is part of P1's completion gate, not a standalone
 documentation priority.
 
-#### P0: Hosted Approval To Single-Use Execution
+#### P0: Hosted Approval To Single-Use Execution (complete)
 
 Demonstrate the core product loop in one visible flow:
 
@@ -153,6 +153,20 @@ Demo gate:
 - A replay or expired grant is denied.
 - Automated tests cover approval, scope mismatch, single-use consumption, and
   audit correlation.
+
+Completion status:
+
+- The Cloudflare runtime exposes a durable, filterable approval queue.
+- `agentpass.approval-evidence.v1` is emitted by the local guard and carried by
+  hosted approval requests, JIT grants, the TypeScript client, audit events,
+  and the approval console.
+- Hosted decisions require approver identity and a decision reason, expire
+  deterministically, and bind the approved scope with a canonical SHA-256
+  request digest.
+- The approval console demonstrates review, decision, JIT issuance, one-time
+  authorization, replay denial, and a correlated audit timeline.
+- Cloudflare lifecycle tests cover approval, scope drift, expiry, consumption,
+  replay denial, and audit correlation.
 
 #### P1: Double-Refund Protection With Result Replay
 

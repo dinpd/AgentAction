@@ -683,6 +683,7 @@ async function continueAfterApproval(
 
   const approvalDecision = await gateway(env, `approval-requests/${approvalId}/approve`, {
     decided_by: "release-manager-1",
+    decision_reason: "change request, guard preflight, and production window verified",
     findings: ["change request verified", "guard preflight evidence reviewed", "production deploy window open"],
   });
   steps.push(step("approval-approved", approvalDecision.status === 200 ? "Release manager approved" : "Approval decision failed", approvalDecision.status === 200 ? "Approval state changed to approved without exposing broad production credentials." : errorText(approvalDecision), approvalDecision.status === 200 ? "allow" : "deny", { decided_by: "release-manager-1" }, approvalDecision.body));
@@ -741,6 +742,7 @@ function deployAuthorizePayload(ctx: ReturnType<typeof demoContext>, guardContex
     resource: `service/${ctx.service_id}/environment/${ctx.environment}`,
     data_from: "release_pipeline",
     data_to: "production_runtime",
+    user_id: "sre-on-call",
     job_id: "production_deploy",
     approved: false,
     ...ctx,
@@ -750,9 +752,12 @@ function deployAuthorizePayload(ctx: ReturnType<typeof demoContext>, guardContex
 
 function deployGrantPayload(ctx: ReturnType<typeof demoContext>, approvalId: string, guardContext: Record<string, string> = {}) {
   return {
+    agent_id: "platform-release-agent",
     tool: "devops.deploy.production",
     action: "execute",
     resource: `service/${ctx.service_id}/environment/${ctx.environment}`,
+    data_from: "release_pipeline",
+    data_to: "production_runtime",
     approval_id: approvalId,
     user_id: "sre-on-call",
     job_id: "production_deploy",

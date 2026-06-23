@@ -47,11 +47,43 @@ type Grant = {
   case_id?: string;
   customer_id?: string;
   context?: Record<string, string>;
+  evidence?: ApprovalEvidence;
   used: boolean;
+};
+type ApprovalEvidence = {
+  schema_version: "agentpass.approval-evidence.v1";
+  agent_id: string;
+  user_id?: string;
+  tenant_id?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  data_from?: string;
+  data_to?: string;
+  destination_type?: string;
+  external_domain?: string;
+  field_set: string[];
+  record_count?: number;
+  idempotency_key?: string;
+  call_fingerprint?: string;
+  request_digest: string;
+  policy_version?: string;
+  policy_findings: string[];
+  prior_attempt_count?: number;
+  budget_state?: Record<string, unknown>;
+  expires_at: string;
+  basis_category?: string;
+  basis_ref?: string;
+  context?: Record<string, string>;
 };
 type ApprovalRequest = {
   approval_id: string;
-  status: "pending" | "approved" | "denied";
+  status: "pending" | "approved" | "denied" | "expired";
   agent_id: string;
   tool: string;
   action: string;
@@ -59,12 +91,15 @@ type ApprovalRequest = {
   requested_by: string;
   reason: string;
   created_at: string;
+  expires_at: string;
   decided_at?: string;
   decided_by?: string;
+  decision_reason?: string;
   job_id?: string;
   case_id?: string;
   customer_id?: string;
   context?: Record<string, string>;
+  evidence: ApprovalEvidence;
   findings?: string[];
 };
 type AuditRecord = {
@@ -192,6 +227,16 @@ export default {
         return json(body, stored.status);
       }
 
+      if (request.method === "GET" && route.endpoint === "approval-requests" && !route.resourceId) {
+        const search = new URLSearchParams(url.searchParams);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/approvals?${search.toString()}`),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
       if (request.method === "GET" && route.endpoint === "approval-requests" && route.resourceId) {
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request(`https://agentid.local/approvals/${encodeURIComponent(route.resourceId)}`),
@@ -212,6 +257,10 @@ export default {
             allow: decision.allow,
             findings: decision.findings,
             event: decision.event,
+            approval_evidence: recordValue(decision.event.approval_evidence),
+            decision: decision.allow ? "allow" : "deny",
+            failure_class: decision.allow ? undefined : "permission_failure",
+            decision_summary: decisionSummary(decision.allow, decision.findings, decision.event),
             auth: auth.context,
           }),
         );
@@ -229,7 +278,7 @@ export default {
 
       if (request.method === "POST" && route.endpoint === "approval-requests" && !route.resourceId) {
         const payload = await readJson(request);
-        const approval = createApprovalRequest(manifest, payload);
+        const approval = await createApprovalRequest(manifest, payload, route.tenantId);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/approvals", {
             method: "POST",
@@ -277,6 +326,7 @@ export default {
               agent_id: stringValue(body.agent_id),
               approval_id: stringValue(body.approval_id),
               approval_status: stringValue(body.status),
+              decision_reason: stringValue(body.decision_reason),
               approval: body,
               auth: auth.context,
             }),
@@ -313,7 +363,8 @@ export default {
           body.auth = auth.context;
           return json(body, checked.status);
         }
-        const grant = createJitGrant(manifest, payload);
+        const checkedBody = await checked.json() as { approval?: ApprovalRequest };
+        const grant = createJitGrant(manifest, payload, checkedBody.approval);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/grants", {
             method: "POST",
@@ -401,14 +452,34 @@ export class AgentIdJitGrants {
 
     if (request.method === "POST" && url.pathname === "/approvals") {
       const approval = payload as ApprovalRequest;
+      const index = await this.state.storage.get<string[]>("approval:index") || [];
+      const next = [approval.approval_id, ...index.filter((id) => id !== approval.approval_id)].slice(0, 500);
       await this.state.storage.put(`approval:${approval.approval_id}`, approval);
+      await this.state.storage.put("approval:index", next);
       return json(approval, 201);
+    }
+
+    if (request.method === "GET" && url.pathname === "/approvals") {
+      const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || "100"), 1), 250);
+      const status = url.searchParams.get("status") || "";
+      const index = await this.state.storage.get<string[]>("approval:index") || [];
+      const approvals: ApprovalRequest[] = [];
+      for (const id of index) {
+        const approval = await this.state.storage.get<ApprovalRequest>(`approval:${id}`);
+        if (!approval) continue;
+        await this.expireApproval(approval);
+        if (status && approval.status !== status) continue;
+        approvals.push(approval);
+        if (approvals.length >= limit) break;
+      }
+      return json({ approvals, count: approvals.length });
     }
 
     if (request.method === "GET" && url.pathname.startsWith("/approvals/")) {
       const approvalId = decodeURIComponent(url.pathname.replace("/approvals/", ""));
       const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
       if (!approval) return json({ error: "not found" }, 404);
+      await this.expireApproval(approval);
       return json(approval);
     }
 
@@ -417,7 +488,8 @@ export class AgentIdJitGrants {
       const grantRequest = payload.request as ToolEvent;
       const result = await this.requireApprovedForGrant(manifest, grantRequest);
       if (result.length > 0) return json({ error: result[0] }, 400);
-      return json({ ok: true });
+      const approval = await this.state.storage.get<ApprovalRequest>(`approval:${stringValue(grantRequest.approval_id)}`);
+      return json({ ok: true, approval });
     }
 
     if (request.method === "POST" && url.pathname.startsWith("/approvals/")) {
@@ -428,10 +500,20 @@ export class AgentIdJitGrants {
       const approvalId = decodeURIComponent(parts[1]);
       const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
       if (!approval) return json({ error: `approval request not found: ${approvalId}` }, 404);
+      await this.expireApproval(approval);
+      if (approval.status !== "pending") {
+        return json({ error: `approval request is ${approval.status}: ${approvalId}` }, 409);
+      }
+      const decidedBy = stringValue(payload.decided_by ?? payload.user_id);
+      const findings = findingsFromPayload(payload);
+      const decisionReason = stringValue(payload.decision_reason) || findings[0] || "";
+      if (!decidedBy) return json({ error: "decided_by is required" }, 400);
+      if (!decisionReason) return json({ error: "decision_reason is required" }, 400);
       approval.status = parts[2] === "approve" ? "approved" : "denied";
       approval.decided_at = new Date().toISOString();
-      approval.decided_by = stringValue(payload.decided_by ?? payload.user_id);
-      approval.findings = findingsFromPayload(payload);
+      approval.decided_by = decidedBy;
+      approval.decision_reason = decisionReason;
+      approval.findings = findings;
       await this.state.storage.put(`approval:${approvalId}`, approval);
       return json(approval);
     }
@@ -476,7 +558,6 @@ export class AgentIdJitGrants {
         }
       }
 
-      event.jit_grant_valid = findings.length === 0;
       event.jit_grant_agent_id = grant.agent_id;
       event.jit_grant_tool = grant.tool;
       event.jit_grant_action = grant.action;
@@ -486,6 +567,12 @@ export class AgentIdJitGrants {
       event.jit_grant_case_id = grant.case_id;
       event.jit_grant_customer_id = grant.customer_id;
       if (grant.context) event.jit_grant_context = grant.context;
+      if (grant.evidence) {
+        event.approval_evidence = grant.evidence;
+        const digest = await approvalRequestDigest(event, grant.evidence);
+        if (digest !== grant.evidence.request_digest) findings.push("JIT grant request_digest mismatch");
+      }
+      event.jit_grant_valid = findings.length === 0;
 
       if (findings.length === 0 && manifest.jit_authorization?.revoke_after_use === true) {
         grant.used = true;
@@ -507,6 +594,8 @@ export class AgentIdJitGrants {
     if (!approvalId) return ["approval_id is required for approval-gated JIT grants"];
     const approval = await this.state.storage.get<ApprovalRequest>(`approval:${approvalId}`);
     if (!approval) return [`approval request not found: ${approvalId}`];
+    await this.expireApproval(approval);
+    if (approval.status === "expired") return [`approval request is expired: ${approvalId}`];
     if (approval.status === "denied") return [`approval request is denied: ${approvalId}`];
     if (approval.status !== "approved") return [`approval request is not approved: ${approvalId}`];
 
@@ -525,10 +614,23 @@ export class AgentIdJitGrants {
       if (finding) return [finding];
     }
     for (const [key, value] of Object.entries(approval.context ?? {})) {
-      const finding = matchingFinding(key, value, request[key]);
+      const finding = matchingFinding(key, value, request[key] ?? recordValue(request.context)[key]);
       if (finding) return [finding];
     }
+    const requestDigest = await approvalRequestDigest({
+      ...request,
+      agent_id: agentId,
+      tenant_id: approval.evidence.tenant_id,
+    }, approval.evidence);
+    if (requestDigest !== approval.evidence.request_digest) return ["approval request request_digest mismatch"];
     return [];
+  }
+
+  async expireApproval(approval: ApprovalRequest): Promise<void> {
+    if ((approval.status === "pending" || approval.status === "approved") && Date.parse(approval.expires_at) <= Date.now()) {
+      approval.status = "expired";
+      await this.state.storage.put(`approval:${approval.approval_id}`, approval);
+    }
   }
 }
 
@@ -556,11 +658,25 @@ async function authorize(
     delegation_grant_id: payload.delegation_grant_id,
     approval_source: payload.approval_source,
     approval_agent: payload.approval_agent,
-    tenant_id: payload.tenant_id,
+    tenant_id: payload.tenant_id ?? tenantId,
     user_id: payload.user_id,
     job_id: payload.job_id,
     case_id: payload.case_id,
     customer_id: payload.customer_id,
+    amount: payload.amount ?? payload.amount_usd,
+    currency: payload.currency,
+    destination_type: payload.destination_type,
+    external_domain: payload.external_domain,
+    field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String) : [],
+    record_count: payload.record_count,
+    idempotency_key: payload.idempotency_key,
+    call_fingerprint: payload.call_fingerprint,
+    policy_version: payload.policy_version,
+    policy_findings: Array.isArray(payload.policy_findings) ? payload.policy_findings.map(String) : [],
+    prior_attempt_count: payload.prior_attempt_count,
+    budget_state: recordValue(payload.budget_state),
+    basis_category: payload.basis_category,
+    basis_ref: payload.basis_ref,
   };
   Object.assign(event, stringContext(payload));
   const findings: string[] = [];
@@ -583,7 +699,11 @@ async function authorize(
   return { allow: findings.length === 0, findings, event };
 }
 
-function createApprovalRequest(manifest: AgentIdManifest, payload: ToolEvent): ApprovalRequest {
+async function createApprovalRequest(
+  manifest: AgentIdManifest,
+  payload: ToolEvent,
+  tenantId: string | null,
+): Promise<ApprovalRequest> {
   const agentId = stringValue(manifest.agent?.id);
   const toolName = stringValue(payload.tool);
   const action = stringValue(payload.action);
@@ -592,6 +712,16 @@ function createApprovalRequest(manifest: AgentIdManifest, payload: ToolEvent): A
   if (!tool) throw new Error(`unknown tool: ${toolName}`);
   if (tool.access !== action) throw new Error(`action does not match manifest access for ${toolName}`);
   if (!approvalRequired(tool)) throw new Error(`${toolName} does not require approval`);
+  const resource = stringValue(payload.resource);
+  const requestedBy = stringValue(payload.requested_by ?? payload.user_id);
+  const reason = stringValue(payload.reason);
+  if (!resource) throw new Error("resource is required for approval requests");
+  if (!requestedBy) throw new Error("requested_by is required for approval requests");
+  if (!reason) throw new Error("reason is required for approval requests");
+
+  const expiresAt = new Date(Date.now() + approvalTtlSeconds(manifest, tool) * 1000).toISOString();
+  const evidencePayload = { ...payload, agent_id: agentId, tenant_id: tenantId ?? payload.tenant_id };
+  const evidence = await createApprovalEvidence(manifest, evidencePayload, expiresAt);
 
   return {
     approval_id: stringValue(payload.approval_id) || crypto.randomUUID(),
@@ -599,19 +729,21 @@ function createApprovalRequest(manifest: AgentIdManifest, payload: ToolEvent): A
     agent_id: agentId,
     tool: toolName,
     action,
-    resource: stringValue(payload.resource),
-    requested_by: stringValue(payload.requested_by ?? payload.user_id),
-    reason: stringValue(payload.reason),
+    resource,
+    requested_by: requestedBy,
+    reason,
     created_at: new Date().toISOString(),
+    expires_at: expiresAt,
     job_id: stringValue(payload.job_id),
     case_id: stringValue(payload.case_id),
     customer_id: stringValue(payload.customer_id),
     context: stringContext(payload),
+    evidence,
     findings: [],
   };
 }
 
-function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
+function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent, approval?: ApprovalRequest): Grant {
   const agentId = stringValue(manifest.agent?.id);
   const toolName = stringValue(payload.tool);
   const action = stringValue(payload.action);
@@ -638,7 +770,50 @@ function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent): Grant {
     case_id: stringValue(payload.case_id),
     customer_id: stringValue(payload.customer_id),
     context: stringContext(payload),
+    evidence: approval?.evidence,
     used: false,
+  };
+}
+
+async function createApprovalEvidence(
+  manifest: AgentIdManifest,
+  payload: ToolEvent,
+  expiresAt: string,
+): Promise<ApprovalEvidence> {
+  const amount = numberValue(payload.amount ?? payload.amount_usd);
+  const policyFindings = Array.isArray(payload.policy_findings)
+    ? payload.policy_findings.map(String)
+    : [`${stringValue(payload.tool)} requires human approval`];
+  return {
+    schema_version: "agentpass.approval-evidence.v1",
+    agent_id: stringValue(payload.agent_id ?? manifest.agent?.id),
+    user_id: optionalString(payload.user_id ?? payload.requested_by),
+    tenant_id: optionalString(payload.tenant_id),
+    job_id: optionalString(payload.job_id),
+    case_id: optionalString(payload.case_id),
+    customer_id: optionalString(payload.customer_id),
+    tool: stringValue(payload.tool),
+    action: stringValue(payload.action),
+    resource: optionalString(payload.resource),
+    amount,
+    currency: optionalString(payload.currency) || (amount === undefined ? undefined : "USD"),
+    data_from: optionalString(payload.data_from),
+    data_to: optionalString(payload.data_to),
+    destination_type: optionalString(payload.destination_type),
+    external_domain: optionalString(payload.external_domain),
+    field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String).sort() : [],
+    record_count: numberValue(payload.record_count),
+    idempotency_key: optionalString(payload.idempotency_key),
+    call_fingerprint: optionalString(payload.call_fingerprint),
+    request_digest: await approvalRequestDigest(payload),
+    policy_version: optionalString(payload.policy_version ?? recordValue(manifest.runtime).policy_version),
+    policy_findings: policyFindings,
+    prior_attempt_count: numberValue(payload.prior_attempt_count),
+    budget_state: Object.keys(recordValue(payload.budget_state)).length ? recordValue(payload.budget_state) : undefined,
+    expires_at: expiresAt,
+    basis_category: optionalString(payload.basis_category),
+    basis_ref: optionalString(payload.basis_ref),
+    context: stringContext(payload),
   };
 }
 
@@ -986,6 +1161,68 @@ function grantTtlSeconds(manifest: AgentIdManifest, tool: Record<string, unknown
   return 300;
 }
 
+function approvalTtlSeconds(manifest: AgentIdManifest, tool: Record<string, unknown>): number {
+  const constraints = recordValue(tool.constraints);
+  const toolTtl = numberValue(constraints.approval_ttl_seconds);
+  if (toolTtl && toolTtl > 0) return toolTtl;
+  const defaultTtl = numberValue(manifest.jit_authorization?.approval_ttl_seconds);
+  if (defaultTtl && defaultTtl > 0) return defaultTtl;
+  return 900;
+}
+
+async function approvalRequestDigest(payload: ToolEvent, evidence?: ApprovalEvidence): Promise<string> {
+  const context = evidence?.context
+    ? Object.fromEntries(Object.keys(evidence.context).sort().map((key) => [
+        key,
+        stringValue(payload[key] ?? recordValue(payload.context)[key]),
+      ]))
+    : stringContext(payload);
+  const scope = {
+    agent_id: stringValue(payload.agent_id),
+    tenant_id: stringValue(payload.tenant_id),
+    user_id: stringValue(payload.user_id ?? payload.requested_by),
+    job_id: stringValue(payload.job_id),
+    case_id: stringValue(payload.case_id),
+    customer_id: stringValue(payload.customer_id),
+    tool: stringValue(payload.tool),
+    action: stringValue(payload.action),
+    resource: stringValue(payload.resource),
+    amount: numberValue(payload.amount ?? payload.amount_usd) ?? null,
+    currency: stringValue(payload.currency),
+    data_from: stringValue(payload.data_from),
+    data_to: stringValue(payload.data_to),
+    destination_type: stringValue(payload.destination_type),
+    external_domain: stringValue(payload.external_domain),
+    field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String).sort() : [],
+    record_count: numberValue(payload.record_count) ?? null,
+    idempotency_key: stringValue(payload.idempotency_key),
+    call_fingerprint: stringValue(payload.call_fingerprint),
+    basis_category: stringValue(payload.basis_category),
+    basis_ref: stringValue(payload.basis_ref),
+    context,
+  };
+  const bytes = new TextEncoder().encode(canonicalJson(scope));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function decisionSummary(allow: boolean, findings: string[], event: ToolEvent): string {
+  const action = `${stringValue(event.action)} ${stringValue(event.resource) || stringValue(event.tool)}`.trim();
+  if (allow) return `Allowed ${action} with scoped authority.`;
+  return `Denied ${action}: ${findings.join("; ") || "policy requirements were not satisfied"}.`;
+}
+
 function approvalRequired(tool: Record<string, unknown>): boolean {
   return APPROVAL_REQUIRED.has(stringValue(tool.approval));
 }
@@ -1305,6 +1542,17 @@ function stringValue(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
 }
 
+function optionalString(value: unknown): string | undefined {
+  const result = stringValue(value);
+  return result || undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+}
+
 const RESERVED_CONTEXT_FIELDS = new Set([
   "agent_id",
   "tool",
@@ -1334,6 +1582,25 @@ const RESERVED_CONTEXT_FIELDS = new Set([
   "reason",
   "decided_by",
   "findings",
+  "amount",
+  "amount_usd",
+  "currency",
+  "destination_type",
+  "external_domain",
+  "field_set",
+  "record_count",
+  "idempotency_key",
+  "call_fingerprint",
+  "request_digest",
+  "policy_version",
+  "policy_findings",
+  "prior_attempt_count",
+  "budget_state",
+  "basis_category",
+  "basis_ref",
+  "expires_at",
+  "decision_reason",
+  "approval_evidence",
 ]);
 
 function stringContext(payload: Record<string, unknown>): Record<string, string> {
@@ -1423,7 +1690,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
     h1 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 720; letter-spacing: 0; }
     .subtitle { color: var(--muted); font-size: 13px; }
     .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .token {
+    .token, .tenant {
       width: min(280px, 44vw);
       height: 34px;
       border: 1px solid var(--line);
@@ -1433,6 +1700,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
       color: var(--ink);
       font-size: 13px;
     }
+    .tenant { width: min(190px, 32vw); }
     .ghost, .primary, .danger {
       height: 34px;
       border-radius: 6px;
@@ -1551,6 +1819,10 @@ const APPROVALS_UI_HTML = `<!doctype html>
       font-size: 12px;
       max-height: 230px;
     }
+    .timeline { display: grid; gap: 8px; }
+    .timeline-event { border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 6px; padding: 10px; background: #fbfcfd; }
+    .timeline-event strong { display: block; font-size: 13px; }
+    .timeline-event span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
     .decision-bar {
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -1580,9 +1852,10 @@ const APPROVALS_UI_HTML = `<!doctype html>
         <div class="subtitle">Review exact agent tool actions before scoped authority is issued.</div>
       </div>
       <div class="top-actions">
+        <input class="tenant" id="tenant" autocomplete="off" placeholder="Tenant ID (optional)">
         <input class="token" id="token" type="password" autocomplete="off" placeholder="API key for live approvals">
-        <button class="ghost" id="loadLive">Load by ID</button>
-        <button class="ghost" id="resetMock">Reset Mock</button>
+        <button class="ghost" id="loadLive">Load Live Queue</button>
+        <button class="ghost" id="resetMock">Use Preview</button>
       </div>
     </header>
     <main>
@@ -1630,12 +1903,19 @@ const APPROVALS_UI_HTML = `<!doctype html>
             <h3>Request Payload</h3>
             <pre class="payload" id="payload"></pre>
           </div>
+          <div class="section">
+            <h3>Lifecycle Timeline</h3>
+            <div class="timeline" id="timeline"><div class="resource">Preview mode has no hosted audit events.</div></div>
+          </div>
         </div>
         <div class="decision-bar">
           <div class="statusline" id="statusline">Mock approval inbox ready.</div>
           <div class="decision-actions">
             <button class="danger" id="deny">Deny</button>
-            <button class="primary" id="approve">Approve Once</button>
+            <button class="primary" id="approve">Approve Scope</button>
+            <button class="ghost" id="issueGrant">Issue JIT</button>
+            <button class="ghost" id="executeOnce">Execute Once</button>
+            <button class="ghost" id="testReplay">Test Replay</button>
           </div>
         </div>
       </section>
@@ -1724,21 +2004,31 @@ const APPROVALS_UI_HTML = `<!doctype html>
       }
       ];
     }
-    let approvals = JSON.parse(sessionStorage.getItem("agentid.approvals.mock") || "null") || initialApprovals();
+    let approvals = initialApprovals();
     let selectedId = approvals[0]?.approval_id || "";
     let filter = "pending";
+    let liveMode = false;
+    let activeGrantId = "";
+    let executionPayload = null;
     const list = document.getElementById("list");
     const token = document.getElementById("token");
+    const tenant = document.getElementById("tenant");
     const statusline = document.getElementById("statusline");
     token.value = sessionStorage.getItem("agentid.approvals.token") || "";
+    tenant.value = sessionStorage.getItem("agentid.approvals.tenant") || "";
     document.getElementById("approve").addEventListener("click", () => decide("approve"));
     document.getElementById("deny").addEventListener("click", () => decide("deny"));
+    document.getElementById("issueGrant").addEventListener("click", issueGrant);
+    document.getElementById("executeOnce").addEventListener("click", executeOnce);
+    document.getElementById("testReplay").addEventListener("click", testReplay);
     document.getElementById("resetMock").addEventListener("click", () => {
+      liveMode = false;
+      activeGrantId = "";
+      executionPayload = null;
       approvals = initialApprovals();
       selectedId = approvals[0].approval_id;
-      persist();
       render();
-      statusline.textContent = "Mock data reset.";
+      statusline.textContent = "Preview mode. Load the live queue to make durable decisions.";
     });
     document.getElementById("loadLive").addEventListener("click", loadLive);
     for (const button of document.querySelectorAll(".filters button")) {
@@ -1752,7 +2042,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
     function render() {
       document.getElementById("pendingCount").textContent = approvals.filter((item) => item.status === "pending").length;
       document.getElementById("approvedCount").textContent = approvals.filter((item) => item.status === "approved").length;
-      document.getElementById("deniedCount").textContent = approvals.filter((item) => item.status === "denied").length;
+      document.getElementById("deniedCount").textContent = approvals.filter((item) => item.status === "denied" || item.status === "expired").length;
       renderList();
       renderDetail();
     }
@@ -1765,104 +2055,220 @@ const APPROVALS_UI_HTML = `<!doctype html>
         button.innerHTML =
           '<div class="item-row"><div class="tool">' + esc(approval.tool) + '</div><span class="pill ' + esc(approval.status) + '">' + esc(approval.status) + '</span></div>' +
           '<div class="resource">' + esc(approval.resource) + '</div>' +
-          '<div class="item-row"><span class="pill risk-' + esc(approval.risk || "medium") + '">' + esc(approval.risk || "medium") + '</span><span class="resource">' + age(approval.created_at) + '</span></div>';
-        button.addEventListener("click", () => { selectedId = approval.approval_id; render(); });
+          '<div class="item-row"><span class="pill risk-' + esc(approval.risk || "high") + '">' + esc(approval.risk || "high") + '</span><span class="resource">' + age(approval.created_at) + '</span></div>';
+        button.addEventListener("click", () => { selectedId = approval.approval_id; activeGrantId = ""; executionPayload = null; render(); if (liveMode) loadTimeline(); });
         list.appendChild(button);
       }
       if (!visible.length) {
-        list.innerHTML = '<div class="item"><div class="tool">No approvals in this view</div><div class="resource">Switch filters or reset the mock inbox.</div></div>';
+        list.innerHTML = '<div class="item"><div class="tool">No approvals in this view</div><div class="resource">Switch filters or load the current durable queue.</div></div>';
       }
     }
     function renderDetail() {
       const approval = selected();
-      if (!approval) return;
+      if (!approval) {
+        document.getElementById("title").textContent = "No approval selected";
+        return;
+      }
+      const evidence = evidenceFor(approval);
       document.getElementById("selectedPills").innerHTML =
         '<span class="pill ' + esc(approval.status) + '">' + esc(approval.status) + '</span> ' +
-        '<span class="pill risk-' + esc(approval.risk || "medium") + '">' + esc(approval.risk || "medium") + ' risk</span>';
+        '<span class="pill risk-' + esc(approval.risk || "high") + '">' + esc(approval.risk || "high") + ' risk</span>';
       document.getElementById("title").textContent = approval.tool;
       document.getElementById("summary").textContent = approval.agent_id + " wants to " + approval.action + " " + approval.resource + ".";
       const fields = {
         "Approval ID": approval.approval_id,
-        "Agent": approval.agent_id,
+        "Agent": evidence.agent_id || approval.agent_id,
         "Requested By": approval.requested_by,
-        "Action": approval.action,
-        "Resource": approval.resource,
-        "Job": approval.job_id || "",
-        "Case": approval.case_id || "",
-        "Customer": approval.customer_id || "",
-        "Created": approval.created_at,
+        "Action": evidence.action || approval.action,
+        "Resource": evidence.resource || approval.resource,
+        "Request Digest": evidence.request_digest || "preview only",
+        "Policy Version": evidence.policy_version || "not supplied",
+        "Job": evidence.job_id || approval.job_id || "",
+        "Case": evidence.case_id || approval.case_id || "",
+        "Customer": evidence.customer_id || approval.customer_id || "",
+        "Amount": evidence.amount === undefined ? "" : String(evidence.amount) + " " + (evidence.currency || ""),
+        "Destination": evidence.external_domain || evidence.data_to || "",
+        "Fields": (evidence.field_set || []).join(", "),
+        "Expires": evidence.expires_at || approval.expires_at || "",
         "Decided": approval.decided_at || ""
       };
-      for (const [key, value] of Object.entries(approval.context || {})) fields[key] = value;
+      for (const [key, value] of Object.entries(evidence.context || approval.context || {})) fields[key] = value;
       document.getElementById("scopeGrid").innerHTML = Object.entries(fields)
         .filter(([, value]) => String(value || ""))
         .map(([key, value]) => '<div class="field"><span>' + esc(key) + '</span><code>' + esc(value) + '</code></div>')
         .join("");
-      document.getElementById("evidence").innerHTML = (approval.evidence || []).map((item) => '<li>' + esc(item) + '</li>').join("");
+      const findings = Array.isArray(evidence.policy_findings) ? evidence.policy_findings : (Array.isArray(approval.evidence) ? approval.evidence : []);
+      document.getElementById("evidence").innerHTML = findings.map((item) => '<li>' + esc(item) + '</li>').join("");
       document.getElementById("payload").textContent = JSON.stringify(approval, null, 2);
       document.getElementById("approve").disabled = approval.status !== "pending";
       document.getElementById("deny").disabled = approval.status !== "pending";
-      statusline.textContent = approval.status === "pending"
-        ? "Approval is pending. Decision will be recorded against this exact scope."
-        : "Approval was " + approval.status + " by " + (approval.decided_by || "unknown") + ".";
+      document.getElementById("issueGrant").disabled = !liveMode || approval.status !== "approved" || Boolean(activeGrantId);
+      document.getElementById("executeOnce").disabled = !activeGrantId;
+      document.getElementById("testReplay").disabled = !executionPayload;
+      if (!liveMode) statusline.textContent = "Preview mode. Live actions are disabled.";
+      else if (approval.status === "pending") statusline.textContent = "Approval is pending. Review the exact evidence before deciding.";
+      else statusline.textContent = "Approval is " + approval.status + (approval.decided_by ? " by " + approval.decided_by : "") + ".";
     }
     async function decide(action) {
       const approval = selected();
       if (!approval || approval.status !== "pending") return;
+      const finding = document.getElementById("finding").value || "reviewed";
+      const note = document.getElementById("note").value || "";
       const payload = {
-        decided_by: document.getElementById("decidedBy").value || "approver",
-        findings: [document.getElementById("finding").value || "reviewed", document.getElementById("note").value || ""].filter(Boolean)
+        decided_by: document.getElementById("decidedBy").value || "",
+        decision_reason: note || finding,
+        findings: [finding, note].filter(Boolean)
       };
-      if (!approval.approval_id.startsWith("approval-prod") && !approval.approval_id.startsWith("approval-refund") && !approval.approval_id.startsWith("approval-email")) {
-        try {
-          sessionStorage.setItem("agentid.approvals.token", token.value);
-          const response = await fetch("/approval-requests/" + encodeURIComponent(approval.approval_id) + "/" + action, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              ...(token.value ? { authorization: "Bearer " + token.value } : {})
-            },
-            body: JSON.stringify(payload)
-          });
-          const body = await response.json();
-          if (!response.ok) throw new Error(body.error || "approval request failed");
-          Object.assign(approval, body);
-          statusline.textContent = "Live approval " + action + " recorded.";
-        } catch (error) {
-          statusline.textContent = error.message;
-          return;
-        }
-      } else {
+      if (!liveMode) {
         approval.status = action === "approve" ? "approved" : "denied";
         approval.decided_at = new Date().toISOString();
-        approval.decided_by = payload.decided_by;
+        approval.decided_by = payload.decided_by || "preview-reviewer";
+        approval.decision_reason = payload.decision_reason;
         approval.findings = payload.findings;
-        statusline.textContent = "Mock approval " + approval.status + ".";
-      }
-      persist();
-      render();
-    }
-    async function loadLive() {
-      const id = prompt("Approval ID to load");
-      if (!id) return;
-      sessionStorage.setItem("agentid.approvals.token", token.value);
-      statusline.textContent = "Loading " + id + "...";
-      try {
-        const response = await fetch("/approval-requests/" + encodeURIComponent(id), {
-          headers: token.value ? { authorization: "Bearer " + token.value } : {}
-        });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "approval not found");
-        body.risk = body.risk || "high";
-        body.evidence = body.evidence || ["Loaded from live approval store.", "Decision will use the real approval endpoint."];
-        approvals = [body, ...approvals.filter((item) => item.approval_id !== body.approval_id)];
-        selectedId = body.approval_id;
-        persist();
         render();
-        statusline.textContent = "Loaded live approval " + id + ".";
+        return;
+      }
+      try {
+        const body = await api(apiBase() + "/approval-requests/" + encodeURIComponent(approval.approval_id) + "/" + action, "POST", payload);
+        Object.assign(approval, body);
+        activeGrantId = "";
+        executionPayload = null;
+        render();
+        await loadTimeline();
       } catch (error) {
         statusline.textContent = error.message;
       }
+    }
+    async function loadLive() {
+      saveConnection();
+      statusline.textContent = "Loading durable approval queue...";
+      try {
+        const body = await api(apiBase() + "/approval-requests?limit=100", "GET");
+        liveMode = true;
+        approvals = (body.approvals || []).map((approval) => ({ ...approval, risk: approval.risk || "high" }));
+        selectedId = approvals[0]?.approval_id || "";
+        activeGrantId = "";
+        executionPayload = null;
+        render();
+        await loadTimeline();
+        statusline.textContent = "Loaded " + approvals.length + " durable approval request(s).";
+      } catch (error) {
+        statusline.textContent = error.message;
+      }
+    }
+    async function issueGrant() {
+      const approval = selected();
+      if (!approval || approval.status !== "approved") return;
+      try {
+        const payload = boundPayload(approval);
+        payload.approval_id = approval.approval_id;
+        const grant = await api(apiBase() + "/jit-grants", "POST", payload);
+        activeGrantId = grant.jit_grant_id;
+        executionPayload = null;
+        renderDetail();
+        statusline.textContent = "Single-use JIT grant issued. Execute the exact approved action once.";
+        await loadTimeline();
+      } catch (error) {
+        statusline.textContent = error.message;
+      }
+    }
+    async function executeOnce() {
+      if (!activeGrantId) return;
+      try {
+        executionPayload = { ...boundPayload(selected()), approved: true, jit_grant_id: activeGrantId };
+        const body = await api(apiBase() + "/authorize", "POST", executionPayload);
+        renderDetail();
+        statusline.textContent = body.allow ? "Exact action authorized. The JIT grant is now consumed." : "Action denied.";
+        await loadTimeline();
+      } catch (error) {
+        statusline.textContent = error.message;
+      }
+    }
+    async function testReplay() {
+      if (!executionPayload) return;
+      try {
+        await api(apiBase() + "/authorize", "POST", executionPayload);
+        statusline.textContent = "Replay unexpectedly succeeded.";
+      } catch (error) {
+        statusline.textContent = "Replay denied as expected: " + error.message;
+      }
+      await loadTimeline();
+    }
+    async function loadTimeline() {
+      const approval = selected();
+      if (!liveMode || !approval) return;
+      try {
+        const query = new URLSearchParams({ approval_id: approval.approval_id, limit: "30" });
+        if (tenant.value) query.set("tenant_id", tenant.value);
+        const body = await api("/audit/events?" + query.toString(), "GET");
+        document.getElementById("timeline").innerHTML = (body.events || []).map((event) => {
+          const summary = event.payload?.decision_summary || event.payload?.decision_reason || event.payload?.error || event.type;
+          return '<div class="timeline-event"><strong>' + esc(event.type) + '</strong><span>' + esc(summary) + '</span><span>' + esc(event.received_at) + '</span></div>';
+        }).join("") || '<div class="resource">No correlated events yet.</div>';
+      } catch (error) {
+        document.getElementById("timeline").innerHTML = '<div class="resource">' + esc(error.message) + '</div>';
+      }
+    }
+    function boundPayload(approval) {
+      const evidence = evidenceFor(approval);
+      return {
+        agent_id: evidence.agent_id || approval.agent_id,
+        user_id: evidence.user_id || approval.requested_by,
+        job_id: evidence.job_id,
+        case_id: evidence.case_id,
+        customer_id: evidence.customer_id,
+        tool: evidence.tool || approval.tool,
+        action: evidence.action || approval.action,
+        resource: evidence.resource || approval.resource,
+        amount: evidence.amount,
+        currency: evidence.currency,
+        data_from: evidence.data_from,
+        data_to: evidence.data_to,
+        destination_type: evidence.destination_type,
+        external_domain: evidence.external_domain,
+        field_set: evidence.field_set || [],
+        record_count: evidence.record_count,
+        idempotency_key: evidence.idempotency_key,
+        call_fingerprint: evidence.call_fingerprint,
+        basis_category: evidence.basis_category,
+        basis_ref: evidence.basis_ref,
+        context: evidence.context || approval.context || {}
+      };
+    }
+    function evidenceFor(approval) {
+      return approval && approval.evidence && !Array.isArray(approval.evidence) ? approval.evidence : {
+        agent_id: approval.agent_id,
+        tool: approval.tool,
+        action: approval.action,
+        resource: approval.resource,
+        job_id: approval.job_id,
+        case_id: approval.case_id,
+        customer_id: approval.customer_id,
+        policy_findings: Array.isArray(approval.evidence) ? approval.evidence : [],
+        field_set: [],
+        context: approval.context || {}
+      };
+    }
+    function apiBase() {
+      return tenant.value ? "/tenants/" + encodeURIComponent(tenant.value) : "";
+    }
+    async function api(path, method, payload) {
+      saveConnection();
+      const response = await fetch(path, {
+        method,
+        headers: {
+          ...(payload ? { "content-type": "application/json" } : {}),
+          ...(token.value ? { authorization: "Bearer " + token.value } : {})
+        },
+        body: payload ? JSON.stringify(payload) : undefined
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || (body.findings || []).join("; ") || "request failed with status " + response.status);
+      return body;
+    }
+    function saveConnection() {
+      sessionStorage.setItem("agentid.approvals.token", token.value);
+      sessionStorage.setItem("agentid.approvals.tenant", tenant.value);
     }
     function selected() {
       return approvals.find((item) => item.approval_id === selectedId) || approvals[0];

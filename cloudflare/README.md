@@ -10,6 +10,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
 | `POST /approval-requests` | Create a durable approval request |
+| `GET /approval-requests?status=pending` | List the durable approval queue |
 | `GET /approval-requests/<approval-id>` | Read approval status and bound context |
 | `POST /approval-requests/<approval-id>/approve` | Approve an approval request |
 | `POST /approval-requests/<approval-id>/deny` | Deny an approval request |
@@ -18,6 +19,7 @@ allow/deny/JIT decisions before tool execution:
 | `POST /tenants/<tenant-id>/authorize` | Authorize against a tenant manifest from KV |
 | `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant after approval checks |
 | `GET /audit` | Open the audit console UI |
+| `GET /approvals` | Open the approval and single-use execution console |
 | `GET /audit/events` | Read recent audit events with optional filters |
 | `POST /audit/webhook/agentid` | Receive AgentPass audit webhook events |
 
@@ -52,12 +54,22 @@ curl -s http://127.0.0.1:8787/approval-requests \
 
 curl -s http://127.0.0.1:8787/approval-requests/approval-1/approve \
   -H 'content-type: application/json' \
-  -d '{"decided_by":"manager-1"}'
+  -d '{"decided_by":"manager-1","decision_reason":"scope and evidence verified"}'
 
 curl -s http://127.0.0.1:8787/jit-grants \
   -H 'content-type: application/json' \
   -d '{"approval_id":"approval-1","tool":"stripe.create_refund","action":"write","resource":"refund/re_123","user_id":"user-1"}'
 ```
+
+Approval requests require `resource`, `requested_by`, and `reason`. The gateway
+adds an expiry and a versioned evidence object containing a canonical
+`request_digest`. JIT issuance recomputes that digest and fails closed if the
+resource, amount, destination, fields, or custom context changed after review.
+
+Open `http://127.0.0.1:8787/approvals` to review the live queue. The console can
+approve the exact scope, issue its JIT grant, authorize it once, demonstrate
+replay denial, and display the correlated audit timeline. Without credentials,
+the page remains usable as a non-mutating preview.
 
 ## Deploy
 
