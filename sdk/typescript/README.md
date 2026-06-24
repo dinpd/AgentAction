@@ -25,6 +25,7 @@ const grant = await agentpass.requestJitGrant("tenant-a", {
   resource: "refund/case-1042",
   approval_id: "approval-123",
   user_id: "support-rep-17",
+  idempotency_key: "refund-case-1042",
 });
 
 await agentpass.assertAllowed("tenant-a", {
@@ -34,6 +35,21 @@ await agentpass.assertAllowed("tenant-a", {
   resource: "refund/case-1042",
   approved: true,
   jit_grant_id: grant.jit_grant_id,
+  idempotency_key: "refund-case-1042",
+});
+
+await agentpass.recordExecutionResult("tenant-a", {
+  agent_id: "refund-agent",
+  tool: "stripe.create_refund",
+  action: "write",
+  resource: "refund/case-1042",
+  approved: true,
+  jit_grant_id: grant.jit_grant_id,
+  idempotency_key: "refund-case-1042",
+  result: {
+    refund_id: "re_123",
+    amount: 49,
+  },
 });
 ```
 
@@ -73,5 +89,10 @@ const timeline = await agentpass.listAuditEvents({
 Every hosted approval includes `agentpass.approval-evidence.v1`, an expiry, and
 a canonical request digest. JIT issuance fails closed when the requested scope
 does not match that evidence.
+
+For side-effectful tools, record the completed provider result after the first
+allowed execution. Identical retries to `authorizeToolCall` return the cached
+result with `replayed: true`; changed arguments under the same idempotency key
+are denied.
 
 The legacy `AgentIdClient` export remains available as a compatibility alias.

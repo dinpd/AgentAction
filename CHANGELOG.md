@@ -8,6 +8,10 @@
 - Added stable request digest validation so a used idempotency key cannot replay
   changed refund arguments.
 - Added provider execution receipts for first execution and replayed results.
+- Added hosted idempotency result records, `POST /execution-results`, replay
+  responses from `/authorize`, and provider execution/replay audit events.
+- Updated the approval console to record a provider result after execution and
+  replay it on identical retry.
 - Updated refund tests and demo to prove an identical retry returns the original
   result without running the provider mutation again.
 

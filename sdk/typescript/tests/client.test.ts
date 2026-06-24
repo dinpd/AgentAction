@@ -71,6 +71,51 @@ test("requestJitGrant posts JIT grant request", async () => {
   assert.equal(response.jit_grant_id, "grant-1");
 });
 
+test("recordExecutionResult posts provider result for hosted replay", async () => {
+  const client = new AgentPassClient({
+    baseUrl: "https://gateway.example.com",
+    token: "token-3",
+    fetch: async (url, init) => {
+      assert.equal(String(url), "https://gateway.example.com/tenants/tenant-a/execution-results");
+      assert.equal((init?.headers as Record<string, string>).authorization, "Bearer token-3");
+      const body = JSON.parse(String(init?.body));
+      assert.deepEqual(body.result, { refund_id: "re_123" });
+      return jsonResponse(201, {
+        schema_version: "agentpass.idempotency-result.v1",
+        idempotency_key: "refund-case-1",
+        request_digest: "sha256:abc",
+        agent_id: "agent-a",
+        tool: "stripe.create_refund",
+        action: "write",
+        result: { refund_id: "re_123" },
+        receipt: {
+          schema_version: "agentpass.provider-execution-receipt.v1",
+          decision_id: "dec-1",
+          tool: "stripe.create_refund",
+          action: "write",
+          request_digest: "sha256:abc",
+          status: "executed",
+          executed_at: "2026-01-01T00:00:00Z",
+        },
+        created_at: "2026-01-01T00:00:00Z",
+        replay_count: 0,
+      });
+    },
+  });
+
+  const response = await client.recordExecutionResult("tenant-a", {
+    agent_id: "agent-a",
+    tool: "stripe.create_refund",
+    action: "write",
+    resource: "refund/1",
+    jit_grant_id: "grant-1",
+    idempotency_key: "refund-case-1",
+    result: { refund_id: "re_123" },
+  });
+
+  assert.equal(response.receipt.status, "executed");
+});
+
 test("approval lifecycle methods use tenant-scoped endpoints", async () => {
   const calls: Array<{ url: string; method: string }> = [];
   const client = new AgentPassClient({

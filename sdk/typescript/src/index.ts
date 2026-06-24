@@ -135,11 +135,53 @@ export type AuditListResponse = {
   auth?: Record<string, unknown>;
 };
 
+export type ProviderExecutionReceipt = {
+  schema_version: "agentpass.provider-execution-receipt.v1";
+  decision_id: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  idempotency_key?: string;
+  request_digest: string;
+  status: "executed" | "replayed";
+  executed_at: string;
+  replayed_from_decision_id?: string;
+  replay_count?: number;
+};
+
+export type ExecutionResultInput = ToolCallRequest & {
+  result: unknown;
+};
+
+export type ExecutionResultRecord = {
+  schema_version: "agentpass.idempotency-result.v1";
+  idempotency_key: string;
+  request_digest: string;
+  agent_id: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  approval_id?: string;
+  jit_grant_id?: string;
+  result: unknown;
+  receipt: ProviderExecutionReceipt;
+  created_at: string;
+  replay_count: number;
+  auth?: Record<string, unknown>;
+};
+
 export type AuthorizeResponse = {
   allow: boolean;
   decision: "allow" | "deny";
   findings: string[];
   event: Record<string, unknown>;
+  replayed?: boolean;
+  result?: unknown;
+  receipt?: ProviderExecutionReceipt;
   auth?: Record<string, unknown>;
 };
 
@@ -218,6 +260,10 @@ export class AgentPassClient {
 
   async requestJitGrant(tenantId: string, request: JitGrantRequest): Promise<JitGrantResponse> {
     return this.post<JitGrantResponse>(`/tenants/${encodeURIComponent(tenantId)}/jit-grants`, request, [201]);
+  }
+
+  async recordExecutionResult(tenantId: string, request: ExecutionResultInput): Promise<ExecutionResultRecord> {
+    return this.post<ExecutionResultRecord>(`/tenants/${encodeURIComponent(tenantId)}/execution-results`, request, [201, 200]);
   }
 
   async createApprovalRequest(tenantId: string, request: ApprovalRequestInput): Promise<ApprovalRequest> {

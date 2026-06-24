@@ -197,6 +197,95 @@ test("scope drift and expired approvals fail closed", async () => {
   assert.equal(expired.body.error, "approval request is expired: approval-expiring");
 });
 
+test("hosted idempotency replays completed refund result and denies changed retry", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const approval = {
+    approval_id: "approval-refund-replay",
+    tool: "stripe.create_refund",
+    action: "write",
+    resource: "refund/re_replay/customer/cus_1",
+    requested_by: "support-1",
+    user_id: "support-1",
+    reason: "duplicate charge verified",
+    job_id: "case-replay",
+    amount: 49,
+    currency: "USD",
+    idempotency_key: "refund-case-replay",
+  };
+
+  const created = await call(env, ctx, "POST", "/approval-requests", approval);
+  await call(env, ctx, "POST", "/approval-requests/approval-refund-replay/approve", {
+    decided_by: "manager-1",
+    decision_reason: "refund evidence verified",
+  });
+  const grantRequest = {
+    tool: approval.tool,
+    action: approval.action,
+    resource: approval.resource,
+    approval_id: approval.approval_id,
+    user_id: approval.user_id,
+    job_id: approval.job_id,
+    amount: approval.amount,
+    currency: approval.currency,
+    idempotency_key: approval.idempotency_key,
+  };
+  const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+  const action = {
+    agent_id: "customer-support-refund-agent",
+    ...grantRequest,
+    approved: true,
+    jit_grant_id: grant.body.jit_grant_id,
+  };
+  const prematureRecord = await call(env, ctx, "POST", "/execution-results", {
+    ...action,
+    result: { refund_id: "should-not-record" },
+  });
+  assert.equal(prematureRecord.status, 409);
+  assert.equal(prematureRecord.body.error, "JIT grant has not been consumed by authorize");
+
+  const first = await call(env, ctx, "POST", "/authorize", action);
+  assert.equal(first.status, 200);
+  assert.equal(first.body.allow, true);
+  await ctx.flush();
+
+  const providerResult = {
+    refund_id: "re_replay",
+    amount: 49,
+    provider_refund_calls: 1,
+  };
+  const recorded = await call(env, ctx, "POST", "/execution-results", {
+    ...action,
+    result: providerResult,
+  });
+  assert.equal(recorded.status, 201);
+  assert.equal(recorded.body.request_digest, created.body.evidence.request_digest);
+  assert.equal(recorded.body.receipt.status, "executed");
+  await ctx.flush();
+
+  const retry = await call(env, ctx, "POST", "/authorize", action);
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.allow, true);
+  assert.equal(retry.body.replayed, true);
+  assert.deepEqual(retry.body.result, providerResult);
+  assert.equal(retry.body.receipt.status, "replayed");
+  assert.equal(retry.body.receipt.replayed_from_decision_id, recorded.body.receipt.decision_id);
+  await ctx.flush();
+
+  const changed = await call(env, ctx, "POST", "/authorize", { ...action, amount: 50 });
+  assert.equal(changed.status, 403);
+  assert.equal(changed.body.allow, false);
+  assert.deepEqual(changed.body.findings, ["idempotencyKey was already used with different request digest"]);
+  await ctx.flush();
+
+  const audit = await call(env, ctx, "GET", "/audit/events?approval_id=approval-refund-replay&limit=20");
+  const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
+  assert.ok(types.includes("agentid.provider.executed"));
+  assert.ok(types.includes("agentid.provider.replayed"));
+  assert.ok(types.includes("agentid.decision"));
+});
+
 async function call(
   env: Record<string, unknown>,
   ctx: TestContext,

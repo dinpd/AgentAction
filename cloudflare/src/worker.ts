@@ -102,6 +102,39 @@ type ApprovalRequest = {
   evidence: ApprovalEvidence;
   findings?: string[];
 };
+type ProviderExecutionReceipt = {
+  schema_version: "agentpass.provider-execution-receipt.v1";
+  decision_id: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  idempotency_key?: string;
+  request_digest: string;
+  status: "executed" | "replayed";
+  executed_at: string;
+  replayed_from_decision_id?: string;
+  replay_count?: number;
+};
+type IdempotencyResultRecord = {
+  schema_version: "agentpass.idempotency-result.v1";
+  idempotency_key: string;
+  request_digest: string;
+  agent_id: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  amount?: number;
+  currency?: string;
+  approval_id?: string;
+  jit_grant_id?: string;
+  approval_evidence?: ApprovalEvidence;
+  result: unknown;
+  receipt: ProviderExecutionReceipt;
+  created_at: string;
+  replay_count: number;
+};
 type AuditRecord = {
   audit_id: string;
   received_at: string;
@@ -264,12 +297,32 @@ export default {
             auth: auth.context,
           }),
         );
+        if (decision.replayed) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.provider.replayed",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(decision.event.agent_id),
+              tool: stringValue(decision.event.tool),
+              action: stringValue(decision.event.action),
+              resource: stringValue(decision.event.resource),
+              approval_id: stringValue(decision.event.approval_id),
+              jit_grant_id: stringValue(decision.event.jit_grant_id),
+              provider_result: decision.result,
+              provider_execution_receipt: decision.receipt,
+              auth: auth.context,
+            }),
+          );
+        }
         return json(
           {
             allow: decision.allow,
             findings: decision.findings,
             decision: decision.allow ? "allow" : "deny",
             event: decision.event,
+            replayed: decision.replayed,
+            result: decision.result,
+            receipt: decision.receipt,
             auth: auth.context,
           },
           decision.allow ? 200 : 403,
@@ -328,6 +381,40 @@ export default {
               approval_status: stringValue(body.status),
               decision_reason: stringValue(body.decision_reason),
               approval: body,
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "POST" && route.endpoint === "execution-results") {
+        const payload = await readJson(request);
+        const event = toolEventFromPayload(manifest, payload, route.tenantId);
+        const resultPayload = hasValue(payload.result) ? payload.result : payload.provider_result;
+        if (!hasValue(resultPayload)) return json({ error: "result is required" }, 400);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/execution-results", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ manifest, event, result: resultPayload }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.status === 201) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.provider.executed",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(body.agent_id),
+              tool: stringValue(body.tool),
+              action: stringValue(body.action),
+              resource: stringValue(body.resource),
+              approval_id: stringValue(body.approval_id),
+              jit_grant_id: stringValue(body.jit_grant_id),
+              provider_result: body.result,
+              provider_execution_receipt: body.receipt,
               auth: auth.context,
             }),
           );
@@ -518,71 +605,178 @@ export class AgentIdJitGrants {
       return json(approval);
     }
 
+    if (request.method === "POST" && url.pathname === "/idempotency-replay") {
+      const event = payload.event as ToolEvent;
+      const key = stringValue(event.idempotency_key);
+      if (!key) return json({ status: "none" });
+      const record = await this.state.storage.get<IdempotencyResultRecord>(`idempotency:${key}`);
+      if (!record) return json({ status: "none" });
+      const digest = await replayRequestDigest(event, record);
+      if (digest !== record.request_digest) {
+        event.idempotency_replay_mismatch = true;
+        return json({
+          status: "mismatch",
+          event,
+          findings: ["idempotencyKey was already used with different request digest"],
+        });
+      }
+      record.replay_count += 1;
+      const replayReceipt: ProviderExecutionReceipt = {
+        ...record.receipt,
+        status: "replayed",
+        decision_id: stringValue(event.decision_id) || crypto.randomUUID(),
+        executed_at: new Date().toISOString(),
+        replayed_from_decision_id: record.receipt.decision_id,
+        replay_count: record.replay_count,
+      };
+      await this.state.storage.put(`idempotency:${key}`, record);
+      event.idempotency_replayed = true;
+      event.provider_execution_receipt = replayReceipt;
+      event.provider_result = record.result;
+      if (record.approval_evidence) event.approval_evidence = record.approval_evidence;
+      event.approval_id = event.approval_id || record.approval_id;
+      event.jit_grant_id = event.jit_grant_id || record.jit_grant_id;
+      return json({ status: "replay", event, record: { ...record, receipt: replayReceipt } });
+    }
+
+    if (request.method === "POST" && url.pathname === "/execution-results") {
+      const event = payload.event as ToolEvent;
+      const result = payload.result;
+      const key = stringValue(event.idempotency_key);
+      if (!key) return json({ error: "idempotency_key is required" }, 400);
+      if (!stringValue(event.jit_grant_id)) return json({ error: "jit_grant_id is required" }, 400);
+      const manifest = payload.manifest as AgentIdManifest;
+      const validation = await this.bindGrant(manifest, event, { allowUsed: true, consume: false });
+      if (validation.findings.length > 0) return json({ error: validation.findings[0], findings: validation.findings }, 400);
+      if (manifest.jit_authorization?.revoke_after_use === true && validation.grant?.used !== true) {
+        return json({ error: "JIT grant has not been consumed by authorize" }, 409);
+      }
+      const requestDigest = validation.requestDigest || await approvalRequestDigest(event);
+      const existing = await this.state.storage.get<IdempotencyResultRecord>(`idempotency:${key}`);
+      if (existing) {
+        const digest = await replayRequestDigest(event, existing);
+        if (digest !== existing.request_digest) {
+          return json({ error: "idempotencyKey was already used with different request digest" }, 409);
+        }
+        return json(existing);
+      }
+      const receipt: ProviderExecutionReceipt = {
+        schema_version: "agentpass.provider-execution-receipt.v1",
+        decision_id: stringValue(event.decision_id) || crypto.randomUUID(),
+        tool: stringValue(event.tool),
+        action: stringValue(event.action),
+        resource: optionalString(event.resource),
+        amount: numberValue(event.amount ?? event.amount_usd),
+        currency: optionalString(event.currency) || (numberValue(event.amount ?? event.amount_usd) === undefined ? undefined : "USD"),
+        idempotency_key: key,
+        request_digest: requestDigest,
+        status: "executed",
+        executed_at: new Date().toISOString(),
+      };
+      const record: IdempotencyResultRecord = {
+        schema_version: "agentpass.idempotency-result.v1",
+        idempotency_key: key,
+        request_digest: requestDigest,
+        agent_id: stringValue(event.agent_id),
+        tool: stringValue(event.tool),
+        action: stringValue(event.action),
+        resource: optionalString(event.resource),
+        amount: numberValue(event.amount ?? event.amount_usd),
+        currency: optionalString(event.currency) || (numberValue(event.amount ?? event.amount_usd) === undefined ? undefined : "USD"),
+        approval_id: optionalString(event.approval_id),
+        jit_grant_id: optionalString(event.jit_grant_id),
+        approval_evidence: recordValue(event.approval_evidence).schema_version === "agentpass.approval-evidence.v1"
+          ? event.approval_evidence as ApprovalEvidence
+          : undefined,
+        result,
+        receipt,
+        created_at: new Date().toISOString(),
+        replay_count: 0,
+      };
+      await this.state.storage.put(`idempotency:${key}`, record);
+      return json(record, 201);
+    }
+
     if (request.method === "POST" && url.pathname === "/bind") {
       const event = payload.event as ToolEvent;
       const manifest = payload.manifest as AgentIdManifest;
-      const findings: string[] = [];
-      const grantId = stringValue(event.jit_grant_id);
+      const result = await this.bindGrant(manifest, event, {
+        allowUsed: false,
+        consume: manifest.jit_authorization?.revoke_after_use === true,
+      });
 
-      if (!grantId) {
-        event.jit_grant_valid = false;
-        return json({ event, findings: ["missing jit_grant_id"] });
-      }
-
-      const grant = await this.state.storage.get<Grant>(grantId);
-      if (!grant) {
-        event.jit_grant_valid = false;
-        return json({ event, findings: ["unknown jit_grant_id"] });
-      }
-
-      if (Date.parse(grant.expires_at) <= Date.now()) findings.push("JIT grant is expired");
-      if (grant.used) findings.push("JIT grant was already used");
-      if (grant.agent_id !== event.agent_id) findings.push("JIT grant agent_id mismatch");
-      if (grant.tool !== event.tool) findings.push("JIT grant tool mismatch");
-      if (grant.action !== event.action) findings.push("JIT grant action mismatch");
-      if (grant.resource && event.resource && grant.resource !== event.resource) {
-        findings.push("JIT grant resource mismatch");
-      }
-      if (grant.job_id && event.job_id && grant.job_id !== event.job_id) {
-        findings.push("JIT grant job_id mismatch");
-      }
-      if (grant.case_id && event.case_id && grant.case_id !== event.case_id) {
-        findings.push("JIT grant case_id mismatch");
-      }
-      if (grant.customer_id && event.customer_id && grant.customer_id !== event.customer_id) {
-        findings.push("JIT grant customer_id mismatch");
-      }
-      for (const [key, value] of Object.entries(grant.context ?? {})) {
-        if (!hasValue(event[key]) || stringValue(event[key]) !== value) {
-          findings.push(`JIT grant ${key} mismatch`);
-        }
-      }
-
-      event.jit_grant_agent_id = grant.agent_id;
-      event.jit_grant_tool = grant.tool;
-      event.jit_grant_action = grant.action;
-      event.jit_grant_approval_id = grant.approval_id;
-      event.approval_id = event.approval_id || grant.approval_id;
-      event.jit_grant_job_id = grant.job_id;
-      event.jit_grant_case_id = grant.case_id;
-      event.jit_grant_customer_id = grant.customer_id;
-      if (grant.context) event.jit_grant_context = grant.context;
-      if (grant.evidence) {
-        event.approval_evidence = grant.evidence;
-        const digest = await approvalRequestDigest(event, grant.evidence);
-        if (digest !== grant.evidence.request_digest) findings.push("JIT grant request_digest mismatch");
-      }
-      event.jit_grant_valid = findings.length === 0;
-
-      if (findings.length === 0 && manifest.jit_authorization?.revoke_after_use === true) {
-        grant.used = true;
-        await this.state.storage.put(grant.jit_grant_id, grant);
-      }
-
-      return json({ event, findings });
+      return json({ event, findings: result.findings });
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async bindGrant(
+    manifest: AgentIdManifest,
+    event: ToolEvent,
+    options: { allowUsed: boolean; consume: boolean },
+  ): Promise<{ grant?: Grant; findings: string[]; requestDigest?: string }> {
+    const findings: string[] = [];
+    const grantId = stringValue(event.jit_grant_id);
+
+    if (!grantId) {
+      event.jit_grant_valid = false;
+      return { findings: ["missing jit_grant_id"] };
+    }
+
+    const grant = await this.state.storage.get<Grant>(grantId);
+    if (!grant) {
+      event.jit_grant_valid = false;
+      return { findings: ["unknown jit_grant_id"] };
+    }
+
+    if (Date.parse(grant.expires_at) <= Date.now()) findings.push("JIT grant is expired");
+    if (grant.used && !options.allowUsed) findings.push("JIT grant was already used");
+    if (grant.agent_id !== event.agent_id) findings.push("JIT grant agent_id mismatch");
+    if (grant.tool !== event.tool) findings.push("JIT grant tool mismatch");
+    if (grant.action !== event.action) findings.push("JIT grant action mismatch");
+    if (grant.resource && event.resource && grant.resource !== event.resource) {
+      findings.push("JIT grant resource mismatch");
+    }
+    if (grant.job_id && event.job_id && grant.job_id !== event.job_id) {
+      findings.push("JIT grant job_id mismatch");
+    }
+    if (grant.case_id && event.case_id && grant.case_id !== event.case_id) {
+      findings.push("JIT grant case_id mismatch");
+    }
+    if (grant.customer_id && event.customer_id && grant.customer_id !== event.customer_id) {
+      findings.push("JIT grant customer_id mismatch");
+    }
+    for (const [key, value] of Object.entries(grant.context ?? {})) {
+      if (!hasValue(event[key]) || stringValue(event[key]) !== value) {
+        findings.push(`JIT grant ${key} mismatch`);
+      }
+    }
+
+    event.jit_grant_agent_id = grant.agent_id;
+    event.jit_grant_tool = grant.tool;
+    event.jit_grant_action = grant.action;
+    event.jit_grant_approval_id = grant.approval_id;
+    event.approval_id = event.approval_id || grant.approval_id;
+    event.jit_grant_job_id = grant.job_id;
+    event.jit_grant_case_id = grant.case_id;
+    event.jit_grant_customer_id = grant.customer_id;
+    if (grant.context) event.jit_grant_context = grant.context;
+
+    let requestDigest: string | undefined;
+    if (grant.evidence) {
+      event.approval_evidence = grant.evidence;
+      requestDigest = await approvalRequestDigest(event, grant.evidence);
+      if (requestDigest !== grant.evidence.request_digest) findings.push("JIT grant request_digest mismatch");
+    }
+    event.jit_grant_valid = findings.length === 0;
+
+    if (findings.length === 0 && options.consume) {
+      grant.used = true;
+      await this.state.storage.put(grant.jit_grant_id, grant);
+    }
+
+    return { grant, findings, requestDigest };
   }
 
   async requireApprovedForGrant(manifest: AgentIdManifest, request: ToolEvent): Promise<string[]> {
@@ -639,8 +833,56 @@ async function authorize(
   payload: ToolEvent,
   env: Env,
   tenantId: string | null,
-): Promise<{ allow: boolean; findings: string[]; event: ToolEvent }> {
+): Promise<{ allow: boolean; findings: string[]; event: ToolEvent; replayed?: boolean; result?: unknown; receipt?: ProviderExecutionReceipt }> {
+  const event = toolEventFromPayload(manifest, payload, tenantId);
+  const findings: string[] = [];
+  const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
+
+  const replay = await authorizationStore(env, tenantId, manifest).fetch(
+    new Request("https://agentid.local/idempotency-replay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event }),
+    }),
+  );
+  const replayBody = await replay.json() as { status?: string; event?: ToolEvent; record?: IdempotencyResultRecord; findings?: string[] };
+  if (replayBody.status === "replay" && replayBody.record) {
+    Object.assign(event, replayBody.event || {});
+    return {
+      allow: true,
+      findings: ["idempotency result replayed"],
+      event,
+      replayed: true,
+      result: replayBody.record.result,
+      receipt: replayBody.record.receipt,
+    };
+  }
+  if (replayBody.status === "mismatch") {
+    Object.assign(event, replayBody.event || {});
+    const replayFindings = replayBody.findings || ["idempotencyKey was already used with different request digest"];
+    return { allow: false, findings: replayFindings, event };
+  }
+
+  if (tool?.auth_mode === "just_in_time") {
+    const response = await authorizationStore(env, tenantId, manifest).fetch(
+      new Request("https://agentid.local/bind", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ manifest, event }),
+      }),
+    );
+    const bound = (await response.json()) as { event: ToolEvent; findings: string[] };
+    Object.assign(event, bound.event);
+    findings.push(...bound.findings);
+  }
+
+  findings.push(...auditEvent(manifest, event));
+  return { allow: findings.length === 0, findings, event };
+}
+
+function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, tenantId: string | null): ToolEvent {
   const event: ToolEvent = {
+    decision_id: stringValue(payload.decision_id) || crypto.randomUUID(),
     agent_id: payload.agent_id ?? manifest.agent?.id,
     tool: payload.tool,
     capability: payload.capability,
@@ -679,24 +921,7 @@ async function authorize(
     basis_ref: payload.basis_ref,
   };
   Object.assign(event, stringContext(payload));
-  const findings: string[] = [];
-  const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
-
-  if (tool?.auth_mode === "just_in_time") {
-    const response = await authorizationStore(env, tenantId, manifest).fetch(
-      new Request("https://agentid.local/bind", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ manifest, event }),
-      }),
-    );
-    const bound = (await response.json()) as { event: ToolEvent; findings: string[] };
-    Object.assign(event, bound.event);
-    findings.push(...bound.findings);
-  }
-
-  findings.push(...auditEvent(manifest, event));
-  return { allow: findings.length === 0, findings, event };
+  return event;
 }
 
 async function createApprovalRequest(
@@ -1206,6 +1431,23 @@ async function approvalRequestDigest(payload: ToolEvent, evidence?: ApprovalEvid
   return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
+async function replayRequestDigest(event: ToolEvent, record: IdempotencyResultRecord): Promise<string> {
+  const evidence = record.approval_evidence || recordValue(event.approval_evidence) as Partial<ApprovalEvidence>;
+  if (evidence.schema_version === "agentpass.approval-evidence.v1") {
+    return approvalRequestDigest(event, evidence as ApprovalEvidence);
+  }
+  return approvalRequestDigest({
+    ...event,
+    agent_id: event.agent_id || record.agent_id,
+    tool: event.tool || record.tool,
+    action: event.action || record.action,
+    resource: event.resource || record.resource,
+    amount: event.amount ?? record.amount,
+    currency: event.currency || record.currency,
+    idempotency_key: event.idempotency_key || record.idempotency_key,
+  });
+}
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") {
@@ -1334,6 +1576,7 @@ function oidcConfig(manifest: AgentIdManifest): Record<string, any> | null {
 function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): string {
   const scopes = oidc.required_scopes || {};
   if (endpoint === "authorize") return stringValue(scopes.authorize);
+  if (endpoint === "execution-results") return stringValue(scopes.authorize);
   if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
@@ -2177,8 +2420,18 @@ const APPROVALS_UI_HTML = `<!doctype html>
       try {
         executionPayload = { ...boundPayload(selected()), approved: true, jit_grant_id: activeGrantId };
         const body = await api(apiBase() + "/authorize", "POST", executionPayload);
+        if (body.allow) {
+          await api(apiBase() + "/execution-results", "POST", {
+            ...executionPayload,
+            result: {
+              provider_result_id: "result-" + selected().approval_id,
+              mutation_count: 1,
+              completed_at: new Date().toISOString()
+            }
+          });
+        }
         renderDetail();
-        statusline.textContent = body.allow ? "Exact action authorized. The JIT grant is now consumed." : "Action denied.";
+        statusline.textContent = body.allow ? "Exact action authorized and provider result recorded for replay." : "Action denied.";
         await loadTimeline();
       } catch (error) {
         statusline.textContent = error.message;
@@ -2187,10 +2440,10 @@ const APPROVALS_UI_HTML = `<!doctype html>
     async function testReplay() {
       if (!executionPayload) return;
       try {
-        await api(apiBase() + "/authorize", "POST", executionPayload);
-        statusline.textContent = "Replay unexpectedly succeeded.";
+        const body = await api(apiBase() + "/authorize", "POST", executionPayload);
+        statusline.textContent = body.replayed ? "Cached provider result replayed without another mutation." : "Retry authorized without replay metadata.";
       } catch (error) {
-        statusline.textContent = "Replay denied as expected: " + error.message;
+        statusline.textContent = "Replay denied: " + error.message;
       }
       await loadTimeline();
     }
@@ -2327,7 +2580,7 @@ const AUDIT_UI_HTML = `<!doctype html>
   <main>
     <section class="toolbar">
       <label>API Key <input id="token" type="password" autocomplete="off" placeholder="Bearer token"></label>
-      <label>Type <select id="type"><option value="">All</option><option>agentid.decision</option><option>agentid.approval.created</option><option>agentid.approval.decided</option><option>agentid.jit.denied</option><option>agentid.jit.issued</option></select></label>
+      <label>Type <select id="type"><option value="">All</option><option>agentid.decision</option><option>agentid.approval.created</option><option>agentid.approval.decided</option><option>agentid.jit.denied</option><option>agentid.jit.issued</option><option>agentid.provider.executed</option><option>agentid.provider.replayed</option></select></label>
       <label>Agent <input id="agent_id" placeholder="agent id"></label>
       <label>Tool <input id="tool" placeholder="tool"></label>
       <label>Approval <input id="approval_id" placeholder="approval id"></label>

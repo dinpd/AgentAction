@@ -168,7 +168,7 @@ Completion status:
 - Cloudflare lifecycle tests cover approval, scope drift, expiry, consumption,
   replay denial, and audit correlation.
 
-#### P1: Double-Refund Protection With Result Replay
+#### P1: Double-Refund Protection With Result Replay (complete)
 
 Turn the strongest existing local demo into the clearest side-effect safety
 proof. When a provider completed a refund but the agent timed out, the retry
@@ -190,16 +190,20 @@ Demo gate:
 - Retry changed arguments under the same key and deny the request.
 - Prove with an automated test that the provider mutation ran exactly once.
 
-Current status:
+Completion status:
 
-- Initial local guard slice is implemented in `createToolGate`: successful
-  idempotent executions cache the provider result with a stable request digest
-  and provider execution receipt.
-- Identical retries replay the cached result without re-running the provider
-  mutation.
-- Changed refund arguments under the same idempotency key are denied.
-- Remaining P1 work is the hosted/console timeline that shows first execution,
-  cached replay, and changed-argument denial from the shared gateway path.
+- Local `createToolGate` caches successful idempotent execution results with a
+  stable request digest and provider execution receipt.
+- Hosted `POST /execution-results` records completed provider results in the
+  Durable Object store after the first allowed execution.
+- Identical retries to hosted `/authorize` return the cached provider result
+  with `replayed: true` without consuming another provider mutation.
+- Changed refund arguments under the same idempotency key are denied locally and
+  in the hosted gateway.
+- The approval console records a provider result after execution and shows
+  execution/replay events in the correlated audit timeline.
+- Automated tests prove local and hosted provider mutations run exactly once for
+  identical retries and deny changed retry scope.
 
 #### P2: Hosted PII Egress Gate
 
