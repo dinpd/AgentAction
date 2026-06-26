@@ -7,10 +7,12 @@
 - Added hosted data-flow enforcement for classification, destination type,
   external domain, field set, record count, redaction state, and retention
   context.
-- Added flow-level blocked-field, allowed-domain, max-record, and approval
-  challenge handling for email and webhook PII exports.
+- Added flow-level blocked-field, allowed-domain, max-record,
+  allowed-redaction-state, and approval challenge handling for email, webhook,
+  browser-form, model-provider, and file-export PII paths.
 - Bound non-JIT approved hosted actions to approval evidence and request digest
   so changed domains or field sets fail closed.
+- Added a preview PII egress review item to the hosted approval inbox.
 
 ### Double-refund protection with result replay
 

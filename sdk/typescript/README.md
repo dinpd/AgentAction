@@ -110,6 +110,10 @@ if (decision.decision === "challenge_required") {
 }
 ```
 
+Use the same fields for browser-form, model-provider, webhook, and file-export
+paths. Model-provider flows can require `redaction_state: "redacted"` or
+`"tokenized"` before raw customer fields leave the system of record.
+
 Every hosted approval includes `agentpass.approval-evidence.v1`, an expiry, and
 a canonical request digest. JIT issuance fails closed when the requested scope
 does not match that evidence.

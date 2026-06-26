@@ -92,9 +92,12 @@ For PII egress controls, include `data_from`, `data_to`, `destination_type`,
 `external_domain`, `data_classification`, `field_set`, `record_count`,
 `redaction_state`, and `retention` on `/authorize` and approval requests. Hosted
 data-flow rules can deny blocked fields, enforce allowed domains and record
-caps, or return `decision: "challenge_required"` when an otherwise allowed PII
-export needs approval. Approved non-JIT calls with `approval_id` are bound to
-the same `request_digest`, so changed domains or fields are denied.
+caps, require redacted or tokenized model-provider prompts, or return
+`decision: "challenge_required"` when an otherwise allowed PII export needs
+approval. The hosted test matrix covers email, webhook, browser-form,
+model-provider, and file-export paths. Approved non-JIT calls with
+`approval_id` are bound to the same `request_digest`, so changed domains or
+fields are denied.
 
 ## Deploy
 

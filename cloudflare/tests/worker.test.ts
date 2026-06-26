@@ -335,6 +335,161 @@ test("hosted PII egress enforces fields domains approval and exact scope", async
   assert.equal(blockedWebhookField.status, 403);
   assert.ok(blockedWebhookField.body.findings.includes("event[0]: field is blocked by flow: access_token"));
 
+  const browserChallenge = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "browser.fill_form",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "browser_form",
+    destination_type: "browser_form",
+    external_domain: "portal.customer.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+  });
+  assert.equal(browserChallenge.status, 403);
+  assert.equal(browserChallenge.body.decision, "challenge_required");
+  assert.ok(browserChallenge.body.findings.includes("event[0]: provider_crm -> browser_form requires approval"));
+
+  const browserBlockedField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "browser.fill_form",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "browser_form",
+    destination_type: "browser_form",
+    external_domain: "portal.customer.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "payment_method"],
+    record_count: 1,
+    approved: true,
+  });
+  assert.equal(browserBlockedField.status, 403);
+  assert.ok(browserBlockedField.body.findings.includes("event[0]: field is blocked by flow: payment_method"));
+
+  const browserDomainDrift = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "browser.fill_form",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "browser_form",
+    destination_type: "browser_form",
+    external_domain: "lookalike.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+    approved: true,
+  });
+  assert.equal(browserDomainDrift.status, 403);
+  assert.ok(
+    browserDomainDrift.body.findings.includes("event[0]: external_domain is not allowed for flow: lookalike.example"),
+  );
+
+  const rawPrompt = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "llm.prompt",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "model_provider",
+    destination_type: "model_provider",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+    redaction_state: "raw",
+  });
+  assert.equal(rawPrompt.status, 403);
+  assert.ok(rawPrompt.body.findings.includes("event[0]: redaction_state is not allowed for flow: raw"));
+
+  const tokenizedPrompt = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "llm.prompt",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "model_provider",
+    destination_type: "model_provider",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["case_id"],
+    record_count: 1,
+    redaction_state: "tokenized",
+  });
+  assert.equal(tokenizedPrompt.status, 200);
+  assert.equal(tokenizedPrompt.body.allow, true);
+
+  const modelBlockedField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "llm.prompt",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "model_provider",
+    destination_type: "model_provider",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["case_id", "full_date_of_birth"],
+    record_count: 1,
+    redaction_state: "tokenized",
+  });
+  assert.equal(modelBlockedField.status, 403);
+  assert.ok(modelBlockedField.body.findings.includes("event[0]: field is blocked by flow: full_date_of_birth"));
+
+  const fileExportChallenge = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "file.export",
+    action: "export",
+    data_from: "provider_crm",
+    data_to: "file_export",
+    destination_type: "file_export",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 10,
+  });
+  assert.equal(fileExportChallenge.status, 403);
+  assert.equal(fileExportChallenge.body.decision, "challenge_required");
+  assert.ok(fileExportChallenge.body.findings.includes("event[0]: provider_crm -> file_export requires approval"));
+
+  const fileExportTooMany = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "file.export",
+    action: "export",
+    data_from: "provider_crm",
+    data_to: "file_export",
+    destination_type: "file_export",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 100,
+    approved: true,
+  });
+  assert.equal(fileExportTooMany.status, 403);
+  assert.ok(fileExportTooMany.body.findings.includes("event[0]: record_count exceeds max_records 50"));
+
+  const fileExportBlockedField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "file.export",
+    action: "export",
+    data_from: "provider_crm",
+    data_to: "file_export",
+    destination_type: "file_export",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "access_token"],
+    record_count: 10,
+    approved: true,
+  });
+  assert.equal(fileExportBlockedField.status, 403);
+  assert.ok(fileExportBlockedField.body.findings.includes("event[0]: field is blocked by flow: access_token"));
+
+  const fileExportHealthRecord = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "file.export",
+    action: "export",
+    data_from: "provider_crm",
+    data_to: "file_export",
+    destination_type: "file_export",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "health_record_id"],
+    record_count: 10,
+    approved: true,
+  });
+  assert.equal(fileExportHealthRecord.status, 403);
+  assert.ok(fileExportHealthRecord.body.findings.includes("event[0]: field is blocked by flow: health_record_id"));
+
   const challenge = await call(env, ctx, "POST", "/authorize", {
     agent_id: "support-agent",
     tool: "email.send_external",
@@ -442,6 +597,9 @@ function piiManifest(): Record<string, unknown> {
       { name: "crm.read_customer", access: "read", auth_mode: "delegated", approval: "none" },
       { name: "email.send_external", access: "send", auth_mode: "delegated", approval: "human_confirm" },
       { name: "webhook.post", access: "send", auth_mode: "delegated", approval: "human_confirm" },
+      { name: "browser.fill_form", access: "send", auth_mode: "delegated", approval: "human_confirm" },
+      { name: "llm.prompt", access: "send", auth_mode: "delegated", approval: "none" },
+      { name: "file.export", access: "export", auth_mode: "delegated", approval: "human_confirm" },
     ],
     data_flows: [
       {
@@ -472,6 +630,35 @@ function piiManifest(): Record<string, unknown> {
         requires_approval: true,
         allowed_domains: ["approved.partner.example"],
         blocked_fields: ["ssn", "access_token", "payment_method"],
+      },
+      {
+        from: "provider_crm",
+        to: "browser_form",
+        destination_type: "browser_form",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        requires_approval: true,
+        allowed_domains: ["customer.example"],
+        blocked_fields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "model_provider",
+        destination_type: "model_provider",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        allowed_redaction_states: ["redacted", "tokenized"],
+        blocked_fields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
+      },
+      {
+        from: "provider_crm",
+        to: "file_export",
+        destination_type: "file_export",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        requires_approval: true,
+        max_records: 50,
+        blocked_fields: ["ssn", "access_token", "payment_method", "full_date_of_birth", "health_record_id"],
       },
     ],
     runtime: { enforce_manifest: true },

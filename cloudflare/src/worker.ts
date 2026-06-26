@@ -1170,6 +1170,11 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
       if (maxRecords !== undefined && recordCount !== undefined && recordCount > maxRecords) {
         findings.push(`event[0]: record_count exceeds max_records ${maxRecords}`);
       }
+      const allowedRedactionStates = arrayValue(flow.allowed_redaction_states ?? flow.allowedRedactionStates).map(normalize);
+      const redactionState = normalize(event.redaction_state);
+      if (allowedRedactionStates.length > 0 && !allowedRedactionStates.includes(redactionState)) {
+        findings.push(`event[0]: redaction_state is not allowed for flow: ${redactionState || "missing"}`);
+      }
       if ((flow.requires_approval === true || flow.requiresApproval === true) && event.approved !== true) {
         event.challenge_required = true;
         findings.push(`event[0]: ${event.data_from} -> ${event.data_to} requires approval`);
@@ -2316,6 +2321,51 @@ const APPROVALS_UI_HTML = `<!doctype html>
           "Refund amount is under policy maximum.",
           "Customer and support case are bound into the approval."
         ]
+      },
+      {
+        approval_id: "approval-pii-browser-7712",
+        status: "pending",
+        risk: "high",
+        agent_id: "support-agent",
+        tool: "browser.fill_form",
+        action: "send",
+        resource: "browser/customer/cus_123/portal.customer.example",
+        requested_by: "support-rep-22",
+        reason: "Fill a verified customer-domain support form with minimum CRM fields",
+        created_at: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+        job_id: "case-7712",
+        case_id: "case-7712",
+        customer_id: "cus_123",
+        context: {
+          destination_type: "browser_form",
+          recipient_domain: "portal.customer.example",
+          form_id: "support-intake"
+        },
+        evidence: {
+          schema_version: "agentpass.approval_evidence.v1",
+          agent_id: "support-agent",
+          tool: "browser.fill_form",
+          action: "send",
+          resource: "browser/customer/cus_123/portal.customer.example",
+          data_from: "provider_crm",
+          data_to: "browser_form",
+          destination_type: "browser_form",
+          external_domain: "portal.customer.example",
+          data_classification: ["customer_data", "pii"],
+          field_set: ["case_id", "customer_id"],
+          record_count: 1,
+          redaction_state: "minimum_fields",
+          retention: "transient",
+          job_id: "case-7712",
+          case_id: "case-7712",
+          customer_id: "cus_123",
+          request_digest: "preview-pii-browser-7712",
+          policy_findings: [
+            "Browser form PII egress requires human confirmation.",
+            "Destination domain matches the customer account.",
+            "Approval is bound to the exact field set and destination."
+          ]
+        }
       },
       {
         approval_id: "approval-email-5021",

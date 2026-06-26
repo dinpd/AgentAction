@@ -283,8 +283,9 @@ AgentPass currently includes:
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
   checks, and audit events
 - Hosted idempotency result replay for retry-safe side-effect execution
-- Hosted PII egress controls for email and webhook exports with exact field and
-  destination binding
+- Hosted PII egress controls for email, webhook, browser-form,
+  model-provider, and file-export paths with exact field and destination
+  binding
 - Hosted approval inbox for evidence review, scoped JIT issuance, one-time
   authorization, replay testing, and correlated audit timelines
 - Provider-side Express and FastAPI middleware
@@ -294,11 +295,10 @@ AgentPass currently includes:
 Near-term work is ordered by the next end-to-end behavior a user can see and
 reproduce:
 
-1. Hosted PII egress enforcement with exact field and destination binding.
-2. A real production-deploy action gate.
-3. Provider trust enforcement with production receipts and contract drift
+1. A real production-deploy action gate.
+2. Provider trust enforcement with production receipts and contract drift
    detection.
-4. Framework and workflow wrappers selected from adopter demand.
+3. Framework and workflow wrappers selected from adopter demand.
 
 The [Action Gate Roadmap](docs/action-gate-roadmap.md) is the source of truth
 for priority and maps each demonstration to its GitHub implementation issues.

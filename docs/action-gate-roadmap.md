@@ -121,8 +121,8 @@ Current issue mapping:
 | --- | --- | --- |
 | P0 | Hosted approval to single-use execution | [#3 approval evidence](https://github.com/dinpd/AgentPass/issues/3), [#4 decision audit context](https://github.com/dinpd/AgentPass/issues/4) |
 | P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
-| P2 | Hosted PII egress gate | [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
-| P3 | Production deploy action gate | Create a focused issue when P2 is complete; existing DevOps code is reference implementation |
+| P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
+| P3 | Production deploy action gate | Next; create a focused issue, existing DevOps code is reference implementation |
 | P4 | Provider trust gate | [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
 | P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
 
@@ -237,15 +237,18 @@ Demo gate:
 
 Current status:
 
-- Initial hosted slice covers internal CRM reads, email exports, and webhook
-  exports with source, destination, classification, fields, count, domain,
-  redaction, and retention context.
+- Complete for the demo gate.
+- Hosted tests cover internal CRM reads, email exports, webhook exports,
+  browser-form fills, model-provider prompts, and file exports with source,
+  destination, classification, fields, count, domain, redaction, and retention
+  context.
 - Hosted flow rules can deny blocked fields and domains, enforce record caps,
-  and return `challenge_required` for approval-worthy PII exports.
+  require redacted or tokenized model-provider prompts, and return
+  `challenge_required` for approval-worthy PII exports.
 - Approved non-JIT hosted calls are bound to approval evidence and request
   digest, so changed domains or field sets are denied after review.
-- Remaining P2 work is to extend the same hosted matrix to browser forms,
-  model-provider prompts, and file exports, then update the visible demo flow.
+- The visible hosted approval inbox includes a pending PII egress review item
+  with classification, fields, destination, redaction, and retention evidence.
 
 #### P3: Production Deploy Action Gate
 
@@ -478,7 +481,7 @@ Remaining work:
 - Add structured budget warning/degradation outputs beyond
   `challenge_required`.
 
-### Phase 3: PII And Sensitive-Data Exfiltration Rules (mostly complete locally)
+### Phase 3: PII And Sensitive-Data Exfiltration Rules (hosted demo gate complete)
 
 Goal: make data movement a first-class runtime policy primitive, not a secondary
 audit concern.
@@ -494,15 +497,22 @@ Completed in the local guard:
 - PII exfiltration examples and tests cover model-provider prompts, external
   destinations, blocked fields, and record thresholds.
 
+Completed in the hosted gateway:
+
+- Hosted authorization accepts source, destination, classification, fields,
+  record count, external domain, redaction status, and retention context.
+- Hosted flow rules cover blocked fields, allowed domains, record caps,
+  redaction-state requirements, and approval challenges.
+- Hosted tests cover CRM-to-email, webhook, browser form, model-provider prompt,
+  and file export paths.
+- Approval evidence and request digests bind the reviewed data-flow scope.
+
 Remaining work:
 
-- Bring the richer local guard data-flow model into the hosted gateway and SDK
-  surfaces consistently.
-- Add redaction/tokenization status and retention-policy fields when available.
 - Document how tool-result-to-tool-call chains should be represented and
   blocked.
-- Ensure audit export includes the same data-flow context as local decision
-  events.
+- Broaden examples beyond the demo manifest for provider-specific SaaS and PHI
+  cases.
 
 Agent systems fail when a harmless read is chained into an unsafe write, send,
 export, prompt, or tool call. AgentPass should model and enforce these flows
@@ -549,8 +559,9 @@ PII-specific rules to support:
 - Deny export of high-risk identifiers such as SSN, government ID, access token,
   payment method, health record ID, or full date of birth unless a policy
   explicitly permits them.
-- Require approval when PII moves from a system of record into email, webhook,
-  browser automation, model-provider prompt, file export, or third-party SaaS.
+- Require approval or a redaction/tokenization constraint when PII moves from a
+  system of record into email, webhook, browser automation, model-provider
+  prompt, file export, or third-party SaaS.
 - Redact or tokenize PII before sending it to an LLM when the downstream task can
   be completed without raw identifiers.
 - Record field names, destination, record count, job, user, approval, and
@@ -592,7 +603,9 @@ flows:
     destination_type: model_provider
     data_classification:
       - pii
-    decision: deny
+    allowed_redaction_states:
+      - redacted
+      - tokenized
     blocked_fields:
       - ssn
       - access_token
@@ -614,11 +627,11 @@ Exit criteria:
 
 Test gate:
 
-- Add tests where PII moves from CRM to email, webhook, browser form,
+- Tests cover PII moving from CRM to email, webhook, browser form,
   model-provider prompt, and file export.
-- Add tests for blocked fields: `ssn`, `access_token`, `payment_method`,
+- Tests cover blocked fields: `ssn`, `access_token`, `payment_method`,
   `full_date_of_birth`, and `health_record_id`.
-- Add tests for field allowlists and record-count thresholds.
+- Tests cover field allowlists and record-count thresholds.
 
 Expected outcomes:
 
