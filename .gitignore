@@ -9,3 +9,4 @@ build/
 .pytest_cache/
 .DS_Store
 docs/outreach/
+docs/community-feedback/
