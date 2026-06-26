@@ -35,6 +35,16 @@ npm test
 npm run build
 ```
 
+Run the self-contained local guard demo:
+
+```bash
+npm run demo:local-guard
+```
+
+This runs the gateway logic in process and demonstrates `tools/list` filtering,
+safe forwarding, duplicate-side-effect denial, same-tool loop denial, and PII
+egress denial without starting the hosted AgentPass service.
+
 Start the AgentPass authorization service:
 
 ```bash

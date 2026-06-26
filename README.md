@@ -175,6 +175,7 @@ contracts, receipts, or standards alignment:
 
 - Enterprise governance: [`docs/enterprise-governance.md`](docs/enterprise-governance.md)
 - MCP gateway integration: [`docs/mcp-gateway-integration.md`](docs/mcp-gateway-integration.md)
+- MCP interceptor/PDP shape: [`docs/mcp-interceptor-pdp-shape.md`](docs/mcp-interceptor-pdp-shape.md)
 - Provider MCP authorization: [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
 - Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 

@@ -224,9 +224,11 @@ The local guard path is the quickest standards-facing demo:
 cd mcp-gateway-adapter
 npm install
 npm test
+npm run demo:local-guard
 ```
 
-Then start the mock provider and local guard adapter in separate terminals:
+For the manual proxy demo, start the mock provider and local guard adapter in
+separate terminals:
 
 ```bash
 npm run mock-provider
@@ -239,3 +241,6 @@ The first call forwards to the mock provider and the second is denied at the
 gateway because the idempotency key has already been consumed. Send
 [`local-denied-pii-email.json`](../mcp-gateway-adapter/examples/local-denied-pii-email.json)
 to see PII egress blocked before any downstream tool sees the payload.
+
+For the standards-facing mapping of this adapter to MCP interceptor and PDP
+vocabulary, see [`mcp-interceptor-pdp-shape.md`](mcp-interceptor-pdp-shape.md).
