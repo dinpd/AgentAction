@@ -1,0 +1,82 @@
+{
+  "tools": {
+    "read": { "action": "read" },
+    "web_fetch": { "action": "read" },
+    "web_search": { "action": "read" },
+    "browser": { "action": "write", "requiresApproval": true },
+    "write": {
+      "action": "write",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key", "secret"]
+    },
+    "edit": {
+      "action": "write",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key", "secret"]
+    },
+    "apply_patch": {
+      "action": "write",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key", "secret"]
+    },
+    "exec": {
+      "action": "admin",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key", "secret"]
+    },
+    "process": {
+      "action": "admin",
+      "requiresApproval": true,
+      "blockedFields": ["api_key", "access_token", "password", "private_key", "secret"]
+    },
+    "cron": {
+      "action": "write",
+      "requiresApproval": true,
+      "requireIdempotencyKey": true
+    },
+    "message": {
+      "action": "send",
+      "requiresApprovalIfPii": true,
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "private_key", "secret"]
+    },
+    "sessions_send": {
+      "action": "send",
+      "requiresApproval": true
+    },
+    "sessions_spawn": {
+      "action": "admin",
+      "requiresApproval": true
+    }
+  },
+  "flows": [
+    {
+      "from": "local_files",
+      "to": "external_channel",
+      "destinationType": "external_message",
+      "dataClassification": ["pii", "secret", "customer_data"],
+      "requiresApproval": true,
+      "blockedFields": ["ssn", "access_token", "payment_method", "full_date_of_birth", "private_key", "secret"]
+    },
+    {
+      "from": "local_files",
+      "to": "browser_form",
+      "destinationType": "browser_form",
+      "dataClassification": ["pii", "secret"],
+      "requiresApproval": true,
+      "blockedFields": ["password", "access_token", "api_key", "ssn", "payment_method", "private_key", "secret"]
+    },
+    {
+      "from": "secrets_manager",
+      "to": "model_provider",
+      "decision": "deny"
+    }
+  ],
+  "budgets": {
+    "challengeAfterRuntimeMsPerJob": 120000,
+    "maxRuntimeMsPerJob": 300000,
+    "maxToolCallsPerJob": 30,
+    "maxSameToolCallsPerJob": 8,
+    "maxIdenticalToolCallsPerJob": 2
+  },
+  "defaultSensitiveDestinationDecision": "deny"
+}

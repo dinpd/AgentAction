@@ -1,0 +1,23 @@
+{
+  "tools": {
+    "read": { "action": "read" },
+    "web_fetch": { "action": "read" },
+    "web_search": { "action": "read" },
+    "browser": { "action": "write", "requiresApproval": true },
+    "write": { "action": "write", "requiresApproval": true },
+    "edit": { "action": "write", "requiresApproval": true },
+    "apply_patch": { "action": "write", "requiresApproval": true },
+    "exec": { "action": "admin", "requiresApproval": true },
+    "process": { "action": "admin", "requiresApproval": true },
+    "cron": { "action": "write", "requiresApproval": true, "requireIdempotencyKey": true },
+    "message": { "action": "send", "requiresApproval": true },
+    "sessions_send": { "action": "send", "requiresApproval": true },
+    "sessions_spawn": { "action": "admin", "requiresApproval": true }
+  },
+  "defaultSensitiveDestinationDecision": "deny",
+  "budgets": {
+    "maxToolCallsPerJob": 20,
+    "maxSameToolCallsPerJob": 5,
+    "maxIdenticalToolCallsPerJob": 1
+  }
+}
