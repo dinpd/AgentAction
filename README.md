@@ -46,6 +46,7 @@ The first package is the local TypeScript guard:
 - Package: [`packages/guard/`](packages/guard/)
 - Quickstart demo: [`packages/guard/examples/quickstart-agent-loop.ts`](packages/guard/examples/quickstart-agent-loop.ts)
 - MCP tool-call demo: [`packages/guard/examples/mcp-tool-call-demo.ts`](packages/guard/examples/mcp-tool-call-demo.ts)
+- MCP gateway/interceptor adapter: [`mcp-gateway-adapter/`](mcp-gateway-adapter/)
 - Demo: [`packages/guard/examples/support-refund-demo.ts`](packages/guard/examples/support-refund-demo.ts)
 - Circuit-breaker demo: [`packages/guard/examples/circuit-breaker-demo.ts`](packages/guard/examples/circuit-breaker-demo.ts)
 - Drop-in tool gate: [`packages/guard/examples/tool-gate-demo.ts`](packages/guard/examples/tool-gate-demo.ts)
@@ -154,6 +155,12 @@ MCP proxy:
 ```text
 Enterprise Agent -> Enterprise Gateway or App Runtime -> AgentPass Check -> Internal, SaaS, or MCP Tool
 ```
+
+The MCP gateway adapter can also embed the local guard for a self-contained
+demo. That path keeps job state in the gateway process and proves the call-time
+behavior people expect from a gateway or interceptor: allow a safe call, deny a
+duplicate side effect, stop a looping job, and block PII egress before
+forwarding `tools/call`.
 
 If you are an agent developer:
 

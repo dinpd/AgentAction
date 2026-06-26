@@ -1,4 +1,5 @@
 import { AgentIdClient } from "./agentid.js";
+import { authorizeWithLocalGuard } from "./local-guard.js";
 import { mapToolCallToAuthorize } from "./mapper.js";
 import { signProviderReceipt, signProviderReceiptJws } from "./receipts.js";
 import type {
@@ -64,14 +65,16 @@ async function handleSingle(
     return errorResponse(request.id, DENIED, String((error as Error).message));
   }
 
-  const agentid = new AgentIdClient(config.agentid, fetchImpl);
-  const decision = await agentid.authorize(authorizePayload);
+  const decision = config.local_guard
+    ? authorizeWithLocalGuard(config, toolName, args, context)
+    : await new AgentIdClient(config.agentid, fetchImpl).authorize(authorizePayload);
   context.logger?.(authorizationLog(authorizePayload, decision));
   if (!decision.allow) {
-    return errorResponse(request.id, DENIED, "AgentPass denied MCP tool call", {
+    return errorResponse(request.id, DENIED, "AgentPass denied MCP tool call", compactObject({
       findings: decision.findings,
       event: decision.event,
-    });
+      challenge: decision.challenge,
+    }));
   }
 
   const mapped = config.tools[toolName];
@@ -106,6 +109,10 @@ function authorizationLog(
 
 function compactLog(entry: AuthorizationDecisionLog): AuthorizationDecisionLog {
   return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as AuthorizationDecisionLog;
+}
+
+function compactObject<T extends Record<string, unknown>>(entry: T): T {
+  return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as T;
 }
 
 async function forward(request: JsonRpcRequest, config: AdapterConfig, fetchImpl: typeof fetch): Promise<JsonRpcResponse> {
@@ -177,6 +184,7 @@ function decisionId(
 ): string {
   const event = decision.event;
   if (typeof event.decision_id === "string") return event.decision_id;
+  if (typeof event.decisionId === "string") return event.decisionId;
   if (typeof payload.jit_grant_id === "string" && payload.jit_grant_id) return payload.jit_grant_id;
   return `${payload.agent_id}:${payload.tool}:${payload.resource || "resource"}:${String(request.id ?? "notification")}`;
 }

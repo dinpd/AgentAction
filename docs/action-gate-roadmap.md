@@ -82,6 +82,12 @@ provider-side Express and FastAPI middleware, and a Cloudflare gateway runtime
 with durable approvals, JIT grants, tenant manifests, OIDC checks, and audit
 events.
 
+As of 2026-06-25, the MCP gateway adapter also has a local guard mode. This is
+the standards-facing demo path for the MCP/interceptor audience: it enforces
+policy at `tools/call` time, preserves process-local job state, blocks duplicate
+side effects, stops tool thrashing, and denies PII egress before forwarding to a
+downstream MCP server.
+
 The remaining near-term work is less about proving the basic guard pattern and
 more about hardening the production boundary:
 
@@ -92,6 +98,8 @@ more about hardening the production boundary:
   provider execution receipts;
 - document stateless versus stateful enforcement boundaries;
 - add more integration guides around the existing packages.
+- align the gateway adapter with emerging MCP interceptor/PDP shapes without
+  requiring AgentPass to become the network gateway.
 
 ### Demonstrable Feature Priority
 

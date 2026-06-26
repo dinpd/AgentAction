@@ -1,0 +1,106 @@
+{
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 8788
+  },
+  "agentid": {
+    "base_url": "http://127.0.0.1:8787",
+    "tenant_id": "tenant-a"
+  },
+  "downstream": {
+    "url": "http://127.0.0.1:8790/mcp"
+  },
+  "agent": {
+    "id": "enterprise-support-agent"
+  },
+  "local_guard": {
+    "policy": {
+      "tools": {
+        "provider.crm.search_customer": {
+          "action": "read"
+        },
+        "provider.billing.issue_credit": {
+          "action": "pay",
+          "requiresApproval": true,
+          "maxAmountUsd": 100,
+          "requireIdempotencyKey": true,
+          "singleUse": true
+        },
+        "provider.email.send_external": {
+          "action": "send",
+          "requiresApprovalIfPii": true,
+          "allowedDomains": ["customer.example"],
+          "blockedFields": ["ssn", "access_token"]
+        }
+      },
+      "flows": [
+        {
+          "from": "provider_crm",
+          "to": "agent_context",
+          "dataClassification": ["customer_data", "pii"],
+          "maxRecords": 10
+        },
+        {
+          "from": "provider_crm",
+          "to": "external_email",
+          "destinationType": "external_email",
+          "dataClassification": ["customer_data", "pii"],
+          "requiresApproval": true,
+          "allowedDomains": ["customer.example"],
+          "blockedFields": ["ssn", "access_token"]
+        }
+      ],
+      "budgets": {
+        "maxSameToolCallsPerJob": 2
+      }
+    }
+  },
+  "provider_receipts": {
+    "tenant_id": "tenant-a",
+    "hmac_secret": "dev-provider-receipt-secret"
+  },
+  "filter_tools_list": true,
+  "tools": {
+    "provider.crm.search_customer": {
+      "action": "read",
+      "data_from": "provider_crm",
+      "data_to": "agent_context",
+      "resource_arg": "customer_id",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id",
+      "data_classification": ["customer_data", "pii"],
+      "field_set": ["customer_id", "case_id", "plan"]
+    },
+    "provider.billing.issue_credit": {
+      "action": "pay",
+      "data_from": "enterprise_billing_context",
+      "data_to": "provider_billing",
+      "resource_template": "provider/billing/customer/{customer_id}",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id",
+      "approved_arg": "approved",
+      "jit_grant_id_arg": "jit_grant_id",
+      "approval_id_arg": "approval_id",
+      "amount_arg": "amount_usd",
+      "idempotency_key_arg": "idempotency_key",
+      "receipt_required": true,
+      "receipt_ttl_seconds": 180
+    },
+    "provider.email.send_external": {
+      "action": "send",
+      "data_from": "provider_crm",
+      "data_to": "external_email",
+      "resource_arg": "customer_id",
+      "job_id_arg": "job_id",
+      "case_id_arg": "case_id",
+      "customer_id_arg": "customer_id",
+      "approval_id_arg": "approval_id",
+      "destination_type": "external_email",
+      "external_domain_arg": "domain",
+      "data_classification": ["customer_data", "pii"],
+      "field_set_arg": "fields"
+    }
+  }
+}

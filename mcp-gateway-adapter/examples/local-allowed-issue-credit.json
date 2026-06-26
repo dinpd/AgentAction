@@ -1,0 +1,19 @@
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "tools/call",
+  "params": {
+    "name": "provider.billing.issue_credit",
+    "arguments": {
+      "customer_id": "cus_123",
+      "job_id": "support_case_resolution",
+      "case_id": "case-1042",
+      "amount_usd": 75,
+      "reason": "service_credit",
+      "approved": true,
+      "jit_grant_id": "local-approval-456",
+      "approval_id": "approval-456",
+      "idempotency_key": "credit-case-1042-cus_123"
+    }
+  }
+}

@@ -4,7 +4,7 @@ This is a reference MCP gateway adapter for enforcing AgentPass checks before MC
 tool calls.
 
 ```text
-MCP client -> AgentPass MCP gateway adapter -> AgentPass /authorize -> downstream MCP server
+MCP client -> AgentPass MCP gateway adapter -> AgentPass check -> downstream MCP server
 ```
 
 The adapter is intentionally small. It demonstrates the enforcement pattern
@@ -17,10 +17,12 @@ without trying to be a production MCP gateway.
 - Filters `tools/list` to tools configured in the adapter.
 - Intercepts `tools/call`.
 - Maps MCP tool name and arguments to an AgentPass authorization event.
-- Calls AgentPass `/authorize`.
+- Calls AgentPass `/authorize` or runs the local guard in-process.
 - Logs each AgentPass authorization decision as a structured JSON line.
 - Returns a JSON-RPC error when AgentPass denies the call.
 - Forwards allowed calls to the downstream MCP server.
+- Preserves state across calls in local guard mode for duplicate side effects,
+  job budgets, tool thrashing, and PII/data-flow enforcement.
 
 ## Run Locally
 
@@ -51,9 +53,40 @@ requests to `http://127.0.0.1:8790/mcp`.
 For a complete local demo with a mock provider MCP server and sample JSON-RPC
 requests, see [`../docs/mcp-gateway-demo.md`](../docs/mcp-gateway-demo.md).
 
+To try the MCP boundary without running the hosted AgentPass authorization
+service, use local guard mode. Start these in separate terminals:
+
+```bash
+npm run mock-provider
+npm run dev:local-guard
+```
+
+Then send the sample requests:
+
+```bash
+curl -s http://127.0.0.1:8788 \
+  -H 'content-type: application/json' \
+  --data @examples/local-allowed-issue-credit.json
+
+curl -s http://127.0.0.1:8788 \
+  -H 'content-type: application/json' \
+  --data @examples/local-allowed-issue-credit.json
+
+curl -s http://127.0.0.1:8788 \
+  -H 'content-type: application/json' \
+  --data @examples/local-denied-pii-email.json
+```
+
+The first credit call is forwarded. The repeated credit call is denied before
+the provider sees it because the idempotency key was already used. The PII email
+call is denied before forwarding because the payload includes a blocked field
+and an unapproved external domain.
+
 ## Config
 
 See [`examples/config.json`](examples/config.json).
+For a self-contained stateful guard demo, see
+[`examples/local-guard-config.json`](examples/local-guard-config.json).
 
 Each tool mapping tells the adapter how to build an AgentPass authorize payload:
 
@@ -108,6 +141,11 @@ This adapter is not a full production MCP gateway. It does not yet implement:
 - JIT grant issuance flow.
 - provider-specific argument mappers.
 - tool drift reporting.
+
+Local guard mode is intentionally process-local. It is useful for demos,
+single-process runtimes, and reference tests. Production gateways should back
+job state, idempotency records, approval grants, and audit events with durable
+storage or call a hosted AgentPass authorization service.
 
 Those are the next pieces to add around this reference enforcement path.
 

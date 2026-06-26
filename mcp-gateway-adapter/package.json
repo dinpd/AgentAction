@@ -9,10 +9,14 @@
     "build": "tsc -p tsconfig.json",
     "test": "node --test --import tsx tests/*.test.ts",
     "dev": "tsx src/index.ts examples/config.json",
+    "dev:local-guard": "tsx src/index.ts examples/local-guard-config.json",
     "dev:devops": "tsx src/index.ts ../solutions/devops-sre/gateway-config.json",
     "github-provider:devops": "tsx ../solutions/devops-sre/github-actions-provider.ts",
     "mock-provider": "tsx examples/mock-provider.ts",
     "mock-provider:devops": "tsx ../solutions/devops-sre/mock-provider.ts"
+  },
+  "dependencies": {
+    "@dinpd/ai-agent-guard": "file:../packages/guard"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

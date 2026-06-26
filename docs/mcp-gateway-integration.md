@@ -10,7 +10,8 @@ Enterprise Agent -> Enterprise MCP Gateway -> AgentPass Check -> Internal or Pro
 
 AgentPass is not required to be the network gateway or MCP proxy. In this
 topology, the enterprise MCP gateway or app runtime calls AgentPass as an
-authorization decision service before forwarding tool calls.
+authorization decision service before forwarding tool calls, or embeds the
+local guard when the gateway and policy state live in the same runtime.
 
 The enterprise owns the gateway and the AgentPass manifest. The downstream MCP
 server may be an internal enterprise server or a provider-hosted server.
@@ -61,6 +62,12 @@ forwarding the MCP call:
 ```text
 MCP Gateway -> AgentPass /jit-grants -> AgentPass /authorize with jit_grant_id -> MCP Server
 ```
+
+The important constraint is that enforcement happens at call time, immediately
+before the downstream `tools/call` is forwarded. AgentPass should not be framed
+as a generic MCP client-side authorization preflight. It is a runtime admission
+gate that can run inside a gateway, app runtime, provider boundary, or external
+policy decision service.
 
 ## Mapping MCP Calls to AgentPass
 
@@ -197,13 +204,38 @@ calls.
 The repository includes a minimal reference adapter in
 [`../mcp-gateway-adapter/`](../mcp-gateway-adapter/). It:
 
-- Proxy `tools/list` from a downstream MCP server.
-- Intercept `tools/call`.
-- Map tool name and arguments to an AgentPass authorization event.
-- Call AgentPass `/authorize`.
-- Return an MCP tool error on deny.
-- Forward the call to the downstream MCP server on allow.
+- Proxies `tools/list` from a downstream MCP server.
+- Intercepts `tools/call`.
+- Maps tool name and arguments to an AgentPass authorization event.
+- Calls AgentPass `/authorize` or runs the local guard in-process.
+- Returns an MCP tool error on deny.
+- Forwards the call to the downstream MCP server on allow.
+- Preserves process-local job state in local guard mode to demonstrate
+  duplicate-side-effect prevention, tool-thrashing limits, and PII egress
+  policy before forwarding.
 
 Production hardening should add authentication, transport variants, streaming,
 cancellation, retries, richer MCP errors, JIT grant issuance, audit logging,
 provider-specific argument mappers, and tool drift detection.
+
+The local guard path is the quickest standards-facing demo:
+
+```bash
+cd mcp-gateway-adapter
+npm install
+npm test
+```
+
+Then start the mock provider and local guard adapter in separate terminals:
+
+```bash
+npm run mock-provider
+npm run dev:local-guard
+```
+
+Then repeat
+[`local-allowed-issue-credit.json`](../mcp-gateway-adapter/examples/local-allowed-issue-credit.json).
+The first call forwards to the mock provider and the second is denied at the
+gateway because the idempotency key has already been consumed. Send
+[`local-denied-pii-email.json`](../mcp-gateway-adapter/examples/local-denied-pii-email.json)
+to see PII egress blocked before any downstream tool sees the payload.

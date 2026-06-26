@@ -1,3 +1,5 @@
+import type { GuardPolicy } from "@dinpd/ai-agent-guard";
+
 export type JsonRpcId = string | number | null;
 
 export type JsonRpcRequest = {
@@ -37,9 +39,10 @@ export type AgentIdAuthorizeRequest = {
 
 export type AgentIdAuthorizeResponse = {
   allow: boolean;
-  decision: "allow" | "deny";
+  decision: "allow" | "deny" | "challenge_required";
   findings: string[];
   event: Record<string, unknown>;
+  challenge?: unknown;
 };
 
 export type ToolMapping = {
@@ -56,7 +59,16 @@ export type ToolMapping = {
   approved_arg?: string;
   jit_grant_id_arg?: string;
   approval_id_arg?: string;
+  idempotency_key_arg?: string;
   amount_arg?: string;
+  destination_type?: string;
+  external_domain_arg?: string;
+  data_classification?: string[];
+  field_set?: string[];
+  field_set_arg?: string;
+  record_count_arg?: string;
+  estimated_tokens_arg?: string;
+  estimated_cost_usd_arg?: string;
   context_args?: Record<string, string>;
   receipt_required?: boolean;
   receipt_ttl_seconds?: number;
@@ -77,6 +89,9 @@ export type AdapterConfig = {
   };
   agent: {
     id: string;
+  };
+  local_guard?: {
+    policy: GuardPolicy;
   };
   provider_receipts?: {
     tenant_id?: string;
