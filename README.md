@@ -283,6 +283,8 @@ AgentPass currently includes:
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
   checks, and audit events
 - Hosted idempotency result replay for retry-safe side-effect execution
+- Hosted PII egress controls for email and webhook exports with exact field and
+  destination binding
 - Hosted approval inbox for evidence review, scoped JIT issuance, one-time
   authorization, replay testing, and correlated audit timelines
 - Provider-side Express and FastAPI middleware

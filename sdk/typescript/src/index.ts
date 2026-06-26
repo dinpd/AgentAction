@@ -30,8 +30,11 @@ export type ToolCallRequest = {
   currency?: string;
   destination_type?: string;
   external_domain?: string;
+  data_classification?: string[];
   field_set?: string[];
   record_count?: number;
+  redaction_state?: string;
+  retention?: string;
   idempotency_key?: string;
   call_fingerprint?: string;
   request_digest?: string;
@@ -61,8 +64,11 @@ export type ApprovalEvidence = {
   data_to?: string;
   destination_type?: string;
   external_domain?: string;
+  data_classification?: string[];
   field_set: string[];
   record_count?: number;
+  redaction_state?: string;
+  retention?: string;
   idempotency_key?: string;
   call_fingerprint?: string;
   request_digest: string;
@@ -176,7 +182,7 @@ export type ExecutionResultRecord = {
 
 export type AuthorizeResponse = {
   allow: boolean;
-  decision: "allow" | "deny";
+  decision: "allow" | "deny" | "challenge_required";
   findings: string[];
   event: Record<string, unknown>;
   replayed?: boolean;

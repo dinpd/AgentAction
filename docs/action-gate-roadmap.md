@@ -235,6 +235,18 @@ Demo gate:
 - Cover email, webhook, browser form, model-provider prompt, and file export in
   automated tests.
 
+Current status:
+
+- Initial hosted slice covers internal CRM reads, email exports, and webhook
+  exports with source, destination, classification, fields, count, domain,
+  redaction, and retention context.
+- Hosted flow rules can deny blocked fields and domains, enforce record caps,
+  and return `challenge_required` for approval-worthy PII exports.
+- Approved non-JIT hosted calls are bound to approval evidence and request
+  digest, so changed domains or field sets are denied after review.
+- Remaining P2 work is to extend the same hosted matrix to browser forms,
+  model-provider prompts, and file exports, then update the visible demo flow.
+
 #### P3: Production Deploy Action Gate
 
 Prove that the same runtime protects an operational action, not only payments

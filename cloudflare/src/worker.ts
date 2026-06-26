@@ -67,8 +67,11 @@ type ApprovalEvidence = {
   data_to?: string;
   destination_type?: string;
   external_domain?: string;
+  data_classification: string[];
   field_set: string[];
   record_count?: number;
+  redaction_state?: string;
+  retention?: string;
   idempotency_key?: string;
   call_fingerprint?: string;
   request_digest: string;
@@ -291,7 +294,7 @@ export default {
             findings: decision.findings,
             event: decision.event,
             approval_evidence: recordValue(decision.event.approval_evidence),
-            decision: decision.allow ? "allow" : "deny",
+            decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
             failure_class: decision.allow ? undefined : "permission_failure",
             decision_summary: decisionSummary(decision.allow, decision.findings, decision.event),
             auth: auth.context,
@@ -318,7 +321,7 @@ export default {
           {
             allow: decision.allow,
             findings: decision.findings,
-            decision: decision.allow ? "allow" : "deny",
+            decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
             event: decision.event,
             replayed: decision.replayed,
             result: decision.result,
@@ -833,7 +836,7 @@ async function authorize(
   payload: ToolEvent,
   env: Env,
   tenantId: string | null,
-): Promise<{ allow: boolean; findings: string[]; event: ToolEvent; replayed?: boolean; result?: unknown; receipt?: ProviderExecutionReceipt }> {
+): Promise<{ allow: boolean; challengeRequired?: boolean; findings: string[]; event: ToolEvent; replayed?: boolean; result?: unknown; receipt?: ProviderExecutionReceipt }> {
   const event = toolEventFromPayload(manifest, payload, tenantId);
   const findings: string[] = [];
   const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
@@ -876,8 +879,25 @@ async function authorize(
     findings.push(...bound.findings);
   }
 
+  if (event.approval_id && !event.jit_grant_id) {
+    const response = await authorizationStore(env, tenantId, manifest).fetch(
+      new Request("https://agentid.local/approvals/require-approved", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ manifest, request: event }),
+      }),
+    );
+    const body = await response.json() as { approval?: ApprovalRequest; error?: string };
+    if (!response.ok) {
+      findings.push(body.error || "approval request is not valid");
+    } else if (body.approval?.evidence) {
+      event.approval_evidence = body.approval.evidence;
+    }
+  }
+
   findings.push(...auditEvent(manifest, event));
-  return { allow: findings.length === 0, findings, event };
+  const challengeRequired = event.challenge_required === true && findings.length > 0;
+  return { allow: findings.length === 0, challengeRequired, findings, event };
 }
 
 function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, tenantId: string | null): ToolEvent {
@@ -893,6 +913,7 @@ function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, ten
     data_to: payload.data_to ?? "",
     approved: payload.approved === true,
     jit_grant_id: payload.jit_grant_id,
+    approval_id: payload.approval_id,
     resource: payload.resource ?? "",
     called_agent: payload.called_agent,
     delegated_tool: payload.delegated_tool,
@@ -909,8 +930,11 @@ function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, ten
     currency: payload.currency,
     destination_type: payload.destination_type,
     external_domain: payload.external_domain,
+    data_classification: arrayValue(payload.data_classification ?? payload.dataClassification),
     field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String) : [],
     record_count: payload.record_count,
+    redaction_state: payload.redaction_state,
+    retention: payload.retention,
     idempotency_key: payload.idempotency_key,
     call_fingerprint: payload.call_fingerprint,
     policy_version: payload.policy_version,
@@ -1026,8 +1050,11 @@ async function createApprovalEvidence(
     data_to: optionalString(payload.data_to),
     destination_type: optionalString(payload.destination_type),
     external_domain: optionalString(payload.external_domain),
+    data_classification: arrayValue(payload.data_classification ?? payload.dataClassification).sort(),
     field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String).sort() : [],
     record_count: numberValue(payload.record_count),
+    redaction_state: optionalString(payload.redaction_state),
+    retention: optionalString(payload.retention),
     idempotency_key: optionalString(payload.idempotency_key),
     call_fingerprint: optionalString(payload.call_fingerprint),
     request_digest: await approvalRequestDigest(payload),
@@ -1117,13 +1144,36 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
   }
 
   if (event.data_from && event.data_to) {
-    const flow = (manifest.data_flows ?? []).find(
-      (candidate) => candidate.from === event.data_from && candidate.to === event.data_to,
-    );
-    if (flow?.allowed === false) {
+    const flow = (manifest.data_flows ?? []).find((candidate) => flowMatches(candidate, event));
+    if (flow?.allowed === false || flow?.decision === "deny") {
       findings.push(`event[0]: blocked data flow used: ${event.data_from} -> ${event.data_to}`);
     } else if (!flow) {
       findings.push(`event[0]: undeclared data flow: ${event.data_from} -> ${event.data_to}`);
+    } else {
+      const fieldSet = arrayValue(event.field_set);
+      const blockedFields = arrayValue(flow.blocked_fields ?? flow.blockedFields);
+      for (const field of presentFields(fieldSet, blockedFields)) {
+        findings.push(`event[0]: field is blocked by flow: ${field}`);
+      }
+      const allowedFields = arrayValue(flow.allowed_fields ?? flow.allowedFields);
+      if (allowedFields.length > 0) {
+        for (const field of absentFields(fieldSet, allowedFields)) {
+          findings.push(`event[0]: field is not allowed by flow: ${field}`);
+        }
+      }
+      const allowedDomains = arrayValue(flow.allowed_domains ?? flow.allowedDomains);
+      if (allowedDomains.length > 0 && event.external_domain && !matchesDomain(event.external_domain, allowedDomains)) {
+        findings.push(`event[0]: external_domain is not allowed for flow: ${event.external_domain}`);
+      }
+      const maxRecords = numberValue(flow.max_records ?? flow.maxRecords);
+      const recordCount = numberValue(event.record_count);
+      if (maxRecords !== undefined && recordCount !== undefined && recordCount > maxRecords) {
+        findings.push(`event[0]: record_count exceeds max_records ${maxRecords}`);
+      }
+      if ((flow.requires_approval === true || flow.requiresApproval === true) && event.approved !== true) {
+        event.challenge_required = true;
+        findings.push(`event[0]: ${event.data_from} -> ${event.data_to} requires approval`);
+      }
     }
   }
 
@@ -1418,8 +1468,11 @@ async function approvalRequestDigest(payload: ToolEvent, evidence?: ApprovalEvid
     data_to: stringValue(payload.data_to),
     destination_type: stringValue(payload.destination_type),
     external_domain: stringValue(payload.external_domain),
+    data_classification: arrayValue(payload.data_classification ?? payload.dataClassification).sort(),
     field_set: Array.isArray(payload.field_set) ? payload.field_set.map(String).sort() : [],
     record_count: numberValue(payload.record_count) ?? null,
+    redaction_state: stringValue(payload.redaction_state),
+    retention: stringValue(payload.retention),
     idempotency_key: stringValue(payload.idempotency_key),
     call_fingerprint: stringValue(payload.call_fingerprint),
     basis_category: stringValue(payload.basis_category),
@@ -1467,6 +1520,18 @@ function decisionSummary(allow: boolean, findings: string[], event: ToolEvent): 
 
 function approvalRequired(tool: Record<string, unknown>): boolean {
   return APPROVAL_REQUIRED.has(stringValue(tool.approval));
+}
+
+function flowMatches(flow: Record<string, unknown>, event: ToolEvent): boolean {
+  if (stringValue(flow.from) !== stringValue(event.data_from)) return false;
+  if (stringValue(flow.to) !== stringValue(event.data_to)) return false;
+  const destinationType = stringValue(flow.destination_type ?? flow.destinationType);
+  if (destinationType && destinationType !== stringValue(event.destination_type)) return false;
+
+  const requiredClassifications = arrayValue(flow.data_classification ?? flow.dataClassification);
+  if (requiredClassifications.length === 0) return true;
+  const actual = new Set(arrayValue(event.data_classification).map(normalize));
+  return requiredClassifications.some((classification) => actual.has(normalize(classification)));
 }
 
 function matchingFinding(field: string, approvedValue: unknown, requestedValue: unknown): string {
@@ -1790,10 +1855,38 @@ function optionalString(value: unknown): string | undefined {
   return result || undefined;
 }
 
+function arrayValue(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value];
+  return [];
+}
+
 function numberValue(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return undefined;
+}
+
+function normalize(value: unknown): string {
+  return stringValue(value).trim().toLowerCase();
+}
+
+function matchesDomain(domain: unknown, allowedDomains: string[]): boolean {
+  const normalizedDomain = normalize(domain);
+  return allowedDomains.some((allowed) => {
+    const normalizedAllowed = normalize(allowed);
+    return normalizedDomain === normalizedAllowed || normalizedDomain.endsWith(`.${normalizedAllowed}`);
+  });
+}
+
+function presentFields(fieldSet: string[], blockedFields: string[]): string[] {
+  const blocked = new Set(blockedFields.map(normalize));
+  return fieldSet.filter((field) => blocked.has(normalize(field)));
+}
+
+function absentFields(fieldSet: string[], allowedFields: string[]): string[] {
+  const allowed = new Set(allowedFields.map(normalize));
+  return fieldSet.filter((field) => !allowed.has(normalize(field)));
 }
 
 const RESERVED_CONTEXT_FIELDS = new Set([
@@ -1830,8 +1923,12 @@ const RESERVED_CONTEXT_FIELDS = new Set([
   "currency",
   "destination_type",
   "external_domain",
+  "data_classification",
+  "dataClassification",
   "field_set",
   "record_count",
+  "redaction_state",
+  "retention",
   "idempotency_key",
   "call_fingerprint",
   "request_digest",
@@ -2331,7 +2428,10 @@ const APPROVALS_UI_HTML = `<!doctype html>
         "Customer": evidence.customer_id || approval.customer_id || "",
         "Amount": evidence.amount === undefined ? "" : String(evidence.amount) + " " + (evidence.currency || ""),
         "Destination": evidence.external_domain || evidence.data_to || "",
+        "Classification": (evidence.data_classification || []).join(", "),
         "Fields": (evidence.field_set || []).join(", "),
+        "Redaction": evidence.redaction_state || "",
+        "Retention": evidence.retention || "",
         "Expires": evidence.expires_at || approval.expires_at || "",
         "Decided": approval.decided_at || ""
       };

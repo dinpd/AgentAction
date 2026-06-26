@@ -286,6 +286,130 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.ok(types.includes("agentid.decision"));
 });
 
+test("hosted PII egress enforces fields domains approval and exact scope", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(piiManifest()) };
+  const ctx = new TestContext();
+
+  const internalRead = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "crm.read_customer",
+    action: "read",
+    data_from: "provider_crm",
+    data_to: "agent_context",
+    destination_type: "agent_context",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+  });
+  assert.equal(internalRead.status, 200);
+  assert.equal(internalRead.body.allow, true);
+
+  const blockedEmailField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "email.send_external",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "external_email",
+    destination_type: "external_email",
+    external_domain: "alice.customer.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "ssn"],
+    record_count: 1,
+  });
+  assert.equal(blockedEmailField.status, 403);
+  assert.ok(blockedEmailField.body.findings.includes("event[0]: field is blocked by flow: ssn"));
+
+  const blockedWebhookField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "webhook.post",
+    action: "send",
+    data_from: "provider_crm",
+    data_to: "partner_webhook",
+    destination_type: "webhook",
+    external_domain: "approved.partner.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "access_token"],
+    record_count: 1,
+  });
+  assert.equal(blockedWebhookField.status, 403);
+  assert.ok(blockedWebhookField.body.findings.includes("event[0]: field is blocked by flow: access_token"));
+
+  const challenge = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    tool: "email.send_external",
+    action: "send",
+    resource: "email/customer/cus_123",
+    data_from: "provider_crm",
+    data_to: "external_email",
+    destination_type: "external_email",
+    external_domain: "alice.customer.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+  });
+  assert.equal(challenge.status, 403);
+  assert.equal(challenge.body.decision, "challenge_required");
+  assert.ok(challenge.body.findings.includes("event[0]: provider_crm -> external_email requires approval"));
+
+  const approvalPayload = {
+    approval_id: "approval-pii-email",
+    tool: "email.send_external",
+    action: "send",
+    resource: "email/customer/cus_123",
+    requested_by: "support-1",
+    user_id: "support-1",
+    reason: "send account summary to verified customer domain",
+    data_from: "provider_crm",
+    data_to: "external_email",
+    destination_type: "external_email",
+    external_domain: "alice.customer.example",
+    data_classification: ["customer_data", "pii"],
+    field_set: ["customer_id", "case_id"],
+    record_count: 1,
+    redaction_state: "minimum_fields",
+    retention: "transient",
+  };
+  const approval = await call(env, ctx, "POST", "/approval-requests", approvalPayload);
+  assert.equal(approval.status, 201);
+  assert.deepEqual(approval.body.evidence.data_classification, ["customer_data", "pii"]);
+  assert.equal(approval.body.evidence.external_domain, "alice.customer.example");
+  assert.deepEqual(approval.body.evidence.field_set, ["case_id", "customer_id"]);
+  await call(env, ctx, "POST", "/approval-requests/approval-pii-email/approve", {
+    decided_by: "manager-1",
+    decision_reason: "verified recipient and minimum fields",
+  });
+
+  const approvedExact = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    ...approvalPayload,
+    approved: true,
+  });
+  assert.equal(approvedExact.status, 200);
+  assert.equal(approvedExact.body.allow, true);
+  assert.equal(approvedExact.body.event.approval_evidence.request_digest, approval.body.evidence.request_digest);
+
+  const changedDomain = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    ...approvalPayload,
+    approved: true,
+    external_domain: "attacker.example",
+  });
+  assert.equal(changedDomain.status, 403);
+  assert.ok(changedDomain.body.findings.includes("approval request request_digest mismatch"));
+  assert.ok(changedDomain.body.findings.includes("event[0]: external_domain is not allowed for flow: attacker.example"));
+
+  const changedField = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "support-agent",
+    ...approvalPayload,
+    approved: true,
+    field_set: ["customer_id", "case_id", "ssn"],
+  });
+  assert.equal(changedField.status, 403);
+  assert.ok(changedField.body.findings.includes("approval request request_digest mismatch"));
+  assert.ok(changedField.body.findings.includes("event[0]: field is blocked by flow: ssn"));
+});
+
 async function call(
   env: Record<string, unknown>,
   ctx: TestContext,
@@ -303,4 +427,53 @@ async function call(
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+function piiManifest(): Record<string, unknown> {
+  return {
+    agent: {
+      id: "support-agent",
+      name: "Support Agent",
+      owner: "support",
+      environment: "test",
+      purpose: "PII egress tests",
+    },
+    tools: [
+      { name: "crm.read_customer", access: "read", auth_mode: "delegated", approval: "none" },
+      { name: "email.send_external", access: "send", auth_mode: "delegated", approval: "human_confirm" },
+      { name: "webhook.post", access: "send", auth_mode: "delegated", approval: "human_confirm" },
+    ],
+    data_flows: [
+      {
+        from: "provider_crm",
+        to: "agent_context",
+        destination_type: "agent_context",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        allowed_fields: ["customer_id", "case_id", "plan"],
+        max_records: 10,
+      },
+      {
+        from: "provider_crm",
+        to: "external_email",
+        destination_type: "external_email",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        requires_approval: true,
+        allowed_domains: ["customer.example"],
+        blocked_fields: ["ssn", "access_token", "payment_method"],
+      },
+      {
+        from: "provider_crm",
+        to: "partner_webhook",
+        destination_type: "webhook",
+        allowed: true,
+        data_classification: ["customer_data", "pii"],
+        requires_approval: true,
+        allowed_domains: ["approved.partner.example"],
+        blocked_fields: ["ssn", "access_token", "payment_method"],
+      },
+    ],
+    runtime: { enforce_manifest: true },
+  };
 }

@@ -32,7 +32,7 @@ test("authorizeToolCall posts tenant authorize request with bearer token", async
 test("assertAllowed throws on deny decisions", async () => {
   const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",
-    fetch: async () => jsonResponse(403, { allow: false, decision: "deny", findings: ["blocked"], event: {} }),
+    fetch: async () => jsonResponse(403, { allow: false, decision: "challenge_required", findings: ["approval required"], event: {} }),
   });
 
   await assert.rejects(

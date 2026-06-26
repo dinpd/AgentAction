@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Hosted PII egress gate
+
+- Added hosted data-flow enforcement for classification, destination type,
+  external domain, field set, record count, redaction state, and retention
+  context.
+- Added flow-level blocked-field, allowed-domain, max-record, and approval
+  challenge handling for email and webhook PII exports.
+- Bound non-JIT approved hosted actions to approval evidence and request digest
+  so changed domains or field sets fail closed.
+
 ### Double-refund protection with result replay
 
 - Added local tool-gate idempotency result replay for side-effectful actions.

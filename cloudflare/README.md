@@ -88,6 +88,14 @@ confirms the mutation completed. The request uses the same action scope,
 includes a `result` object. Identical retries to `/authorize` then return the
 cached result with `replayed: true`; changed scope under the same key is denied.
 
+For PII egress controls, include `data_from`, `data_to`, `destination_type`,
+`external_domain`, `data_classification`, `field_set`, `record_count`,
+`redaction_state`, and `retention` on `/authorize` and approval requests. Hosted
+data-flow rules can deny blocked fields, enforce allowed domains and record
+caps, or return `decision: "challenge_required"` when an otherwise allowed PII
+export needs approval. Approved non-JIT calls with `approval_id` are bound to
+the same `request_digest`, so changed domains or fields are denied.
+
 ## Deploy
 
 ```bash

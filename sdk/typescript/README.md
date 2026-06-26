@@ -86,6 +86,30 @@ const timeline = await agentpass.listAuditEvents({
 });
 ```
 
+For hosted PII egress checks, include the exact data-flow context:
+
+```ts
+const decision = await agentpass.authorizeToolCall("tenant-a", {
+  agent_id: "support-agent",
+  tool: "email.send_external",
+  action: "send",
+  resource: "email/customer/cus_123",
+  data_from: "provider_crm",
+  data_to: "external_email",
+  destination_type: "external_email",
+  external_domain: "alice.customer.example",
+  data_classification: ["customer_data", "pii"],
+  field_set: ["customer_id", "case_id"],
+  record_count: 1,
+  redaction_state: "minimum_fields",
+  retention: "transient",
+});
+
+if (decision.decision === "challenge_required") {
+  // Create an approval request with the same fields and retry only the exact scope.
+}
+```
+
 Every hosted approval includes `agentpass.approval-evidence.v1`, an expiry, and
 a canonical request digest. JIT issuance fails closed when the requested scope
 does not match that evidence.
