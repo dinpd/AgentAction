@@ -81,7 +81,9 @@ export function defaultOpenClawPolicy(): NonNullable<AgentPassOpenClawConfig["po
       sessions_spawn: { action: "admin", requiresApproval: true },
     },
     budgets: {
+      challengeAfterTokensPerJob: 16_000,
       challengeAfterRuntimeMsPerJob: 120_000,
+      maxTokensPerJob: 32_000,
       maxRuntimeMsPerJob: 300_000,
       maxToolCallsPerJob: 30,
       maxSameToolCallsPerJob: 8,
@@ -99,4 +101,3 @@ function readPositiveInteger(value: unknown, fallback: number): number {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
-

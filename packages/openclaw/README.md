@@ -58,6 +58,19 @@ Remote authorization mode:
 If neither `policy` nor `policyPath` is provided in local mode, the package
 uses its built-in OpenClaw starter policy.
 
+## Token Budgets
+
+The mapper estimates token usage for each OpenClaw tool call from the stable
+JSON size of the tool name, metadata, params, and derived paths. Local mode
+passes that value to AgentPass as `estimatedTokens`, so policy budgets such as
+`challengeAfterTokensPerJob` and `maxTokensPerJob` can challenge or stop large
+payloads and runaway loops.
+
+This protects tool-call payloads. Heartbeat or prompt-context growth happens
+before tool execution in OpenClaw, so it needs a pre-model context contribution
+hook in OpenClaw. AgentPass should gate that separately with a pseudo resource
+such as `openclaw.context` / `heartbeat` once that hook is available.
+
 ## Development
 
 ```bash
@@ -65,4 +78,3 @@ npm install
 npm test
 npm run build
 ```
-

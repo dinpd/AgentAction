@@ -13,6 +13,7 @@ export function mapOpenClawToolCallToAgentPass(
   const resource = inferResource(event);
   const fieldSet = inferFieldSet(event.params);
   const classifications = inferDataClassification(event.params, fieldSet);
+  const estimatedTokens = estimateOpenClawToolCallTokens(event);
 
   return {
     agentId: ctx.agentId || "openclaw",
@@ -32,8 +33,20 @@ export function mapOpenClawToolCallToAgentPass(
     destinationType: inferDestinationType(event, action),
     dataClassification: classifications,
     fieldSet,
+    estimatedTokens,
     policyFindings: inferPolicyFindings(event, ctx),
   };
+}
+
+export function estimateOpenClawToolCallTokens(event: OpenClawBeforeToolCallEvent): number {
+  const serialized = stableStringify({
+    toolName: event.toolName,
+    toolKind: event.toolKind,
+    toolInputKind: event.toolInputKind,
+    params: event.params,
+    derivedPaths: event.derivedPaths,
+  });
+  return Math.max(1, Math.ceil(serialized.length / 4) + 16);
 }
 
 export function inferAction(toolName: string, params: Record<string, unknown>, fallback: AgentAction = "read"): AgentAction {
@@ -237,6 +250,7 @@ function stableHash(value: unknown): string {
 }
 
 function stableStringify(value: unknown): string {
+  if (value === undefined) return "undefined";
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));

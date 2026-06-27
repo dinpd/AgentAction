@@ -72,7 +72,9 @@
     }
   ],
   "budgets": {
+    "challengeAfterTokensPerJob": 16000,
     "challengeAfterRuntimeMsPerJob": 120000,
+    "maxTokensPerJob": 32000,
     "maxRuntimeMsPerJob": 300000,
     "maxToolCallsPerJob": 30,
     "maxSameToolCallsPerJob": 8,

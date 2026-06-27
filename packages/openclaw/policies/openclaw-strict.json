@@ -16,6 +16,8 @@
   },
   "defaultSensitiveDestinationDecision": "deny",
   "budgets": {
+    "challengeAfterTokensPerJob": 8000,
+    "maxTokensPerJob": 16000,
     "maxToolCallsPerJob": 20,
     "maxSameToolCallsPerJob": 5,
     "maxIdenticalToolCallsPerJob": 1

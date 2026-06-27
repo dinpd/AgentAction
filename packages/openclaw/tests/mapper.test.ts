@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { inferAction, mapOpenClawToolCallToAgentPass } from "../src/index.ts";
+import { estimateOpenClawToolCallTokens, inferAction, mapOpenClawToolCallToAgentPass } from "../src/index.ts";
 
 test("maps OpenClaw exec calls to AgentPass admin checks", () => {
   const check = mapOpenClawToolCallToAgentPass(
@@ -24,6 +24,8 @@ test("maps OpenClaw exec calls to AgentPass admin checks", () => {
   assert.equal(check.resource, "npm run deploy");
   assert.equal(typeof check.callFingerprint, "string");
   assert.equal(typeof check.idempotencyKey, "string");
+  assert.equal(typeof check.estimatedTokens, "number");
+  assert.ok(check.estimatedTokens > 0);
 });
 
 test("maps derived paths and secret fields for filesystem writes", () => {
@@ -67,6 +69,20 @@ test("detects likely PII in message sends", () => {
   assert.ok(check.dataClassification?.includes("pii"));
 });
 
+test("estimates larger token budgets for larger OpenClaw payloads", () => {
+  const small = estimateOpenClawToolCallTokens({
+    toolName: "read",
+    params: { path: "README.md" },
+  });
+  const large = estimateOpenClawToolCallTokens({
+    toolName: "read",
+    params: { path: "heartbeat.txt", content: "status ".repeat(2000) },
+  });
+
+  assert.ok(small > 0);
+  assert.ok(large > small);
+});
+
 test("infers common OpenClaw tool actions", () => {
   assert.equal(inferAction("read", {}, "read"), "read");
   assert.equal(inferAction("write", {}, "read"), "write");
@@ -74,4 +90,3 @@ test("infers common OpenClaw tool actions", () => {
   assert.equal(inferAction("sessions_spawn", {}, "read"), "admin");
   assert.equal(inferAction("slack.send", {}, "read"), "send");
 });
-
