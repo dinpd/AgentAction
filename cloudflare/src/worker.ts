@@ -9,6 +9,11 @@ type Env = {
   AGENTID_MANIFESTS?: {
     get(key: string): Promise<string | null>;
   };
+  AGENTID_RECEIPT_AUDIENCE?: string;
+  AGENTID_RECEIPT_ISSUER?: string;
+  AGENTID_RECEIPT_KEY_ID?: string;
+  AGENTID_RECEIPT_PRIVATE_JWK?: string;
+  AGENTID_RECEIPT_PUBLIC_JWKS?: string;
   JIT_GRANTS: {
     idFromName(name: string): unknown;
     get(id: unknown): { fetch(request: Request): Promise<Response> };
@@ -122,6 +127,30 @@ type ProviderExecutionReceipt = {
   replayed_from_decision_id?: string;
   replay_count?: number;
 };
+type ProviderAuthorizationReceipt = {
+  schema_version: "agentpass.provider-authorization-receipt.v1";
+  decision_id: string;
+  tenant_id?: string;
+  agent_id: string;
+  user_id?: string;
+  tool: string;
+  action: string;
+  resource?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  approval_id?: string;
+  jit_grant_id?: string;
+  amount?: number;
+  currency?: string;
+  idempotency_key?: string;
+  request_digest: string;
+  issued_at: string;
+  expires_at: string;
+};
+type JwsProviderAuthorizationReceipt = {
+  jws: string;
+};
 type IdempotencyResultRecord = {
   schema_version: "agentpass.idempotency-result.v1";
   idempotency_key: string;
@@ -225,6 +254,14 @@ export default {
         return html(APPROVALS_UI_HTML);
       }
 
+      if (request.method === "GET" && route.endpoint === ".well-known" && route.resourceId === "jwks.json") {
+        return json(receiptPublicJwks(env));
+      }
+
+      if (request.method === "GET" && route.endpoint === "jwks") {
+        return json(receiptPublicJwks(env));
+      }
+
       if (request.method === "POST" && route.endpoint === "audit" && route.resourceId === "webhook" && route.action === "agentid") {
         const inbound = authenticateAuditWebhook(request, env);
         if (!inbound.ok) return json({ error: inbound.error }, inbound.status);
@@ -287,6 +324,9 @@ export default {
       if (request.method === "POST" && route.endpoint === "authorize") {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
+        const authorizationReceipt = decision.allow && !decision.replayed
+          ? await createProviderAuthorizationReceipt(env, decision.event, route.tenantId)
+          : undefined;
         ctx.waitUntil(
           emitAudit(env, {
             type: "agentid.decision",
@@ -299,6 +339,7 @@ export default {
             decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
             failure_class: decision.allow ? undefined : "permission_failure",
             decision_summary: decisionSummary(decision.allow, decision.findings, decision.event),
+            authorization_receipt: authorizationReceipt,
             auth: auth.context,
           }),
         );
@@ -328,6 +369,7 @@ export default {
             replayed: decision.replayed,
             result: decision.result,
             receipt: decision.receipt,
+            authorization_receipt: authorizationReceipt,
             auth: auth.context,
           },
           decision.allow ? 200 : 403,
@@ -849,6 +891,7 @@ export class AgentIdJitGrants {
     event.jit_grant_action = grant.action;
     event.jit_grant_approval_id = grant.approval_id;
     event.approval_id = event.approval_id || grant.approval_id;
+    event.jit_grant_expires_at = grant.expires_at;
     event.jit_grant_job_id = grant.job_id;
     event.jit_grant_case_id = grant.case_id;
     event.jit_grant_customer_id = grant.customer_id;
@@ -986,6 +1029,126 @@ async function authorize(
   findings.push(...auditEvent(manifest, event));
   const challengeRequired = event.challenge_required === true && findings.length > 0;
   return { allow: findings.length === 0, challengeRequired, findings, event };
+}
+
+async function createProviderAuthorizationReceipt(
+  env: Env,
+  event: ToolEvent,
+  tenantId: string | null,
+): Promise<JwsProviderAuthorizationReceipt | undefined> {
+  const privateJwk = receiptPrivateJwk(env);
+  if (!privateJwk) return undefined;
+
+  const issuedAt = new Date();
+  const evidence = recordValue(event.approval_evidence);
+  const requestDigest = evidence.schema_version === "agentpass.approval-evidence.v1"
+    ? await approvalRequestDigest(event, evidence as ApprovalEvidence)
+    : await approvalRequestDigest(event);
+  const amount = numberValue(event.amount ?? event.amount_usd);
+  const receipt: ProviderAuthorizationReceipt = {
+    schema_version: "agentpass.provider-authorization-receipt.v1",
+    decision_id: stringValue(event.decision_id),
+    tenant_id: optionalString(event.tenant_id ?? tenantId),
+    agent_id: stringValue(event.agent_id),
+    user_id: optionalString(event.user_id),
+    tool: stringValue(event.tool),
+    action: stringValue(event.action),
+    resource: optionalString(event.resource),
+    job_id: optionalString(event.job_id),
+    case_id: optionalString(event.case_id),
+    customer_id: optionalString(event.customer_id),
+    approval_id: optionalString(event.approval_id),
+    jit_grant_id: optionalString(event.jit_grant_id),
+    amount,
+    currency: optionalString(event.currency) || (amount === undefined ? undefined : "USD"),
+    idempotency_key: optionalString(event.idempotency_key),
+    request_digest: requestDigest,
+    issued_at: issuedAt.toISOString(),
+    expires_at: optionalString(event.jit_grant_expires_at)
+      || optionalString(evidence.expires_at)
+      || new Date(issuedAt.getTime() + 300_000).toISOString(),
+  };
+
+  return { jws: await signProviderAuthorizationReceipt(env, receipt, privateJwk) };
+}
+
+async function signProviderAuthorizationReceipt(
+  env: Env,
+  receipt: ProviderAuthorizationReceipt,
+  privateJwk: JsonWebKey,
+): Promise<string> {
+  const kid = stringValue(env.AGENTID_RECEIPT_KEY_ID || privateJwk.kid);
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+    kid: kid || undefined,
+  };
+  const issuedAt = Math.floor(Date.parse(receipt.issued_at) / 1000);
+  const expiresAt = Math.floor(Date.parse(receipt.expires_at) / 1000);
+  const claims = {
+    receipt,
+    iss: stringValue(env.AGENTID_RECEIPT_ISSUER) || "agentpass-cloudflare",
+    aud: stringValue(env.AGENTID_RECEIPT_AUDIENCE) || "agentpass-provider",
+    iat: Number.isFinite(issuedAt) ? issuedAt : undefined,
+    exp: Number.isFinite(expiresAt) ? expiresAt : undefined,
+    jti: receipt.decision_id,
+  };
+  const encodedHeader = base64UrlJson(header);
+  const encodedClaims = base64UrlJson(claims);
+  const signingInput = `${encodedHeader}.${encodedClaims}`;
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    privateJwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(signingInput),
+  );
+  return `${signingInput}.${bytesToBase64Url(new Uint8Array(signature))}`;
+}
+
+function receiptPrivateJwk(env: Env): JsonWebKey | undefined {
+  if (!env.AGENTID_RECEIPT_PRIVATE_JWK) return undefined;
+  const jwk = JSON.parse(env.AGENTID_RECEIPT_PRIVATE_JWK) as JsonWebKey;
+  if (!jwk.kty) throw new Error("AGENTID_RECEIPT_PRIVATE_JWK must be a JWK object");
+  return {
+    ...jwk,
+    alg: stringValue(jwk.alg) || "RS256",
+    key_ops: ["sign"],
+  };
+}
+
+function receiptPublicJwks(env: Env): { keys: JsonWebKey[] } {
+  if (env.AGENTID_RECEIPT_PUBLIC_JWKS) {
+    const jwks = JSON.parse(env.AGENTID_RECEIPT_PUBLIC_JWKS) as { keys?: JsonWebKey[] };
+    return { keys: Array.isArray(jwks.keys) ? jwks.keys.map(publicReceiptJwk) : [] };
+  }
+  const privateJwk = receiptPrivateJwk(env);
+  return { keys: privateJwk ? [publicReceiptJwk(privateJwk)] : [] };
+}
+
+function publicReceiptJwk(jwk: JsonWebKey): JsonWebKey {
+  const publicJwk: JsonWebKey = {
+    kty: jwk.kty,
+    kid: stringValue(jwk.kid),
+    alg: stringValue(jwk.alg) || "RS256",
+    use: "sig",
+    key_ops: ["verify"],
+  };
+  if (jwk.kty === "RSA") {
+    publicJwk.n = jwk.n;
+    publicJwk.e = jwk.e;
+  }
+  if (jwk.kty === "EC") {
+    publicJwk.crv = jwk.crv;
+    publicJwk.x = jwk.x;
+    publicJwk.y = jwk.y;
+  }
+  return publicJwk;
 }
 
 async function dispatchGithubActions(env: Env, event: ToolEvent): Promise<Record<string, unknown>> {
@@ -2013,6 +2176,16 @@ function parseJwt(token: string): {
 function base64UrlDecode(value: string): string {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   return atob(padded);
+}
+
+function base64UrlJson(value: unknown): string {
+  return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function base64UrlToBytes(value: string): Uint8Array {

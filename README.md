@@ -290,6 +290,8 @@ AgentPass currently includes:
   repository, branch, commit, change-request, incident, rollback-plan, and
   workflow context, then dispatches GitHub Actions with retry-safe provider
   result replay
+- Hosted provider authorization receipts signed as JWS with a public JWKS
+  endpoint for provider verification
 - Hosted approval inbox for evidence review, scoped JIT issuance, one-time
   authorization, replay testing, and correlated audit timelines
 - Provider-side Express and FastAPI middleware

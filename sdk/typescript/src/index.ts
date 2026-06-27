@@ -157,6 +157,10 @@ export type ProviderExecutionReceipt = {
   replay_count?: number;
 };
 
+export type ProviderAuthorizationReceipt = {
+  jws: string;
+};
+
 export type ExecutionResultInput = ToolCallRequest & {
   result: unknown;
 };
@@ -188,6 +192,7 @@ export type AuthorizeResponse = {
   replayed?: boolean;
   result?: unknown;
   receipt?: ProviderExecutionReceipt;
+  authorization_receipt?: ProviderAuthorizationReceipt;
   auth?: Record<string, unknown>;
 };
 

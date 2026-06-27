@@ -123,7 +123,7 @@ Current issue mapping:
 | P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
 | P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
 | P3 | Production deploy action gate | Complete |
-| P4 | Provider trust gate | Next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
+| P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
 | P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
 
 Issues [#6](https://github.com/dinpd/AgentPass/issues/6),
@@ -306,6 +306,20 @@ Demo gate:
 - Expired, replayed, wrongly scoped, unknown-key, and drifted-contract requests
   fail closed with distinct machine-readable reasons.
 - Key rotation succeeds without disabling verification.
+
+Current status:
+
+- Hosted `/authorize` can issue RS256 JWS provider authorization receipts for
+  successful non-replayed decisions.
+- Hosted `/.well-known/jwks.json` and `/jwks` publish public receipt keys,
+  including rotation sets with old and active keys.
+- Hosted tests verify active `kid` selection, JWS signature verification,
+  issuer/audience claims, grant-bound expiry, request-digest binding, and JWKS
+  publication without leaking private key material.
+- Existing provider verifier tests cover unknown-`kid` remote JWKS refresh and
+  stale-if-error behavior.
+- Remaining P4 work is to wire signed provider contract drift checks into the
+  hosted path and add structured provider trust failure classes.
 
 #### P5: Framework And Workflow Distribution
 
@@ -728,14 +742,14 @@ Completed:
   tenant configs, plus demo HS256 mode.
 - The gateway emits audit events and can export them through a webhook.
 - Local provider demos support signed receipt-style verification paths.
+- The hosted gateway can issue RS256 JWS provider authorization receipts and
+  publish the corresponding JWKS endpoint.
 
 Still open:
 
 - Make approval evidence schema consistent across gateway, SDK, UI, and audit.
 - Tighten approver identity and approval scope validation.
-- Add production JWS/JWKS receipt signing as the default provider path.
-- JWKS endpoint.
-- Key rotation plan.
+- Finish the key rotation runbook and provider-side operational guidance.
 - Finish stable audit event schema and versioning.
 - Add execution receipts that correlate provider execution with enterprise
   authorization.

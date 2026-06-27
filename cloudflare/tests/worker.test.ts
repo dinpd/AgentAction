@@ -133,6 +133,75 @@ test("hosted approval runs once and records a correlated audit timeline", async 
   assert.equal(audit.body.events[1].payload.decision_summary, "Allowed write refund/re_1/customer/cus_1 with scoped authority.");
 });
 
+test("hosted authorization issues provider JWS receipt and JWKS", async () => {
+  const namespace = new MemoryNamespace();
+  const receiptKeys = await receiptKeyEnv();
+  const env = { JIT_GRANTS: namespace, ...receiptKeys.env };
+  const ctx = new TestContext();
+
+  const jwks = await call(env, ctx, "GET", "/.well-known/jwks.json");
+  assert.equal(jwks.status, 200);
+  assert.deepEqual(
+    jwks.body.keys.map((key: Record<string, unknown>) => key.kid),
+    ["agentpass-2026-05", "agentpass-2026-06"],
+  );
+  assert.equal(jwks.body.keys[0].d, undefined);
+
+  const approval = {
+    approval_id: "approval-receipt-1",
+    tool: "stripe.create_refund",
+    action: "write",
+    resource: "refund/re_receipt/customer/cus_1",
+    requested_by: "support-1",
+    user_id: "support-1",
+    reason: "duplicate charge verified",
+    job_id: "case-receipt",
+    amount: 49,
+    currency: "USD",
+    idempotency_key: "refund-case-receipt",
+  };
+
+  const created = await call(env, ctx, "POST", "/approval-requests", approval);
+  await call(env, ctx, "POST", "/approval-requests/approval-receipt-1/approve", {
+    decided_by: "manager-1",
+    decision_reason: "receipt evidence verified",
+  });
+  const grantRequest = {
+    tool: approval.tool,
+    action: approval.action,
+    resource: approval.resource,
+    approval_id: approval.approval_id,
+    user_id: approval.user_id,
+    job_id: approval.job_id,
+    amount: approval.amount,
+    currency: approval.currency,
+    idempotency_key: approval.idempotency_key,
+  };
+  const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+
+  const decision = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "customer-support-refund-agent",
+    ...grantRequest,
+    approved: true,
+    jit_grant_id: grant.body.jit_grant_id,
+  });
+  assert.equal(decision.status, 200);
+  assert.equal(typeof decision.body.authorization_receipt.jws, "string");
+
+  const verified = await verifyReceiptJws(decision.body.authorization_receipt.jws, jwks.body);
+  assert.equal(verified.header.kid, "agentpass-2026-06");
+  assert.equal(verified.claims.iss, "https://agentpass.example");
+  assert.equal(verified.claims.aud, "provider-mcp");
+  assert.equal(verified.claims.jti, verified.claims.receipt.decision_id);
+  assert.equal(verified.claims.receipt.schema_version, "agentpass.provider-authorization-receipt.v1");
+  assert.equal(verified.claims.receipt.agent_id, "customer-support-refund-agent");
+  assert.equal(verified.claims.receipt.tool, "stripe.create_refund");
+  assert.equal(verified.claims.receipt.approval_id, "approval-receipt-1");
+  assert.equal(verified.claims.receipt.jit_grant_id, grant.body.jit_grant_id);
+  assert.equal(verified.claims.receipt.request_digest, created.body.evidence.request_digest);
+  assert.equal(verified.claims.exp, Math.floor(Date.parse(grant.body.expires_at) / 1000));
+});
+
 test("scope drift and expired approvals fail closed", async () => {
   const namespace = new MemoryNamespace();
   const env = { JIT_GRANTS: namespace };
@@ -844,6 +913,68 @@ async function call(
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+async function receiptKeyEnv(): Promise<{ env: Record<string, string> }> {
+  const oldKey = await receiptKeyPair("agentpass-2026-05");
+  const activeKey = await receiptKeyPair("agentpass-2026-06");
+  return {
+    env: {
+      AGENTID_RECEIPT_PRIVATE_JWK: JSON.stringify(activeKey.privateJwk),
+      AGENTID_RECEIPT_PUBLIC_JWKS: JSON.stringify({ keys: [oldKey.publicJwk, activeKey.publicJwk] }),
+      AGENTID_RECEIPT_KEY_ID: "agentpass-2026-06",
+      AGENTID_RECEIPT_ISSUER: "https://agentpass.example",
+      AGENTID_RECEIPT_AUDIENCE: "provider-mcp",
+    },
+  };
+}
+
+async function receiptKeyPair(kid: string): Promise<{ privateJwk: JsonWebKey; publicJwk: JsonWebKey }> {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"],
+  );
+  const privateJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+  const publicJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  privateJwk.kid = kid;
+  privateJwk.alg = "RS256";
+  privateJwk.use = "sig";
+  publicJwk.kid = kid;
+  publicJwk.alg = "RS256";
+  publicJwk.use = "sig";
+  return { privateJwk, publicJwk };
+}
+
+async function verifyReceiptJws(
+  jws: string,
+  jwks: { keys: JsonWebKey[] },
+): Promise<{ header: Record<string, any>; claims: Record<string, any> }> {
+  const [encodedHeader, encodedClaims, encodedSignature] = jws.split(".");
+  const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8"));
+  const claims = JSON.parse(Buffer.from(encodedClaims, "base64url").toString("utf8"));
+  const jwk = jwks.keys.find((key) => key.kid === header.kid);
+  assert.ok(jwk);
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const valid = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    Buffer.from(encodedSignature, "base64url"),
+    new TextEncoder().encode(`${encodedHeader}.${encodedClaims}`),
+  );
+  assert.equal(valid, true);
+  return { header, claims };
 }
 
 function deployManifest(): Record<string, unknown> {

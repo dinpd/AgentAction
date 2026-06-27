@@ -118,6 +118,11 @@ Every hosted approval includes `agentpass.approval-evidence.v1`, an expiry, and
 a canonical request digest. JIT issuance fails closed when the requested scope
 does not match that evidence.
 
+When hosted provider trust signing is configured, successful non-replayed
+authorization responses also include `authorization_receipt.jws`. Forward that
+compact JWS to the provider so it can verify the exact approved scope against
+the gateway JWKS endpoint before executing.
+
 For side-effectful tools, record the completed provider result after the first
 allowed execution. Identical retries to `authorizeToolCall` return the cached
 result with `replayed: true`; changed arguments under the same idempotency key

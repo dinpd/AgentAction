@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Provider trust gate
+
+- Added hosted provider authorization receipts signed as RS256 JWS tokens on
+  successful `/authorize` decisions when receipt signing is configured.
+- Added public hosted JWKS endpoints at `/.well-known/jwks.json` and `/jwks`.
+- Added Worker tests that verify receipt signatures, active `kid` selection,
+  key-rotation JWKS publication, issuer/audience claims, grant-bound expiry, and
+  request-digest binding.
+- Updated the TypeScript SDK response type for hosted authorization receipts.
+
 ### Production deploy action gate
 
 - Added hosted constraint enforcement for tool `required_context` and

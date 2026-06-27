@@ -7,6 +7,8 @@ allow/deny/JIT decisions before tool execution:
 | Endpoint | Purpose |
 |---|---|
 | `GET /health` | Check active manifest and tenant context |
+| `GET /.well-known/jwks.json` | Publish public keys for hosted provider authorization receipt verification |
+| `GET /jwks` | Alias for the hosted provider authorization receipt JWKS |
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
 | `POST /execution-results` | Record a completed provider result for idempotent replay |
@@ -90,6 +92,16 @@ confirms the mutation completed. The request uses the same action scope,
 includes a `result` object. Identical retries to `/authorize` then return the
 cached result with `replayed: true`; changed scope under the same key is denied.
 
+For provider trust, set `AGENTID_RECEIPT_PRIVATE_JWK` to an RS256 private JWK.
+Successful non-replayed `/authorize` decisions then include
+`authorization_receipt: { "jws": "..." }`. Providers verify that JWS against
+`/.well-known/jwks.json` or `/jwks`, then enforce the bound receipt fields such
+as tenant, agent, tool, action, resource, approval, JIT grant, request digest,
+and expiry. Use `AGENTID_RECEIPT_PUBLIC_JWKS` to publish a rotation set that
+includes old and active public keys, `AGENTID_RECEIPT_KEY_ID` to choose the
+active signing key, and `AGENTID_RECEIPT_ISSUER` /
+`AGENTID_RECEIPT_AUDIENCE` to set provider-verification claims.
+
 Hosted tool constraints can require operational context with
 `constraints.required_context` and restrict values with
 `constraints.allowed_values`. The production deploy test uses those fields to
@@ -126,6 +138,7 @@ Set an API key for production:
 ```bash
 npx wrangler secret put AGENTID_API_KEY
 npx wrangler secret put AGENTID_GITHUB_TOKEN
+npx wrangler secret put AGENTID_RECEIPT_PRIVATE_JWK
 ```
 
 The built-in audit console records authorization decisions, approval events,
