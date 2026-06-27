@@ -286,6 +286,169 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.ok(types.includes("agentid.decision"));
 });
 
+test("hosted production deploy gate binds change request commit and execution result", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(deployManifest()) };
+  const ctx = new TestContext();
+
+  const inspect = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "platform-release-agent",
+    tool: "devops.inspect.production",
+    action: "read",
+    resource: "service/checkout-api/environment/production",
+    user_id: "release-1",
+    job_id: "production_deploy",
+    environment: "production",
+    service_id: "checkout-api",
+    repo: "github.com/example/checkout",
+    branch: "main",
+  });
+  assert.equal(inspect.status, 200);
+  assert.equal(inspect.body.allow, true);
+
+  const missingChangeRequest = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "platform-release-agent",
+    tool: "devops.deploy.production",
+    action: "deploy",
+    resource: "service/checkout-api/environment/production",
+    user_id: "release-1",
+    job_id: "production_deploy",
+    environment: "production",
+    service_id: "checkout-api",
+    repo: "github.com/example/checkout",
+    branch: "main",
+    commit_sha: "abc123def456",
+    idempotency_key: "deploy-checkout-abc123def456",
+  });
+  assert.equal(missingChangeRequest.status, 403);
+  assert.ok(
+    missingChangeRequest.body.findings.includes("event[0]: required context field is missing: change_request_id"),
+  );
+  assert.ok(
+    missingChangeRequest.body.findings.includes(
+      "event[0]: devops.deploy.production requires JIT authorization but no jit_grant_id is present",
+    ),
+  );
+
+  const stagingDeploy = await call(env, ctx, "POST", "/authorize", {
+    agent_id: "platform-release-agent",
+    tool: "devops.deploy.production",
+    action: "deploy",
+    resource: "service/checkout-api/environment/staging",
+    user_id: "release-1",
+    job_id: "production_deploy",
+    environment: "staging",
+    service_id: "checkout-api",
+    repo: "github.com/example/checkout",
+    branch: "main",
+    commit_sha: "abc123def456",
+    change_request_id: "CHG-1042",
+    approved: true,
+  });
+  assert.equal(stagingDeploy.status, 403);
+  assert.ok(stagingDeploy.body.findings.includes("event[0]: environment is not allowed: staging"));
+
+  const approvalPayload = {
+    approval_id: "approval-prod-deploy-test",
+    tool: "devops.deploy.production",
+    action: "deploy",
+    resource: "service/checkout-api/environment/production",
+    requested_by: "release-1",
+    user_id: "release-1",
+    reason: "Deploy checkout-api after approved change request",
+    job_id: "production_deploy",
+    environment: "production",
+    service_id: "checkout-api",
+    repo: "github.com/example/checkout",
+    branch: "main",
+    commit_sha: "abc123def456",
+    change_request_id: "CHG-1042",
+    idempotency_key: "deploy-checkout-abc123def456",
+  };
+  const created = await call(env, ctx, "POST", "/approval-requests", approvalPayload);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.evidence.context.environment, "production");
+  assert.equal(created.body.evidence.context.commit_sha, "abc123def456");
+  assert.equal(created.body.evidence.context.change_request_id, "CHG-1042");
+  await call(env, ctx, "POST", "/approval-requests/approval-prod-deploy-test/approve", {
+    decided_by: "release-manager-1",
+    decision_reason: "Change request and commit verified",
+  });
+
+  const grantRequest = {
+    tool: approvalPayload.tool,
+    action: approvalPayload.action,
+    resource: approvalPayload.resource,
+    approval_id: approvalPayload.approval_id,
+    user_id: approvalPayload.user_id,
+    job_id: approvalPayload.job_id,
+    environment: approvalPayload.environment,
+    service_id: approvalPayload.service_id,
+    repo: approvalPayload.repo,
+    branch: approvalPayload.branch,
+    commit_sha: approvalPayload.commit_sha,
+    change_request_id: approvalPayload.change_request_id,
+    idempotency_key: approvalPayload.idempotency_key,
+  };
+
+  const changedCommitGrant = await call(env, ctx, "POST", "/jit-grants", {
+    ...grantRequest,
+    commit_sha: "def456abc123",
+  });
+  assert.equal(changedCommitGrant.status, 400);
+  assert.equal(changedCommitGrant.body.error, "approval request commit_sha mismatch");
+
+  const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+  assert.equal(grant.status, 201);
+  assert.equal(grant.body.evidence.request_digest, created.body.evidence.request_digest);
+
+  const action = {
+    agent_id: "platform-release-agent",
+    ...grantRequest,
+    approved: true,
+    jit_grant_id: grant.body.jit_grant_id,
+  };
+  const first = await call(env, ctx, "POST", "/authorize", action);
+  assert.equal(first.status, 200);
+  assert.equal(first.body.allow, true);
+  await ctx.flush();
+
+  const providerResult = {
+    workflow_run_id: "gh-run-1042",
+    workflow: "deploy-production.yml",
+    status: "dispatched",
+    commit_sha: approvalPayload.commit_sha,
+  };
+  const recorded = await call(env, ctx, "POST", "/execution-results", {
+    ...action,
+    result: providerResult,
+  });
+  assert.equal(recorded.status, 201);
+  assert.equal(recorded.body.request_digest, created.body.evidence.request_digest);
+  await ctx.flush();
+
+  const retry = await call(env, ctx, "POST", "/authorize", action);
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.replayed, true);
+  assert.deepEqual(retry.body.result, providerResult);
+
+  const changedCommit = await call(env, ctx, "POST", "/authorize", {
+    ...action,
+    commit_sha: "def456abc123",
+  });
+  assert.equal(changedCommit.status, 403);
+  assert.deepEqual(changedCommit.body.findings, ["idempotencyKey was already used with different request digest"]);
+  await ctx.flush();
+
+  const audit = await call(env, ctx, "GET", "/audit/events?approval_id=approval-prod-deploy-test&limit=20");
+  const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
+  assert.ok(types.includes("agentid.provider.executed"));
+  assert.ok(types.includes("agentid.provider.replayed"));
+  assert.ok(types.includes("agentid.jit.issued"));
+  assert.ok(types.includes("agentid.approval.decided"));
+  assert.ok(types.includes("agentid.approval.created"));
+});
+
 test("hosted PII egress enforces fields domains approval and exact scope", async () => {
   const namespace = new MemoryNamespace();
   const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(piiManifest()) };
@@ -582,6 +745,65 @@ async function call(
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+function deployManifest(): Record<string, unknown> {
+  const requiredContext = ["environment", "service_id", "repo", "branch", "commit_sha", "change_request_id"];
+  return {
+    agent: {
+      id: "platform-release-agent",
+      name: "Platform Release Agent",
+      owner: "platform",
+      environment: "production",
+      purpose: "Production deployment tests",
+    },
+    jit_authorization: {
+      enabled: true,
+      default_ttl_seconds: 300,
+      approval_ttl_seconds: 900,
+      bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+      revoke_after_use: true,
+    },
+    tools: [
+      {
+        name: "devops.inspect.production",
+        access: "read",
+        auth_mode: "delegated",
+        approval: "none",
+        constraints: {
+          required_context: ["environment", "service_id", "repo", "branch"],
+          allowed_values: {
+            environment: ["production"],
+            service_id: ["checkout-api"],
+            branch: ["main"],
+          },
+        },
+      },
+      {
+        name: "devops.deploy.production",
+        access: "deploy",
+        auth_mode: "just_in_time",
+        approval: "human_confirm",
+        constraints: {
+          token_ttl_seconds: 300,
+          approval_ttl_seconds: 900,
+          required_context: requiredContext,
+          allowed_values: {
+            environment: ["production"],
+            service_id: ["checkout-api"],
+            repo: ["github.com/example/checkout"],
+            branch: ["main"],
+          },
+        },
+      },
+    ],
+    job_boundary: {
+      required: true,
+      allowed_jobs: ["production_deploy"],
+      bind_authorization_to: ["job_id", "resource"],
+    },
+    runtime: { enforce_manifest: true },
+  };
 }
 
 function piiManifest(): Record<string, unknown> {

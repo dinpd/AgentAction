@@ -751,7 +751,7 @@ export class AgentIdJitGrants {
       findings.push("JIT grant customer_id mismatch");
     }
     for (const [key, value] of Object.entries(grant.context ?? {})) {
-      if (!hasValue(event[key]) || stringValue(event[key]) !== value) {
+      if (!hasValue(contextValue(event, key)) || stringValue(contextValue(event, key)) !== value) {
         findings.push(`JIT grant ${key} mismatch`);
       }
     }
@@ -1099,6 +1099,22 @@ function auditEvent(manifest: AgentIdManifest, event: ToolEvent): string[] {
   }
   if (tool.access !== event.action) {
     findings.push(`event[0]: action mismatch for ${requestedCapability}: actual=${event.action}, allowed=${tool.access}`);
+  }
+
+  const constraints = recordValue(tool.constraints);
+  const requiredContext = arrayValue(constraints.required_context ?? constraints.requiredContext);
+  for (const field of requiredContext) {
+    if (!hasValue(contextValue(event, field))) {
+      findings.push(`event[0]: required context field is missing: ${field}`);
+    }
+  }
+  const allowedValues = recordValue(constraints.allowed_values ?? constraints.allowedValues);
+  for (const [field, allowed] of Object.entries(allowedValues)) {
+    const allowedSet = arrayValue(allowed);
+    const value = contextValue(event, field);
+    if (allowedSet.length > 0 && hasValue(value) && !allowedSet.includes(stringValue(value))) {
+      findings.push(`event[0]: ${field} is not allowed: ${stringValue(value)}`);
+    }
   }
 
   const approval = stringValue(tool.approval || "none");
@@ -1971,6 +1987,10 @@ function hasValue(value: unknown): boolean {
   return value !== undefined && value !== null && String(value) !== "";
 }
 
+function contextValue(payload: Record<string, unknown>, field: string): unknown {
+  return hasValue(payload[field]) ? payload[field] : recordValue(payload.context)[field];
+}
+
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
@@ -2275,9 +2295,9 @@ const APPROVALS_UI_HTML = `<!doctype html>
         risk: "critical",
         agent_id: "platform-release-agent",
         tool: "devops.deploy.production",
-        action: "execute",
+        action: "deploy",
         resource: "service/checkout-api/environment/production",
-        requested_by: "user-1",
+        requested_by: "release-1",
         reason: "Deploy checkout-api after approved change request",
         created_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
         job_id: "production_deploy",
@@ -2290,11 +2310,31 @@ const APPROVALS_UI_HTML = `<!doctype html>
           change_request_id: "CHG-1042",
           incident_id: "INC-2048"
         },
-        evidence: [
-          "Production-changing tool requires human approval.",
-          "JIT grant will be single-use and bound to service, branch, commit, and change request.",
-          "Read-only diagnostics were allowed before this request."
-        ]
+        evidence: {
+          schema_version: "agentpass.approval_evidence.v1",
+          agent_id: "platform-release-agent",
+          user_id: "release-1",
+          tool: "devops.deploy.production",
+          action: "deploy",
+          resource: "service/checkout-api/environment/production",
+          job_id: "production_deploy",
+          idempotency_key: "deploy-checkout-abc123def456",
+          request_digest: "preview-prod-deploy-1042",
+          context: {
+            environment: "production",
+            service_id: "checkout-api",
+            repo: "github.com/example/checkout",
+            branch: "main",
+            commit_sha: "abc123def456",
+            change_request_id: "CHG-1042",
+            incident_id: "INC-2048"
+          },
+          policy_findings: [
+            "Production deploy requires human approval.",
+            "JIT grant is bound to service, branch, commit, and change request.",
+            "Identical retry replays the recorded workflow dispatch result without another execution."
+          ]
+        }
       },
       {
         approval_id: "approval-refund-9917",

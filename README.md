@@ -286,6 +286,9 @@ AgentPass currently includes:
 - Hosted PII egress controls for email, webhook, browser-form,
   model-provider, and file-export paths with exact field and destination
   binding
+- Hosted production deploy gate checks for required environment, repository,
+  branch, commit, change-request context, approval-bound JIT grants, and
+  retry-safe provider result replay
 - Hosted approval inbox for evidence review, scoped JIT issuance, one-time
   authorization, replay testing, and correlated audit timelines
 - Provider-side Express and FastAPI middleware

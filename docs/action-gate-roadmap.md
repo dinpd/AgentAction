@@ -122,7 +122,7 @@ Current issue mapping:
 | P0 | Hosted approval to single-use execution | [#3 approval evidence](https://github.com/dinpd/AgentPass/issues/3), [#4 decision audit context](https://github.com/dinpd/AgentPass/issues/4) |
 | P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
 | P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
-| P3 | Production deploy action gate | Next; create a focused issue, existing DevOps code is reference implementation |
+| P3 | Production deploy action gate | Active; hosted policy slice complete, live workflow dispatch and rollback path next |
 | P4 | Provider trust gate | [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
 | P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
 
@@ -268,8 +268,23 @@ Demo gate:
 - Read-only inspection succeeds without production authority.
 - Deploy without a change request or approval is challenged or denied.
 - An approved commit deploys once.
-- A different commit, environment, or replay is denied.
+- A different commit or environment is denied.
+- An identical retry replays the recorded provider result without another
+  workflow dispatch.
 - The decision and workflow execution are correlated in the audit timeline.
+
+Current status:
+
+- Hosted tool constraints enforce required context and allowed values.
+- Hosted tests cover production read-only inspection, missing change request
+  denial, production-only deploy scope, approval-bound commit drift denial, JIT
+  issuance, provider result recording, cached retry replay, and correlated audit
+  events.
+- The visible hosted approval inbox includes a structured production deploy
+  review item bound to service, branch, commit, change request, and idempotency
+  key.
+- Remaining P3 work is a live GitHub Actions workflow-dispatch adapter and a
+  rollback path bound to incident ID and rollback plan.
 
 #### P4: Provider Trust Gate
 

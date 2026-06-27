@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Production deploy action gate
+
+- Added hosted constraint enforcement for tool `required_context` and
+  `allowed_values`.
+- Added a hosted production deploy test covering read-only inspection, missing
+  change request denial, production-only deploy scope, approval-bound commit
+  drift denial, JIT issuance, provider result recording, and cached retry
+  replay.
+- Updated the approval inbox preview deploy item with structured deploy
+  evidence bound to service, branch, commit, change request, and idempotency key.
+
 ### Hosted PII egress gate
 
 - Added hosted data-flow enforcement for classification, destination type,

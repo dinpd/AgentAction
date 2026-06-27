@@ -88,6 +88,12 @@ confirms the mutation completed. The request uses the same action scope,
 includes a `result` object. Identical retries to `/authorize` then return the
 cached result with `replayed: true`; changed scope under the same key is denied.
 
+Hosted tool constraints can require operational context with
+`constraints.required_context` and restrict values with
+`constraints.allowed_values`. The production deploy test uses those fields to
+require environment, service, repository, branch, commit SHA, and change request
+context before a `devops.deploy.production` grant can execute.
+
 For PII egress controls, include `data_from`, `data_to`, `destination_type`,
 `external_domain`, `data_classification`, `field_set`, `record_count`,
 `redaction_state`, and `retention` on `/authorize` and approval requests. Hosted
