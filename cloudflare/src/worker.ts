@@ -3,6 +3,8 @@ type Env = {
   AGENTID_AUDIT_WEBHOOK_TOKEN?: string;
   AGENTID_AUDIT_WEBHOOK_URL?: string;
   AGENTID_DEMO_OIDC_SECRET?: string;
+  AGENTID_GITHUB_API_BASE?: string;
+  AGENTID_GITHUB_TOKEN?: string;
   AGENTID_MANIFEST_JSON?: string;
   AGENTID_MANIFESTS?: {
     get(key: string): Promise<string | null>;
@@ -330,6 +332,92 @@ export default {
           },
           decision.allow ? 200 : 403,
         );
+      }
+
+      if (request.method === "POST" && route.endpoint === "github-actions" && route.resourceId === "dispatch") {
+        const payload = await readJson(request);
+        const decision = await authorize(manifest, payload, env, route.tenantId);
+        ctx.waitUntil(
+          emitAudit(env, {
+            type: "agentid.decision",
+            tenant_id: route.tenantId,
+            agent_id: stringValue(decision.event.agent_id),
+            allow: decision.allow,
+            findings: decision.findings,
+            event: decision.event,
+            approval_evidence: recordValue(decision.event.approval_evidence),
+            decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
+            failure_class: decision.allow ? undefined : "permission_failure",
+            decision_summary: decisionSummary(decision.allow, decision.findings, decision.event),
+            auth: auth.context,
+          }),
+        );
+        if (!decision.allow) {
+          return json(
+            {
+              allow: false,
+              findings: decision.findings,
+              decision: decision.challengeRequired ? "challenge_required" : "deny",
+              event: decision.event,
+              auth: auth.context,
+            },
+            403,
+          );
+        }
+        if (decision.replayed) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.provider.replayed",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(decision.event.agent_id),
+              tool: stringValue(decision.event.tool),
+              action: stringValue(decision.event.action),
+              resource: stringValue(decision.event.resource),
+              approval_id: stringValue(decision.event.approval_id),
+              jit_grant_id: stringValue(decision.event.jit_grant_id),
+              provider_result: decision.result,
+              provider_execution_receipt: decision.receipt,
+              auth: auth.context,
+            }),
+          );
+          return json({
+            allow: true,
+            replayed: true,
+            result: decision.result,
+            receipt: decision.receipt,
+            event: decision.event,
+            auth: auth.context,
+          });
+        }
+
+        const dispatchResult = await dispatchGithubActions(env, decision.event);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/execution-results", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ manifest, event: decision.event, result: dispatchResult }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.status === 201) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentid.provider.executed",
+              tenant_id: route.tenantId,
+              agent_id: stringValue(body.agent_id),
+              tool: stringValue(body.tool),
+              action: stringValue(body.action),
+              resource: stringValue(body.resource),
+              approval_id: stringValue(body.approval_id),
+              jit_grant_id: stringValue(body.jit_grant_id),
+              provider_result: body.result,
+              provider_execution_receipt: body.receipt,
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
       }
 
       if (request.method === "POST" && route.endpoint === "approval-requests" && !route.resourceId) {
@@ -898,6 +986,81 @@ async function authorize(
   findings.push(...auditEvent(manifest, event));
   const challengeRequired = event.challenge_required === true && findings.length > 0;
   return { allow: findings.length === 0, challengeRequired, findings, event };
+}
+
+async function dispatchGithubActions(env: Env, event: ToolEvent): Promise<Record<string, unknown>> {
+  const token = stringValue(env.AGENTID_GITHUB_TOKEN);
+  if (!token) throw new Error("AGENTID_GITHUB_TOKEN is required for GitHub Actions dispatch");
+
+  const dispatch = githubDispatchRequest(event);
+  const apiBase = stringValue(env.AGENTID_GITHUB_API_BASE) || "https://api.github.com";
+  const url = `${apiBase.replace(/\/$/, "")}/repos/${dispatch.repository}/actions/workflows/${encodeURIComponent(dispatch.workflow_id)}/dispatches`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "accept": "application/vnd.github+json",
+      "authorization": `Bearer ${token}`,
+      "content-type": "application/json",
+      "user-agent": "agentpass-cloudflare-gateway",
+      "x-github-api-version": "2022-11-28",
+    },
+    body: JSON.stringify({
+      ref: dispatch.ref,
+      inputs: dispatch.inputs,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub Actions dispatch failed (${response.status}): ${body}`);
+  }
+
+  return {
+    provider: "github_actions",
+    status: "dispatched",
+    github_status: response.status,
+    repository: dispatch.repository,
+    workflow_id: dispatch.workflow_id,
+    ref: dispatch.ref,
+    inputs: dispatch.inputs,
+    idempotency_key: optionalString(event.idempotency_key),
+    dispatched_at: new Date().toISOString(),
+  };
+}
+
+function githubDispatchRequest(event: ToolEvent): { repository: string; workflow_id: string; ref: string; inputs: Record<string, string> } {
+  const repository = githubRepository(stringValue(contextValue(event, "github_repository") ?? contextValue(event, "repo")));
+  const workflowId = stringValue(contextValue(event, "workflow_id") ?? contextValue(event, "workflow"));
+  const ref = stringValue(contextValue(event, "ref") ?? contextValue(event, "branch"));
+
+  if (!repository) throw new Error("repo or github_repository is required for GitHub Actions dispatch");
+  if (!workflowId) throw new Error("workflow_id is required for GitHub Actions dispatch");
+  if (!ref) throw new Error("branch or ref is required for GitHub Actions dispatch");
+
+  const inputFields = [
+    "environment",
+    "service_id",
+    "repo",
+    "branch",
+    "commit_sha",
+    "change_request_id",
+    "incident_id",
+    "rollback_plan_id",
+    "rollback_plan",
+    "resource",
+    "job_id",
+  ];
+  const inputs: Record<string, string> = {};
+  for (const field of inputFields) {
+    const value = field === "resource" || field === "job_id" ? event[field] : contextValue(event, field);
+    if (hasValue(value)) inputs[field] = stringValue(value);
+  }
+
+  return { repository, workflow_id: workflowId, ref, inputs };
+}
+
+function githubRepository(value: string): string {
+  return value.replace(/^https:\/\/github\.com\//, "").replace(/^github\.com\//, "").replace(/\.git$/, "");
 }
 
 function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, tenantId: string | null): ToolEvent {
@@ -1663,6 +1826,7 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   const scopes = oidc.required_scopes || {};
   if (endpoint === "authorize") return stringValue(scopes.authorize);
   if (endpoint === "execution-results") return stringValue(scopes.authorize);
+  if (endpoint === "github-actions") return stringValue(scopes.authorize);
   if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
@@ -2308,6 +2472,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
           branch: "main",
           commit_sha: "abc123def456",
           change_request_id: "CHG-1042",
+          workflow_id: "deploy-production.yml",
           incident_id: "INC-2048"
         },
         evidence: {
@@ -2327,12 +2492,62 @@ const APPROVALS_UI_HTML = `<!doctype html>
             branch: "main",
             commit_sha: "abc123def456",
             change_request_id: "CHG-1042",
+            workflow_id: "deploy-production.yml",
             incident_id: "INC-2048"
           },
           policy_findings: [
             "Production deploy requires human approval.",
             "JIT grant is bound to service, branch, commit, and change request.",
             "Identical retry replays the recorded workflow dispatch result without another execution."
+          ]
+        }
+      },
+      {
+        approval_id: "approval-prod-rollback-2048",
+        status: "pending",
+        risk: "critical",
+        agent_id: "platform-release-agent",
+        tool: "devops.rollback.production",
+        action: "rollback",
+        resource: "service/checkout-api/environment/production/deployment/dep-842",
+        requested_by: "sre-1",
+        reason: "Rollback checkout-api for active incident",
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        job_id: "production_rollback",
+        context: {
+          environment: "production",
+          service_id: "checkout-api",
+          repo: "github.com/example/checkout",
+          branch: "main",
+          commit_sha: "rollback123",
+          incident_id: "INC-2048",
+          rollback_plan_id: "RB-2048",
+          workflow_id: "rollback-production.yml"
+        },
+        evidence: {
+          schema_version: "agentpass.approval_evidence.v1",
+          agent_id: "platform-release-agent",
+          user_id: "sre-1",
+          tool: "devops.rollback.production",
+          action: "rollback",
+          resource: "service/checkout-api/environment/production/deployment/dep-842",
+          job_id: "production_rollback",
+          idempotency_key: "rollback-checkout-INC-2048-RB-2048",
+          request_digest: "preview-prod-rollback-2048",
+          context: {
+            environment: "production",
+            service_id: "checkout-api",
+            repo: "github.com/example/checkout",
+            branch: "main",
+            commit_sha: "rollback123",
+            incident_id: "INC-2048",
+            rollback_plan_id: "RB-2048",
+            workflow_id: "rollback-production.yml"
+          },
+          policy_findings: [
+            "Production rollback requires incident-scoped approval.",
+            "JIT grant is bound to incident ID and rollback plan.",
+            "Identical retry replays the recorded rollback dispatch result without another execution."
           ]
         }
       },
@@ -2609,19 +2824,31 @@ const APPROVALS_UI_HTML = `<!doctype html>
       if (!activeGrantId) return;
       try {
         executionPayload = { ...boundPayload(selected()), approved: true, jit_grant_id: activeGrantId };
-        const body = await api(apiBase() + "/authorize", "POST", executionPayload);
-        if (body.allow) {
-          await api(apiBase() + "/execution-results", "POST", {
-            ...executionPayload,
-            result: {
-              provider_result_id: "result-" + selected().approval_id,
-              mutation_count: 1,
-              completed_at: new Date().toISOString()
-            }
-          });
+        const tool = executionPayload.tool || "";
+        let body;
+        if (tool.startsWith("devops.")) {
+          body = await api(apiBase() + "/github-actions/dispatch", "POST", executionPayload);
+        } else {
+          body = await api(apiBase() + "/authorize", "POST", executionPayload);
+          if (body.allow) {
+            await api(apiBase() + "/execution-results", "POST", {
+              ...executionPayload,
+              result: {
+                provider_result_id: "result-" + selected().approval_id,
+                mutation_count: 1,
+                completed_at: new Date().toISOString()
+              }
+            });
+          }
+        }
+        if (body.allow === false) {
+          statusline.textContent = "Action denied.";
+        } else if (tool.startsWith("devops.")) {
+          statusline.textContent = body.replayed ? "Cached workflow dispatch result replayed." : "GitHub Actions workflow dispatched and recorded for replay.";
+        } else {
+          statusline.textContent = "Exact action authorized and provider result recorded for replay.";
         }
         renderDetail();
-        statusline.textContent = body.allow ? "Exact action authorized and provider result recorded for replay." : "Action denied.";
         await loadTimeline();
       } catch (error) {
         statusline.textContent = error.message;
@@ -2630,7 +2857,10 @@ const APPROVALS_UI_HTML = `<!doctype html>
     async function testReplay() {
       if (!executionPayload) return;
       try {
-        const body = await api(apiBase() + "/authorize", "POST", executionPayload);
+        const tool = executionPayload.tool || "";
+        const body = tool.startsWith("devops.")
+          ? await api(apiBase() + "/github-actions/dispatch", "POST", executionPayload)
+          : await api(apiBase() + "/authorize", "POST", executionPayload);
         statusline.textContent = body.replayed ? "Cached provider result replayed without another mutation." : "Retry authorized without replay metadata.";
       } catch (error) {
         statusline.textContent = "Replay denied: " + error.message;
@@ -2687,27 +2917,28 @@ const APPROVALS_UI_HTML = `<!doctype html>
         job_id: approval.job_id,
         case_id: approval.case_id,
         customer_id: approval.customer_id,
-        policy_findings: Array.isArray(approval.evidence) ? approval.evidence : [],
-        field_set: [],
-        context: approval.context || {}
+        amount: approval.amount,
+        currency: approval.currency,
+        request_digest: "preview only",
+        context: approval.context || {},
+        policy_findings: Array.isArray(approval.evidence) ? approval.evidence : []
       };
-    }
-    function apiBase() {
-      return tenant.value ? "/tenants/" + encodeURIComponent(tenant.value) : "";
     }
     async function api(path, method, payload) {
       saveConnection();
+      const headers = { "content-type": "application/json" };
+      if (token.value) headers.authorization = "Bearer " + token.value;
       const response = await fetch(path, {
         method,
-        headers: {
-          ...(payload ? { "content-type": "application/json" } : {}),
-          ...(token.value ? { authorization: "Bearer " + token.value } : {})
-        },
+        headers,
         body: payload ? JSON.stringify(payload) : undefined
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || (body.findings || []).join("; ") || "request failed with status " + response.status);
       return body;
+    }
+    function apiBase() {
+      return tenant.value ? "/tenants/" + encodeURIComponent(tenant.value) : "";
     }
     function saveConnection() {
       sessionStorage.setItem("agentid.approvals.token", token.value);
@@ -2719,13 +2950,13 @@ const APPROVALS_UI_HTML = `<!doctype html>
     function persist() {
       sessionStorage.setItem("agentid.approvals.mock", JSON.stringify(approvals));
     }
-    function age(value) {
-      const ms = Date.now() - Date.parse(value);
-      const mins = Math.max(1, Math.round(ms / 60000));
-      return mins + "m ago";
-    }
     function esc(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    }
+    function age(value) {
+      const ms = Date.now() - Date.parse(value || new Date().toISOString());
+      const minutes = Math.max(0, Math.round(ms / 60000));
+      return minutes < 60 ? minutes + "m ago" : Math.round(minutes / 60) + "h ago";
     }
   </script>
 </body>

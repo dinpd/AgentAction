@@ -6,12 +6,17 @@
 
 - Added hosted constraint enforcement for tool `required_context` and
   `allowed_values`.
-- Added a hosted production deploy test covering read-only inspection, missing
-  change request denial, production-only deploy scope, approval-bound commit
-  drift denial, JIT issuance, provider result recording, and cached retry
-  replay.
-- Updated the approval inbox preview deploy item with structured deploy
-  evidence bound to service, branch, commit, change request, and idempotency key.
+- Added `POST /github-actions/dispatch` to authorize a scoped DevOps action,
+  dispatch the bound GitHub Actions workflow, record the provider result, and
+  replay identical retries without another dispatch.
+- Added hosted production deploy and rollback tests covering read-only
+  inspection, missing change request denial, production-only deploy scope,
+  approval-bound commit drift denial, rollback-plan drift denial, JIT issuance,
+  GitHub workflow dispatch, provider result recording, cached retry replay, and
+  correlated audit events.
+- Updated the approval inbox preview with structured deploy and rollback
+  evidence bound to service, branch, commit, change request or incident,
+  rollback plan, workflow, and idempotency key.
 
 ### Hosted PII egress gate
 

@@ -286,167 +286,266 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.ok(types.includes("agentid.decision"));
 });
 
-test("hosted production deploy gate binds change request commit and execution result", async () => {
+test("hosted production deploy gate dispatches GitHub workflow and binds rollback scope", async () => {
   const namespace = new MemoryNamespace();
-  const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(deployManifest()) };
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_GITHUB_API_BASE: "https://github-api.example",
+    AGENTID_GITHUB_TOKEN: "github-token",
+    AGENTID_MANIFEST_JSON: JSON.stringify(deployManifest()),
+  };
   const ctx = new TestContext();
-
-  const inspect = await call(env, ctx, "POST", "/authorize", {
-    agent_id: "platform-release-agent",
-    tool: "devops.inspect.production",
-    action: "read",
-    resource: "service/checkout-api/environment/production",
-    user_id: "release-1",
-    job_id: "production_deploy",
-    environment: "production",
-    service_id: "checkout-api",
-    repo: "github.com/example/checkout",
-    branch: "main",
-  });
-  assert.equal(inspect.status, 200);
-  assert.equal(inspect.body.allow, true);
-
-  const missingChangeRequest = await call(env, ctx, "POST", "/authorize", {
-    agent_id: "platform-release-agent",
-    tool: "devops.deploy.production",
-    action: "deploy",
-    resource: "service/checkout-api/environment/production",
-    user_id: "release-1",
-    job_id: "production_deploy",
-    environment: "production",
-    service_id: "checkout-api",
-    repo: "github.com/example/checkout",
-    branch: "main",
-    commit_sha: "abc123def456",
-    idempotency_key: "deploy-checkout-abc123def456",
-  });
-  assert.equal(missingChangeRequest.status, 403);
-  assert.ok(
-    missingChangeRequest.body.findings.includes("event[0]: required context field is missing: change_request_id"),
-  );
-  assert.ok(
-    missingChangeRequest.body.findings.includes(
-      "event[0]: devops.deploy.production requires JIT authorization but no jit_grant_id is present",
-    ),
-  );
-
-  const stagingDeploy = await call(env, ctx, "POST", "/authorize", {
-    agent_id: "platform-release-agent",
-    tool: "devops.deploy.production",
-    action: "deploy",
-    resource: "service/checkout-api/environment/staging",
-    user_id: "release-1",
-    job_id: "production_deploy",
-    environment: "staging",
-    service_id: "checkout-api",
-    repo: "github.com/example/checkout",
-    branch: "main",
-    commit_sha: "abc123def456",
-    change_request_id: "CHG-1042",
-    approved: true,
-  });
-  assert.equal(stagingDeploy.status, 403);
-  assert.ok(stagingDeploy.body.findings.includes("event[0]: environment is not allowed: staging"));
-
-  const approvalPayload = {
-    approval_id: "approval-prod-deploy-test",
-    tool: "devops.deploy.production",
-    action: "deploy",
-    resource: "service/checkout-api/environment/production",
-    requested_by: "release-1",
-    user_id: "release-1",
-    reason: "Deploy checkout-api after approved change request",
-    job_id: "production_deploy",
-    environment: "production",
-    service_id: "checkout-api",
-    repo: "github.com/example/checkout",
-    branch: "main",
-    commit_sha: "abc123def456",
-    change_request_id: "CHG-1042",
-    idempotency_key: "deploy-checkout-abc123def456",
-  };
-  const created = await call(env, ctx, "POST", "/approval-requests", approvalPayload);
-  assert.equal(created.status, 201);
-  assert.equal(created.body.evidence.context.environment, "production");
-  assert.equal(created.body.evidence.context.commit_sha, "abc123def456");
-  assert.equal(created.body.evidence.context.change_request_id, "CHG-1042");
-  await call(env, ctx, "POST", "/approval-requests/approval-prod-deploy-test/approve", {
-    decided_by: "release-manager-1",
-    decision_reason: "Change request and commit verified",
-  });
-
-  const grantRequest = {
-    tool: approvalPayload.tool,
-    action: approvalPayload.action,
-    resource: approvalPayload.resource,
-    approval_id: approvalPayload.approval_id,
-    user_id: approvalPayload.user_id,
-    job_id: approvalPayload.job_id,
-    environment: approvalPayload.environment,
-    service_id: approvalPayload.service_id,
-    repo: approvalPayload.repo,
-    branch: approvalPayload.branch,
-    commit_sha: approvalPayload.commit_sha,
-    change_request_id: approvalPayload.change_request_id,
-    idempotency_key: approvalPayload.idempotency_key,
+  const githubCalls: Array<{ url: string; init?: RequestInit }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    githubCalls.push({ url: String(input), init });
+    return new Response(null, { status: 204 });
   };
 
-  const changedCommitGrant = await call(env, ctx, "POST", "/jit-grants", {
-    ...grantRequest,
-    commit_sha: "def456abc123",
-  });
-  assert.equal(changedCommitGrant.status, 400);
-  assert.equal(changedCommitGrant.body.error, "approval request commit_sha mismatch");
+  try {
+    const inspect = await call(env, ctx, "POST", "/authorize", {
+      agent_id: "platform-release-agent",
+      tool: "devops.inspect.production",
+      action: "read",
+      resource: "service/checkout-api/environment/production",
+      user_id: "release-1",
+      job_id: "production_deploy",
+      environment: "production",
+      service_id: "checkout-api",
+      repo: "github.com/example/checkout",
+      branch: "main",
+    });
+    assert.equal(inspect.status, 200);
+    assert.equal(inspect.body.allow, true);
 
-  const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
-  assert.equal(grant.status, 201);
-  assert.equal(grant.body.evidence.request_digest, created.body.evidence.request_digest);
+    const missingChangeRequest = await call(env, ctx, "POST", "/authorize", {
+      agent_id: "platform-release-agent",
+      tool: "devops.deploy.production",
+      action: "deploy",
+      resource: "service/checkout-api/environment/production",
+      user_id: "release-1",
+      job_id: "production_deploy",
+      environment: "production",
+      service_id: "checkout-api",
+      repo: "github.com/example/checkout",
+      branch: "main",
+      commit_sha: "abc123def456",
+      workflow_id: "deploy-production.yml",
+      idempotency_key: "deploy-checkout-abc123def456",
+    });
+    assert.equal(missingChangeRequest.status, 403);
+    assert.ok(
+      missingChangeRequest.body.findings.includes("event[0]: required context field is missing: change_request_id"),
+    );
+    assert.ok(
+      missingChangeRequest.body.findings.includes(
+        "event[0]: devops.deploy.production requires JIT authorization but no jit_grant_id is present",
+      ),
+    );
 
-  const action = {
-    agent_id: "platform-release-agent",
-    ...grantRequest,
-    approved: true,
-    jit_grant_id: grant.body.jit_grant_id,
-  };
-  const first = await call(env, ctx, "POST", "/authorize", action);
-  assert.equal(first.status, 200);
-  assert.equal(first.body.allow, true);
-  await ctx.flush();
+    const stagingDeploy = await call(env, ctx, "POST", "/authorize", {
+      agent_id: "platform-release-agent",
+      tool: "devops.deploy.production",
+      action: "deploy",
+      resource: "service/checkout-api/environment/staging",
+      user_id: "release-1",
+      job_id: "production_deploy",
+      environment: "staging",
+      service_id: "checkout-api",
+      repo: "github.com/example/checkout",
+      branch: "main",
+      commit_sha: "abc123def456",
+      change_request_id: "CHG-1042",
+      workflow_id: "deploy-production.yml",
+      approved: true,
+    });
+    assert.equal(stagingDeploy.status, 403);
+    assert.ok(stagingDeploy.body.findings.includes("event[0]: environment is not allowed: staging"));
 
-  const providerResult = {
-    workflow_run_id: "gh-run-1042",
-    workflow: "deploy-production.yml",
-    status: "dispatched",
-    commit_sha: approvalPayload.commit_sha,
-  };
-  const recorded = await call(env, ctx, "POST", "/execution-results", {
-    ...action,
-    result: providerResult,
-  });
-  assert.equal(recorded.status, 201);
-  assert.equal(recorded.body.request_digest, created.body.evidence.request_digest);
-  await ctx.flush();
+    const approvalPayload = {
+      approval_id: "approval-prod-deploy-test",
+      tool: "devops.deploy.production",
+      action: "deploy",
+      resource: "service/checkout-api/environment/production",
+      requested_by: "release-1",
+      user_id: "release-1",
+      reason: "Deploy checkout-api after approved change request",
+      job_id: "production_deploy",
+      environment: "production",
+      service_id: "checkout-api",
+      repo: "github.com/example/checkout",
+      branch: "main",
+      commit_sha: "abc123def456",
+      change_request_id: "CHG-1042",
+      workflow_id: "deploy-production.yml",
+      idempotency_key: "deploy-checkout-abc123def456",
+    };
+    const created = await call(env, ctx, "POST", "/approval-requests", approvalPayload);
+    assert.equal(created.status, 201);
+    assert.equal(created.body.evidence.context.environment, "production");
+    assert.equal(created.body.evidence.context.commit_sha, "abc123def456");
+    assert.equal(created.body.evidence.context.change_request_id, "CHG-1042");
+    assert.equal(created.body.evidence.context.workflow_id, "deploy-production.yml");
+    await call(env, ctx, "POST", "/approval-requests/approval-prod-deploy-test/approve", {
+      decided_by: "release-manager-1",
+      decision_reason: "Change request and commit verified",
+    });
 
-  const retry = await call(env, ctx, "POST", "/authorize", action);
-  assert.equal(retry.status, 200);
-  assert.equal(retry.body.replayed, true);
-  assert.deepEqual(retry.body.result, providerResult);
+    const grantRequest = {
+      tool: approvalPayload.tool,
+      action: approvalPayload.action,
+      resource: approvalPayload.resource,
+      approval_id: approvalPayload.approval_id,
+      user_id: approvalPayload.user_id,
+      job_id: approvalPayload.job_id,
+      environment: approvalPayload.environment,
+      service_id: approvalPayload.service_id,
+      repo: approvalPayload.repo,
+      branch: approvalPayload.branch,
+      commit_sha: approvalPayload.commit_sha,
+      change_request_id: approvalPayload.change_request_id,
+      workflow_id: approvalPayload.workflow_id,
+      idempotency_key: approvalPayload.idempotency_key,
+    };
 
-  const changedCommit = await call(env, ctx, "POST", "/authorize", {
-    ...action,
-    commit_sha: "def456abc123",
-  });
-  assert.equal(changedCommit.status, 403);
-  assert.deepEqual(changedCommit.body.findings, ["idempotencyKey was already used with different request digest"]);
-  await ctx.flush();
+    const changedCommitGrant = await call(env, ctx, "POST", "/jit-grants", {
+      ...grantRequest,
+      commit_sha: "def456abc123",
+    });
+    assert.equal(changedCommitGrant.status, 400);
+    assert.equal(changedCommitGrant.body.error, "approval request commit_sha mismatch");
 
-  const audit = await call(env, ctx, "GET", "/audit/events?approval_id=approval-prod-deploy-test&limit=20");
-  const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
-  assert.ok(types.includes("agentid.provider.executed"));
-  assert.ok(types.includes("agentid.provider.replayed"));
-  assert.ok(types.includes("agentid.jit.issued"));
-  assert.ok(types.includes("agentid.approval.decided"));
-  assert.ok(types.includes("agentid.approval.created"));
+    const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+    assert.equal(grant.status, 201);
+    assert.equal(grant.body.evidence.request_digest, created.body.evidence.request_digest);
+
+    const action = {
+      agent_id: "platform-release-agent",
+      ...grantRequest,
+      approved: true,
+      jit_grant_id: grant.body.jit_grant_id,
+    };
+    const dispatched = await call(env, ctx, "POST", "/github-actions/dispatch", action);
+    assert.equal(dispatched.status, 201);
+    assert.equal(dispatched.body.request_digest, created.body.evidence.request_digest);
+    assert.equal(dispatched.body.result.status, "dispatched");
+    assert.equal(dispatched.body.result.workflow_id, "deploy-production.yml");
+    assert.equal(dispatched.body.result.repository, "example/checkout");
+    assert.equal(githubCalls.length, 1);
+    assert.equal(
+      githubCalls[0].url,
+      "https://github-api.example/repos/example/checkout/actions/workflows/deploy-production.yml/dispatches",
+    );
+    assert.deepEqual(JSON.parse(String(githubCalls[0].init?.body)), {
+      ref: "main",
+      inputs: {
+        environment: "production",
+        service_id: "checkout-api",
+        repo: "github.com/example/checkout",
+        branch: "main",
+        commit_sha: "abc123def456",
+        change_request_id: "CHG-1042",
+        resource: "service/checkout-api/environment/production",
+        job_id: "production_deploy",
+      },
+    });
+    await ctx.flush();
+
+    const retry = await call(env, ctx, "POST", "/github-actions/dispatch", action);
+    assert.equal(retry.status, 200);
+    assert.equal(retry.body.replayed, true);
+    assert.deepEqual(retry.body.result, dispatched.body.result);
+    assert.equal(githubCalls.length, 1);
+
+    const changedCommit = await call(env, ctx, "POST", "/github-actions/dispatch", {
+      ...action,
+      commit_sha: "def456abc123",
+    });
+    assert.equal(changedCommit.status, 403);
+    assert.deepEqual(changedCommit.body.findings, ["idempotencyKey was already used with different request digest"]);
+    assert.equal(githubCalls.length, 1);
+    await ctx.flush();
+
+    const rollbackApproval = {
+      approval_id: "approval-prod-rollback-test",
+      tool: "devops.rollback.production",
+      action: "rollback",
+      resource: "service/checkout-api/environment/production/deployment/dep-842",
+      requested_by: "sre-1",
+      user_id: "sre-1",
+      reason: "Rollback checkout-api for active incident",
+      job_id: "production_rollback",
+      environment: "production",
+      service_id: "checkout-api",
+      repo: "github.com/example/checkout",
+      branch: "main",
+      commit_sha: "rollback123",
+      incident_id: "INC-2048",
+      rollback_plan_id: "RB-2048",
+      workflow_id: "rollback-production.yml",
+      idempotency_key: "rollback-checkout-INC-2048-RB-2048",
+    };
+    const rollbackCreated = await call(env, ctx, "POST", "/approval-requests", rollbackApproval);
+    assert.equal(rollbackCreated.status, 201);
+    assert.equal(rollbackCreated.body.evidence.context.incident_id, "INC-2048");
+    assert.equal(rollbackCreated.body.evidence.context.rollback_plan_id, "RB-2048");
+    await call(env, ctx, "POST", "/approval-requests/approval-prod-rollback-test/approve", {
+      decided_by: "incident-commander-1",
+      decision_reason: "Rollback plan reviewed for active incident",
+    });
+
+    const rollbackGrantRequest = {
+      tool: rollbackApproval.tool,
+      action: rollbackApproval.action,
+      resource: rollbackApproval.resource,
+      approval_id: rollbackApproval.approval_id,
+      user_id: rollbackApproval.user_id,
+      job_id: rollbackApproval.job_id,
+      environment: rollbackApproval.environment,
+      service_id: rollbackApproval.service_id,
+      repo: rollbackApproval.repo,
+      branch: rollbackApproval.branch,
+      commit_sha: rollbackApproval.commit_sha,
+      incident_id: rollbackApproval.incident_id,
+      rollback_plan_id: rollbackApproval.rollback_plan_id,
+      workflow_id: rollbackApproval.workflow_id,
+      idempotency_key: rollbackApproval.idempotency_key,
+    };
+    const changedRollbackPlan = await call(env, ctx, "POST", "/jit-grants", {
+      ...rollbackGrantRequest,
+      rollback_plan_id: "RB-CHANGED",
+    });
+    assert.equal(changedRollbackPlan.status, 400);
+    assert.equal(changedRollbackPlan.body.error, "approval request rollback_plan_id mismatch");
+
+    const rollbackGrant = await call(env, ctx, "POST", "/jit-grants", rollbackGrantRequest);
+    const rollbackDispatch = await call(env, ctx, "POST", "/github-actions/dispatch", {
+      agent_id: "platform-release-agent",
+      ...rollbackGrantRequest,
+      approved: true,
+      jit_grant_id: rollbackGrant.body.jit_grant_id,
+    });
+    assert.equal(rollbackDispatch.status, 201);
+    assert.equal(rollbackDispatch.body.result.workflow_id, "rollback-production.yml");
+    assert.equal(githubCalls.length, 2);
+    assert.equal(
+      githubCalls[1].url,
+      "https://github-api.example/repos/example/checkout/actions/workflows/rollback-production.yml/dispatches",
+    );
+    assert.deepEqual(JSON.parse(String(githubCalls[1].init?.body)).inputs.incident_id, "INC-2048");
+    assert.deepEqual(JSON.parse(String(githubCalls[1].init?.body)).inputs.rollback_plan_id, "RB-2048");
+    await ctx.flush();
+
+    const audit = await call(env, ctx, "GET", "/audit/events?approval_id=approval-prod-deploy-test&limit=20");
+    const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
+    assert.ok(types.includes("agentid.provider.executed"));
+    assert.ok(types.includes("agentid.provider.replayed"));
+    assert.ok(types.includes("agentid.jit.issued"));
+    assert.ok(types.includes("agentid.approval.decided"));
+    assert.ok(types.includes("agentid.approval.created"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("hosted PII egress enforces fields domains approval and exact scope", async () => {
@@ -748,7 +847,8 @@ async function call(
 }
 
 function deployManifest(): Record<string, unknown> {
-  const requiredContext = ["environment", "service_id", "repo", "branch", "commit_sha", "change_request_id"];
+  const deployRequiredContext = ["environment", "service_id", "repo", "branch", "commit_sha", "change_request_id", "workflow_id"];
+  const rollbackRequiredContext = ["environment", "service_id", "repo", "branch", "commit_sha", "incident_id", "rollback_plan_id", "workflow_id"];
   return {
     agent: {
       id: "platform-release-agent",
@@ -787,7 +887,24 @@ function deployManifest(): Record<string, unknown> {
         constraints: {
           token_ttl_seconds: 300,
           approval_ttl_seconds: 900,
-          required_context: requiredContext,
+          required_context: deployRequiredContext,
+          allowed_values: {
+            environment: ["production"],
+            service_id: ["checkout-api"],
+            repo: ["github.com/example/checkout"],
+            branch: ["main"],
+          },
+        },
+      },
+      {
+        name: "devops.rollback.production",
+        access: "rollback",
+        auth_mode: "just_in_time",
+        approval: "human_confirm",
+        constraints: {
+          token_ttl_seconds: 300,
+          approval_ttl_seconds: 900,
+          required_context: rollbackRequiredContext,
           allowed_values: {
             environment: ["production"],
             service_id: ["checkout-api"],
@@ -799,7 +916,7 @@ function deployManifest(): Record<string, unknown> {
     ],
     job_boundary: {
       required: true,
-      allowed_jobs: ["production_deploy"],
+      allowed_jobs: ["production_deploy", "production_rollback"],
       bind_authorization_to: ["job_id", "resource"],
     },
     runtime: { enforce_manifest: true },

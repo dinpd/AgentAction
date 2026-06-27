@@ -10,6 +10,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
 | `POST /execution-results` | Record a completed provider result for idempotent replay |
+| `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
 | `GET /approval-requests/<approval-id>` | Read approval status and bound context |
@@ -19,6 +20,7 @@ allow/deny/JIT decisions before tool execution:
 | `POST /tenants/<tenant-id>/approval-requests` | Create a tenant-scoped approval request |
 | `POST /tenants/<tenant-id>/authorize` | Authorize against a tenant manifest from KV |
 | `POST /tenants/<tenant-id>/execution-results` | Record a tenant-scoped provider result for replay |
+| `POST /tenants/<tenant-id>/github-actions/dispatch` | Dispatch a tenant-scoped GitHub Actions workflow after authorization |
 | `POST /tenants/<tenant-id>/jit-grants` | Issue a tenant-scoped JIT grant after approval checks |
 | `GET /audit` | Open the audit console UI |
 | `GET /approvals` | Open the approval and single-use execution console |
@@ -94,6 +96,13 @@ Hosted tool constraints can require operational context with
 require environment, service, repository, branch, commit SHA, and change request
 context before a `devops.deploy.production` grant can execute.
 
+For GitHub Actions dispatch, set `AGENTID_GITHUB_TOKEN` as a Worker secret with
+permission to dispatch workflows in the target repository. The dispatch payload
+uses the approved `repo` or `github_repository`, `workflow_id`, branch/ref, and
+bound context such as `commit_sha`, `change_request_id`, `incident_id`, and
+`rollback_plan_id`. `AGENTID_GITHUB_API_BASE` can override the GitHub API base
+URL for tests or GitHub Enterprise.
+
 For PII egress controls, include `data_from`, `data_to`, `destination_type`,
 `external_domain`, `data_classification`, `field_set`, `record_count`,
 `redaction_state`, and `retention` on `/authorize` and approval requests. Hosted
@@ -116,6 +125,7 @@ Set an API key for production:
 
 ```bash
 npx wrangler secret put AGENTID_API_KEY
+npx wrangler secret put AGENTID_GITHUB_TOKEN
 ```
 
 The built-in audit console records authorization decisions, approval events,
