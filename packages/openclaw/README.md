@@ -15,6 +15,40 @@ same configured chat/channel approval path or `/approve` flow.
 
 ## Configuration
 
+## Usage Model
+
+For local testing from this repository:
+
+```bash
+cd packages/openclaw
+npm install
+npm run build
+openclaw plugins install --link .
+openclaw plugins inspect agentpass --runtime --json
+```
+
+For an artifact-style local test:
+
+```bash
+cd packages/openclaw
+npm install
+npm run build
+npm pack
+openclaw plugins install npm-pack:agentpass-openclaw-0.1.0.tgz
+openclaw plugins inspect agentpass --runtime --json
+```
+
+For the production path, publish this package and install it with one of
+OpenClaw's managed sources:
+
+```bash
+openclaw plugins install npm:@agentpass/openclaw
+```
+
+OpenClaw installs npm-sourced plugins into its managed per-plugin npm project.
+Local plugins must already have dependencies installed and built before
+Gateway startup.
+
 Example OpenClaw plugin config:
 
 ```json
@@ -67,9 +101,10 @@ passes that value to AgentPass as `estimatedTokens`, so policy budgets such as
 payloads and runaway loops.
 
 This protects tool-call payloads. Heartbeat or prompt-context growth happens
-before tool execution in OpenClaw, so it needs a pre-model context contribution
-hook in OpenClaw. AgentPass should gate that separately with a pseudo resource
-such as `openclaw.context` / `heartbeat` once that hook is available.
+before tool execution, so it should be gated separately with OpenClaw's
+pre-model hooks such as `before_prompt_build`, `before_agent_run`, and
+`heartbeat_prompt_contribution`. A follow-on AgentPass context gate can map
+that to a pseudo resource such as `openclaw.context` / `heartbeat`.
 
 ## Development
 

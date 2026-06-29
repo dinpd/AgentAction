@@ -78,6 +78,55 @@ test("trusted policy blocks denied calls", async () => {
   assert.match(result?.blockReason || "", /tool action mismatch/);
 });
 
+test("trusted policy routes token budget challenges through OpenClaw approval", async () => {
+  const policy = registeredPolicy({
+    policy: {
+      tools: {
+        read: { action: "read" },
+      },
+      budgets: {
+        challengeAfterTokensPerJob: 100,
+        maxTokensPerJob: 1000,
+      },
+    },
+  });
+
+  const allowed = await policy.evaluate(
+    { toolName: "read", runId: "run-token-challenge", params: { path: "README.md" } },
+    { toolName: "read", agentId: "main" },
+  );
+  const challenged = await policy.evaluate(
+    { toolName: "read", runId: "run-token-challenge", params: { content: "status ".repeat(200) } },
+    { toolName: "read", agentId: "main" },
+  );
+
+  assert.equal(allowed, undefined);
+  assert.equal(challenged?.block, undefined);
+  assert.equal(challenged?.requireApproval?.title, "Approve Read with read");
+  assert.match(challenged?.requireApproval?.description || "", /Reason: approval is required/);
+});
+
+test("trusted policy blocks hard token budget violations", async () => {
+  const policy = registeredPolicy({
+    policy: {
+      tools: {
+        read: { action: "read" },
+      },
+      budgets: {
+        maxTokensPerJob: 1,
+      },
+    },
+  });
+
+  const result = await policy.evaluate(
+    { toolName: "read", runId: "run-token-deny", params: { path: "README.md" } },
+    { toolName: "read", agentId: "main" },
+  );
+
+  assert.equal(result?.block, true);
+  assert.match(result?.blockReason || "", /job exceeds maxTokensPerJob 1/);
+});
+
 function registeredPolicy(pluginConfig: Record<string, unknown>): OpenClawTrustedToolPolicy {
   let captured: OpenClawTrustedToolPolicy | undefined;
   registerAgentPassOpenClawPlugin({
@@ -89,4 +138,3 @@ function registeredPolicy(pluginConfig: Record<string, unknown>): OpenClawTruste
   assert.ok(captured);
   return captured;
 }
-
