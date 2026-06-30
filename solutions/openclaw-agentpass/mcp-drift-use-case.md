@@ -11,6 +11,17 @@ This use case models a frequent MCP failure mode:
 The policy goal is to prevent tool poisoning, rug-pull changes, and accidental
 tool sprawl from silently expanding an agent's authority.
 
+## Current Enforcement Status
+
+This use case is a **preflight/startup gate** today. It uses AgentPass MCP
+analysis before MCP tools are exposed to OpenClaw. The current OpenClaw plugin
+enforces tool-call decisions, but it does not yet hook MCP discovery or
+`tools/list` changes at runtime.
+
+Use this check in CI, gateway startup, or OpenClaw startup. If OpenClaw exposes
+a discovery/registry hook, the same check can become plugin-enforced before MCP
+tools are registered.
+
 ## Policy Boundary
 
 The approved tool surface contains read-only PR review tools:

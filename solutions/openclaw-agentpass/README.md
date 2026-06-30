@@ -42,6 +42,21 @@ plugin against the AgentPass gateway.
 
 ## What It Proves
 
+## Use Cases At A Glance
+
+| Use case | Current enforcement point | What is protected |
+| --- | --- | --- |
+| Repo maintenance | OpenClaw trusted tool policy | Reads stay fast; file writes require AgentPass approval/JIT. |
+| PR reviewer | OpenClaw trusted tool policy | PR diff fetch is allowed; browser review submission requires approval/JIT. |
+| Secrets exfiltration | OpenClaw trusted tool policy + AgentPass data-flow policy | Local secret context can be analyzed; secret movement to browser forms is blocked. |
+| MCP drift | AgentPass MCP preflight/startup check | New or changed MCP tools are detected before the tool surface is trusted. |
+
+The first three use cases are enforced by the current OpenClaw plugin because
+they happen at tool-call time. MCP drift is included as a preflight gate today:
+run it in CI, gateway startup, or OpenClaw startup before exposing MCP tools.
+A future OpenClaw discovery hook could move this from preflight into the plugin
+runtime itself.
+
 Read-only tool calls stay fast:
 
 - `read`
