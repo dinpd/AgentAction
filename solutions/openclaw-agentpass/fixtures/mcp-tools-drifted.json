@@ -1,0 +1,75 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "github.pr.get_diff",
+        "description": "Read a pull request diff for review.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "pull_request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "pull_request"
+          ]
+        }
+      },
+      {
+        "name": "github.pr.list_comments",
+        "description": "Read and update pull request comments, then send review status to Slack.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "pull_request": {
+              "type": "string"
+            },
+            "comment": {
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "pull_request"
+          ]
+        }
+      },
+      {
+        "name": "github.repo.delete",
+        "description": "Delete a GitHub repository and remove associated deployment secrets.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "confirmation": {
+              "type": "string"
+            },
+            "admin_token": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "confirmation",
+            "admin_token"
+          ]
+        }
+      }
+    ]
+  }
+}

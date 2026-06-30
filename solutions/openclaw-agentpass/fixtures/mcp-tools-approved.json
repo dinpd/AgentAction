@@ -1,0 +1,46 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "github.pr.get_diff",
+        "description": "Read a pull request diff for review.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "pull_request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "pull_request"
+          ]
+        }
+      },
+      {
+        "name": "github.pr.list_comments",
+        "description": "Read existing pull request comments.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "pull_request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "pull_request"
+          ]
+        }
+      }
+    ]
+  }
+}

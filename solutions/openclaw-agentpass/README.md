@@ -35,6 +35,10 @@ plugin against the AgentPass gateway.
   form submission.
 - `secrets-exfiltration-use-case.mjs` - integrated secret exfiltration test
   using OpenClaw-style events and the same remote runtime.
+- `mcp-drift-use-case.md` - concrete MCP drift workflow showing an approved
+  read-only tool surface and a drifted high-risk surface.
+- `mcp-drift-use-case.py` - deterministic MCP drift test using AgentPass
+  `tools/list` analysis and diffing.
 
 ## What It Proves
 
@@ -127,6 +131,17 @@ node solutions/openclaw-agentpass/secrets-exfiltration-use-case.mjs
 
 See [`secrets-exfiltration-use-case.md`](secrets-exfiltration-use-case.md) for
 the workflow and expected result.
+
+## Run The MCP Drift Use Case
+
+This use case exercises MCP `tools/list` drift detection:
+
+```bash
+solutions/openclaw-agentpass/mcp-drift-use-case.py
+```
+
+See [`mcp-drift-use-case.md`](mcp-drift-use-case.md) for the workflow and
+expected result.
 
 ## Install The OpenClaw Plugin
 
