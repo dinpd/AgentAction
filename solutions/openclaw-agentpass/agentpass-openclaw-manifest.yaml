@@ -125,6 +125,10 @@ data_flows:
     to: agent_context
     allowed: true
 
+  - from: github_pull_request
+    to: agent_context
+    allowed: true
+
   - from: agent_context
     to: local_files
     allowed: true
@@ -135,7 +139,7 @@ data_flows:
 
   - from: agent_context
     to: browser_form
-    allowed: false
+    allowed: true
 
   - from: secrets_manager
     to: external_channel

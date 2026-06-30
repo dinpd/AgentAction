@@ -51,12 +51,13 @@ export function estimateOpenClawToolCallTokens(event: OpenClawBeforeToolCallEven
 
 export function inferAction(toolName: string, params: Record<string, unknown>, fallback: AgentAction = "read"): AgentAction {
   const normalized = normalize(toolName);
+  if (normalized.includes("browser")) return inferBrowserAction(params);
+
   const actionParam = readString(params.action);
   if (actionParam) return normalizeAction(actionParam, fallback);
 
   if (normalized.includes("read") || normalized.includes("search") || normalized.includes("fetch")) return "read";
   if (normalized.includes("write") || normalized.includes("edit") || normalized.includes("patch")) return "write";
-  if (normalized.includes("browser")) return inferBrowserAction(params);
   if (normalized.includes("exec") || normalized.includes("process") || normalized.includes("bash")) return "admin";
   if (normalized.includes("cron") || normalized.includes("schedule")) return "write";
   if (normalized.includes("message") || normalized.includes("send") || normalized.includes("slack") || normalized.includes("discord")) {

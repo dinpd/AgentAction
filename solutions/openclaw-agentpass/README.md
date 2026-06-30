@@ -26,6 +26,10 @@ plugin against the AgentPass gateway.
   showing read allowed and write denied without JIT.
 - `repo-maintenance-use-case.mjs` - integrated use-case test that maps
   OpenClaw-style events through the real adapter runtime.
+- `pr-reviewer-use-case.md` - concrete PR reviewer workflow showing PR diff
+  fetch allowed and PR review submission denied without JIT.
+- `pr-reviewer-use-case.mjs` - integrated PR reviewer test using the same
+  OpenClaw adapter runtime.
 
 ## What It Proves
 
@@ -90,6 +94,20 @@ node solutions/openclaw-agentpass/repo-maintenance-use-case.mjs
 
 See [`repo-maintenance-use-case.md`](repo-maintenance-use-case.md) for the
 workflow and expected result.
+
+## Run The PR Reviewer Use Case
+
+This use case exercises the web fetch and browser-submit path:
+
+```bash
+cd packages/openclaw
+npm run build
+cd ../..
+node solutions/openclaw-agentpass/pr-reviewer-use-case.mjs
+```
+
+See [`pr-reviewer-use-case.md`](pr-reviewer-use-case.md) for the workflow and
+expected result.
 
 ## Install The OpenClaw Plugin
 

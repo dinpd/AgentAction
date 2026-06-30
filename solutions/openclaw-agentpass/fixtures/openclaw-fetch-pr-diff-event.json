@@ -1,0 +1,21 @@
+{
+  "event": {
+    "toolName": "web_fetch",
+    "toolKind": "network",
+    "toolInputKind": "json",
+    "runId": "pr-review-123",
+    "toolCallId": "tool-fetch-pr-diff",
+    "params": {
+      "url": "https://github.com/dinpd/AgentPass/pull/123.diff",
+      "data_from": "github_pull_request",
+      "data_to": "agent_context"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "pr-reviewer",
+    "runId": "pr-review-123",
+    "toolName": "web_fetch",
+    "toolCallId": "tool-fetch-pr-diff"
+  }
+}

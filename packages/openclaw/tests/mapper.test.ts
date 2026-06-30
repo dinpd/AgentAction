@@ -86,6 +86,7 @@ test("estimates larger token budgets for larger OpenClaw payloads", () => {
 test("infers common OpenClaw tool actions", () => {
   assert.equal(inferAction("read", {}, "read"), "read");
   assert.equal(inferAction("write", {}, "read"), "write");
+  assert.equal(inferAction("browser", { action: "submit" }, "read"), "write");
   assert.equal(inferAction("cron", {}, "read"), "write");
   assert.equal(inferAction("sessions_spawn", {}, "read"), "admin");
   assert.equal(inferAction("slack.send", {}, "read"), "send");

@@ -1,0 +1,23 @@
+{
+  "event": {
+    "toolName": "browser",
+    "toolKind": "browser",
+    "toolInputKind": "json",
+    "runId": "pr-review-123",
+    "toolCallId": "tool-submit-pr-review",
+    "params": {
+      "action": "submit",
+      "url": "https://github.com/dinpd/AgentPass/pull/123",
+      "comment": "Looks good overall. Please add a regression test for the config path before merge.",
+      "data_from": "agent_context",
+      "data_to": "browser_form"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "pr-reviewer",
+    "runId": "pr-review-123",
+    "toolName": "browser",
+    "toolCallId": "tool-submit-pr-review"
+  }
+}
