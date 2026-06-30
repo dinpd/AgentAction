@@ -2,6 +2,9 @@
 
 AgentPass trusted tool policy plugin for OpenClaw.
 
+For a runnable AgentPass gateway deployment shape, see
+[`solutions/openclaw-agentpass`](../../solutions/openclaw-agentpass/).
+
 The plugin registers a trusted pre-tool policy named `agentpass`. For each
 OpenClaw tool call it maps the tool event into an AgentPass authorization check
 and returns one of OpenClaw's existing policy outcomes:

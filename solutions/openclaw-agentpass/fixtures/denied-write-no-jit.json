@@ -1,0 +1,9 @@
+{
+  "agent_id": "openclaw",
+  "job_id": "openclaw-smoke",
+  "tool": "write",
+  "action": "write",
+  "resource": "local/README.md",
+  "data_from": "agent_context",
+  "data_to": "local_files"
+}

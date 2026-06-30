@@ -1,0 +1,18 @@
+{
+  "plugins": {
+    "entries": {
+      "agentpass": {
+        "enabled": true,
+        "config": {
+          "enabled": true,
+          "mode": "remote",
+          "authorizeUrl": "http://127.0.0.1:8787/authorize",
+          "apiKey": "dev-token",
+          "failClosed": true,
+          "challengeTimeoutMs": 120000,
+          "defaultAction": "read"
+        }
+      }
+    }
+  }
+}

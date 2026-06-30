@@ -295,6 +295,8 @@ AgentPass currently includes:
 - Hosted approval inbox for evidence review, scoped JIT issuance, one-time
   authorization, replay testing, and correlated audit timelines
 - Provider-side Express and FastAPI middleware
+- OpenClaw plugin and solution pack for routing OpenClaw tool calls through an
+  AgentPass gateway
 
 ## Roadmap Focus
 

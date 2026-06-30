@@ -1,0 +1,157 @@
+agent:
+  id: openclaw
+  name: OpenClaw Agent
+  owner: agentpass-local
+  environment: local
+  purpose: Authorizes OpenClaw tool calls through AgentPass before execution
+  expires_at: 2026-12-31
+
+delegation:
+  acts_for:
+    type: user
+    required: false
+
+delegation_chain:
+  may_call_agents: false
+  allowed_agents: []
+  max_depth: 1
+
+intent:
+  confirmation_required_for:
+    - filesystem_write
+    - shell_admin
+    - browser_form_submit
+    - external_message
+    - session_control
+
+job_boundary:
+  required: true
+  require_job_id: true
+  bind_authorization_to:
+    - job_id
+
+jit_authorization:
+  enabled: true
+  default_ttl_seconds: 300
+  require_fresh_context: true
+  bind_token_to:
+    - agent_id
+    - user_id
+    - tool
+    - action
+    - resource
+    - approval_id
+    - job_id
+  revoke_after_use: true
+  max_session_extensions: 0
+
+tools:
+  - name: read
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: web_fetch
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: web_search
+    access: read
+    auth_mode: delegated
+    approval: none
+
+  - name: browser
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
+  - name: write
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: local/*
+
+  - name: edit
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: local/*
+
+  - name: apply_patch
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+      resource: local/*
+
+  - name: exec
+    access: admin
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
+  - name: process
+    access: admin
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
+  - name: cron
+    access: write
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
+  - name: sessions_spawn
+    access: admin
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
+data_flows:
+  - from: local_files
+    to: agent_context
+    allowed: true
+
+  - from: agent_context
+    to: local_files
+    allowed: true
+
+  - from: browser
+    to: agent_context
+    allowed: true
+
+  - from: agent_context
+    to: browser_form
+    allowed: false
+
+  - from: secrets_manager
+    to: external_channel
+    allowed: false
+
+runtime:
+  enforce_manifest: true
+  detect_tool_drift: true
+  detect_new_destinations: true
+
+audit:
+  log_tool_calls: true
+  log_decisions: true
+  log_jit_grants: true
+  retain_days: 30
+
+kill_switch:
+  enabled: true
+  revoke_on_policy_violation: true
