@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createAgentPassOpenClawRuntime,
+  decisionReasons,
   decisionType,
   isAllowedDecision,
   isChallengeDecision,
@@ -163,4 +164,66 @@ test("runtime can fail open when explicitly configured", async () => {
 
   assert.equal(decisionType(decision), "allow");
   assert.equal(isAllowedDecision(decision), true);
+});
+
+test("remote runtime sends AgentPass gateway field aliases", async () => {
+  let payload: Record<string, unknown> | undefined;
+  const runtime = createAgentPassOpenClawRuntime({
+    config: {
+      mode: "remote",
+      authorizeUrl: "http://127.0.0.1:8787/authorize",
+    },
+    fetch: async (_url, init) => {
+      payload = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ allow: true, decision: "allow", findings: [] }), { status: 200 });
+    },
+  });
+
+  const decision = await runtime.authorize({
+    agentId: "openclaw",
+    jobId: "job-1",
+    tool: "read",
+    action: "read",
+    dataFrom: "local_files",
+    dataTo: "agent_context",
+    estimatedTokens: 42,
+  });
+
+  assert.equal(decisionType(decision), "allow");
+  assert.equal(payload?.agentId, "openclaw");
+  assert.equal(payload?.agent_id, "openclaw");
+  assert.equal(payload?.jobId, "job-1");
+  assert.equal(payload?.job_id, "job-1");
+  assert.equal(payload?.dataFrom, "local_files");
+  assert.equal(payload?.data_from, "local_files");
+  assert.equal(payload?.estimatedTokens, 42);
+  assert.equal(payload?.estimated_tokens, 42);
+});
+
+test("remote runtime preserves AgentPass gateway denials", async () => {
+  const runtime = createAgentPassOpenClawRuntime({
+    config: {
+      mode: "remote",
+      authorizeUrl: "http://127.0.0.1:8787/authorize",
+    },
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          allow: false,
+          decision: "deny",
+          findings: ["missing jit_grant_id"],
+        }),
+        { status: 403 },
+      ),
+  });
+
+  const decision = await runtime.authorize({
+    agentId: "openclaw",
+    tool: "write",
+    action: "write",
+  });
+
+  assert.equal(decisionType(decision), "deny");
+  assert.equal(isAllowedDecision(decision), false);
+  assert.deepEqual(decisionReasons(decision), ["missing jit_grant_id"]);
 });

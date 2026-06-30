@@ -78,12 +78,12 @@ async function authorizeRemote(
       "content-type": "application/json",
       ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
     },
-    body: JSON.stringify(check),
+    body: JSON.stringify(toRemoteAuthorizePayload(check)),
   });
-  if (!response.ok) {
+  if (!response.ok && response.status !== 403) {
     throw new Error(`AgentPass authorization failed with HTTP ${response.status}`);
   }
-  return (await response.json()) as AgentPassOpenClawDecision;
+  return normalizeRemoteDecision((await response.json()) as AgentPassOpenClawDecision & { findings?: string[] });
 }
 
 export function decisionType(decision: AgentPassOpenClawDecision): "allow" | "deny" | "challenge_required" {
@@ -100,6 +100,38 @@ export function isChallengeDecision(decision: AgentPassOpenClawDecision): boolea
 
 export function decisionReasons(decision: AgentPassOpenClawDecision): string[] {
   return decision.reasons?.filter(Boolean) || [];
+}
+
+function toRemoteAuthorizePayload(check: GuardCheck): GuardCheck & Record<string, unknown> {
+  return {
+    ...check,
+    agent_id: check.agentId,
+    tenant_id: check.tenantId,
+    job_id: check.jobId,
+    case_id: check.caseId,
+    customer_id: check.customerId,
+    user_id: check.userId,
+    approval_id: check.approvalId,
+    data_from: check.dataFrom,
+    data_to: check.dataTo,
+    destination_type: check.destinationType,
+    external_domain: check.externalDomain,
+    data_classification: check.dataClassification,
+    field_set: check.fieldSet,
+    record_count: check.recordCount,
+    estimated_tokens: check.estimatedTokens,
+    estimated_cost_usd: check.estimatedCostUsd,
+  };
+}
+
+function normalizeRemoteDecision(
+  decision: AgentPassOpenClawDecision & { findings?: string[] },
+): AgentPassOpenClawDecision {
+  if (decision.reasons || !decision.findings) return decision;
+  return {
+    ...decision,
+    reasons: decision.findings.filter(Boolean),
+  };
 }
 
 function allowDecision(check: GuardCheck, reasons: string[] = []): AgentPassOpenClawDecision {
@@ -159,4 +191,3 @@ function denyDecision(check: GuardCheck, reason: string): AgentPassOpenClawDecis
     },
   };
 }
-
