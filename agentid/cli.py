@@ -26,6 +26,7 @@ from agentid.mcp import (
 )
 from agentid.mcp_ui import write_mcp_ui
 from agentid.mcp_ui_server import serve_mcp_ui
+from agentid.openclaw import format_openclaw_doctor, openclaw_doctor_to_dict, run_openclaw_budget_doctor
 from agentid.policy import generate_policy
 from agentid.provider import (
     ProviderContractError,
@@ -80,6 +81,16 @@ def main(argv: list[str] | None = None) -> int:
     gateway_parser.add_argument("--host", default="127.0.0.1")
     gateway_parser.add_argument("--port", type=int, default=8787)
     gateway_parser.add_argument("--api-key", default=os.environ.get("AGENTID_GATEWAY_API_KEY"))
+
+    openclaw_parser = subparsers.add_parser("openclaw", help="Work with the AgentPass OpenClaw integration.")
+    openclaw_subparsers = openclaw_parser.add_subparsers(dest="openclaw_command", required=True)
+    openclaw_doctor_parser = openclaw_subparsers.add_parser("doctor", help="Run OpenClaw integration checks.")
+    openclaw_doctor_parser.add_argument("--demo", choices=["budget"], default="budget")
+    openclaw_doctor_parser.add_argument("--root", default=".", help="AgentPass repository root.")
+    openclaw_doctor_parser.add_argument("--build", action="store_true", help="Run `npm run build` for packages/openclaw if needed.")
+    openclaw_doctor_parser.add_argument("--node", default="node", help="Node.js executable.")
+    openclaw_doctor_parser.add_argument("--npm", default="npm", help="npm executable.")
+    openclaw_doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
 
     audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentPass manifest.")
     audit_parser.add_argument("audit_log")
@@ -192,6 +203,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
         return 0
+
+    if args.command == "openclaw":
+        if args.openclaw_command == "doctor":
+            result = run_openclaw_budget_doctor(
+                root=args.root,
+                build=args.build,
+                node_bin=args.node,
+                npm_bin=args.npm,
+            )
+            if args.json:
+                print(json.dumps(openclaw_doctor_to_dict(result), indent=2))
+            else:
+                print(format_openclaw_doctor(result), end="")
+            return 0 if result.ok else 1
 
     if args.command == "mcp":
         try:

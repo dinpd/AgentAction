@@ -8,6 +8,19 @@ OpenClaw trusted tool policy
   -> OpenClaw native approval or block decision
 ```
 
+The canonical first demo is the **tool-loop and context-payload budget guard**:
+
+```text
+read README.md -> allow
+read README.md -> allow
+read README.md -> challenge_required
+large heartbeat-like payload -> deny
+```
+
+That demo is intentionally narrow and runnable today. It protects OpenClaw
+tool-call loops and oversized tool-call payloads. Full heartbeat or prompt
+context trimming still needs an OpenClaw pre-model/heartbeat contribution hook.
+
 The reusable plugin lives in [`packages/openclaw`](../../packages/openclaw/).
 This solution pack is the runnable reference configuration for trying that
 plugin against the AgentPass gateway.
@@ -48,6 +61,36 @@ plugin against the AgentPass gateway.
 - `tool-loop-budget-use-case.mjs` - integrated local-runtime budget test using
   OpenClaw-style events.
 
+## Five-Minute Budget Demo
+
+From the repository root:
+
+```bash
+cd packages/openclaw
+npm install
+npm run build
+cd ../..
+agentpass openclaw doctor --demo budget
+```
+
+Expected result:
+
+```text
+AgentPass OpenClaw budget doctor
+[ok] manifest: solutions/openclaw-agentpass/agentpass-openclaw-manifest.yaml is valid
+[ok] openclaw-adapter-build: packages/openclaw/dist/index.js exists
+[ok] budget-demo-script: solutions/openclaw-agentpass/tool-loop-budget-use-case.mjs exists
+[ok] budget-demo: repeatedReads=[allow, allow, challenge_required], oversizedContext=deny
+
+Budget demo passed: repeated reads allow, allow, then challenge; oversized payload denies.
+```
+
+If the OpenClaw adapter is not built yet, run:
+
+```bash
+agentpass openclaw doctor --demo budget --build
+```
+
 ## Use Cases At A Glance
 
 | Use case | Current enforcement point | What is protected |
@@ -59,13 +102,13 @@ plugin against the AgentPass gateway.
 | MCP drift | AgentPass MCP preflight/startup check | New or changed MCP tools are detected before the tool surface is trusted. |
 | Tool loop budget | OpenClaw trusted tool policy in local mode | Repeated tool calls challenge; oversized payloads deny at hard token caps. |
 
-Repo maintenance, PR reviewer, secrets exfiltration, and Slack send guard are
-enforced by the current OpenClaw plugin because they happen at tool-call time.
-MCP drift is included as a preflight gate today: run it in CI, gateway startup,
-or OpenClaw startup before exposing MCP tools. A future OpenClaw discovery hook
-could move this from preflight into the plugin runtime itself. Tool loop budgets
-are enforced by the current plugin in local AgentPass mode; full heartbeat
-context control still needs a pre-model or heartbeat contribution hook.
+Tool loop budgets are the recommended first demo and are enforced by the current
+plugin in local AgentPass mode. Repo maintenance, PR reviewer, secrets
+exfiltration, and Slack send guard are enforced by the current OpenClaw plugin
+because they happen at tool-call time. MCP drift is included as a preflight gate
+today: run it in CI, gateway startup, or OpenClaw startup before exposing MCP
+tools. A future OpenClaw discovery hook could move this from preflight into the
+plugin runtime itself.
 
 Read-only tool calls stay fast:
 
@@ -189,7 +232,7 @@ This use case exercises local runtime budget enforcement:
 cd packages/openclaw
 npm run build
 cd ../..
-node solutions/openclaw-agentpass/tool-loop-budget-use-case.mjs
+agentpass openclaw doctor --demo budget
 ```
 
 See [`tool-loop-budget-use-case.md`](tool-loop-budget-use-case.md) for the

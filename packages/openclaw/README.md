@@ -1,9 +1,13 @@
 # AgentPass OpenClaw
 
-AgentPass trusted tool policy plugin for OpenClaw.
+AgentPass trusted tool policy plugin for OpenClaw tool-call authorization.
 
 For a runnable AgentPass gateway deployment shape, see
 [`solutions/openclaw-agentpass`](../../solutions/openclaw-agentpass/).
+
+The current package is a plugin-level adapter. It is not a replacement for
+OpenClaw's proposed core approval-resolver seam; if OpenClaw adds that seam,
+AgentPass should implement it as the external policy decision provider.
 
 The plugin registers a trusted pre-tool policy named `agentpass`. For each
 OpenClaw tool call it maps the tool event into an AgentPass authorization check
@@ -17,6 +21,29 @@ Approval delivery stays native to OpenClaw. The user can approve through the
 same configured chat/channel approval path or `/approve` flow.
 
 ## Configuration
+
+## Budget Demo
+
+The recommended first demo is the tool-loop and context-payload budget guard:
+
+```bash
+cd packages/openclaw
+npm install
+npm run build
+cd ../..
+agentpass openclaw doctor --demo budget
+```
+
+Expected behavior:
+
+- first repeated `read` call: allow
+- second repeated `read` call: allow
+- third repeated `read` call: `challenge_required`
+- oversized heartbeat-like tool payload: deny
+
+This protects tool-call loops and tool-call payloads today. Heartbeat or
+prompt-context growth that happens before tool execution needs an OpenClaw
+pre-model or heartbeat contribution hook.
 
 ## Usage Model
 
