@@ -1,0 +1,23 @@
+{
+  "event": {
+    "toolName": "read",
+    "toolKind": "filesystem",
+    "toolInputKind": "json",
+    "runId": "repo-maintenance-doc-update",
+    "toolCallId": "tool-read-readme",
+    "params": {
+      "path": "README.md",
+      "data_to": "agent_context"
+    },
+    "derivedPaths": [
+      "README.md"
+    ]
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "repo-maintenance",
+    "runId": "repo-maintenance-doc-update",
+    "toolName": "read",
+    "toolCallId": "tool-read-readme"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "event": {
+    "toolName": "write",
+    "toolKind": "filesystem",
+    "toolInputKind": "json",
+    "runId": "repo-maintenance-doc-update",
+    "toolCallId": "tool-write-readme",
+    "params": {
+      "path": "README.md",
+      "content": "Add OpenClaw AgentPass setup notes.",
+      "data_from": "agent_context",
+      "data_to": "local_files"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "repo-maintenance",
+    "runId": "repo-maintenance-doc-update",
+    "toolName": "write",
+    "toolCallId": "tool-write-readme"
+  }
+}

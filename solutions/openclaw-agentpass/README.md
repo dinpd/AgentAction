@@ -22,6 +22,10 @@ plugin against the AgentPass gateway.
 - `fixtures/denied-write-no-jit.json` - direct `/authorize` request that should
   deny because write access requires approval and JIT.
 - `smoke-test.sh` - local gateway smoke test for the two fixtures.
+- `repo-maintenance-use-case.md` - concrete OpenClaw repo-maintenance workflow
+  showing read allowed and write denied without JIT.
+- `repo-maintenance-use-case.mjs` - integrated use-case test that maps
+  OpenClaw-style events through the real adapter runtime.
 
 ## What It Proves
 
@@ -72,6 +76,20 @@ Expected output:
 ```text
 AgentPass OpenClaw smoke passed: read allowed, write denied without JIT.
 ```
+
+## Run The Repo Maintenance Use Case
+
+This use case exercises the actual OpenClaw adapter mapper and remote runtime:
+
+```bash
+cd packages/openclaw
+npm run build
+cd ../..
+node solutions/openclaw-agentpass/repo-maintenance-use-case.mjs
+```
+
+See [`repo-maintenance-use-case.md`](repo-maintenance-use-case.md) for the
+workflow and expected result.
 
 ## Install The OpenClaw Plugin
 
