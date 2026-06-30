@@ -1,0 +1,23 @@
+{
+  "event": {
+    "toolName": "read",
+    "toolKind": "filesystem",
+    "toolInputKind": "json",
+    "runId": "secret-exfiltration-test",
+    "toolCallId": "tool-read-env",
+    "params": {
+      "path": ".env",
+      "data_to": "agent_context"
+    },
+    "derivedPaths": [
+      ".env"
+    ]
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "secret-exfiltration",
+    "runId": "secret-exfiltration-test",
+    "toolName": "read",
+    "toolCallId": "tool-read-env"
+  }
+}

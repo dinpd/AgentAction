@@ -30,6 +30,11 @@ plugin against the AgentPass gateway.
   fetch allowed and PR review submission denied without JIT.
 - `pr-reviewer-use-case.mjs` - integrated PR reviewer test using the same
   OpenClaw adapter runtime.
+- `secrets-exfiltration-use-case.md` - concrete secret exfiltration workflow
+  showing local secret context allowed for analysis but blocked from browser
+  form submission.
+- `secrets-exfiltration-use-case.mjs` - integrated secret exfiltration test
+  using OpenClaw-style events and the same remote runtime.
 
 ## What It Proves
 
@@ -108,6 +113,20 @@ node solutions/openclaw-agentpass/pr-reviewer-use-case.mjs
 
 See [`pr-reviewer-use-case.md`](pr-reviewer-use-case.md) for the workflow and
 expected result.
+
+## Run The Secrets Exfiltration Use Case
+
+This use case exercises data-flow enforcement for secret-like fields:
+
+```bash
+cd packages/openclaw
+npm run build
+cd ../..
+node solutions/openclaw-agentpass/secrets-exfiltration-use-case.mjs
+```
+
+See [`secrets-exfiltration-use-case.md`](secrets-exfiltration-use-case.md) for
+the workflow and expected result.
 
 ## Install The OpenClaw Plugin
 

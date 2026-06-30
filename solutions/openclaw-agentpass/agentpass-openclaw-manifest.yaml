@@ -145,6 +145,10 @@ data_flows:
     to: external_channel
     allowed: false
 
+  - from: secrets_manager
+    to: browser_form
+    allowed: false
+
 runtime:
   enforce_manifest: true
   detect_tool_drift: true
