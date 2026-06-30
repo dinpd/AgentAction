@@ -22,7 +22,7 @@ class ValidationResult:
 
 
 REQUIRED_AGENT_FIELDS = ["id", "name", "owner", "environment", "purpose"]
-VALID_ACCESS = {"read", "write", "admin", "execute"}
+VALID_ACCESS = {"read", "write", "send", "admin", "execute"}
 VALID_APPROVAL = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_AUTH_MODE = {"delegated", "service", "just_in_time"}
 VALID_CAPABILITY_KIND = {"api_operation", "local_tool", "mcp_tool", "skill", "tool"}
@@ -308,10 +308,10 @@ def _validate_capability(
     if approval not in VALID_APPROVAL:
         errors.append(f"{prefix}.approval must be one of: {', '.join(sorted(VALID_APPROVAL))}.")
 
-    if access in {"write", "admin", "execute"} and approval in {"none", "notify"}:
+    if access in {"write", "send", "admin", "execute"} and approval in {"none", "notify"}:
         warnings.append(f"{prefix} has {access} access with weak approval setting: {approval}.")
 
-    if access in {"write", "admin", "execute"} and auth_mode != "just_in_time":
+    if access in {"write", "send", "admin", "execute"} and auth_mode != "just_in_time":
         warnings.append(f"{prefix} has {access} access without auth_mode=just_in_time.")
 
     if access == "admin":
@@ -322,7 +322,7 @@ def _validate_capability(
         errors.append(f"{prefix}.constraints must be an object.")
         constraints = {}
 
-    if access in {"write", "admin", "execute"} and not constraints:
+    if access in {"write", "send", "admin", "execute"} and not constraints:
         warnings.append(f"{prefix} has {access} access without constraints.")
 
     if auth_mode == "just_in_time":

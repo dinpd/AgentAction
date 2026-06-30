@@ -35,12 +35,18 @@ plugin against the AgentPass gateway.
   form submission.
 - `secrets-exfiltration-use-case.mjs` - integrated secret exfiltration test
   using OpenClaw-style events and the same remote runtime.
+- `slack-send-guard-use-case.md` - concrete outbound message workflow showing
+  customer context read allowed and Slack send denied.
+- `slack-send-guard-use-case.mjs` - integrated send-guard test using
+  OpenClaw-style events and the remote gateway runtime.
 - `mcp-drift-use-case.md` - concrete MCP drift workflow showing an approved
   read-only tool surface and a drifted high-risk surface.
 - `mcp-drift-use-case.py` - deterministic MCP drift test using AgentPass
   `tools/list` analysis and diffing.
-
-## What It Proves
+- `tool-loop-budget-use-case.md` - concrete tool loop and context budget
+  workflow showing soft challenge and hard token denial.
+- `tool-loop-budget-use-case.mjs` - integrated local-runtime budget test using
+  OpenClaw-style events.
 
 ## Use Cases At A Glance
 
@@ -49,13 +55,17 @@ plugin against the AgentPass gateway.
 | Repo maintenance | OpenClaw trusted tool policy | Reads stay fast; file writes require AgentPass approval/JIT. |
 | PR reviewer | OpenClaw trusted tool policy | PR diff fetch is allowed; browser review submission requires approval/JIT. |
 | Secrets exfiltration | OpenClaw trusted tool policy + AgentPass data-flow policy | Local secret context can be analyzed; secret movement to browser forms is blocked. |
+| Slack send guard | OpenClaw trusted tool policy + AgentPass data-flow policy | Customer records can be read; outbound message sends with customer data are blocked. |
 | MCP drift | AgentPass MCP preflight/startup check | New or changed MCP tools are detected before the tool surface is trusted. |
+| Tool loop budget | OpenClaw trusted tool policy in local mode | Repeated tool calls challenge; oversized payloads deny at hard token caps. |
 
-The first three use cases are enforced by the current OpenClaw plugin because
-they happen at tool-call time. MCP drift is included as a preflight gate today:
-run it in CI, gateway startup, or OpenClaw startup before exposing MCP tools.
-A future OpenClaw discovery hook could move this from preflight into the plugin
-runtime itself.
+Repo maintenance, PR reviewer, secrets exfiltration, and Slack send guard are
+enforced by the current OpenClaw plugin because they happen at tool-call time.
+MCP drift is included as a preflight gate today: run it in CI, gateway startup,
+or OpenClaw startup before exposing MCP tools. A future OpenClaw discovery hook
+could move this from preflight into the plugin runtime itself. Tool loop budgets
+are enforced by the current plugin in local AgentPass mode; full heartbeat
+context control still needs a pre-model or heartbeat contribution hook.
 
 Read-only tool calls stay fast:
 
@@ -66,6 +76,7 @@ Read-only tool calls stay fast:
 State-changing or high-risk calls require approval and JIT:
 
 - `browser`
+- `message`
 - `write`
 - `edit`
 - `apply_patch`
@@ -77,10 +88,8 @@ State-changing or high-risk calls require approval and JIT:
 The manifest binds decisions to `job_id`, so approvals and JIT grants are scoped
 to the current OpenClaw run or session instead of creating standing authority.
 This remote-gateway pack intentionally focuses on the AgentPass manifest action
-model currently supported by the Python gateway: `read`, `write`, `execute`, and
-`admin`. OpenClaw message/send-style actions can still be handled by the local
-TypeScript guard policy in `packages/openclaw`; adding first-class hosted
-`send` support is a follow-on gateway contract change.
+model currently supported by the Python gateway: `read`, `write`, `send`,
+`execute`, and `admin`.
 
 ## Run Locally
 
@@ -147,6 +156,20 @@ node solutions/openclaw-agentpass/secrets-exfiltration-use-case.mjs
 See [`secrets-exfiltration-use-case.md`](secrets-exfiltration-use-case.md) for
 the workflow and expected result.
 
+## Run The Slack Send Guard Use Case
+
+This use case exercises first-class `send` action enforcement:
+
+```bash
+cd packages/openclaw
+npm run build
+cd ../..
+node solutions/openclaw-agentpass/slack-send-guard-use-case.mjs
+```
+
+See [`slack-send-guard-use-case.md`](slack-send-guard-use-case.md) for the
+workflow and expected result.
+
 ## Run The MCP Drift Use Case
 
 This use case exercises MCP `tools/list` drift detection:
@@ -157,6 +180,20 @@ solutions/openclaw-agentpass/mcp-drift-use-case.py
 
 See [`mcp-drift-use-case.md`](mcp-drift-use-case.md) for the workflow and
 expected result.
+
+## Run The Tool Loop Budget Use Case
+
+This use case exercises local runtime budget enforcement:
+
+```bash
+cd packages/openclaw
+npm run build
+cd ../..
+node solutions/openclaw-agentpass/tool-loop-budget-use-case.mjs
+```
+
+See [`tool-loop-budget-use-case.md`](tool-loop-budget-use-case.md) for the
+workflow and expected result.
 
 ## Install The OpenClaw Plugin
 

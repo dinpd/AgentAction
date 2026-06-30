@@ -57,6 +57,42 @@ def test_valid_manifest_minimum():
     assert result.ok
 
 
+def test_manifest_accepts_send_access():
+    manifest = {
+        "agent": {
+            "id": "a1",
+            "name": "Test Agent",
+            "owner": "team",
+            "environment": "dev",
+            "purpose": "test",
+        },
+        "jit_authorization": {
+            "enabled": True,
+            "default_ttl_seconds": 300,
+            "bind_token_to": ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+            "revoke_after_use": True,
+        },
+        "delegation_chain": {"may_call_agents": False, "allowed_agents": []},
+        "intent": {"confirmation_required_for": ["external_message"]},
+        "tools": [
+            {
+                "name": "message",
+                "access": "send",
+                "auth_mode": "just_in_time",
+                "approval": "human_confirm",
+                "constraints": {"token_ttl_seconds": 300},
+            }
+        ],
+        "data_flows": [{"from": "agent_context", "to": "external_channel", "allowed": True}],
+        "runtime": {"enforce_manifest": True},
+        "audit": {"log_tool_calls": True, "log_decisions": True},
+    }
+
+    result = validate_manifest(manifest)
+
+    assert result.ok
+
+
 def test_oidc_demo_mode_warns_but_validates():
     manifest = {
         "agent": {

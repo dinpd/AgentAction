@@ -53,7 +53,7 @@
         },
         "action": {
           "type": "string",
-          "enum": ["read", "write", "admin", "execute"]
+          "enum": ["read", "write", "send", "admin", "execute"]
         },
         "risk": {
           "type": "string",

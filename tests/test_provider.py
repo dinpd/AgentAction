@@ -46,6 +46,17 @@ def test_provider_contract_example_matches_json_schema():
     assert [outcome["value"] for outcome in profile["outcomes"]] == ["ALLOW", "REFER", "DENY"]
 
 
+def test_provider_contract_accepts_send_action():
+    tool = high_risk_tool()
+    tool["action"] = "send"
+    contract = provider_contract({"provider.email.send_message": tool})
+
+    result = validate_provider_contract(contract)
+
+    assert result.ok
+    assert result.errors == []
+
+
 def test_cli_provider_schema_payload_is_json(capsys):
     code = main(["provider", "schema"])
     payload = yaml.safe_load(capsys.readouterr().out)

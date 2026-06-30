@@ -21,7 +21,7 @@ class ProviderContractError(Exception):
     """Raised when a provider MCP contract cannot be loaded or parsed."""
 
 
-VALID_ACTIONS = {"read", "write", "admin", "execute"}
+VALID_ACTIONS = {"read", "write", "send", "admin", "execute"}
 VALID_APPROVALS = {"none", "notify", "required", "human_confirm", "step_up", "manager", "block"}
 VALID_RISKS = {"low", "medium", "high", "critical"}
 VALID_RECEIPT_CANONICALIZATION = {"agentid_canonical_json_v1"}
@@ -418,7 +418,7 @@ def provider_contract_from_openapi(
             input_schema = _input_schema(spec, operation, path_parameters)
             action = _action_for_method(method.lower())
             risk = _risk_for_operation(method.lower(), tool_name, operation)
-            high_risk = risk in {"high", "critical"} or action in {"write", "admin", "execute"}
+            high_risk = risk in {"high", "critical"} or action in {"write", "send", "admin", "execute"}
             resource_template = _resource_template(inferred_provider, str(path))
 
             tool: dict[str, Any] = {
@@ -894,7 +894,7 @@ def _is_high_blast_radius(name: str, tool: dict[str, Any]) -> bool:
     lowered = name.lower()
     return (
         risk in {"high", "critical"}
-        or action in {"write", "admin", "execute"}
+        or action in {"write", "send", "admin", "execute"}
         or tool.get("requires_jit") is True
         or tool.get("receipt_required") is True
         or any(hint in lowered for hint in FINANCIAL_HINTS)

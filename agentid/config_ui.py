@@ -655,7 +655,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
       mcpRecommendations: []
     };
 
-    const accessOptions = ["read", "write", "execute", "admin"];
+    const accessOptions = ["read", "write", "send", "execute", "admin"];
     const approvalOptions = ["none", "notify", "required", "human_confirm", "step_up", "manager", "block"];
     const authOptions = ["delegated", "service", "just_in_time"];
     const RISKY_NAME_KEYWORDS = {
@@ -1157,7 +1157,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
         },
         intent: {
           confirmation_required_for: [
-            ...tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access)).map((tool) => tool.name),
+            ...tools.filter((tool) => ["write", "send", "execute", "admin"].includes(tool.access)).map((tool) => tool.name),
             ...capabilities.filter((capability) => ["execute", "admin"].includes(capability.access)).map((capability) => capability.id)
           ]
         },
@@ -1350,7 +1350,7 @@ allow if {
       const tools = data.tools || [];
       const blocked = tools.filter((tool) => tool.approval === "block");
       const jit = tools.filter((tool) => tool.auth_mode === "just_in_time");
-      const writes = tools.filter((tool) => ["write", "execute", "admin"].includes(tool.access));
+      const writes = tools.filter((tool) => ["write", "send", "execute", "admin"].includes(tool.access));
       const flows = data.data_flows || [];
       const notes = [];
 
@@ -1509,7 +1509,7 @@ allow if {
       }
       if (target.dataset.bulk === "jitWrites") {
         state.tools.forEach((tool) => {
-          if (["write", "execute", "admin"].includes(tool.access)) {
+          if (["write", "send", "execute", "admin"].includes(tool.access)) {
             tool.auth_mode = "just_in_time";
             tool.approval = tool.approval === "none" || tool.approval === "notify" ? "human_confirm" : tool.approval;
             tool.ttl = tool.ttl || "300";

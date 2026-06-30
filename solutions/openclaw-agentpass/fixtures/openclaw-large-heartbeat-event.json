@@ -1,0 +1,21 @@
+{
+  "event": {
+    "toolName": "read",
+    "toolKind": "context",
+    "toolInputKind": "json",
+    "runId": "loop-budget-large-context",
+    "toolCallId": "tool-large-heartbeat",
+    "params": {
+      "path": "heartbeat.txt",
+      "content": "heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status heartbeat status",
+      "data_to": "agent_context"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "loop-budget",
+    "runId": "loop-budget-large-context",
+    "toolName": "read",
+    "toolCallId": "tool-large-heartbeat"
+  }
+}

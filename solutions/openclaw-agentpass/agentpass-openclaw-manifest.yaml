@@ -113,6 +113,13 @@ tools:
     constraints:
       token_ttl_seconds: 300
 
+  - name: message
+    access: send
+    auth_mode: just_in_time
+    approval: human_confirm
+    constraints:
+      token_ttl_seconds: 300
+
   - name: sessions_spawn
     access: admin
     auth_mode: just_in_time
@@ -129,9 +136,21 @@ data_flows:
     to: agent_context
     allowed: true
 
+  - from: customer_records
+    to: agent_context
+    allowed: true
+
   - from: agent_context
     to: local_files
     allowed: true
+
+  - from: agent_context
+    to: external_channel
+    allowed: true
+
+  - from: customer_records
+    to: external_channel
+    allowed: false
 
   - from: browser
     to: agent_context

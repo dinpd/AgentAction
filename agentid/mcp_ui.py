@@ -731,8 +731,8 @@ MCP_UI_HTML = r"""<!doctype html>
     }
 
     function manifestSnippet(tool) {
-      const authMode = ["write", "execute", "admin"].includes(tool.action) ? "just_in_time" : "delegated";
-      const approval = ["write", "execute", "admin"].includes(tool.action) ? "human_confirm" : "none";
+      const authMode = ["write", "send", "execute", "admin"].includes(tool.action) ? "just_in_time" : "delegated";
+      const approval = ["write", "send", "execute", "admin"].includes(tool.action) ? "human_confirm" : "none";
       return [
         "tools:",
         `  - name: ${tool.name}`,
@@ -809,7 +809,7 @@ MCP_UI_HTML = r"""<!doctype html>
         "",
         "## Remediation",
         "- Put high-risk tools behind gateway authorization.",
-        "- Require approval or just-in-time authority for write, execute, and admin tools.",
+        "- Require approval or just-in-time authority for write, send, execute, and admin tools.",
         "- Bind authorization to user, agent, job, resource, and time window.",
         "- Log decisions and track tool drift in CI.",
         "",
@@ -836,7 +836,7 @@ MCP_UI_HTML = r"""<!doctype html>
     function remediationFor(score, action, categories, sensitiveArguments) {
       const remediation = [];
       if (score >= 50) remediation.push("run this tool behind a gateway authorization check");
-      if (["write", "execute", "admin"].includes(action)) {
+      if (["write", "send", "execute", "admin"].includes(action)) {
         remediation.push("require approval or just-in-time authority before execution");
         remediation.push("bind authorization to user, agent, job, resource, and time window");
       }

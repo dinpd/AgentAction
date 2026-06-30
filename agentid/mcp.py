@@ -516,7 +516,7 @@ def remediation_for(score: int, action: str, categories: set[str], sensitive_arg
     remediation: list[str] = []
     if score >= 50:
         remediation.append("run this tool behind a gateway authorization check")
-    if action in {"write", "execute", "admin"}:
+    if action in {"write", "send", "execute", "admin"}:
         remediation.append("require approval or just-in-time authority before execution")
         remediation.append("bind authorization to user, agent, job, resource, and time window")
     if sensitive_arguments:

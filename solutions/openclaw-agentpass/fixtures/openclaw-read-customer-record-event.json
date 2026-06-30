@@ -1,0 +1,21 @@
+{
+  "event": {
+    "toolName": "web_fetch",
+    "toolKind": "network",
+    "toolInputKind": "json",
+    "runId": "support-message-1042",
+    "toolCallId": "tool-read-customer-record",
+    "params": {
+      "url": "https://crm.example.invalid/customers/cus_123",
+      "data_from": "customer_records",
+      "data_to": "agent_context"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "support-message",
+    "runId": "support-message-1042",
+    "toolName": "web_fetch",
+    "toolCallId": "tool-read-customer-record"
+  }
+}

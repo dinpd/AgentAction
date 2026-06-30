@@ -60,6 +60,9 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
 
         if access == "read":
             score += 3
+        elif access == "send":
+            score += 14
+            reasons.append(f"{name} has send access")
         elif access == "write":
             score += 12
             reasons.append(f"{name} has write access")
@@ -80,7 +83,7 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
                 score += 10
                 reasons.append(f"{name} does not constrain downstream tool use")
 
-        if access in {"write", "execute", "admin"}:
+        if access in {"write", "send", "execute", "admin"}:
             if auth_mode == "just_in_time":
                 score -= 8
             else:
@@ -89,7 +92,7 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
 
         if approval in STRONG_APPROVAL:
             score -= 5
-        elif access in {"write", "execute", "admin"}:
+        elif access in {"write", "send", "execute", "admin"}:
             score += 10
             reasons.append(f"{name} has weak approval: {approval}")
 
@@ -98,7 +101,7 @@ def risk_score(manifest: dict[str, Any]) -> tuple[int, list[str]]:
             ttl = constraints.get("token_ttl_seconds") if isinstance(constraints, dict) else None
             if isinstance(ttl, int) and ttl <= 300:
                 score -= 2
-        elif access in {"write", "execute", "admin"}:
+        elif access in {"write", "send", "execute", "admin"}:
             score += 8
             reasons.append(f"{name} lacks constraints")
 

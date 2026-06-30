@@ -1,0 +1,22 @@
+{
+  "event": {
+    "toolName": "message",
+    "toolKind": "channel",
+    "toolInputKind": "json",
+    "runId": "support-message-1042",
+    "toolCallId": "tool-send-slack-customer",
+    "params": {
+      "to": "#support-triage",
+      "body": "Customer jane@example.com reports SSN 123-45-6789 on the ticket. Can someone investigate?",
+      "data_from": "customer_records",
+      "data_to": "external_channel"
+    }
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "support-message",
+    "runId": "support-message-1042",
+    "toolName": "message",
+    "toolCallId": "tool-send-slack-customer"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "event": {
+    "toolName": "read",
+    "toolKind": "filesystem",
+    "toolInputKind": "json",
+    "runId": "loop-budget-test",
+    "params": {
+      "path": "README.md",
+      "data_to": "agent_context"
+    },
+    "derivedPaths": [
+      "README.md"
+    ]
+  },
+  "context": {
+    "agentId": "openclaw",
+    "sessionId": "loop-budget",
+    "runId": "loop-budget-test",
+    "toolName": "read"
+  }
+}
