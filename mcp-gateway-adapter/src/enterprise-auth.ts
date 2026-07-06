@@ -2,6 +2,10 @@ import { createPublicKey, createVerify } from "node:crypto";
 
 import type { AdapterConfig, EnterpriseJwtClaimMapping, EnterpriseJwtConfig, JsonWebKeySet, RequestContext } from "./types.js";
 
+const DEFAULT_ENTERPRISE_JWKS_CACHE_TTL_MS = 300_000;
+const DEFAULT_ENTERPRISE_JWKS_STALE_IF_ERROR_MS = 300_000;
+const enterpriseJwksCache = new Map<string, { jwks: JsonWebKeySet; expiresAt: number; staleUntil: number }>();
+
 export type EnterpriseAuthResolution =
   | {
       ok: true;
@@ -69,9 +73,13 @@ async function verifyEnterpriseJwt(
   const alg = stringValue(header.alg);
   if (!allowedAlgorithms.includes(alg)) findings.push(`enterprise JWT alg is not allowed: ${alg}`);
 
-  const jwks = await resolveJwks(config, fetchImpl);
+  const jwks = await resolveJwks(config, fetchImpl, now);
   if (!jwks) findings.push("enterprise JWT JWKS is required");
-  const key = jwks ? jwkForHeader(jwks, header) : undefined;
+  let key = jwks ? jwkForHeader(jwks, header) : undefined;
+  if (!key && config.jwks_uri && !config.jwks) {
+    const refreshedJwks = await resolveJwks(config, fetchImpl, now, true).catch(() => jwks);
+    key = refreshedJwks ? jwkForHeader(refreshedJwks, header) : undefined;
+  }
   if (!key) findings.push(`enterprise JWT key not found: ${stringValue(header.kid) || "missing-kid"}`);
 
   if (findings.length || !key) return { ok: false, findings };
@@ -104,11 +112,37 @@ async function verifyEnterpriseJwt(
   return findings.length ? { ok: false, findings } : { ok: true, header, claims };
 }
 
-async function resolveJwks(config: EnterpriseJwtConfig, fetchImpl: typeof fetch): Promise<JsonWebKeySet | undefined> {
+async function resolveJwks(
+  config: EnterpriseJwtConfig,
+  fetchImpl: typeof fetch,
+  now: () => Date,
+  forceRefresh = false,
+): Promise<JsonWebKeySet | undefined> {
   if (config.jwks) return config.jwks;
   if (!config.jwks_uri) return undefined;
 
-  const response = await fetchImpl(config.jwks_uri, { headers: { accept: "application/json" } });
+  const current = now().getTime();
+  const cached = enterpriseJwksCache.get(config.jwks_uri);
+  if (cached && !forceRefresh && cached.expiresAt > current) return cached.jwks;
+
+  try {
+    const jwks = await fetchJwks(config.jwks_uri, fetchImpl);
+    const ttlMs = Math.max(config.jwks_cache_ttl_ms ?? DEFAULT_ENTERPRISE_JWKS_CACHE_TTL_MS, 0);
+    const staleIfErrorMs = Math.max(config.jwks_stale_if_error_ms ?? DEFAULT_ENTERPRISE_JWKS_STALE_IF_ERROR_MS, 0);
+    enterpriseJwksCache.set(config.jwks_uri, {
+      jwks,
+      expiresAt: current + ttlMs,
+      staleUntil: current + ttlMs + staleIfErrorMs,
+    });
+    return jwks;
+  } catch (error) {
+    if (cached && cached.staleUntil > current) return cached.jwks;
+    throw error;
+  }
+}
+
+async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch): Promise<JsonWebKeySet> {
+  const response = await fetchImpl(jwksUri, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`failed to fetch enterprise JWT JWKS: ${response.status}`);
   const payload = await response.json();
   if (!isRecord(payload) || ("keys" in payload && !Array.isArray(payload.keys))) {

@@ -389,6 +389,60 @@ test("denies tools/call before forwarding when enterprise JWT is expired", async
   });
 });
 
+test("caches enterprise JWT JWKS across repeated calls", async () => {
+  const { privateKey, jwks } = rsaKeyPair("enterprise-cache-1");
+  const token = enterpriseToken(privateKey, "enterprise-cache-1");
+  const fetch = mockFetch([jwks]);
+
+  await handleJsonRpc(jwtProtectedRequest(15), enterpriseJwtUriConfig(fetch.uri), {
+    bearerToken: token,
+  }, fetch);
+  await handleJsonRpc(jwtProtectedRequest(16), enterpriseJwtUriConfig(fetch.uri), {
+    bearerToken: token,
+  }, fetch);
+
+  assert.deepEqual(fetch.calls, [fetch.uri, "https://agentid.example.com/tenants/tenant-a/authorize", "https://mcp.example.com", "https://agentid.example.com/tenants/tenant-a/authorize", "https://mcp.example.com"]);
+});
+
+test("refreshes enterprise JWT JWKS when token kid is missing from cache", async () => {
+  const { jwks: oldJwks } = rsaKeyPair("enterprise-rotation-old");
+  const { privateKey, jwks: newJwks } = rsaKeyPair("enterprise-rotation-new");
+  const token = enterpriseToken(privateKey, "enterprise-rotation-new");
+  const fetch = mockFetch([oldJwks, newJwks]);
+
+  const response = await handleJsonRpc(
+    jwtProtectedRequest(17),
+    enterpriseJwtUriConfig(fetch.uri),
+    { bearerToken: token },
+    fetch,
+  );
+
+  assert.deepEqual(fetch.calls, [fetch.uri, fetch.uri, "https://agentid.example.com/tenants/tenant-a/authorize", "https://mcp.example.com"]);
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 17, result: { content: [] } });
+});
+
+test("uses stale enterprise JWT JWKS when refresh fails within stale window", async () => {
+  const { privateKey, jwks } = rsaKeyPair("enterprise-stale-1");
+  const token = enterpriseToken(privateKey, "enterprise-stale-1");
+  const fetch = mockFetch([jwks, new Error("idp unavailable")]);
+  const configWithShortTtl = {
+    ...enterpriseJwtUriConfig(fetch.uri),
+    enterprise_auth: {
+      jwt: {
+        ...enterpriseJwtUriConfig(fetch.uri).enterprise_auth?.jwt,
+        jwks_cache_ttl_ms: 0,
+        jwks_stale_if_error_ms: 300_000,
+      },
+    },
+  } as AdapterConfig;
+
+  await handleJsonRpc(jwtProtectedRequest(18), configWithShortTtl, { bearerToken: token }, fetch);
+  const response = await handleJsonRpc(jwtProtectedRequest(19), configWithShortTtl, { bearerToken: token }, fetch);
+
+  assert.deepEqual(fetch.calls, [fetch.uri, "https://agentid.example.com/tenants/tenant-a/authorize", "https://mcp.example.com", fetch.uri, "https://agentid.example.com/tenants/tenant-a/authorize", "https://mcp.example.com"]);
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 19, result: { content: [] } });
+});
+
 test("forwards configured domain context in logs and provider receipts", async () => {
   let forwardedRequest: any;
   const logs: AuthorizationDecisionLog[] = [];
@@ -719,6 +773,58 @@ function enterpriseJwtConfig(jwks: JsonWebKeySet): AdapterConfig {
   };
 }
 
+function enterpriseJwtUriConfig(jwksUri: string): AdapterConfig {
+  const configured = enterpriseJwtConfig({ keys: [] });
+  return {
+    ...configured,
+    enterprise_auth: {
+      jwt: {
+        ...configured.enterprise_auth?.jwt,
+        jwks: undefined,
+        jwks_uri: jwksUri,
+      },
+    },
+  };
+}
+
+function jwtProtectedRequest(id: number) {
+  return {
+    jsonrpc: "2.0" as const,
+    id,
+    method: "tools/call",
+    params: {
+      name: "provider.crm.update_customer",
+      arguments: {
+        customer_id: "cus_123",
+        job_id: "support_case_resolution",
+        case_id: "case-1042",
+        approved: true,
+        jit_grant_id: "grant-1",
+        approval_id: "approval-1",
+      },
+    },
+  };
+}
+
+function enterpriseToken(privateKey: string, kid: string): string {
+  return signJwt(
+    {
+      iss: "https://idp.example.com",
+      aud: "provider-crm-mcp",
+      sub: "user-17",
+      azp: "claude-enterprise",
+      tid: "tenant-a",
+      agent_id: "enterprise-support-agent",
+      scp: ["openid", "mcp:provider-crm", "crm.write"],
+      groups: ["support", "support-admins"],
+      iat: 1_781_437_140,
+      exp: 4_102_444_800,
+    },
+    privateKey,
+    kid,
+  );
+}
+
 function localGuardConfig(): AdapterConfig {
   return {
     agentid: { base_url: "https://agentid.example.com", tenant_id: "tenant-a" },
@@ -837,4 +943,29 @@ function signJwt(claims: Record<string, unknown>, privateKeyPem: string, kid = "
 
 function base64UrlJson(value: Record<string, unknown>): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function mockFetch(responses: Array<unknown>) {
+  const queue = [...responses];
+  const calls: string[] = [];
+  const uri = `https://idp.example.com/jwks/${Math.random().toString(36).slice(2)}`;
+  const fetch = (async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    if (url === uri) {
+      const payload = queue.shift();
+      if (payload === undefined) throw new Error("unexpected enterprise JWKS fetch");
+      if (payload instanceof Error) throw payload;
+      return jsonResponse(payload);
+    }
+    if (url.includes("/authorize")) {
+      return jsonResponse({ allow: true, decision: "allow", findings: [], event: { decision_id: "dec-1" } });
+    }
+    return jsonResponse(JSON.parse(String(init?.body || "{}")).id
+      ? { jsonrpc: "2.0", id: JSON.parse(String(init?.body)).id, result: { content: [] } }
+      : { jsonrpc: "2.0", result: { content: [] } });
+  }) as typeof globalThis.fetch & { calls: string[]; uri: string };
+  fetch.calls = calls;
+  fetch.uri = uri;
+  return fetch;
 }

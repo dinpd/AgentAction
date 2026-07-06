@@ -119,6 +119,8 @@ export type EnterpriseJwtConfig = {
   audience?: string | string[];
   jwks?: JsonWebKeySet;
   jwks_uri?: string;
+  jwks_cache_ttl_ms?: number;
+  jwks_stale_if_error_ms?: number;
   allowed_algorithms?: string[];
   required_scopes?: string[];
   required_groups?: string[];

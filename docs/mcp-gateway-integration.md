@@ -144,6 +144,8 @@ The reference MCP gateway adapter can derive this context from a bearer JWT when
       "issuer": "https://idp.example.com",
       "audience": "provider-crm-mcp",
       "jwks_uri": "https://idp.example.com/.well-known/jwks.json",
+      "jwks_cache_ttl_ms": 300000,
+      "jwks_stale_if_error_ms": 300000,
       "required_scopes": ["mcp:provider-crm"],
       "required_groups": ["support-admins"],
       "claim_mapping": {
@@ -163,7 +165,8 @@ The reference MCP gateway adapter can derive this context from a bearer JWT when
 When configured, `tools/call` requests must include an `Authorization: Bearer
 <token>` header. The adapter verifies the signature, issuer, audience, expiry,
 required scopes, and required groups before calling AgentPass or forwarding the
-request.
+request. Remote JWKS responses are cached by URI, stale keys can be used during
+short IdP outages, and a missing `kid` forces a refresh to support key rotation.
 
 ## Example Mapping Config
 
