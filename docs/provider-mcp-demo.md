@@ -120,6 +120,15 @@ up to 5 more minutes on refresh failures, and force a refresh when a receipt
 `kid` is missing from the cached JWKS so key rotation does not wait for TTL
 expiry.
 
+For a single-command version of the same boundary with enterprise JWT
+validation, AgentPass authorization, signed receipt forwarding, and provider
+receipt verification all in process, run:
+
+```bash
+cd mcp-gateway-adapter
+npm run demo:enterprise-auth
+```
+
 ## 1. Start AgentPass
 
 From the repo root in terminal 1:

@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test --import tsx tests/*.test.ts",
+    "demo:enterprise-auth": "node --import tsx examples/enterprise-auth-receipt-demo.ts",
     "demo:local-guard": "node --import tsx examples/local-guard-demo.ts",
     "dev": "tsx src/index.ts examples/config.json",
     "dev:local-guard": "tsx src/index.ts examples/local-guard-config.json",

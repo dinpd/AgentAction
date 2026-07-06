@@ -45,6 +45,16 @@ This runs the gateway logic in process and demonstrates `tools/list` filtering,
 safe forwarding, duplicate-side-effect denial, same-tool loop denial, and PII
 egress denial without starting the hosted AgentPass service.
 
+Run the self-contained enterprise auth and provider receipt demo:
+
+```bash
+npm run demo:enterprise-auth
+```
+
+This generates a sample enterprise JWT and JWKS, has the gateway validate the
+JWT before authorization, attaches a signed provider receipt, and verifies the
+enterprise-bound receipt in a mock provider before execution.
+
 Start the AgentPass authorization service:
 
 ```bash
