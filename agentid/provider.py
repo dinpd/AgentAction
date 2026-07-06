@@ -872,6 +872,10 @@ def _validate_high_blast_radius_tool(
                     + ", ".join(sorted(missing_profile_bindings))
                 )
 
+    required_receipt_values = auth.get("required_receipt_values", {})
+    if required_receipt_values and not _valid_required_receipt_values(required_receipt_values):
+        errors.append(f"{prefix}.authorization_requirements.required_receipt_values must map fields to strings or string lists.")
+
     if not auth.get("resource_arg") and not auth.get("resource_template") and not tool.get("resource_template"):
         errors.append(f"{prefix}.authorization_requirements.resource_arg or resource_template is required.")
 
@@ -905,6 +909,22 @@ def _string_set(value: Any) -> set[str] | None:
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         return None
     return set(value)
+
+
+def _valid_required_receipt_values(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    for key, item in value.items():
+        if not isinstance(key, str) or not key:
+            return False
+        if isinstance(item, str):
+            if not item:
+                return False
+            continue
+        if isinstance(item, list) and item and all(isinstance(entry, str) and entry for entry in item):
+            continue
+        return False
+    return True
 
 
 def _parameters(value: Any, spec: dict[str, Any]) -> list[dict[str, Any]]:

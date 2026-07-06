@@ -146,6 +146,25 @@ def test_provider_contract_rejects_invalid_receipt_profile():
     ) in result.errors
 
 
+def test_provider_contract_rejects_invalid_required_receipt_values():
+    tool = high_risk_tool()
+    tool["authorization_requirements"] = {
+        **tool["authorization_requirements"],
+        "required_receipt_values": {
+            "enterprise_issuer": "",
+            "enterprise_scopes": [],
+        },
+    }
+
+    result = validate_provider_contract(provider_contract({"provider.crm.update_customer": tool}))
+
+    assert not result.ok
+    assert (
+        "provider_agentid.tools.provider.crm.update_customer.authorization_requirements.required_receipt_values "
+        "must map fields to strings or string lists."
+    ) in result.errors
+
+
 def test_cli_provider_validate(tmp_path, capsys):
     contract_path = tmp_path / "provider-contract.yaml"
     contract_path.write_text(

@@ -118,6 +118,20 @@ provider_agentid:
           - customer_id
           - approval_id
           - jit_grant_id
+          - enterprise_issuer
+          - enterprise_subject
+          - enterprise_client_id
+          - enterprise_id_jag_grant_id
+          - enterprise_scopes
+          - enterprise_groups
+        required_receipt_values:
+          enterprise_issuer: https://idp.example.com
+          enterprise_client_id: claude-enterprise
+          enterprise_scopes:
+            - mcp:provider-crm
+            - crm.write
+          enterprise_groups:
+            - support-admins
         resource_arg: customer_id
         receipt_ttl_seconds: 300
         single_use: true
@@ -181,6 +195,21 @@ provider_agentid:
           - customer_id
           - approval_id
           - jit_grant_id
+          - amount
+          - enterprise_issuer
+          - enterprise_subject
+          - enterprise_client_id
+          - enterprise_id_jag_grant_id
+          - enterprise_scopes
+          - enterprise_groups
+        required_receipt_values:
+          enterprise_issuer: https://idp.example.com
+          enterprise_client_id: claude-enterprise
+          enterprise_scopes:
+            - mcp:provider-crm
+            - billing.write
+          enterprise_groups:
+            - support-admins
         resource_arg: customer_id
         amount_arg: amount_usd
         receipt_ttl_seconds: 180

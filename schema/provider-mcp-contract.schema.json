@@ -110,6 +110,26 @@
           },
           "uniqueItems": true
         },
+        "required_receipt_values": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              }
+            ]
+          }
+        },
         "resource_arg": {
           "type": "string"
         },
