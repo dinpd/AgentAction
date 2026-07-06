@@ -994,9 +994,41 @@ async function enterpriseMcpDemo(
 ): Promise<{ ok: boolean; steps: DemoStep[] }> {
   const enterprise = await createEnterpriseJwt();
   const verifiedEnterprise = await verifyEnterpriseJwt(enterprise.token, enterprise.jwks);
+  const tenantId = mcpTenant(env);
+  const approvalId = `approval-enterprise-${crypto.randomUUID()}`;
+  const approvalPayload = {
+    tool: "provider.crm.update_customer",
+    action: "write",
+    resource: "provider/customer/cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    customer_id: "cus_123",
+    approval_id: approvalId,
+    user_id: verifiedEnterprise.subject,
+    requested_by: verifiedEnterprise.subject,
+    reason: "Approve enterprise-managed MCP CRM update demo",
+  };
+  const approval = await callGatewayJson(env, "approval-requests", approvalPayload, tenantId, "enterprise-support-agent");
+  const approvalDecision = approval.ok
+    ? await callGatewayJson(
+        env,
+        `approval-requests/${encodeURIComponent(approvalId)}/approve`,
+        {
+          decided_by: "demo-supervisor",
+          decision_reason: "Demo approval for enterprise-managed MCP authorization",
+        },
+        tenantId,
+        "enterprise-support-agent",
+        "approval-requests",
+      )
+    : approval;
+  const grant = approvalDecision.ok
+    ? await callGatewayJson(env, "jit-grants", approvalPayload, tenantId, "enterprise-support-agent")
+    : approvalDecision;
+  const jitGrantId = stringValue(grant.body.jit_grant_id);
   const authorizePayload = {
     agent_id: "enterprise-support-agent",
-    tenant_id: "tenant-a",
+    tenant_id: tenantId,
     user_id: verifiedEnterprise.subject,
     tool: "provider.crm.update_customer",
     action: "write",
@@ -1005,18 +1037,20 @@ async function enterpriseMcpDemo(
     case_id: "case-1042",
     customer_id: "cus_123",
     approved: true,
-    jit_grant_id: "grant-1",
+    approval_id: approvalId,
+    jit_grant_id: jitGrantId,
     enterprise_auth: verifiedEnterprise,
   };
-  const decision = {
-    allow: true,
-    decision: "allow",
-    findings: [],
-    event: { decision_id: "dec-enterprise-1" },
-  };
+  const decision = grant.ok
+    ? await callGatewayJson(env, "authorize", authorizePayload, tenantId, "enterprise-support-agent")
+    : grant;
+  const decisionBody = decision.body;
+  const decisionEvent = isRecord(decisionBody.event) ? decisionBody.event : {};
+  const decisionAllowed = decision.ok && decisionBody.allow === true;
+  const decisionId = stringValue(decisionEvent.decision_id) || `dec-enterprise-${approvalId}`;
   const receipt = {
-    decision_id: "dec-enterprise-1",
-    tenant_id: "tenant-a",
+    decision_id: decisionId,
+    tenant_id: tenantId,
     agent_id: "enterprise-support-agent",
     user_id: verifiedEnterprise.subject,
     tool: "provider.crm.update_customer",
@@ -1025,8 +1059,8 @@ async function enterpriseMcpDemo(
     job_id: "support_case_resolution",
     case_id: "case-1042",
     customer_id: "cus_123",
-    approval_id: "approval-1",
-    jit_grant_id: "grant-1",
+    approval_id: approvalId,
+    jit_grant_id: jitGrantId,
     enterprise_issuer: verifiedEnterprise.issuer,
     enterprise_subject: verifiedEnterprise.subject,
     enterprise_client_id: verifiedEnterprise.clientId,
@@ -1045,7 +1079,7 @@ async function enterpriseMcpDemo(
   const signedReceipt = await signDemoReceipt(providerReceipt, enterpriseReceiptSecret(env));
   const providerVerification = await verifyDemoProviderReceipt(signedReceipt, enterpriseReceiptSecret(env));
   const providerFindings = providerReceiptFindings(providerVerification.receipt);
-  const providerAllowed = providerVerification.findings.length === 0 && providerFindings.length === 0;
+  const providerAllowed = decisionAllowed && providerVerification.findings.length === 0 && providerFindings.length === 0;
   const providerResponse = providerAllowed
     ? {
         jsonrpc: "2.0",
@@ -1089,12 +1123,26 @@ async function enterpriseMcpDemo(
         },
       },
       {
+        id: "agentpass-jit",
+        title: grant.ok ? "Real AgentPass gateway issued scoped JIT" : "Real AgentPass gateway denied scoped JIT",
+        detail: grant.ok
+          ? "The hosted demo creates and approves a real gateway approval request, then receives a scoped JIT grant from the provider-MCP tenant."
+          : "The gateway did not issue a JIT grant for the provider write.",
+        status: grant.ok ? "allow" : "deny",
+        payload: approvalPayload,
+        response: {
+          approval: approval.body,
+          approval_decision: approvalDecision.body,
+          jit_grant: grant.body,
+        },
+      },
+      {
         id: "agentpass-authorize",
-        title: "AgentPass authorization bound to enterprise context",
-        detail: "The gateway maps the MCP call to an AgentPass authorization event and carries the validated enterprise identity context with it.",
-        status: decision.allow ? "allow" : "deny",
+        title: decisionAllowed ? "Real AgentPass gateway authorized enterprise-bound MCP action" : "Real AgentPass gateway denied MCP action",
+        detail: "The gateway consumes the real JIT grant and authorizes the MCP action with the validated enterprise identity context attached.",
+        status: decisionAllowed ? "allow" : "deny",
         payload: authorizePayload,
-        response: decision,
+        response: decision.body,
       },
       {
         id: "provider-receipt",
@@ -1124,8 +1172,8 @@ async function enterpriseMcpDemo(
             job_id: "support_case_resolution",
             case_id: "case-1042",
             approved: true,
-            jit_grant_id: "grant-1",
-            approval_id: "approval-1",
+            jit_grant_id: jitGrantId,
+            approval_id: approvalId,
             _agentid_receipt: signedReceipt,
           },
         },
@@ -1177,6 +1225,49 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
   } catch {
     return {};
   }
+}
+
+async function callGatewayJson(
+  env: Env,
+  endpoint: string,
+  payload: Record<string, unknown>,
+  tenantId = env.AGENTID_TENANT_ID,
+  agentId = "refund-demo-agent",
+  authEndpoint = endpoint.split("/")[0] || endpoint,
+): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
+  const path = `/tenants/${tenantId}/${endpoint}`;
+  const target = env.AGENTID_GATEWAY
+    ? `https://agentid-gateway${path}`
+    : `${env.AGENTID_GATEWAY_URL}${path}`;
+  const bearerToken = env.AGENTID_DEMO_OIDC_SECRET
+    ? await createDemoOidcToken(env, authEndpoint, tenantId, agentId)
+    : env.AGENTID_GATEWAY_TOKEN;
+  if (!bearerToken) {
+    return { ok: false, status: 500, body: { error: "demo auth token is not configured" } };
+  }
+  const response = env.AGENTID_GATEWAY
+    ? await env.AGENTID_GATEWAY.fetch(new Request(target, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${bearerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }))
+    : await fetch(target, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${bearerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+  const body = await response.json();
+  return {
+    ok: response.ok,
+    status: response.status,
+    body: isRecord(body) ? body : { value: body },
+  };
 }
 
 function mcpTenant(env: Env): string {
@@ -1318,7 +1409,7 @@ async function verifyDemoProviderReceipt(
 
 function providerReceiptFindings(receipt: Record<string, unknown>): string[] {
   const findings: string[] = [];
-  requireReceiptEqual(findings, receipt, "tenant_id", "tenant-a");
+  requireReceiptEqual(findings, receipt, "tenant_id", "provider-mcp-support-agent");
   requireReceiptEqual(findings, receipt, "agent_id", "enterprise-support-agent");
   requireReceiptEqual(findings, receipt, "user_id", "user-17");
   requireReceiptEqual(findings, receipt, "tool", "provider.crm.update_customer");
@@ -1327,8 +1418,8 @@ function providerReceiptFindings(receipt: Record<string, unknown>): string[] {
   requireReceiptEqual(findings, receipt, "job_id", "support_case_resolution");
   requireReceiptEqual(findings, receipt, "case_id", "case-1042");
   requireReceiptEqual(findings, receipt, "customer_id", "cus_123");
-  requireReceiptEqual(findings, receipt, "approval_id", "approval-1");
-  requireReceiptEqual(findings, receipt, "jit_grant_id", "grant-1");
+  requireReceiptPrefix(findings, receipt, "approval_id", "approval-enterprise-");
+  requireReceiptPresent(findings, receipt, "jit_grant_id");
   requireReceiptEqual(findings, receipt, "enterprise_issuer", "https://idp.example.com");
   requireReceiptEqual(findings, receipt, "enterprise_subject", "user-17");
   requireReceiptEqual(findings, receipt, "enterprise_client_id", "claude-enterprise");
@@ -1347,6 +1438,14 @@ function requireReceiptEqual(findings: string[], receipt: Record<string, unknown
 function requireReceiptIncludes(findings: string[], receipt: Record<string, unknown>, field: string, expected: string): void {
   const value = receipt[field];
   if (!Array.isArray(value) || !value.includes(expected)) findings.push(`${field} missing ${expected}`);
+}
+
+function requireReceiptPrefix(findings: string[], receipt: Record<string, unknown>, field: string, prefix: string): void {
+  if (!stringValue(receipt[field]).startsWith(prefix)) findings.push(`${field} mismatch`);
+}
+
+function requireReceiptPresent(findings: string[], receipt: Record<string, unknown>, field: string): void {
+  if (!stringValue(receipt[field])) findings.push(`${field} missing`);
 }
 
 async function hmacSha256Base64Url(value: string, secret: string): Promise<string> {
@@ -1381,7 +1480,7 @@ async function createDemoOidcToken(env: Env, endpoint: string, tenantId: string,
   if (!env.AGENTID_DEMO_OIDC_SECRET) throw new Error("AGENTID_DEMO_OIDC_SECRET is not configured");
   const now = Math.floor(Date.now() / 1000);
   const scopes = ["agentid.authorize"];
-  if (endpoint === "jit-grants") scopes.push("agentid.jit.grant");
+  if (endpoint === "jit-grants" || endpoint === "approval-requests") scopes.push("agentid.jit.grant");
   const header = { alg: "HS256", typ: "JWT" };
   const payload = {
     iss: env.AGENTID_OIDC_ISSUER,

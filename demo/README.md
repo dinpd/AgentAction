@@ -28,9 +28,9 @@ The demo illustrates:
 - MCP gateway tool filtering before provider tool exposure.
 - MCP provider CRM read allow, write denial without JIT, and write allow after a
   scoped JIT grant.
-- Enterprise-managed MCP auth with JWT validation, enterprise-bound AgentPass
-  authorization, signed provider receipt forwarding, and provider-side receipt
-  verification before execution.
+- Enterprise-managed MCP auth with JWT validation, real AgentPass gateway
+  approval/JIT/authorization, signed provider receipt forwarding, and
+  provider-side receipt verification before execution.
 - Provider denial when a receipt is validly signed but its enterprise client
   binding no longer matches the provider trust policy.
 
