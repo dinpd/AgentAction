@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "wrangler dev --local --port 8790",
     "deploy": "wrangler deploy",
-    "dry-run": "wrangler deploy --dry-run --outdir /tmp/agentid-demo-worker-dist"
+    "dry-run": "wrangler deploy --dry-run --outdir /tmp/agentid-demo-worker-dist",
+    "test": "node --test --experimental-strip-types tests/*.test.ts"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"

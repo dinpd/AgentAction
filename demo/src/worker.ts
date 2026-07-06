@@ -395,6 +395,7 @@ const HTML = String.raw`<!doctype html>
           </div>
         </div>
         <button class="primary" id="runEnterpriseMcp">Run Enterprise Auth Demo</button>
+        <button id="runEnterpriseMcpDenied" style="margin-top:8px">Run Receipt Denial</button>
       </div>
       <div>
         <h2>Other Demo Use Cases</h2>
@@ -418,6 +419,7 @@ const HTML = String.raw`<!doctype html>
       reset: document.getElementById("reset"),
       runMcp: document.getElementById("runMcp"),
       runEnterpriseMcp: document.getElementById("runEnterpriseMcp"),
+      runEnterpriseMcpDenied: document.getElementById("runEnterpriseMcpDenied"),
       runSkill: document.getElementById("runSkill"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
@@ -901,19 +903,20 @@ const HTML = String.raw`<!doctype html>
       }
     }
 
-    async function runEnterpriseMcpDemo() {
+    async function runEnterpriseMcpDemo(variant = "allow") {
       reset();
       els.run.disabled = true;
       els.runMcp.disabled = true;
       els.runEnterpriseMcp.disabled = true;
+      els.runEnterpriseMcpDenied.disabled = true;
       els.runSkill.disabled = true;
       try {
-        const demo = await api("/api/enterprise-mcp/demo", {});
+        const demo = await api("/api/enterprise-mcp/demo", { variant });
         for (const step of demo.body.steps || []) addStep(step);
         setStatus(
           demo.body.ok
             ? "Enterprise auth receipt demo complete: JWT validated, authorization bound, provider receipt verified."
-            : "Enterprise auth receipt demo ended with denial.",
+            : "Enterprise auth receipt demo ended with provider denial.",
           demo.body.ok ? "allow" : "deny"
         );
       } catch (error) {
@@ -922,6 +925,7 @@ const HTML = String.raw`<!doctype html>
         els.run.disabled = false;
         els.runMcp.disabled = false;
         els.runEnterpriseMcp.disabled = false;
+        els.runEnterpriseMcpDenied.disabled = false;
         els.runSkill.disabled = false;
       }
     }
@@ -940,7 +944,8 @@ const HTML = String.raw`<!doctype html>
     els.months.addEventListener("input", () => els.amount.value = money(els.months.value));
     els.run.addEventListener("click", runScenario);
     els.runMcp.addEventListener("click", runMcpDemo);
-    els.runEnterpriseMcp.addEventListener("click", runEnterpriseMcpDemo);
+    els.runEnterpriseMcp.addEventListener("click", () => runEnterpriseMcpDemo("allow"));
+    els.runEnterpriseMcpDenied.addEventListener("click", () => runEnterpriseMcpDemo("binding_mismatch"));
     els.runSkill.addEventListener("click", runSkillDemo);
     els.reset.addEventListener("click", reset);
     syncScenario();
@@ -975,13 +980,18 @@ export default {
       return proxyGateway(request, env, "jit-grants", mcpTenant(env), "enterprise-support-agent");
     }
     if (request.method === "POST" && url.pathname === "/api/enterprise-mcp/demo") {
-      return json(await enterpriseMcpDemo(env));
+      const body = await readJsonObject(request);
+      const variant = body.variant === "binding_mismatch" ? "binding_mismatch" : "allow";
+      return json(await enterpriseMcpDemo(env, { variant }));
     }
     return json({ error: "not found" }, 404);
   },
 };
 
-async function enterpriseMcpDemo(env: Env): Promise<{ ok: boolean; steps: DemoStep[] }> {
+async function enterpriseMcpDemo(
+  env: Env,
+  options: { variant?: "allow" | "binding_mismatch" } = {},
+): Promise<{ ok: boolean; steps: DemoStep[] }> {
   const enterprise = await createEnterpriseJwt();
   const verifiedEnterprise = await verifyEnterpriseJwt(enterprise.token, enterprise.jwks);
   const authorizePayload = {
@@ -1029,7 +1039,10 @@ async function enterpriseMcpDemo(env: Env): Promise<{ ok: boolean; steps: DemoSt
     issued_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 300_000).toISOString(),
   };
-  const signedReceipt = await signDemoReceipt(receipt, enterpriseReceiptSecret(env));
+  const providerReceipt = options.variant === "binding_mismatch"
+    ? { ...receipt, enterprise_client_id: "unapproved-mcp-client" }
+    : receipt;
+  const signedReceipt = await signDemoReceipt(providerReceipt, enterpriseReceiptSecret(env));
   const providerVerification = await verifyDemoProviderReceipt(signedReceipt, enterpriseReceiptSecret(env));
   const providerFindings = providerReceiptFindings(providerVerification.receipt);
   const providerAllowed = providerVerification.findings.length === 0 && providerFindings.length === 0;
@@ -1085,14 +1098,16 @@ async function enterpriseMcpDemo(env: Env): Promise<{ ok: boolean; steps: DemoSt
       },
       {
         id: "provider-receipt",
-        title: "Provider receipt signed with enterprise bindings",
-        detail: "The authorization receipt is bound to tenant, agent, user, job, resource, approval, JIT grant, issuer, client, scopes, and groups.",
+        title: providerAllowed ? "Provider receipt signed with enterprise bindings" : "Provider receipt signed with a mismatched enterprise binding",
+        detail: providerAllowed
+          ? "The authorization receipt is bound to tenant, agent, user, job, resource, approval, JIT grant, issuer, client, scopes, and groups."
+          : "The receipt signature is valid, but the enterprise client binding no longer matches the provider trust policy.",
         status: "allow",
         payload: signedReceipt,
         response: {
-          decision_id: receipt.decision_id,
-          enterprise_client_id: receipt.enterprise_client_id,
-          enterprise_id_jag_grant_id: receipt.enterprise_id_jag_grant_id,
+          decision_id: providerReceipt.decision_id,
+          enterprise_client_id: providerReceipt.enterprise_client_id,
+          enterprise_id_jag_grant_id: providerReceipt.enterprise_id_jag_grant_id,
         },
       },
       {
@@ -1153,6 +1168,15 @@ async function proxyGateway(
     status: response.status,
     headers: cors({ "content-type": response.headers.get("content-type") || "application/json" }),
   });
+}
+
+async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
+  try {
+    const body = await request.json();
+    return isRecord(body) ? body : {};
+  } catch {
+    return {};
+  }
 }
 
 function mcpTenant(env: Env): string {

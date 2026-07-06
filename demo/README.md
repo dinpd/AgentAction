@@ -31,6 +31,8 @@ The demo illustrates:
 - Enterprise-managed MCP auth with JWT validation, enterprise-bound AgentPass
   authorization, signed provider receipt forwarding, and provider-side receipt
   verification before execution.
+- Provider denial when a receipt is validly signed but its enterprise client
+  binding no longer matches the provider trust policy.
 
 The skill demo expects the provider-MCP tenant manifest to include the
 `support-refund-workflow` capability from
