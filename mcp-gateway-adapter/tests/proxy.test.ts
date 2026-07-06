@@ -198,6 +198,79 @@ test("forwards provider receipt for high-risk tools", async () => {
   assert.deepEqual(response, { jsonrpc: "2.0", id: 5, result: { content: [] } });
 });
 
+test("binds enterprise auth context into provider receipts", async () => {
+  let forwardedRequest: any;
+  const response = await handleJsonRpc(
+    {
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/call",
+      params: {
+        name: "provider.crm.update_customer",
+        arguments: {
+          customer_id: "cus_123",
+          job_id: "support_case_resolution",
+          case_id: "case-1042",
+          approved: true,
+          jit_grant_id: "grant-1",
+          approval_id: "approval-1",
+        },
+      },
+    },
+    {
+      ...config,
+      tools: {
+        ...config.tools,
+        "provider.crm.update_customer": {
+          action: "write",
+          data_from: "enterprise_crm",
+          data_to: "provider_crm",
+          resource_template: "provider/customer/{customer_id}",
+          job_id_arg: "job_id",
+          case_id_arg: "case_id",
+          customer_id_arg: "customer_id",
+          approved_arg: "approved",
+          jit_grant_id_arg: "jit_grant_id",
+          approval_id_arg: "approval_id",
+          receipt_required: true,
+        },
+      },
+    },
+    {
+      enterpriseAuth: {
+        issuer: "https://idp.example.com",
+        subject: "user-17",
+        clientId: "claude-enterprise",
+        tokenAudience: "provider-crm-mcp",
+        idJagGrantId: "id-jag-1",
+        scopes: ["openid", "mcp:provider-crm", "crm.write"],
+        groups: ["support", "support-admins"],
+        acr: "urn:okta:loa:2fa",
+        amr: ["pwd", "mfa"],
+      },
+    },
+    async (url, init) => {
+      if (String(url).includes("/authorize")) {
+        return jsonResponse({ allow: true, decision: "allow", findings: [], event: { decision_id: "dec-1" } });
+      }
+      forwardedRequest = JSON.parse(String(init?.body));
+      return jsonResponse({ jsonrpc: "2.0", id: 12, result: { content: [] } });
+    },
+  );
+
+  const receipt = forwardedRequest.params.arguments._agentid_receipt;
+  assert.equal(receipt.enterprise_issuer, "https://idp.example.com");
+  assert.equal(receipt.enterprise_subject, "user-17");
+  assert.equal(receipt.enterprise_client_id, "claude-enterprise");
+  assert.equal(receipt.enterprise_token_audience, "provider-crm-mcp");
+  assert.equal(receipt.enterprise_id_jag_grant_id, "id-jag-1");
+  assert.deepEqual(receipt.enterprise_scopes, ["openid", "mcp:provider-crm", "crm.write"]);
+  assert.deepEqual(receipt.enterprise_groups, ["support", "support-admins"]);
+  assert.equal(receipt.enterprise_acr, "urn:okta:loa:2fa");
+  assert.deepEqual(receipt.enterprise_amr, ["pwd", "mfa"]);
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 12, result: { content: [] } });
+});
+
 test("forwards configured domain context in logs and provider receipts", async () => {
   let forwardedRequest: any;
   const logs: AuthorizationDecisionLog[] = [];

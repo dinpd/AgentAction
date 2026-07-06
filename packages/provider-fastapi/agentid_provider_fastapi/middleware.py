@@ -41,6 +41,7 @@ class ToolReceiptPolicy:
     resource: str | Callable[[dict[str, Any]], str | None] | None = None
     resource_template: str | None = None
     required_receipt_fields: list[str] = field(default_factory=list)
+    required_receipt_values: dict[str, str | list[str]] = field(default_factory=dict)
     bind_args: dict[str, str] = field(default_factory=dict)
     single_use: bool = True
 
@@ -190,8 +191,19 @@ def verify_provider_receipt(
         return ReceiptVerification(ok=False, receipt=None, findings=findings or ["receipt payload is required"])
 
     for field_name in policy.required_receipt_fields if policy else []:
-        if not string_value(receipt.get(field_name)):
+        if not has_value(receipt.get(field_name)):
             findings.append(f"receipt {field_name} is required")
+
+    if policy:
+        for field_name, expected in policy.required_receipt_values.items():
+            actual = receipt.get(field_name)
+            if isinstance(expected, list):
+                actual_values = value_list(actual)
+                for expected_value in expected:
+                    if expected_value not in actual_values:
+                        findings.append(f"receipt {field_name} missing value: {expected_value}")
+            elif string_value(actual) != expected:
+                findings.append(f"receipt {field_name} mismatch")
 
     if policy:
         for receipt_field, arg_name in policy.bind_args.items():
@@ -257,3 +269,20 @@ def string_value(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def has_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, list):
+        return len(value) > 0
+    return bool(str(value))
+
+
+def value_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    text = string_value(value)
+    if not text:
+        return []
+    return [item.strip() for item in text.replace(",", " ").split() if item.strip()]

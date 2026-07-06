@@ -14,6 +14,15 @@ export type ProviderAuthorizationReceipt = {
   approval_id?: string;
   jit_grant_id?: string;
   amount?: string;
+  enterprise_issuer?: string;
+  enterprise_subject?: string;
+  enterprise_client_id?: string;
+  enterprise_token_audience?: string;
+  enterprise_id_jag_grant_id?: string;
+  enterprise_scopes?: string[];
+  enterprise_groups?: string[];
+  enterprise_acr?: string;
+  enterprise_amr?: string[];
   issued_at: string;
   expires_at: string;
 };
@@ -52,6 +61,7 @@ export type ToolReceiptPolicy = {
   resource?: string | ((args: Record<string, unknown>) => string | undefined);
   resourceTemplate?: string;
   requiredReceiptFields?: string[];
+  requiredReceiptValues?: Record<string, string | string[]>;
   bindArgs?: Record<string, string>;
   singleUse?: boolean;
 };
@@ -294,6 +304,7 @@ export async function verifyProviderReceipt(
   if (!receipt) return { ok: false, findings: findings.length ? findings : ["receipt payload is required"] };
 
   findings.push(...receiptFieldFindings(receipt, options.policy));
+  findings.push(...receiptValueFindings(receipt, options.policy));
   if (options.tool && stringValue(receipt.tool) !== options.tool) findings.push("receipt tool mismatch");
   if (options.policy?.action && stringValue(receipt.action) !== options.policy.action) {
     findings.push("receipt action mismatch");
@@ -534,6 +545,35 @@ function receiptFieldFindings(receipt: ProviderAuthorizationReceipt, policy: Too
     }
   }
   return findings;
+}
+
+function receiptValueFindings(receipt: ProviderAuthorizationReceipt, policy: ToolReceiptPolicy | undefined): string[] {
+  const expectedValues = policy?.requiredReceiptValues;
+  if (!expectedValues) return [];
+
+  const findings: string[] = [];
+  for (const [field, expected] of Object.entries(expectedValues)) {
+    const actual = (receipt as unknown as Record<string, unknown>)[field];
+    if (Array.isArray(expected)) {
+      const actualValues = valueList(actual);
+      for (const expectedValue of expected) {
+        if (!actualValues.includes(expectedValue)) findings.push(`receipt ${field} missing value: ${expectedValue}`);
+      }
+    } else if (stringValue(actual) !== expected) {
+      findings.push(`receipt ${field} mismatch`);
+    }
+  }
+  return findings;
+}
+
+function valueList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  const text = stringValue(value);
+  if (!text) return [];
+  return text
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function expectedResourceForPolicy(policy: ToolReceiptPolicy | undefined, args: Record<string, unknown>): string | undefined {

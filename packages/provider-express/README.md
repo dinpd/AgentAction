@@ -50,7 +50,17 @@ createAgentPassReceiptMiddleware({
           "customer_id",
           "approval_id",
           "jit_grant_id",
+          "enterprise_issuer",
+          "enterprise_subject",
+          "enterprise_client_id",
+          "enterprise_id_jag_grant_id",
         ],
+        requiredReceiptValues: {
+          enterprise_issuer: "https://idp.example.com",
+          enterprise_client_id: "claude-enterprise",
+          enterprise_scopes: ["mcp:provider-crm", "crm.write"],
+          enterprise_groups: ["support-admins"],
+        },
         bindArgs: {
           job_id: "job_id",
           case_id: "case_id",
@@ -79,6 +89,7 @@ property remain available as compatibility aliases.
 - Optional issuer, audience, and allowed-algorithm checks
 - Signed HMAC receipt envelopes for local demos
 - Required receipt fields
+- Required receipt values, including enterprise auth fields from OIDC/EMA
 - Tool name
 - Expected action
 - Expected resource from a template or callback

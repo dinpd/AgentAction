@@ -36,6 +36,62 @@ def test_verify_provider_receipt_accepts_signed_receipt_bound_to_args():
     assert result.receipt == receipt()
 
 
+def test_verify_provider_receipt_enforces_enterprise_auth_receipt_bindings():
+    enterprise_policy = ToolReceiptPolicy(
+        action="write",
+        resource_template="provider/customer/{customer_id}",
+        required_receipt_fields=[
+            *policy().required_receipt_fields,
+            "enterprise_issuer",
+            "enterprise_subject",
+            "enterprise_client_id",
+            "enterprise_id_jag_grant_id",
+            "enterprise_scopes",
+            "enterprise_groups",
+        ],
+        required_receipt_values={
+            "enterprise_issuer": "https://idp.example.com",
+            "enterprise_client_id": "claude-enterprise",
+            "enterprise_scopes": ["mcp:provider-crm", "crm.write"],
+            "enterprise_groups": ["support-admins"],
+        },
+        bind_args=policy().bind_args,
+    )
+
+    accepted = verify_provider_receipt(
+        sign_provider_receipt(receipt(), "secret-1"),
+        secret="secret-1",
+        require_signed=True,
+        tool="provider.crm.update_customer",
+        args=tool_args(),
+        policy=enterprise_policy,
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+    )
+    denied = verify_provider_receipt(
+        sign_provider_receipt(
+            {
+                **receipt(),
+                "enterprise_client_id": "untrusted-client",
+                "enterprise_scopes": ["openid", "mcp:provider-crm"],
+                "enterprise_groups": ["support"],
+            },
+            "secret-1",
+        ),
+        secret="secret-1",
+        require_signed=True,
+        tool="provider.crm.update_customer",
+        args=tool_args(),
+        policy=enterprise_policy,
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+    )
+
+    assert accepted.ok
+    assert not denied.ok
+    assert "receipt enterprise_client_id mismatch" in denied.findings
+    assert "receipt enterprise_scopes missing value: crm.write" in denied.findings
+    assert "receipt enterprise_groups missing value: support-admins" in denied.findings
+
+
 def test_verify_provider_receipt_accepts_jws_receipt_bound_to_args():
     private_key, jwks = rsa_key_and_jwks()
 
@@ -287,6 +343,15 @@ def receipt():
         "customer_id": "cus_123",
         "approval_id": "approval-1",
         "jit_grant_id": "grant-1",
+        "enterprise_issuer": "https://idp.example.com",
+        "enterprise_subject": "support-rep-17",
+        "enterprise_client_id": "claude-enterprise",
+        "enterprise_token_audience": "provider-crm-mcp",
+        "enterprise_id_jag_grant_id": "id-jag-1",
+        "enterprise_scopes": ["openid", "mcp:provider-crm", "crm.write"],
+        "enterprise_groups": ["support", "support-admins"],
+        "enterprise_acr": "urn:okta:loa:2fa",
+        "enterprise_amr": ["pwd", "mfa"],
         "issued_at": "2026-05-28T12:00:00Z",
         "expires_at": "2099-05-28T12:05:00Z",
     }

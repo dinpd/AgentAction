@@ -144,6 +144,15 @@ export type ProviderAuthorizationReceipt = {
   approval_id?: string;
   jit_grant_id?: string;
   amount?: string;
+  enterprise_issuer?: string;
+  enterprise_subject?: string;
+  enterprise_client_id?: string;
+  enterprise_token_audience?: string;
+  enterprise_id_jag_grant_id?: string;
+  enterprise_scopes?: string[];
+  enterprise_groups?: string[];
+  enterprise_acr?: string;
+  enterprise_amr?: string[];
   issued_at: string;
   expires_at: string;
 };

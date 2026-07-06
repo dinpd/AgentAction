@@ -171,6 +171,7 @@ function providerReceipt(
     approval_id: stringFromArg(args, mapping.approval_id_arg),
     jit_grant_id: payload.jit_grant_id,
     amount: stringFromArg(args, mapping.amount_arg),
+    ...enterpriseReceiptContext(payload),
     ...receiptContextFromArgs(args, mapping),
     issued_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
@@ -227,6 +228,22 @@ function receiptContextFromArgs(args: Record<string, unknown>, mapping: ToolMapp
     if (value !== undefined) result[field] = value;
   }
   return result;
+}
+
+function enterpriseReceiptContext(payload: AgentIdAuthorizeRequest): Partial<ProviderAuthorizationReceipt> {
+  const auth = payload.enterprise_auth;
+  if (!auth) return {};
+  return {
+    enterprise_issuer: auth.issuer,
+    enterprise_subject: auth.subject,
+    enterprise_client_id: auth.clientId,
+    enterprise_token_audience: auth.tokenAudience,
+    enterprise_id_jag_grant_id: auth.idJagGrantId,
+    enterprise_scopes: auth.scopes,
+    enterprise_groups: auth.groups,
+    enterprise_acr: auth.acr,
+    enterprise_amr: auth.amr,
+  };
 }
 
 function contextFromPayload(payload: AgentIdAuthorizeRequest): Record<string, unknown> {

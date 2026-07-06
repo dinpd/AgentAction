@@ -31,6 +31,61 @@ test("verifyProviderReceipt accepts signed receipt bound to tool args", async ()
   assert.deepEqual(result.receipt, receipt);
 });
 
+test("verifyProviderReceipt enforces enterprise auth receipt bindings", async () => {
+  const enterprisePolicy = {
+    ...policy,
+    requiredReceiptFields: [
+      ...policy.requiredReceiptFields,
+      "enterprise_issuer",
+      "enterprise_subject",
+      "enterprise_client_id",
+      "enterprise_id_jag_grant_id",
+      "enterprise_scopes",
+      "enterprise_groups",
+    ],
+    requiredReceiptValues: {
+      enterprise_issuer: "https://idp.example.com",
+      enterprise_client_id: "claude-enterprise",
+      enterprise_scopes: ["mcp:provider-crm", "crm.write"],
+      enterprise_groups: ["support-admins"],
+    },
+  };
+
+  const accepted = await verifyProviderReceipt(signProviderReceipt(signedReceipt(), "secret-1"), {
+    secret: "secret-1",
+    requireSigned: true,
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy: enterprisePolicy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+  const denied = await verifyProviderReceipt(
+    signProviderReceipt(
+      {
+        ...signedReceipt(),
+        enterprise_client_id: "untrusted-client",
+        enterprise_scopes: ["openid", "mcp:provider-crm"],
+        enterprise_groups: ["support"],
+      },
+      "secret-1",
+    ),
+    {
+      secret: "secret-1",
+      requireSigned: true,
+      tool: "provider.crm.update_customer",
+      args: toolArgs(),
+      policy: enterprisePolicy,
+      now: () => new Date("2026-05-28T12:01:00Z"),
+    },
+  );
+
+  assert.equal(accepted.ok, true);
+  assert.equal(denied.ok, false);
+  assert.ok(denied.findings.includes("receipt enterprise_client_id mismatch"));
+  assert.ok(denied.findings.includes("receipt enterprise_scopes missing value: crm.write"));
+  assert.ok(denied.findings.includes("receipt enterprise_groups missing value: support-admins"));
+});
+
 test("verifyProviderReceipt accepts JWS receipt bound to tool args", async () => {
   const { privateKey, jwks } = rsaKeyPair();
   const result = await verifyProviderReceipt(
@@ -276,6 +331,15 @@ function signedReceipt(): ProviderAuthorizationReceipt {
     customer_id: "cus_123",
     approval_id: "approval-1",
     jit_grant_id: "grant-1",
+    enterprise_issuer: "https://idp.example.com",
+    enterprise_subject: "support-rep-17",
+    enterprise_client_id: "claude-enterprise",
+    enterprise_token_audience: "provider-crm-mcp",
+    enterprise_id_jag_grant_id: "id-jag-1",
+    enterprise_scopes: ["openid", "mcp:provider-crm", "crm.write"],
+    enterprise_groups: ["support", "support-admins"],
+    enterprise_acr: "urn:okta:loa:2fa",
+    enterprise_amr: ["pwd", "mfa"],
     issued_at: "2026-05-28T12:00:00Z",
     expires_at: "2099-05-28T12:05:00Z",
   };

@@ -127,6 +127,13 @@ await gate.run(
 );
 ```
 
+For provider-hosted high-risk tools, the gateway also binds that context into
+the scoped provider authorization receipt using flat fields such as
+`enterprise_issuer`, `enterprise_subject`, `enterprise_client_id`,
+`enterprise_token_audience`, `enterprise_id_jag_grant_id`,
+`enterprise_scopes`, and `enterprise_groups`. Provider-side verifiers can mark
+those fields as required and require specific values before executing the tool.
+
 ## Example Mapping Config
 
 ```yaml
