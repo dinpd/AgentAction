@@ -134,6 +134,37 @@ the scoped provider authorization receipt using flat fields such as
 `enterprise_scopes`, and `enterprise_groups`. Provider-side verifiers can mark
 those fields as required and require specific values before executing the tool.
 
+The reference MCP gateway adapter can derive this context from a bearer JWT when
+`enterprise_auth.jwt` is configured:
+
+```json
+{
+  "enterprise_auth": {
+    "jwt": {
+      "issuer": "https://idp.example.com",
+      "audience": "provider-crm-mcp",
+      "jwks_uri": "https://idp.example.com/.well-known/jwks.json",
+      "required_scopes": ["mcp:provider-crm"],
+      "required_groups": ["support-admins"],
+      "claim_mapping": {
+        "tenant_id": "tid",
+        "user_id": "sub",
+        "agent_id": "agent_id",
+        "client_id": "azp",
+        "scopes": "scp",
+        "groups": "groups",
+        "id_jag_grant_id": "id_jag"
+      }
+    }
+  }
+}
+```
+
+When configured, `tools/call` requests must include an `Authorization: Bearer
+<token>` header. The adapter verifies the signature, issuer, audience, expiry,
+required scopes, and required groups before calling AgentPass or forwarding the
+request.
+
 ## Example Mapping Config
 
 ```yaml

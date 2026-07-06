@@ -1,4 +1,5 @@
 import { AgentIdClient } from "./agentid.js";
+import { resolveEnterpriseAuthContext } from "./enterprise-auth.js";
 import { authorizeWithLocalGuard } from "./local-guard.js";
 import { mapToolCallToAuthorize } from "./mapper.js";
 import { signProviderReceipt, signProviderReceiptJws } from "./receipts.js";
@@ -58,17 +59,24 @@ async function handleSingle(
     return errorResponse(request.id, BAD_REQUEST, "MCP tools/call is missing params.name");
   }
 
+  const enterpriseAuth = await resolveEnterpriseAuth(config, context, fetchImpl);
+  if (!enterpriseAuth.ok) {
+    return errorResponse(request.id, DENIED, "AgentPass denied enterprise auth", {
+      findings: enterpriseAuth.findings,
+    });
+  }
+
   let authorizePayload;
   try {
-    authorizePayload = mapToolCallToAuthorize(config, toolName, args, context);
+    authorizePayload = mapToolCallToAuthorize(config, toolName, args, enterpriseAuth.context);
   } catch (error) {
     return errorResponse(request.id, DENIED, String((error as Error).message));
   }
 
   const decision = config.local_guard
-    ? authorizeWithLocalGuard(config, toolName, args, context)
+    ? authorizeWithLocalGuard(config, toolName, args, enterpriseAuth.context)
     : await new AgentIdClient(config.agentid, fetchImpl).authorize(authorizePayload);
-  context.logger?.(authorizationLog(authorizePayload, decision));
+  enterpriseAuth.context.logger?.(authorizationLog(authorizePayload, decision));
   if (!decision.allow) {
     return errorResponse(request.id, DENIED, "AgentPass denied MCP tool call", compactObject({
       findings: decision.findings,
@@ -83,6 +91,27 @@ async function handleSingle(
       ? withProviderReceipt(request as JsonRpcRequest, authorizePayload, decision, mapped, args, config)
       : (request as JsonRpcRequest);
   return forward(downstreamRequest, config, fetchImpl);
+}
+
+async function resolveEnterpriseAuth(
+  config: AdapterConfig,
+  context: RequestContext,
+  fetchImpl: typeof fetch,
+): Promise<
+  | {
+      ok: true;
+      context: RequestContext;
+    }
+  | {
+      ok: false;
+      findings: string[];
+    }
+> {
+  try {
+    return await resolveEnterpriseAuthContext(config, context, fetchImpl);
+  } catch (error) {
+    return { ok: false, findings: [String((error as Error).message || error)] };
+  }
 }
 
 function authorizationLog(

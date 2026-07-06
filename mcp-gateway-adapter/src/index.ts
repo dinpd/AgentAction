@@ -56,10 +56,17 @@ function contextFromHeaders(headers: NodeJS.Dict<string | string[]>): RequestCon
     agentId: stringHeader(headers["x-agentid-agent-id"]),
     tenantId: stringHeader(headers["x-agentid-tenant-id"]),
     userId: stringHeader(headers["x-agentid-user-id"]),
+    bearerToken: bearerTokenFromHeader(stringHeader(headers.authorization)),
   };
 }
 
 function stringHeader(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function bearerTokenFromHeader(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
+  return match ? match[1] : undefined;
 }

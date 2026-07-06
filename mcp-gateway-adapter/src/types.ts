@@ -94,6 +94,9 @@ export type AdapterConfig = {
   local_guard?: {
     policy: GuardPolicy;
   };
+  enterprise_auth?: {
+    jwt?: EnterpriseJwtConfig;
+  };
   provider_receipts?: {
     tenant_id?: string;
     hmac_secret?: string;
@@ -109,6 +112,35 @@ export type AdapterConfig = {
   };
   tools: Record<string, ToolMapping>;
   filter_tools_list?: boolean;
+};
+
+export type EnterpriseJwtConfig = {
+  issuer?: string;
+  audience?: string | string[];
+  jwks?: JsonWebKeySet;
+  jwks_uri?: string;
+  allowed_algorithms?: string[];
+  required_scopes?: string[];
+  required_groups?: string[];
+  claim_mapping?: EnterpriseJwtClaimMapping;
+};
+
+export type EnterpriseJwtClaimMapping = {
+  subject?: string;
+  client_id?: string;
+  scopes?: string;
+  groups?: string;
+  tenant_id?: string;
+  user_id?: string;
+  agent_id?: string;
+  id_jag_grant_id?: string;
+  token_audience?: string;
+  acr?: string;
+  amr?: string;
+};
+
+export type JsonWebKeySet = {
+  keys?: JsonWebKey[];
 };
 
 export type AuthorizationDecisionLog = {
@@ -171,6 +203,7 @@ export type RequestContext = {
   agentId?: string;
   tenantId?: string;
   userId?: string;
+  bearerToken?: string;
   enterpriseAuth?: EnterpriseAuthContext;
   logger?: (entry: AuthorizationDecisionLog) => void;
 };

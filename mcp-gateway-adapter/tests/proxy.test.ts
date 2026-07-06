@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
 import { handleJsonRpc } from "../src/proxy.ts";
-import type { AdapterConfig, AuthorizationDecisionLog } from "../src/types.ts";
+import type { AdapterConfig, AuthorizationDecisionLog, JsonWebKeySet } from "../src/types.ts";
 
 test("filters tools/list to configured tools", async () => {
   const response = await handleJsonRpc(
@@ -269,6 +270,123 @@ test("binds enterprise auth context into provider receipts", async () => {
   assert.equal(receipt.enterprise_acr, "urn:okta:loa:2fa");
   assert.deepEqual(receipt.enterprise_amr, ["pwd", "mfa"]);
   assert.deepEqual(response, { jsonrpc: "2.0", id: 12, result: { content: [] } });
+});
+
+test("validates enterprise JWT and maps claims into authorize payload and provider receipt", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const token = signJwt(
+    {
+      iss: "https://idp.example.com",
+      aud: "provider-crm-mcp",
+      sub: "user-17",
+      azp: "claude-enterprise",
+      tid: "tenant-a",
+      agent_id: "enterprise-support-agent",
+      scp: ["openid", "mcp:provider-crm", "crm.write"],
+      groups: ["support", "support-admins"],
+      id_jag: "id-jag-1",
+      acr: "urn:okta:loa:2fa",
+      amr: ["pwd", "mfa"],
+      iat: 1_781_437_140,
+      exp: 4_102_444_800,
+    },
+    privateKey,
+  );
+  let authorizePayload: any;
+  let forwardedRequest: any;
+  const response = await handleJsonRpc(
+    {
+      jsonrpc: "2.0",
+      id: 13,
+      method: "tools/call",
+      params: {
+        name: "provider.crm.update_customer",
+        arguments: {
+          customer_id: "cus_123",
+          job_id: "support_case_resolution",
+          case_id: "case-1042",
+          approved: true,
+          jit_grant_id: "grant-1",
+          approval_id: "approval-1",
+        },
+      },
+    },
+    enterpriseJwtConfig(jwks),
+    { bearerToken: token },
+    async (url, init) => {
+      const body = JSON.parse(String(init?.body));
+      if (String(url).includes("/authorize")) {
+        authorizePayload = body;
+        return jsonResponse({ allow: true, decision: "allow", findings: [], event: { decision_id: "dec-1" } });
+      }
+      forwardedRequest = body;
+      return jsonResponse({ jsonrpc: "2.0", id: 13, result: { content: [] } });
+    },
+  );
+
+  assert.equal(authorizePayload.tenant_id, "tenant-a");
+  assert.equal(authorizePayload.user_id, "user-17");
+  assert.equal(authorizePayload.enterprise_auth.issuer, "https://idp.example.com");
+  assert.equal(authorizePayload.enterprise_auth.clientId, "claude-enterprise");
+  assert.deepEqual(authorizePayload.enterprise_auth.scopes, ["openid", "mcp:provider-crm", "crm.write"]);
+  assert.deepEqual(authorizePayload.enterprise_auth.groups, ["support", "support-admins"]);
+  assert.equal(authorizePayload.enterprise_auth.idJagGrantId, "id-jag-1");
+  const receipt = forwardedRequest.params.arguments._agentid_receipt;
+  assert.equal(receipt.enterprise_issuer, "https://idp.example.com");
+  assert.equal(receipt.enterprise_subject, "user-17");
+  assert.equal(receipt.enterprise_client_id, "claude-enterprise");
+  assert.equal(receipt.enterprise_id_jag_grant_id, "id-jag-1");
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 13, result: { content: [] } });
+});
+
+test("denies tools/call before forwarding when enterprise JWT is expired", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const token = signJwt(
+    {
+      iss: "https://idp.example.com",
+      aud: "provider-crm-mcp",
+      sub: "user-17",
+      azp: "claude-enterprise",
+      tid: "tenant-a",
+      agent_id: "enterprise-support-agent",
+      scp: ["mcp:provider-crm", "crm.write"],
+      groups: ["support-admins"],
+      iat: 1_781_437_140,
+      exp: 1,
+    },
+    privateKey,
+  );
+  let calls = 0;
+  const response = await handleJsonRpc(
+    {
+      jsonrpc: "2.0",
+      id: 14,
+      method: "tools/call",
+      params: {
+        name: "provider.crm.update_customer",
+        arguments: { customer_id: "cus_123" },
+      },
+    },
+    enterpriseJwtConfig(jwks),
+    { bearerToken: token },
+    async () => {
+      calls += 1;
+      return jsonResponse({ jsonrpc: "2.0", id: 14, result: { content: [] } });
+    },
+  );
+
+  assert.equal(calls, 0);
+  assert.deepEqual(response, {
+    jsonrpc: "2.0",
+    id: 14,
+    error: {
+      code: -32003,
+      message: "AgentPass denied enterprise auth",
+      data: {
+        findings: ["enterprise JWT is expired"],
+      },
+    },
+  });
 });
 
 test("forwards configured domain context in logs and provider receipts", async () => {
@@ -561,6 +679,46 @@ const devopsConfig: AdapterConfig = {
   },
 };
 
+function enterpriseJwtConfig(jwks: JsonWebKeySet): AdapterConfig {
+  return {
+    ...config,
+    enterprise_auth: {
+      jwt: {
+        issuer: "https://idp.example.com",
+        audience: "provider-crm-mcp",
+        jwks,
+        required_scopes: ["mcp:provider-crm"],
+        required_groups: ["support-admins"],
+        claim_mapping: {
+          tenant_id: "tid",
+          user_id: "sub",
+          agent_id: "agent_id",
+          client_id: "azp",
+          scopes: "scp",
+          groups: "groups",
+          id_jag_grant_id: "id_jag",
+        },
+      },
+    },
+    tools: {
+      ...config.tools,
+      "provider.crm.update_customer": {
+        action: "write",
+        data_from: "enterprise_crm",
+        data_to: "provider_crm",
+        resource_template: "provider/customer/{customer_id}",
+        job_id_arg: "job_id",
+        case_id_arg: "case_id",
+        customer_id_arg: "customer_id",
+        approved_arg: "approved",
+        jit_grant_id_arg: "jit_grant_id",
+        approval_id_arg: "approval_id",
+        receipt_required: true,
+      },
+    },
+  };
+}
+
 function localGuardConfig(): AdapterConfig {
   return {
     agentid: { base_url: "https://agentid.example.com", tenant_id: "tenant-a" },
@@ -653,4 +811,30 @@ function jsonResponse(body: unknown): Response {
     status: 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+function rsaKeyPair(kid = "enterprise-2026-07") {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: "jwk" });
+  jwk.kid = kid;
+  jwk.alg = "RS256";
+  jwk.use = "sig";
+  return {
+    privateKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    jwks: { keys: [jwk] },
+  };
+}
+
+function signJwt(claims: Record<string, unknown>, privateKeyPem: string, kid = "enterprise-2026-07"): string {
+  const header = { alg: "RS256", typ: "JWT", kid };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(claims)}`;
+  const signer = createSign("RSA-SHA256");
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer.sign(createPrivateKey(privateKeyPem)).toString("base64url");
+  return `${signingInput}.${signature}`;
+}
+
+function base64UrlJson(value: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
