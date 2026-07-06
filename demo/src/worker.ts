@@ -387,6 +387,16 @@ const HTML = String.raw`<!doctype html>
         <button class="primary" id="runMcp">Run MCP Demo</button>
       </div>
       <div>
+        <h2>Enterprise Auth Receipt Demo</h2>
+        <div class="use-cases" style="margin-bottom:12px">
+          <div class="use-case">
+            <strong>Managed MCP authorization</strong>
+            <span>Validate an enterprise JWT, bind claims into AgentPass authorization, sign a provider receipt, and verify it before execution.</span>
+          </div>
+        </div>
+        <button class="primary" id="runEnterpriseMcp">Run Enterprise Auth Demo</button>
+      </div>
+      <div>
         <h2>Other Demo Use Cases</h2>
         <div class="use-cases">
           <div class="use-case"><strong>Outbound email guardrail</strong><span>Allow customer-domain replies, block sensitive data to external email.</span></div>
@@ -407,6 +417,7 @@ const HTML = String.raw`<!doctype html>
       run: document.getElementById("run"),
       reset: document.getElementById("reset"),
       runMcp: document.getElementById("runMcp"),
+      runEnterpriseMcp: document.getElementById("runEnterpriseMcp"),
       runSkill: document.getElementById("runSkill"),
       status: document.getElementById("status"),
       timeline: document.getElementById("timeline"),
@@ -890,6 +901,31 @@ const HTML = String.raw`<!doctype html>
       }
     }
 
+    async function runEnterpriseMcpDemo() {
+      reset();
+      els.run.disabled = true;
+      els.runMcp.disabled = true;
+      els.runEnterpriseMcp.disabled = true;
+      els.runSkill.disabled = true;
+      try {
+        const demo = await api("/api/enterprise-mcp/demo", {});
+        for (const step of demo.body.steps || []) addStep(step);
+        setStatus(
+          demo.body.ok
+            ? "Enterprise auth receipt demo complete: JWT validated, authorization bound, provider receipt verified."
+            : "Enterprise auth receipt demo ended with denial.",
+          demo.body.ok ? "allow" : "deny"
+        );
+      } catch (error) {
+        setStatus("Enterprise auth demo error: " + error.message, "deny");
+      } finally {
+        els.run.disabled = false;
+        els.runMcp.disabled = false;
+        els.runEnterpriseMcp.disabled = false;
+        els.runSkill.disabled = false;
+      }
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
@@ -904,6 +940,7 @@ const HTML = String.raw`<!doctype html>
     els.months.addEventListener("input", () => els.amount.value = money(els.months.value));
     els.run.addEventListener("click", runScenario);
     els.runMcp.addEventListener("click", runMcpDemo);
+    els.runEnterpriseMcp.addEventListener("click", runEnterpriseMcpDemo);
     els.runSkill.addEventListener("click", runSkillDemo);
     els.reset.addEventListener("click", reset);
     syncScenario();
@@ -937,9 +974,151 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/skill/jit-grants") {
       return proxyGateway(request, env, "jit-grants", mcpTenant(env), "enterprise-support-agent");
     }
+    if (request.method === "POST" && url.pathname === "/api/enterprise-mcp/demo") {
+      return json(await enterpriseMcpDemo(env));
+    }
     return json({ error: "not found" }, 404);
   },
 };
+
+async function enterpriseMcpDemo(env: Env): Promise<{ ok: boolean; steps: DemoStep[] }> {
+  const enterprise = await createEnterpriseJwt();
+  const verifiedEnterprise = await verifyEnterpriseJwt(enterprise.token, enterprise.jwks);
+  const authorizePayload = {
+    agent_id: "enterprise-support-agent",
+    tenant_id: "tenant-a",
+    user_id: verifiedEnterprise.subject,
+    tool: "provider.crm.update_customer",
+    action: "write",
+    resource: "provider/customer/cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    customer_id: "cus_123",
+    approved: true,
+    jit_grant_id: "grant-1",
+    enterprise_auth: verifiedEnterprise,
+  };
+  const decision = {
+    allow: true,
+    decision: "allow",
+    findings: [],
+    event: { decision_id: "dec-enterprise-1" },
+  };
+  const receipt = {
+    decision_id: "dec-enterprise-1",
+    tenant_id: "tenant-a",
+    agent_id: "enterprise-support-agent",
+    user_id: verifiedEnterprise.subject,
+    tool: "provider.crm.update_customer",
+    action: "write",
+    resource: "provider/customer/cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    customer_id: "cus_123",
+    approval_id: "approval-1",
+    jit_grant_id: "grant-1",
+    enterprise_issuer: verifiedEnterprise.issuer,
+    enterprise_subject: verifiedEnterprise.subject,
+    enterprise_client_id: verifiedEnterprise.clientId,
+    enterprise_token_audience: verifiedEnterprise.tokenAudience,
+    enterprise_id_jag_grant_id: verifiedEnterprise.idJagGrantId,
+    enterprise_scopes: verifiedEnterprise.scopes,
+    enterprise_groups: verifiedEnterprise.groups,
+    enterprise_acr: verifiedEnterprise.acr,
+    enterprise_amr: verifiedEnterprise.amr,
+    issued_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 300_000).toISOString(),
+  };
+  const signedReceipt = await signDemoReceipt(receipt, enterpriseReceiptSecret(env));
+  const providerVerification = await verifyDemoProviderReceipt(signedReceipt, enterpriseReceiptSecret(env));
+  const providerFindings = providerReceiptFindings(providerVerification.receipt);
+  const providerAllowed = providerVerification.findings.length === 0 && providerFindings.length === 0;
+  const providerResponse = providerAllowed
+    ? {
+        jsonrpc: "2.0",
+        id: 42,
+        result: {
+          content: [{ type: "text", text: "provider.crm.update_customer executed" }],
+          agentpass: {
+            decision_id: providerVerification.receipt.decision_id,
+            enterprise_client_id: providerVerification.receipt.enterprise_client_id,
+          },
+        },
+      }
+    : {
+        jsonrpc: "2.0",
+        id: 42,
+        error: {
+          code: -32010,
+          message: "Provider denied MCP tool call",
+          data: { findings: [...providerVerification.findings, ...providerFindings] },
+        },
+      };
+
+  return {
+    ok: providerAllowed,
+    steps: [
+      {
+        id: "enterprise-jwt",
+        title: "Enterprise JWT validated",
+        detail: "The hosted demo signs a managed-auth JWT, verifies the RS256 signature, issuer, audience, required scope, and required group.",
+        status: "allow",
+        payload: {
+          header: { alg: "RS256", kid: "enterprise-idp-2026-07" },
+          claims: enterprise.claims,
+        },
+        response: {
+          issuer: verifiedEnterprise.issuer,
+          subject: verifiedEnterprise.subject,
+          client_id: verifiedEnterprise.clientId,
+          scopes: verifiedEnterprise.scopes,
+          groups: verifiedEnterprise.groups,
+        },
+      },
+      {
+        id: "agentpass-authorize",
+        title: "AgentPass authorization bound to enterprise context",
+        detail: "The gateway maps the MCP call to an AgentPass authorization event and carries the validated enterprise identity context with it.",
+        status: decision.allow ? "allow" : "deny",
+        payload: authorizePayload,
+        response: decision,
+      },
+      {
+        id: "provider-receipt",
+        title: "Provider receipt signed with enterprise bindings",
+        detail: "The authorization receipt is bound to tenant, agent, user, job, resource, approval, JIT grant, issuer, client, scopes, and groups.",
+        status: "allow",
+        payload: signedReceipt,
+        response: {
+          decision_id: receipt.decision_id,
+          enterprise_client_id: receipt.enterprise_client_id,
+          enterprise_id_jag_grant_id: receipt.enterprise_id_jag_grant_id,
+        },
+      },
+      {
+        id: "provider-execution",
+        title: providerAllowed ? "Provider verified receipt and executed" : "Provider denied execution",
+        detail: providerAllowed
+          ? "The mock provider verifies the receipt signature and required enterprise bindings before executing the CRM write."
+          : "The mock provider found a missing or mismatched receipt binding.",
+        status: providerAllowed ? "allow" : "deny",
+        payload: {
+          tool: "provider.crm.update_customer",
+          arguments: {
+            customer_id: "cus_123",
+            job_id: "support_case_resolution",
+            case_id: "case-1042",
+            approved: true,
+            jit_grant_id: "grant-1",
+            approval_id: "approval-1",
+            _agentid_receipt: signedReceipt,
+          },
+        },
+        response: providerResponse,
+      },
+    ],
+  };
+}
 
 async function proxyGateway(
   request: Request,
@@ -980,6 +1159,200 @@ function mcpTenant(env: Env): string {
   return env.AGENTID_MCP_TENANT_ID || "provider-mcp-support-agent";
 }
 
+type EnterpriseAuthContext = {
+  issuer: string;
+  subject: string;
+  clientId: string;
+  tokenAudience: string;
+  idJagGrantId: string;
+  scopes: string[];
+  groups: string[];
+  acr: string;
+  amr: string[];
+};
+
+type SignedDemoReceipt = {
+  alg: "HS256";
+  payload: Record<string, unknown>;
+  signature: string;
+};
+
+async function createEnterpriseJwt(): Promise<{
+  token: string;
+  jwks: { keys: JsonWebKey[] };
+  claims: Record<string, unknown>;
+}> {
+  const kid = "enterprise-idp-2026-07";
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"],
+  );
+  const publicJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  const header = { alg: "RS256", typ: "JWT", kid };
+  const claims = {
+    iss: "https://idp.example.com",
+    aud: "provider-crm-mcp",
+    sub: "user-17",
+    azp: "claude-enterprise",
+    tid: "tenant-a",
+    agent_id: "enterprise-support-agent",
+    scp: ["openid", "mcp:provider-crm", "crm.write"],
+    groups: ["support", "support-admins"],
+    id_jag: "id-jag-1",
+    acr: "urn:okta:loa:2fa",
+    amr: ["pwd", "mfa"],
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 300,
+  };
+  const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(claims))}`;
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    keyPair.privateKey,
+    new TextEncoder().encode(signingInput),
+  );
+  return {
+    token: `${signingInput}.${base64UrlEncode(signature)}`,
+    jwks: { keys: [{ ...publicJwk, kid, alg: "RS256", use: "sig" }] },
+    claims,
+  };
+}
+
+async function verifyEnterpriseJwt(token: string, jwks: { keys: JsonWebKey[] }): Promise<EnterpriseAuthContext> {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("enterprise JWT compact serialization is invalid");
+  const header = parseBase64UrlJson(parts[0]);
+  const claims = parseBase64UrlJson(parts[1]);
+  if (!isRecord(header) || !isRecord(claims)) throw new Error("enterprise JWT header or payload is invalid");
+  if (header.alg !== "RS256") throw new Error("enterprise JWT alg is not allowed");
+
+  const key = jwks.keys.find((item) => item.kid === header.kid);
+  if (!key) throw new Error("enterprise JWT key not found");
+  const publicKey = await crypto.subtle.importKey(
+    "jwk",
+    key,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const verified = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    publicKey,
+    base64UrlDecode(parts[2]),
+    new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+  );
+  if (!verified) throw new Error("enterprise JWT signature invalid");
+
+  if (claims.iss !== "https://idp.example.com") throw new Error("enterprise JWT issuer mismatch");
+  if (claims.aud !== "provider-crm-mcp") throw new Error("enterprise JWT audience mismatch");
+  if (typeof claims.exp === "number" && claims.exp <= Math.floor(Date.now() / 1000)) {
+    throw new Error("enterprise JWT is expired");
+  }
+
+  const scopes = stringArray(claims.scp);
+  const groups = stringArray(claims.groups);
+  if (!scopes.includes("mcp:provider-crm")) throw new Error("enterprise JWT missing required scope: mcp:provider-crm");
+  if (!groups.includes("support-admins")) throw new Error("enterprise JWT missing required group: support-admins");
+
+  return {
+    issuer: stringValue(claims.iss),
+    subject: stringValue(claims.sub),
+    clientId: stringValue(claims.azp),
+    tokenAudience: stringValue(claims.aud),
+    idJagGrantId: stringValue(claims.id_jag),
+    scopes,
+    groups,
+    acr: stringValue(claims.acr),
+    amr: stringArray(claims.amr),
+  };
+}
+
+async function signDemoReceipt(payload: Record<string, unknown>, secret: string): Promise<SignedDemoReceipt> {
+  return {
+    alg: "HS256",
+    payload,
+    signature: await hmacSha256Base64Url(canonicalJson(payload), secret),
+  };
+}
+
+async function verifyDemoProviderReceipt(
+  receipt: SignedDemoReceipt,
+  secret: string,
+): Promise<{ receipt: Record<string, unknown>; findings: string[] }> {
+  const findings: string[] = [];
+  if (receipt.alg !== "HS256") findings.push("receipt signature alg must be HS256");
+  if (!isRecord(receipt.payload)) findings.push("receipt signed payload is required");
+  const expected = await hmacSha256Base64Url(canonicalJson(receipt.payload), secret);
+  if (receipt.signature !== expected) findings.push("receipt signature mismatch");
+  return { receipt: receipt.payload, findings };
+}
+
+function providerReceiptFindings(receipt: Record<string, unknown>): string[] {
+  const findings: string[] = [];
+  requireReceiptEqual(findings, receipt, "tenant_id", "tenant-a");
+  requireReceiptEqual(findings, receipt, "agent_id", "enterprise-support-agent");
+  requireReceiptEqual(findings, receipt, "user_id", "user-17");
+  requireReceiptEqual(findings, receipt, "tool", "provider.crm.update_customer");
+  requireReceiptEqual(findings, receipt, "action", "write");
+  requireReceiptEqual(findings, receipt, "resource", "provider/customer/cus_123");
+  requireReceiptEqual(findings, receipt, "job_id", "support_case_resolution");
+  requireReceiptEqual(findings, receipt, "case_id", "case-1042");
+  requireReceiptEqual(findings, receipt, "customer_id", "cus_123");
+  requireReceiptEqual(findings, receipt, "approval_id", "approval-1");
+  requireReceiptEqual(findings, receipt, "jit_grant_id", "grant-1");
+  requireReceiptEqual(findings, receipt, "enterprise_issuer", "https://idp.example.com");
+  requireReceiptEqual(findings, receipt, "enterprise_subject", "user-17");
+  requireReceiptEqual(findings, receipt, "enterprise_client_id", "claude-enterprise");
+  requireReceiptEqual(findings, receipt, "enterprise_token_audience", "provider-crm-mcp");
+  requireReceiptEqual(findings, receipt, "enterprise_id_jag_grant_id", "id-jag-1");
+  requireReceiptIncludes(findings, receipt, "enterprise_scopes", "mcp:provider-crm");
+  requireReceiptIncludes(findings, receipt, "enterprise_scopes", "crm.write");
+  requireReceiptIncludes(findings, receipt, "enterprise_groups", "support-admins");
+  return findings;
+}
+
+function requireReceiptEqual(findings: string[], receipt: Record<string, unknown>, field: string, expected: string): void {
+  if (receipt[field] !== expected) findings.push(`${field} mismatch`);
+}
+
+function requireReceiptIncludes(findings: string[], receipt: Record<string, unknown>, field: string, expected: string): void {
+  const value = receipt[field];
+  if (!Array.isArray(value) || !value.includes(expected)) findings.push(`${field} missing ${expected}`);
+}
+
+async function hmacSha256Base64Url(value: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
+  return base64UrlEncode(signature);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function enterpriseReceiptSecret(env: Env): string {
+  return env.AGENTID_DEMO_OIDC_SECRET || "local-enterprise-receipt-demo-secret";
+}
+
 async function createDemoOidcToken(env: Env, endpoint: string, tenantId: string, agentId: string): Promise<string> {
   if (!env.AGENTID_DEMO_OIDC_SECRET) throw new Error("AGENTID_DEMO_OIDC_SECRET is not configured");
   const now = Math.floor(Date.now() / 1000);
@@ -1016,6 +1389,34 @@ function base64UrlEncode(value: string | ArrayBuffer): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlDecode(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function parseBase64UrlJson(value: string): unknown {
+  return JSON.parse(new TextDecoder().decode(base64UrlDecode(value)));
+}
+
+function stringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string") return value.split(/\s+/).filter(Boolean);
+  return [];
+}
+
+function stringValue(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  return String(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function html(body: string): Response {

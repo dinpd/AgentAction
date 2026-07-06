@@ -28,6 +28,9 @@ The demo illustrates:
 - MCP gateway tool filtering before provider tool exposure.
 - MCP provider CRM read allow, write denial without JIT, and write allow after a
   scoped JIT grant.
+- Enterprise-managed MCP auth with JWT validation, enterprise-bound AgentPass
+  authorization, signed provider receipt forwarding, and provider-side receipt
+  verification before execution.
 
 The skill demo expects the provider-MCP tenant manifest to include the
 `support-refund-workflow` capability from
