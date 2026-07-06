@@ -99,6 +99,34 @@ The gateway can derive these fields from:
 - The current job or workflow state.
 - A per-tool mapping config.
 
+When the client reached the MCP server through enterprise-managed authorization,
+the gateway should also pass the enterprise auth context into AgentPass. That
+context can include the IdP issuer, subject, client ID, scopes, groups, token
+audience, and ID-JAG grant identifier. AgentPass can then enforce global or
+per-tool requirements such as `requiredScopes`, `requiredGroups`,
+`allowedGroups`, `allowedClients`, and `allowedIssuers` before forwarding the
+`tools/call`.
+
+```ts
+await gate.run(
+  mcpToolsCallRequest,
+  {
+    agentId: "enterprise-support-agent",
+    tenantId: "tenant-a",
+    userId: "user-17",
+    enterpriseAuth: {
+      issuer: "https://idp.example.com",
+      subject: "user-17",
+      clientId: "claude-enterprise",
+      scopes: ["openid", "mcp:provider-crm", "crm.write"],
+      groups: ["support", "support-admins"],
+      idJagGrantId: "id-jag-1"
+    }
+  },
+  forwardMcpToolCall
+);
+```
+
 ## Example Mapping Config
 
 ```yaml

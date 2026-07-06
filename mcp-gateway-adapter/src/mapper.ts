@@ -25,6 +25,7 @@ export function mapToolCallToAuthorize(
     customer_id: valueFromArg(args, mapping.customer_id_arg),
     approved: booleanFromArg(args, mapping.approved_arg),
     jit_grant_id: valueFromArg(args, mapping.jit_grant_id_arg),
+    enterprise_auth: context.enterpriseAuth,
     ...contextFromArgs(args, mapping),
   });
 }
@@ -48,6 +49,7 @@ function valueFromArg(args: Record<string, unknown>, key: string | undefined): s
 
 function booleanFromArg(args: Record<string, unknown>, key: string | undefined): boolean | undefined {
   if (!key) return undefined;
+  if (!(key in args)) return undefined;
   return args[key] === true;
 }
 

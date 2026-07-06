@@ -16,6 +16,68 @@ test("unknown tools are denied by default", () => {
   assert.deepEqual(decision.reasons, ["tool is not declared: shell.exec"]);
 });
 
+test("enterprise auth policy gates MCP server access context before tool execution", () => {
+  const guard = createGuard({
+    policy: {
+      enterpriseAuth: {
+        allowedIssuers: ["https://idp.example.com"],
+        allowedClients: ["claude-enterprise"],
+        requiredScopes: ["mcp:provider-crm"],
+        allowedGroups: ["support"],
+      },
+      tools: {
+        "provider.crm.update_customer": {
+          action: "write",
+          enterpriseAuth: {
+            requiredScopes: ["crm.write"],
+            requiredGroups: ["support-admins"],
+          },
+        },
+      },
+    },
+    idGenerator: ids(),
+  });
+
+  const allowed = guard.check({
+    agentId: "support-agent",
+    tenantId: "tenant-a",
+    userId: "user-17",
+    tool: "provider.crm.update_customer",
+    action: "write",
+    enterpriseAuth: {
+      issuer: "https://idp.example.com",
+      subject: "user-17",
+      clientId: "claude-enterprise",
+      scopes: ["openid", "mcp:provider-crm", "crm.write"],
+      groups: ["support", "support-admins"],
+      idJagGrantId: "id-jag-1",
+    },
+  });
+
+  const denied = guard.check({
+    agentId: "support-agent",
+    tenantId: "tenant-a",
+    userId: "user-17",
+    tool: "provider.crm.update_customer",
+    action: "write",
+    enterpriseAuth: {
+      issuer: "https://idp.example.com",
+      subject: "user-17",
+      clientId: "claude-enterprise",
+      scopes: ["openid", "mcp:provider-crm"],
+      groups: ["support"],
+    },
+  });
+
+  assert.equal(allowed.type, "allow");
+  assert.equal(allowed.event.enterpriseAuth?.idJagGrantId, "id-jag-1");
+  assert.equal(denied.type, "deny");
+  assert.deepEqual(denied.reasons, [
+    "provider.crm.update_customer enterprise auth missing required scope: crm.write",
+    "provider.crm.update_customer enterprise auth missing required group: support-admins",
+  ]);
+});
+
 test("payment tools require approval before execution", () => {
   const guard = createGuard({ policy: policy(), idGenerator: ids() });
 
@@ -499,6 +561,7 @@ test("decision events include audit context", () => {
     recordCount: 1,
     estimatedTokens: undefined,
     estimatedCostUsd: undefined,
+    enterpriseAuth: undefined,
     issuedAt: "2026-06-11T12:00:00.000Z",
     approvalEvidence: {
       schema_version: "agentpass.approval-evidence.v1",
@@ -724,10 +787,12 @@ test("MCP tool gate maps tools/call requests into guard checks", () => {
 
   assert.deepEqual(check, {
     agentId: "support-agent",
+    tenantId: undefined,
     jobId: "case-mcp",
     userId: "user-1",
     approvalId: undefined,
     retryCount: undefined,
+    enterpriseAuth: undefined,
     tool: "provider.billing.issue_credit",
     action: "pay",
     resource: "provider/customer/cus_123",

@@ -198,6 +198,8 @@ gate.
 
 - Closed-world tool declarations
 - Tool/action mismatches
+- Enterprise auth context from OIDC/EMA-style flows: required scopes, required
+  groups, allowed groups, allowed clients, and allowed issuers
 - Approval requirements
 - Amount caps
 - Idempotency keys, single-use actions, and cached result replay

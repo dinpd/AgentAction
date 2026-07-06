@@ -60,6 +60,7 @@ export function mapToolCallToGuardCheck(
     recordCount: numberFromArg(args, mapping.record_count_arg),
     estimatedTokens: numberFromArg(args, mapping.estimated_tokens_arg),
     estimatedCostUsd: numberFromArg(args, mapping.estimated_cost_usd_arg),
+    enterpriseAuth: payload.enterprise_auth,
   });
 }
 

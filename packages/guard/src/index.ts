@@ -17,6 +17,7 @@ export type ToolPolicy = {
   action?: AgentAction;
   requiresApproval?: boolean;
   requiresApprovalIfPii?: boolean;
+  enterpriseAuth?: EnterpriseAuthPolicy;
   maxAmountUsd?: number;
   requireIdempotencyKey?: boolean;
   singleUse?: boolean;
@@ -52,10 +53,31 @@ export type BudgetPolicy = {
   maxRuntimeMsPerJob?: number;
 };
 
+export type EnterpriseAuthContext = {
+  issuer?: string;
+  subject?: string;
+  clientId?: string;
+  scopes?: string[];
+  groups?: string[];
+  acr?: string;
+  amr?: string[];
+  idJagGrantId?: string;
+  tokenAudience?: string;
+};
+
+export type EnterpriseAuthPolicy = {
+  requiredScopes?: string[];
+  requiredGroups?: string[];
+  allowedGroups?: string[];
+  allowedClients?: string[];
+  allowedIssuers?: string[];
+};
+
 export type GuardPolicy = {
   tools?: Record<string, ToolPolicy>;
   flows?: FlowPolicy[];
   budgets?: BudgetPolicy;
+  enterpriseAuth?: EnterpriseAuthPolicy;
   defaultSensitiveDestinationDecision?: "allow" | "deny" | "challenge_required";
   sensitiveClassifications?: string[];
   sensitiveDestinationTypes?: string[];
@@ -94,6 +116,7 @@ export type GuardCheck = {
   recordCount?: number;
   estimatedTokens?: number;
   estimatedCostUsd?: number;
+  enterpriseAuth?: EnterpriseAuthContext;
 };
 
 export type GuardDecision = {
@@ -173,6 +196,7 @@ export type GuardDecisionEvent = {
   recordCount?: number;
   estimatedTokens?: number;
   estimatedCostUsd?: number;
+  enterpriseAuth?: EnterpriseAuthContext;
   issuedAt: string;
   approvalEvidence: ApprovalEvidence;
 };
@@ -237,10 +261,12 @@ export type McpToolsCallRequest = {
 
 export type McpGuardContext = {
   agentId: string;
+  tenantId?: string;
   jobId?: string;
   userId?: string;
   approvalId?: string;
   retryCount?: number;
+  enterpriseAuth?: EnterpriseAuthContext;
 };
 
 type McpMappedValue<T> =
@@ -331,6 +357,7 @@ export class AgentPassGuard {
     }
 
     this.evaluateToolPolicy(input, toolPolicy, reasons, challengeFor);
+    this.evaluateEnterpriseAuthPolicy(input, toolPolicy, reasons);
     this.evaluateFlowPolicy(input, toolPolicy, reasons, challengeFor);
     this.evaluateBudgetPolicy(input, reasons, challengeFor);
 
@@ -381,6 +408,11 @@ export class AgentPassGuard {
     if (policy.requiresApprovalIfPii && hasSensitiveData(input, this.policy) && !input.approvalId) {
       challengeFor.add("pii");
     }
+  }
+
+  private evaluateEnterpriseAuthPolicy(input: GuardCheck, toolPolicy: ToolPolicy, reasons: string[]): void {
+    addEnterpriseAuthFindings(input, this.policy.enterpriseAuth, "enterprise auth", reasons);
+    addEnterpriseAuthFindings(input, toolPolicy.enterpriseAuth, `${input.tool} enterprise auth`, reasons);
   }
 
   private evaluateFlowPolicy(
@@ -625,6 +657,7 @@ function decisionEvent(
     recordCount: input.recordCount,
     estimatedTokens: input.estimatedTokens,
     estimatedCostUsd: input.estimatedCostUsd,
+    enterpriseAuth: input.enterpriseAuth,
     issuedAt,
     approvalEvidence: approvalEvidence(input, reasons),
   };
@@ -792,10 +825,12 @@ export function mcpToolCallToGuardCheck(
 
   return {
     agentId: context.agentId,
+    tenantId: context.tenantId,
     jobId: context.jobId,
     userId: context.userId,
     approvalId: context.approvalId,
     retryCount: context.retryCount,
+    enterpriseAuth: context.enterpriseAuth,
     tool: call.name,
     action,
     resource: readMcpMappedValue(mapping.resource, args, call, context),
@@ -837,6 +872,59 @@ function matchesFlow(flow: FlowPolicy, input: GuardCheck): boolean {
 
 function matchesPattern(pattern: string, value: string): boolean {
   return pattern === "*" || normalize(pattern) === normalize(value);
+}
+
+function addEnterpriseAuthFindings(
+  input: GuardCheck,
+  policy: EnterpriseAuthPolicy | undefined,
+  label: string,
+  reasons: string[],
+): void {
+  if (!policy) return;
+
+  const auth = input.enterpriseAuth;
+  if (!auth) {
+    reasons.push(`${label} context is required`);
+    return;
+  }
+
+  const scopes = normalizeSet(auth.scopes);
+  const groups = normalizeSet(auth.groups);
+
+  for (const scope of missingValues(policy.requiredScopes, scopes)) {
+    reasons.push(`${label} missing required scope: ${scope}`);
+  }
+  for (const group of missingValues(policy.requiredGroups, groups)) {
+    reasons.push(`${label} missing required group: ${group}`);
+  }
+  if (policy.allowedGroups?.length && !hasAnyValue(policy.allowedGroups, groups)) {
+    reasons.push(`${label} group is not allowed`);
+  }
+  if (policy.allowedClients?.length && !matchesAnyNormalized(auth.clientId, policy.allowedClients)) {
+    reasons.push(`${label} client is not allowed: ${auth.clientId || "unknown"}`);
+  }
+  if (policy.allowedIssuers?.length && !matchesAnyNormalized(auth.issuer, policy.allowedIssuers)) {
+    reasons.push(`${label} issuer is not allowed: ${auth.issuer || "unknown"}`);
+  }
+}
+
+function missingValues(required: string[] | undefined, actual: Set<string>): string[] {
+  if (!required) return [];
+  return required.filter((value) => !actual.has(normalize(value)));
+}
+
+function hasAnyValue(expected: string[], actual: Set<string>): boolean {
+  return expected.some((value) => actual.has(normalize(value)));
+}
+
+function matchesAnyNormalized(value: string | undefined, expected: string[]): boolean {
+  if (!value) return false;
+  const normalized = normalize(value);
+  return expected.some((candidate) => normalize(candidate) === normalized);
+}
+
+function normalizeSet(values: string[] | undefined): Set<string> {
+  return new Set((values || []).map(normalize));
 }
 
 function presentBlockedFields(fieldSet: string[] | undefined, blockedFields: string[] | undefined): string[] {
@@ -890,6 +978,7 @@ function requestDigestFor(input: GuardCheck): string {
       recordCount: input.recordCount,
       basisCategory: input.basisCategory,
       basisRef: input.basisRef,
+      enterpriseAuth: input.enterpriseAuth,
     }),
   );
 }

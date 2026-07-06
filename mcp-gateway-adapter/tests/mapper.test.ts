@@ -29,6 +29,53 @@ test("maps MCP tool arguments to AgentPass authorize payload", () => {
   });
 });
 
+test("maps enterprise auth context to AgentPass authorize payload", () => {
+  const payload = mapToolCallToAuthorize(
+    config,
+    "provider.crm.update_customer",
+    {
+      customer_id: "cus_123",
+      job_id: "support_case_resolution",
+      case_id: "case-1042",
+    },
+    {
+      agentId: "support-agent",
+      tenantId: "tenant-b",
+      userId: "user-17",
+      enterpriseAuth: {
+        issuer: "https://idp.example.com",
+        subject: "user-17",
+        clientId: "claude-enterprise",
+        scopes: ["openid", "mcp:provider-crm", "crm.write"],
+        groups: ["support", "support-admins"],
+        idJagGrantId: "id-jag-1",
+      },
+    },
+  );
+
+  assert.deepEqual(payload, {
+    agent_id: "support-agent",
+    tenant_id: "tenant-b",
+    user_id: "user-17",
+    tool: "provider.crm.update_customer",
+    action: "write",
+    data_from: "enterprise_crm",
+    data_to: "provider_crm",
+    resource: "provider/customer/cus_123",
+    job_id: "support_case_resolution",
+    case_id: "case-1042",
+    customer_id: "cus_123",
+    enterprise_auth: {
+      issuer: "https://idp.example.com",
+      subject: "user-17",
+      clientId: "claude-enterprise",
+      scopes: ["openid", "mcp:provider-crm", "crm.write"],
+      groups: ["support", "support-admins"],
+      idJagGrantId: "id-jag-1",
+    },
+  });
+});
+
 test("maps configured domain context arguments to authorize payload", () => {
   const payload = mapToolCallToAuthorize(devopsConfig, "devops.deploy.production", {
     service_id: "checkout-api",

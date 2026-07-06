@@ -1,4 +1,4 @@
-import type { GuardPolicy } from "@dinpd/ai-agent-guard";
+import type { EnterpriseAuthContext, GuardPolicy } from "@dinpd/ai-agent-guard";
 
 export type JsonRpcId = string | number | null;
 
@@ -35,6 +35,7 @@ export type AgentIdAuthorizeRequest = {
   tenant_id?: string;
   approved?: boolean;
   jit_grant_id?: string;
+  enterprise_auth?: EnterpriseAuthContext;
 };
 
 export type AgentIdAuthorizeResponse = {
@@ -125,6 +126,7 @@ export type AuthorizationDecisionLog = {
   allowed: boolean;
   decision: AgentIdAuthorizeResponse["decision"];
   findings: string[];
+  enterprise_auth?: EnterpriseAuthContext;
 };
 
 export type ProviderAuthorizationReceipt = {
@@ -160,5 +162,6 @@ export type RequestContext = {
   agentId?: string;
   tenantId?: string;
   userId?: string;
+  enterpriseAuth?: EnterpriseAuthContext;
   logger?: (entry: AuthorizationDecisionLog) => void;
 };
