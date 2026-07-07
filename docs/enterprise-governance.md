@@ -23,6 +23,16 @@ AgentPass keeps normal business authorization in the downstream system. It
 answers whether the agent-originated action is eligible for execution under the
 current policy, job, user, approval, and data-flow context.
 
+![Enterprise-managed MCP authorization with AgentPass runtime authorization](enterprise-managed-auth-runtime-authorization.svg)
+
+MCP's Enterprise-Managed Authorization extension makes the organization's IdP
+the central authority for MCP server access: users authenticate once, and
+servers authorized by policy can connect without per-server OAuth prompts. That
+solves connection setup and identity context. AgentPass sits at the action
+boundary after that connection exists, where each `tools/call` can be evaluated
+against job state, resource binding, approval, JIT grants, data-flow policy,
+and audit requirements before execution.
+
 ## What It Covers
 
 - Enterprise manifests for reviewing agent authority before deployment.
