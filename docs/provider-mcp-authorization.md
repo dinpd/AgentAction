@@ -398,6 +398,7 @@ receipt locally or introspect it with the AgentPass gateway.
   "customer_id": "cus_123",
   "approval_id": "approval-456",
   "jit_grant_id": "grant_789",
+  "provider_contract_digest": "sha256:...",
   "max_uses": 1,
   "max_amount": "100.00",
   "expires_at": "2026-05-28T20:15:00Z"
@@ -415,6 +416,22 @@ and its local tool policy, then atomically records consumption before invoking
 the mutating handler. A receipt may also be revoked before expiry. Production
 providers must back both checks with durable stores shared by all verifier
 instances; the reference in-memory stores are only for tests and local demos.
+
+For high-risk tools, the enterprise should bind the canonical provider contract
+digest it reviewed into the signed receipt as `provider_contract_digest`. The
+provider verifier compares it to the active provider contract digest and fails
+closed with `contract_drift` when they differ. This stops an approval issued for
+one tool schema or authorization contract from silently applying after a
+provider-side change.
+
+Providers can calculate the published value with:
+
+```bash
+agentpass provider digest examples/provider-mcp-contract.yaml
+```
+
+Set that value as `provider_agentid.contract_digest`; validation rejects a
+declared digest that does not match the canonical contract contents.
 
 ## Provider-Side Enforcement
 

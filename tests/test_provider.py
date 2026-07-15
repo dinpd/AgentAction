@@ -18,6 +18,7 @@ from agentid.provider import (
     load_provider_schema,
     load_provider_contract,
     provider_contract_from_openapi,
+    provider_contract_digest,
     provider_schema_json,
     sign_provider_receipt,
     sign_provider_receipt_jws,
@@ -46,6 +47,19 @@ def test_provider_contract_example_matches_json_schema():
     assert [outcome["value"] for outcome in profile["outcomes"]] == ["ALLOW", "REFER", "DENY"]
 
 
+def test_provider_contract_digest_pins_the_canonical_contract_contents():
+    contract = provider_contract({"provider.crm.update_customer": high_risk_tool()})
+    contract["provider_agentid"]["contract_digest"] = provider_contract_digest(contract)
+
+    valid = validate_provider_contract(contract)
+    contract["provider_agentid"]["contract_digest"] = "sha256:" + "0" * 64
+    drifted = validate_provider_contract(contract)
+
+    assert valid.ok
+    assert not drifted.ok
+    assert "provider_agentid.contract_digest does not match the canonical provider contract digest." in drifted.errors
+
+
 def test_provider_contract_accepts_send_action():
     tool = high_risk_tool()
     tool["action"] = "send"
@@ -64,6 +78,17 @@ def test_cli_provider_schema_payload_is_json(capsys):
     assert code == 0
     assert payload["title"] == "AgentPass Provider MCP Authorization Contract"
     assert yaml.safe_load(provider_schema_json())["$id"].endswith("/provider-mcp-contract.schema.json")
+
+
+def test_cli_provider_digest_matches_the_canonical_contract(tmp_path, capsys):
+    contract = provider_contract({"provider.crm.update_customer": high_risk_tool()})
+    contract_path = tmp_path / "provider-contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract), encoding="utf-8")
+
+    code = main(["provider", "digest", str(contract_path)])
+
+    assert code == 0
+    assert capsys.readouterr().out.strip() == provider_contract_digest(contract)
 
 
 def test_provider_contract_requires_receipts_for_high_blast_radius_tools():

@@ -116,11 +116,13 @@ Verifiers should preserve detailed human-readable findings but also return a
 stable, ordered `codes` array for machine handling. The AgentPass reference
 vocabulary currently includes `expired`, `revoked`, `already_consumed`,
 `budget_exhausted`, `out_of_scope`, `unknown_key`, `invalid_signature`,
-`missing_receipt`, `untrusted_issuer`, `wrong_audience`, and `invalid_receipt`.
+`missing_receipt`, `contract_drift`, `untrusted_issuer`, `wrong_audience`, and
+`invalid_receipt`.
 
 The executable reference cases are in
 [`../fixtures/provider-receipt-v1/`](../fixtures/provider-receipt-v1/). They
 cover valid, expired, revoked, out-of-scope, invalid-signature,
-already-consumed, budget-exhausted, and missing-receipt outcomes against the
-FastAPI provider reference verifier. Contract drift, unknown-key, and replayed
-prior outcomes remain pending until the corresponding controls are implemented.
+already-consumed, budget-exhausted, contract-drift, and missing-receipt
+outcomes against the FastAPI provider reference verifier, as well as JWS
+unknown-key handling. Replayed prior outcomes remain pending until the
+corresponding control is implemented.

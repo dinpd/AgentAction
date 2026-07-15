@@ -340,14 +340,15 @@ Current status:
 - Existing provider verifier tests cover unknown-`kid` remote JWKS refresh and
   stale-if-error behavior.
 - The initial portable fixture corpus covers valid, expired, out-of-scope,
-  invalid-signature, revoked, already-consumed, budget-exhausted, and
-  missing-receipt outcomes against the FastAPI reference verifier.
+  invalid-signature, revoked, already-consumed, budget-exhausted,
+  drifted-contract, and missing-receipt outcomes against the FastAPI reference
+  verifier.
 - FastAPI and Express reference verifiers expose the same stable failure-code
   vocabulary and support injectable revocation stores plus atomic bounded-use
   and spend-cap receipt ledgers.
-- Remaining P4 work is to wire signed provider contract drift checks into the
-  hosted path and expand the corpus with unknown-key, drifted-contract, and
-  replayed-prior-outcome cases for MCP fine-grained authorization discussions.
+- Remaining P4 work is to add provider execution-result replay and its
+  replayed-prior-outcome conformance case for MCP fine-grained authorization
+  discussions.
 
 #### P5: Framework And Workflow Distribution
 

@@ -292,6 +292,34 @@ test("MemoryReceiptLedger enforces the more restrictive spend cap", async () => 
   assert.deepEqual(exhausted.codes, ["budget_exhausted"]);
 });
 
+test("provider contract digest must match the active contract", async () => {
+  const activeDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const contractPinnedPolicy = { ...policy, contractDigest: activeDigest };
+  const options = {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy: contractPinnedPolicy,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  };
+
+  const allowed = await verifyProviderReceipt(
+    signProviderReceipt({ ...signedReceipt(), provider_contract_digest: activeDigest }, "secret-1"),
+    options,
+  );
+  const drifted = await verifyProviderReceipt(
+    signProviderReceipt(
+      { ...signedReceipt(), provider_contract_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+      "secret-1",
+    ),
+    options,
+  );
+
+  assert.equal(allowed.ok, true);
+  assert.equal(drifted.ok, false);
+  assert.deepEqual(drifted.codes, ["contract_drift"]);
+});
+
 test("middleware attaches verified receipt and calls next", async () => {
   const req = {
     body: mcpRequest(signProviderReceipt(signedReceipt(), "secret-1")),

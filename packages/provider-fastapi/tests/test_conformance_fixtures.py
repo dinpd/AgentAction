@@ -4,12 +4,16 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
 from agentid_provider_fastapi import (
     InMemoryReceiptLedger,
     InMemoryReplayStore,
     InMemoryRevocationStore,
     ToolReceiptPolicy,
     sign_provider_receipt,
+    sign_provider_receipt_jws,
     verify_provider_receipt,
 )
 
@@ -37,6 +41,8 @@ def test_provider_receipt_v1_conformance_cases():
     for case in corpus["cases"]:
         receipt = {**corpus["receipt"], **case.get("receipt_overrides", {})}
         value = None if case.get("missing_receipt") else sign_provider_receipt(receipt, case.get("signing_secret", corpus["secret"]))
+        if case.get("jws_unknown_key"):
+            value = sign_provider_receipt_jws(receipt, private_key(), key_id="fixture-unknown-key")
         store = InMemoryReplayStore()
         revoked = InMemoryRevocationStore()
         if case.get("revoke"):
@@ -52,6 +58,8 @@ def test_provider_receipt_v1_conformance_cases():
             "receipt_ledger": InMemoryReceiptLedger() if case.get("ledger") else None,
             "now": lambda: now,
         }
+        if case.get("jws_unknown_key"):
+            options["jwks"] = {"keys": []}
         if case.get("preconsume"):
             assert verify_provider_receipt(value, **options).ok
 
@@ -59,3 +67,12 @@ def test_provider_receipt_v1_conformance_cases():
 
         assert result.ok is case["expect"]["ok"], case["id"]
         assert result.codes == case["expect"]["codes"], (case["id"], result.findings)
+
+
+def private_key() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("ascii")

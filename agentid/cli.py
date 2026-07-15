@@ -36,6 +36,7 @@ from agentid.provider import (
     import_provider_contract,
     load_provider_contract,
     provider_contract_from_openapi,
+    provider_contract_digest,
     provider_contract_yaml,
     provider_diff_to_dict,
     provider_manifest_yaml,
@@ -133,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     provider_parser = subparsers.add_parser("provider", help="Work with provider-published MCP authorization contracts.")
     provider_subparsers = provider_parser.add_subparsers(dest="provider_command", required=True)
     provider_subparsers.add_parser("schema", help="Print the provider MCP authorization contract JSON Schema.")
+    provider_digest_parser = provider_subparsers.add_parser("digest", help="Print the canonical digest for a provider MCP authorization contract.")
+    provider_digest_parser.add_argument("contract")
     provider_validate_parser = provider_subparsers.add_parser("validate", help="Validate a provider MCP authorization contract.")
     provider_validate_parser.add_argument("contract")
     provider_diff_parser = provider_subparsers.add_parser("diff", help="Compare two provider MCP authorization contracts.")
@@ -293,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             print(provider_schema_json(), end="")
             return 0
         try:
-            if args.provider_command == "validate":
+            if args.provider_command in {"validate", "digest"}:
                 contract = load_provider_contract(args.contract)
             else:
                 contract = None
@@ -306,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
                 print("Provider MCP contract is valid.")
             _print_validation(result, include_success=False)
             return 0 if result.ok else 1
+        if args.provider_command == "digest":
+            print(provider_contract_digest(contract))
+            return 0
         if args.provider_command == "diff":
             try:
                 diff = diff_provider_contracts(load_provider_contract(args.before), load_provider_contract(args.after))

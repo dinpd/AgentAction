@@ -16,6 +16,7 @@ export type ProviderAuthorizationReceipt = {
   amount?: string;
   max_uses?: number;
   max_amount?: number | string;
+  provider_contract_digest?: string;
   enterprise_issuer?: string;
   enterprise_subject?: string;
   enterprise_client_id?: string;
@@ -87,6 +88,7 @@ export type ToolReceiptPolicy = {
   maxUses?: number;
   maxAmount?: number;
   amountArg?: string;
+  contractDigest?: string;
 };
 
 export type AgentPassProviderExpressOptions = {
@@ -396,6 +398,9 @@ export async function verifyProviderReceipt(
       }
     }
   }
+  if (options.policy?.contractDigest && stringValue(receipt.provider_contract_digest) !== options.policy.contractDigest) {
+    findings.push("receipt provider contract digest mismatch");
+  }
 
   const current = options.now ? options.now() : new Date();
   const issuedAt = parseTimestamp(receipt.issued_at);
@@ -445,8 +450,10 @@ export function providerReceiptFailureCodes(findings: string[]): string[] {
       ? "already_consumed"
       : lowered.includes("revoked")
         ? "revoked"
-        : lowered.includes("budget is exhausted")
+      : lowered.includes("budget is exhausted")
           ? "budget_exhausted"
+          : lowered.includes("contract digest mismatch")
+            ? "contract_drift"
       : lowered.includes("expired")
         ? "expired"
         : lowered.includes("key not found")

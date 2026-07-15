@@ -111,6 +111,16 @@ def provider_schema_json(indent: int = 2) -> str:
     return json.dumps(load_provider_schema(), indent=indent) + "\n"
 
 
+def provider_contract_digest(contract: dict[str, Any]) -> str:
+    """Return the canonical digest used to pin a provider contract in receipts."""
+    normalized = json.loads(json.dumps(contract))
+    root = normalized.get("provider_agentid")
+    if isinstance(root, dict):
+        root.pop("contract_digest", None)
+    digest = hashlib.sha256(_canonical_json(normalized).encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
 def load_provider_contract(path: str | Path) -> dict[str, Any]:
     contract_path = Path(path)
     if not contract_path.exists():
@@ -146,6 +156,9 @@ def validate_provider_contract(contract: dict[str, Any]) -> ValidationResult:
 
     receipt_profile = _receipt_profile(root.get("receipt"))
     _validate_receipt_trust_policy(root.get("receipt"), "provider_agentid.receipt", errors, warnings)
+    declared_digest = root.get("contract_digest")
+    if declared_digest is not None and declared_digest != provider_contract_digest(contract):
+        errors.append("provider_agentid.contract_digest does not match the canonical provider contract digest.")
 
     for name, tool in tools.items():
         prefix = f"provider_agentid.tools.{name}"
@@ -658,6 +671,8 @@ def provider_receipt_failure_codes(findings: list[str]) -> list[str]:
             code = "revoked"
         elif "budget is exhausted" in lowered:
             code = "budget_exhausted"
+        elif "contract digest mismatch" in lowered:
+            code = "contract_drift"
         elif "expired" in lowered:
             code = "expired"
         elif "key not found" in lowered:

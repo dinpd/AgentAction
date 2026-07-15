@@ -136,6 +136,7 @@ class ToolReceiptPolicy:
     max_uses: int | None = None
     max_amount: Decimal | str | int | float | None = None
     amount_arg: str | None = None
+    contract_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -313,6 +314,8 @@ def verify_provider_receipt(
         for receipt_field, arg_name in policy.bind_args.items():
             if string_value(receipt.get(receipt_field)) != string_value(args.get(arg_name)):
                 findings.append(f"receipt {receipt_field} mismatch")
+        if policy.contract_digest and string_value(receipt.get("provider_contract_digest")) != policy.contract_digest:
+            findings.append("receipt provider contract digest mismatch")
 
     receipt_id = string_value(receipt.get("decision_id"))
     expires_at = parse_timestamp(receipt.get("expires_at"))

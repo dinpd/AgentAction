@@ -291,6 +291,34 @@ def test_receipt_ledger_enforces_the_more_restrictive_spend_cap():
     assert exhausted.codes == ["budget_exhausted"]
 
 
+def test_provider_contract_digest_must_match_the_active_contract():
+    active_digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    contract_pinned = ToolReceiptPolicy(**{**policy().__dict__, "contract_digest": active_digest})
+    options = {
+        "secret": "secret-1",
+        "tool": "provider.crm.update_customer",
+        "args": tool_args(),
+        "policy": contract_pinned,
+        "now": lambda: instant("2026-05-28T12:01:00Z"),
+    }
+
+    allowed = verify_provider_receipt(
+        sign_provider_receipt({**receipt(), "provider_contract_digest": active_digest}, "secret-1"), **options
+    )
+    drifted = verify_provider_receipt(
+        sign_provider_receipt(
+            {**receipt(), "provider_contract_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+            "secret-1",
+        ),
+        **options,
+    )
+
+    assert allowed.ok
+    assert not drifted.ok
+    assert drifted.findings == ["receipt provider contract digest mismatch"]
+    assert drifted.codes == ["contract_drift"]
+
+
 def test_verifier_dependency_returns_receipt_for_configured_tool():
     verifier = ProviderReceiptVerifier(
         secret="secret-1",

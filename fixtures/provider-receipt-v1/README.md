@@ -12,6 +12,7 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 - `revoked`
 - `already_consumed`
 - `budget_exhausted`
+- `contract_drift`
 - `out_of_scope`
 - `unknown_key`
 - `invalid_signature`
@@ -21,5 +22,6 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 - `invalid_receipt`
 
 The corpus covers stateless validation, revocation, single-use consumption, and
-spend-capped consumption. Contract drift, unknown-key, and prior-outcome replay
-remain pending until the corresponding provider controls are implemented.
+spend-capped consumption, contract pinning, and JWS unknown-key handling.
+Prior-outcome replay remains pending until the corresponding provider control is
+implemented.
