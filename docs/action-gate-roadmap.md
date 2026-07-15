@@ -340,12 +340,13 @@ Current status:
 - Existing provider verifier tests cover unknown-`kid` remote JWKS refresh and
   stale-if-error behavior.
 - The initial portable fixture corpus covers valid, expired, out-of-scope,
-  invalid-signature, already-consumed, and missing-receipt outcomes against the
-  FastAPI reference verifier; both Python and Express expose the same stable
-  failure-code vocabulary.
+  invalid-signature, revoked, already-consumed, budget-exhausted, and
+  missing-receipt outcomes against the FastAPI reference verifier.
+- FastAPI and Express reference verifiers expose the same stable failure-code
+  vocabulary and support injectable revocation stores plus atomic bounded-use
+  and spend-cap receipt ledgers.
 - Remaining P4 work is to wire signed provider contract drift checks into the
-  hosted path, add revocation and ledgered consumption checks, and expand the
-  corpus with revoked, budget-exhausted, unknown-key, drifted-contract, and
+  hosted path and expand the corpus with unknown-key, drifted-contract, and
   replayed-prior-outcome cases for MCP fine-grained authorization discussions.
 
 #### P5: Framework And Workflow Distribution

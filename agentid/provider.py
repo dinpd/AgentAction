@@ -654,6 +654,10 @@ def provider_receipt_failure_codes(findings: list[str]) -> list[str]:
         lowered = finding.lower()
         if "already used" in lowered:
             code = "already_consumed"
+        elif "revoked" in lowered:
+            code = "revoked"
+        elif "budget is exhausted" in lowered:
+            code = "budget_exhausted"
         elif "expired" in lowered:
             code = "expired"
         elif "key not found" in lowered:

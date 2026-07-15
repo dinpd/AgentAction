@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
-from typing import Any, Callable, Protocol
+from threading import Lock
+from typing import Any, Callable, Protocol, TypeVar
 
 from agentid.provider import (
     ProviderReceiptJwksCache,
@@ -23,16 +25,102 @@ class ReplayStore(Protocol):
 class InMemoryReplayStore:
     def __init__(self) -> None:
         self._used: dict[str, datetime] = {}
+        self._lock = Lock()
 
     def consume(self, receipt_id: str, expires_at: datetime) -> bool:
-        now = datetime.now(timezone.utc)
-        expired = [key for key, expiry in self._used.items() if expiry <= now]
-        for key in expired:
-            del self._used[key]
-        if receipt_id in self._used:
-            return False
-        self._used[receipt_id] = expires_at
-        return True
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            expired = [key for key, expiry in self._used.items() if expiry <= now]
+            for key in expired:
+                del self._used[key]
+            if receipt_id in self._used:
+                return False
+            self._used[receipt_id] = expires_at
+            return True
+
+
+class RevocationStore(Protocol):
+    """Answers whether receipt authority was revoked before expiry."""
+
+    def is_revoked(self, receipt_id: str) -> bool:
+        ...
+
+
+class InMemoryRevocationStore:
+    def __init__(self) -> None:
+        self._revoked: set[str] = set()
+        self._lock = Lock()
+
+    def revoke(self, receipt_id: str) -> None:
+        with self._lock:
+            self._revoked.add(receipt_id)
+
+    def is_revoked(self, receipt_id: str) -> bool:
+        with self._lock:
+            return receipt_id in self._revoked
+
+
+@dataclass(frozen=True)
+class LedgerConsumption:
+    allowed: bool
+    finding: str | None = None
+
+
+class ReceiptLedgerStore(Protocol):
+    """Atomically consumes bounded receipt authority before execution."""
+
+    def consume(
+        self,
+        receipt_id: str,
+        expires_at: datetime,
+        *,
+        max_uses: int | None,
+        max_amount: Decimal | None,
+        amount: Decimal | None,
+        now: datetime,
+    ) -> LedgerConsumption:
+        ...
+
+
+@dataclass
+class _LedgerEntry:
+    expires_at: datetime
+    uses: int = 0
+    amount: Decimal = Decimal("0")
+
+
+class InMemoryReceiptLedger:
+    def __init__(self) -> None:
+        self._entries: dict[str, _LedgerEntry] = {}
+        self._lock = Lock()
+
+    def consume(
+        self,
+        receipt_id: str,
+        expires_at: datetime,
+        *,
+        max_uses: int | None,
+        max_amount: Decimal | None,
+        amount: Decimal | None,
+        now: datetime,
+    ) -> LedgerConsumption:
+        with self._lock:
+            expired = [key for key, entry in self._entries.items() if entry.expires_at <= now]
+            for key in expired:
+                del self._entries[key]
+            entry = self._entries.setdefault(receipt_id, _LedgerEntry(expires_at=expires_at))
+            if max_uses is not None and entry.uses >= max_uses:
+                finding = "receipt was already used" if max_uses == 1 else "receipt use budget is exhausted"
+                return LedgerConsumption(False, finding)
+            if max_amount is not None:
+                if amount is None:
+                    return LedgerConsumption(False, "receipt spend amount is required")
+                if entry.amount + amount > max_amount:
+                    return LedgerConsumption(False, "receipt spend budget is exhausted")
+            entry.uses += 1
+            if amount is not None:
+                entry.amount += amount
+            return LedgerConsumption(True)
 
 
 @dataclass(frozen=True)
@@ -45,6 +133,9 @@ class ToolReceiptPolicy:
     required_receipt_values: dict[str, str | list[str]] = field(default_factory=dict)
     bind_args: dict[str, str] = field(default_factory=dict)
     single_use: bool = True
+    max_uses: int | None = None
+    max_amount: Decimal | str | int | float | None = None
+    amount_arg: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +174,8 @@ class ProviderReceiptVerifier:
         receipt_argument: str = "_agentid_receipt",
         tools: dict[str, ToolReceiptPolicy] | None = None,
         replay_store: ReplayStore | None = None,
+        revocation_store: RevocationStore | None = None,
+        receipt_ledger: ReceiptLedgerStore | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self.secret = secret
@@ -99,6 +192,8 @@ class ProviderReceiptVerifier:
         self.receipt_argument = receipt_argument
         self.tools = tools or {}
         self.replay_store = replay_store
+        self.revocation_store = revocation_store
+        self.receipt_ledger = receipt_ledger
         self.now = now or (lambda: datetime.now(timezone.utc))
 
     async def dependency(self, body: dict[str, Any]) -> dict[str, Any] | None:
@@ -132,6 +227,8 @@ class ProviderReceiptVerifier:
             args=args,
             policy=policy,
             replay_store=self.replay_store,
+            revocation_store=self.revocation_store,
+            receipt_ledger=self.receipt_ledger,
             now=self.now,
         )
 
@@ -164,6 +261,8 @@ def verify_provider_receipt(
     args: dict[str, Any] | None = None,
     policy: ToolReceiptPolicy | None = None,
     replay_store: ReplayStore | None = None,
+    revocation_store: RevocationStore | None = None,
+    receipt_ledger: ReceiptLedgerStore | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> ReceiptVerification:
     if value is None:
@@ -215,8 +314,21 @@ def verify_provider_receipt(
             if string_value(receipt.get(receipt_field)) != string_value(args.get(arg_name)):
                 findings.append(f"receipt {receipt_field} mismatch")
 
+    receipt_id = string_value(receipt.get("decision_id"))
     expires_at = parse_timestamp(receipt.get("expires_at"))
-    if findings == [] and replay_store and policy and policy.single_use and string_value(receipt.get("decision_id")) and expires_at:
+    if findings == [] and revocation_store and receipt_id and revocation_store.is_revoked(receipt_id):
+        findings.append("receipt is revoked")
+
+    if findings == [] and receipt_ledger and policy and receipt_id and expires_at:
+        ledger_options, ledger_finding = ledger_options_for_receipt(receipt, args, policy)
+        if ledger_finding:
+            findings.append(ledger_finding)
+        elif ledger_options is not None:
+            consumption = receipt_ledger.consume(receipt_id, expires_at, now=current_time, **ledger_options)
+            if not consumption.allowed:
+                findings.append(consumption.finding or "receipt budget is exhausted")
+
+    if findings == [] and replay_store and policy and policy.single_use and receipt_id and expires_at:
         if not replay_store.consume(str(receipt["decision_id"]), expires_at):
             findings.append("receipt was already used")
 
@@ -248,6 +360,71 @@ def expected_resource_for_policy(policy: ToolReceiptPolicy | None, args: dict[st
     if policy.resource_template:
         return render_template(policy.resource_template, args)
     return None
+
+
+def ledger_options_for_receipt(
+    receipt: dict[str, Any], args: dict[str, Any], policy: ToolReceiptPolicy
+) -> tuple[dict[str, Any] | None, str | None]:
+    receipt_max_uses, uses_error = positive_int(receipt.get("max_uses"))
+    if "max_uses" in receipt and uses_error:
+        return None, "receipt max_uses is invalid"
+    policy_max_uses, policy_uses_error = positive_int(policy.max_uses)
+    if policy.max_uses is not None and policy_uses_error:
+        return None, "provider max_uses policy is invalid"
+
+    receipt_max_amount, amount_error = positive_decimal(receipt.get("max_amount"))
+    if "max_amount" in receipt and amount_error:
+        return None, "receipt max_amount is invalid"
+    policy_max_amount, policy_amount_error = positive_decimal(policy.max_amount)
+    if policy.max_amount is not None and policy_amount_error:
+        return None, "provider max_amount policy is invalid"
+
+    max_uses = most_restrictive(receipt_max_uses, policy_max_uses)
+    max_amount = most_restrictive(receipt_max_amount, policy_max_amount)
+    if max_uses is None and max_amount is None:
+        return None, None
+
+    amount = None
+    if max_amount is not None:
+        if not policy.amount_arg:
+            return None, "provider amount_arg is required for a spend-capped receipt"
+        amount, value_error = positive_decimal(args.get(policy.amount_arg))
+        if value_error:
+            return None, f"receipt amount is invalid: {policy.amount_arg}"
+    return {"max_uses": max_uses, "max_amount": max_amount, "amount": amount}, None
+
+
+def positive_int(value: Any) -> tuple[int | None, bool]:
+    if value is None:
+        return None, False
+    if isinstance(value, bool):
+        return None, True
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None, True
+    return (parsed, False) if parsed > 0 and str(parsed) == str(value).strip() else (None, True)
+
+
+def positive_decimal(value: Any) -> tuple[Decimal | None, bool]:
+    if value is None:
+        return None, False
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None, True
+    return (parsed, False) if parsed > 0 else (None, True)
+
+
+Limit = TypeVar("Limit", int, Decimal)
+
+
+def most_restrictive(first: Limit | None, second: Limit | None) -> Limit | None:
+    if first is None:
+        return second
+    if second is None:
+        return first
+    return min(first, second)
 
 
 def render_template(template: str, args: dict[str, Any]) -> str:

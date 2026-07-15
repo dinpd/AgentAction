@@ -37,6 +37,11 @@
       "expect": { "ok": false, "codes": ["expired"] }
     },
     {
+      "id": "revoked",
+      "revoke": true,
+      "expect": { "ok": false, "codes": ["revoked"] }
+    },
+    {
       "id": "out_of_scope",
       "receipt_overrides": { "resource": "provider/customer/cus_456" },
       "expect": { "ok": false, "codes": ["out_of_scope"] }
@@ -50,6 +55,19 @@
       "id": "already_consumed",
       "preconsume": true,
       "expect": { "ok": false, "codes": ["already_consumed"] }
+    },
+    {
+      "id": "budget_exhausted",
+      "receipt_overrides": { "max_amount": "75" },
+      "args_overrides": { "amount": "40" },
+      "policy_overrides": {
+        "single_use": false,
+        "max_amount": "100",
+        "amount_arg": "amount"
+      },
+      "ledger": true,
+      "preconsume": true,
+      "expect": { "ok": false, "codes": ["budget_exhausted"] }
     },
     {
       "id": "missing_receipt",

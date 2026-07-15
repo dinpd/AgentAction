@@ -9,7 +9,9 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 `findings`:
 
 - `expired`
+- `revoked`
 - `already_consumed`
+- `budget_exhausted`
 - `out_of_scope`
 - `unknown_key`
 - `invalid_signature`
@@ -18,7 +20,6 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 - `wrong_audience`
 - `invalid_receipt`
 
-The corpus currently covers stateless validation and single-use consumption.
-Revocation, spend-ledger/budget, contract-drift, and prior-outcome replay need
-stateful provider controls; they will be added as cases when that behavior is
-implemented rather than treated as passing examples today.
+The corpus covers stateless validation, revocation, single-use consumption, and
+spend-capped consumption. Contract drift, unknown-key, and prior-outcome replay
+remain pending until the corresponding provider controls are implemented.
