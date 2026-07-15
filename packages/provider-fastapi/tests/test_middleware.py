@@ -11,9 +11,11 @@ from jwt.algorithms import RSAAlgorithm
 from agentid_provider_fastapi import (
     AgentIdReceiptError,
     InMemoryReceiptLedger,
+    InMemoryExecutionResultStore,
     InMemoryReplayStore,
     InMemoryRevocationStore,
     ProviderReceiptJwksCache,
+    ProviderExecutionGate,
     ProviderReceiptVerifier,
     ToolReceiptPolicy,
     sign_provider_receipt,
@@ -317,6 +319,37 @@ def test_provider_contract_digest_must_match_the_active_contract():
     assert not drifted.ok
     assert drifted.findings == ["receipt provider contract digest mismatch"]
     assert drifted.codes == ["contract_drift"]
+
+
+@pytest.mark.anyio
+async def test_execution_gate_replays_an_identical_retry_without_rerunning_the_handler(anyio_backend):
+    verifier = ProviderReceiptVerifier(
+        secret="secret-1",
+        replay_store=InMemoryReplayStore(),
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+        tools={"provider.crm.update_customer": policy()},
+    )
+    gate = ProviderExecutionGate(verifier, InMemoryExecutionResultStore())
+    body = mcp_request(sign_provider_receipt(receipt(), "secret-1"))
+    calls = 0
+
+    async def handler(verified_receipt):
+        nonlocal calls
+        calls += 1
+        return {"provider_execution_id": "exec-1", "decision_id": verified_receipt["decision_id"]}
+
+    first = await gate.execute(body, handler)
+    retry = await gate.execute(body, handler)
+    changed = {**body, "params": {**body["params"], "arguments": {**body["params"]["arguments"], "patch": {"email": "new@example.com"}}}}
+    changed_retry = await gate.execute(changed, handler)
+
+    assert first.status == "executed"
+    assert retry.status == "replayed"
+    assert retry.result == first.result
+    assert retry.replay_count == 1
+    assert not changed_retry.executed
+    assert changed_retry.codes == ["out_of_scope"]
+    assert calls == 1
 
 
 def test_verifier_dependency_returns_receipt_for_configured_tool():

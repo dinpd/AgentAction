@@ -346,9 +346,9 @@ Current status:
 - FastAPI and Express reference verifiers expose the same stable failure-code
   vocabulary and support injectable revocation stores plus atomic bounded-use
   and spend-cap receipt ledgers.
-- Remaining P4 work is to add provider execution-result replay and its
-  replayed-prior-outcome conformance case for MCP fine-grained authorization
-  discussions.
+- P4 provider trust gate is complete. Continue hardening from adopter feedback,
+  including durable execution-result stores, cross-provider fixtures, and any
+  MCP fine-grained authorization interoperability requirements that emerge.
 
 #### P5: Framework And Workflow Distribution
 

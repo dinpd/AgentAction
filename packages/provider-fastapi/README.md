@@ -21,9 +21,11 @@ python -m pytest packages/provider-fastapi/tests
 from fastapi import Depends, FastAPI
 from agentid_provider_fastapi import (
     InMemoryReceiptLedger,
+    InMemoryExecutionResultStore,
     InMemoryReplayStore,
     InMemoryRevocationStore,
     ProviderReceiptVerifier,
+    ProviderExecutionGate,
     ToolReceiptPolicy,
 )
 
@@ -78,6 +80,19 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
     return {"ok": True}
 ```
 
+For side-effectful tools, use an execution gate instead of attaching the
+standalone receipt dependency to that route. The gate owns the verification,
+reservation, receipt consumption, handler execution, and retry sequence:
+
+```python
+execution_gate = ProviderExecutionGate(verifier, InMemoryExecutionResultStore())
+
+@app.post("/mcp")
+async def mcp_endpoint(body: dict):
+    outcome = await execution_gate.execute(body, lambda receipt: issue_credit(receipt, body))
+    return {"status": outcome.status, "result": outcome.result}
+```
+
 ## What It Checks
 
 - Signed JWS receipt envelopes against a local JWKS
@@ -94,6 +109,7 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 - Optional single-use replay protection
 - Optional receipt revocation before execution
 - Receipt-level bounded-use and spend-cap consumption
+- Provider execution-result replay for identical retries
 
 Remote JWKS fetches are cached for 5 minutes by default, fall back to stale
 keys for up to 5 more minutes when refresh fails, and force a refresh when a
@@ -104,3 +120,5 @@ HMAC receipts are intended for local demos and simple integrations. Production
 providers should prefer managed keys with JWS/JWKS or receipt introspection.
 Use durable, atomic revocation and ledger implementations in production; the
 in-memory stores are deterministic references for tests and local development.
+The same applies to execution-result storage: share a durable store across all
+provider instances, and expire records no earlier than the receipt authority.

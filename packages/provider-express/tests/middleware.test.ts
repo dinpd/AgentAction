@@ -4,11 +4,13 @@ import test from "node:test";
 
 import {
   MemoryReceiptLedger,
+  MemoryExecutionResultStore,
   MemoryReplayStore,
   MemoryRevocationStore,
   RemoteJwksCache,
   createAgentIdReceiptMiddleware,
   createAgentPassReceiptMiddleware,
+  executeProviderTool,
   signProviderReceiptJws,
   signProviderReceipt,
   verifyProviderReceipt,
@@ -318,6 +320,36 @@ test("provider contract digest must match the active contract", async () => {
   assert.equal(allowed.ok, true);
   assert.equal(drifted.ok, false);
   assert.deepEqual(drifted.codes, ["contract_drift"]);
+});
+
+test("executeProviderTool replays an identical retry without rerunning the handler", async () => {
+  const body = mcpRequest(signProviderReceipt(signedReceipt(), "secret-1"));
+  const resultStore = new MemoryExecutionResultStore();
+  let calls = 0;
+  const handler = async (receipt: ProviderAuthorizationReceipt) => {
+    calls += 1;
+    return { provider_execution_id: "exec-1", decision_id: receipt.decision_id };
+  };
+  const options = {
+    secret: "secret-1",
+    replayStore: new MemoryReplayStore(),
+    tools: { "provider.crm.update_customer": policy },
+    resultStore,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  };
+
+  const first = await executeProviderTool(body, handler, options);
+  const retry = await executeProviderTool(body, handler, options);
+  const changed = { ...body, params: { ...body.params, arguments: { ...body.params.arguments, patch: { email: "new@example.com" } } } };
+  const changedRetry = await executeProviderTool(changed, handler, options);
+
+  assert.equal(first.status, "executed");
+  assert.equal(retry.status, "replayed");
+  assert.deepEqual(retry.result, first.result);
+  assert.equal(retry.replayCount, 1);
+  assert.equal(changedRetry.status, "denied");
+  assert.deepEqual(changedRetry.codes, ["out_of_scope"]);
+  assert.equal(calls, 1);
 });
 
 test("middleware attaches verified receipt and calls next", async () => {

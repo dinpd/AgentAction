@@ -124,5 +124,4 @@ The executable reference cases are in
 cover valid, expired, revoked, out-of-scope, invalid-signature,
 already-consumed, budget-exhausted, contract-drift, and missing-receipt
 outcomes against the FastAPI provider reference verifier, as well as JWS
-unknown-key handling. Replayed prior outcomes remain pending until the
-corresponding control is implemented.
+unknown-key handling and replayed prior outcomes.

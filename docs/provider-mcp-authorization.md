@@ -458,6 +458,14 @@ The provider should not treat an AgentPass receipt as a business authorization
 override. It is proof of enterprise-side agent authorization, not proof that the
 provider must execute the operation.
 
+For mutating tools, providers should persist the result under the receipt ID and
+a digest of the actual MCP tool arguments (excluding the receipt envelope). On
+an identical retry, return the original provider result without rerunning the
+handler. If the receipt ID matches but the argument digest differs, reject the
+call as `out_of_scope` before execution. The execution-result store must reserve
+the first attempt atomically, remove the reservation if the handler fails, and
+be shared across provider instances in production.
+
 ## Tool Drift Contract
 
 Provider-hosted MCP tools can change over time. Providers should expose enough

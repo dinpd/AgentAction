@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import inspect
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
@@ -124,6 +127,71 @@ class InMemoryReceiptLedger:
 
 
 @dataclass(frozen=True)
+class ExecutionStoreEntry:
+    status: str
+    request_digest: str
+    result: Any | None = None
+    replay_count: int = 0
+
+
+class ExecutionResultStore(Protocol):
+    """Atomically reserves, records, and replays provider execution results."""
+
+    def begin(self, receipt_id: str, request_digest: str, expires_at: datetime, *, now: datetime) -> ExecutionStoreEntry:
+        ...
+
+    def complete(self, receipt_id: str, request_digest: str, result: Any, *, now: datetime) -> None:
+        ...
+
+    def abandon(self, receipt_id: str, request_digest: str) -> None:
+        ...
+
+
+@dataclass
+class _ExecutionRecord:
+    expires_at: datetime
+    request_digest: str
+    status: str = "pending"
+    result: Any | None = None
+    replay_count: int = 0
+
+
+class InMemoryExecutionResultStore:
+    def __init__(self) -> None:
+        self._records: dict[str, _ExecutionRecord] = {}
+        self._lock = Lock()
+
+    def begin(self, receipt_id: str, request_digest: str, expires_at: datetime, *, now: datetime) -> ExecutionStoreEntry:
+        with self._lock:
+            expired = [key for key, entry in self._records.items() if entry.expires_at <= now]
+            for key in expired:
+                del self._records[key]
+            record = self._records.get(receipt_id)
+            if record is None:
+                self._records[receipt_id] = _ExecutionRecord(expires_at=expires_at, request_digest=request_digest)
+                return ExecutionStoreEntry("execute", request_digest)
+            if record.request_digest != request_digest:
+                return ExecutionStoreEntry("out_of_scope", record.request_digest)
+            if record.status == "completed":
+                record.replay_count += 1
+                return ExecutionStoreEntry("replayed", request_digest, record.result, record.replay_count)
+            return ExecutionStoreEntry("in_progress", request_digest)
+
+    def complete(self, receipt_id: str, request_digest: str, result: Any, *, now: datetime) -> None:
+        with self._lock:
+            record = self._records.get(receipt_id)
+            if record and record.request_digest == request_digest:
+                record.status = "completed"
+                record.result = result
+
+    def abandon(self, receipt_id: str, request_digest: str) -> None:
+        with self._lock:
+            record = self._records.get(receipt_id)
+            if record and record.status == "pending" and record.request_digest == request_digest:
+                del self._records[receipt_id]
+
+
+@dataclass(frozen=True)
 class ToolReceiptPolicy:
     required: bool = True
     action: str | None = None
@@ -144,6 +212,27 @@ class ReceiptVerification:
     ok: bool
     receipt: dict[str, Any] | None
     findings: list[str]
+
+    @property
+    def codes(self) -> list[str]:
+        return provider_receipt_failure_codes(self.findings)
+
+
+@dataclass(frozen=True)
+class ProviderExecutionOutcome:
+    status: str
+    receipt: dict[str, Any] | None
+    result: Any | None = None
+    findings: list[str] = field(default_factory=list)
+    replay_count: int = 0
+
+    @property
+    def executed(self) -> bool:
+        return self.status in {"executed", "replayed"}
+
+    @property
+    def replayed(self) -> bool:
+        return self.status == "replayed"
 
     @property
     def codes(self) -> list[str]:
@@ -203,7 +292,7 @@ class ProviderReceiptVerifier:
             raise AgentIdReceiptError(verification.findings)
         return verification.receipt
 
-    def verify_body(self, body: dict[str, Any]) -> ReceiptVerification:
+    def verify_body(self, body: dict[str, Any], *, consume_receipt: bool = True) -> ReceiptVerification:
         parsed = parse_mcp_tool_call(body)
         if parsed is None:
             return ReceiptVerification(ok=True, receipt=None, findings=[])
@@ -230,6 +319,7 @@ class ProviderReceiptVerifier:
             replay_store=self.replay_store,
             revocation_store=self.revocation_store,
             receipt_ledger=self.receipt_ledger,
+            consume_receipt=consume_receipt,
             now=self.now,
         )
 
@@ -242,6 +332,55 @@ class ProviderReceiptVerifier:
         if callable(self.jwks):
             return self.jwks()
         return self.jwks
+
+
+class ProviderExecutionGate:
+    """Runs a verified provider handler once and returns its prior outcome on retry."""
+
+    def __init__(self, verifier: ProviderReceiptVerifier, result_store: ExecutionResultStore) -> None:
+        self.verifier = verifier
+        self.result_store = result_store
+
+    async def execute(
+        self,
+        body: dict[str, Any],
+        handler: Callable[[dict[str, Any]], Any],
+    ) -> ProviderExecutionOutcome:
+        parsed = parse_mcp_tool_call(body)
+        if parsed is None:
+            return ProviderExecutionOutcome("denied", None, findings=["MCP tools/call request is required"])
+
+        preflight = self.verifier.verify_body(body, consume_receipt=False)
+        if not preflight.ok or preflight.receipt is None:
+            return ProviderExecutionOutcome("denied", preflight.receipt, findings=preflight.findings)
+
+        receipt_id = string_value(preflight.receipt.get("decision_id"))
+        expires_at = parse_timestamp(preflight.receipt.get("expires_at"))
+        if not receipt_id or expires_at is None:
+            return ProviderExecutionOutcome("denied", preflight.receipt, findings=["receipt execution identity is invalid"])
+        tool, args = parsed
+        request_digest = provider_request_digest(tool, args, self.verifier.receipt_argument)
+        state = self.result_store.begin(receipt_id, request_digest, expires_at, now=self.verifier.now())
+        if state.status == "replayed":
+            return ProviderExecutionOutcome("replayed", preflight.receipt, state.result, replay_count=state.replay_count)
+        if state.status == "out_of_scope":
+            return ProviderExecutionOutcome("denied", preflight.receipt, findings=["provider execution retry has different request digest"])
+        if state.status == "in_progress":
+            return ProviderExecutionOutcome("denied", preflight.receipt, findings=["provider execution is already in progress"])
+
+        verified = self.verifier.verify_body(body)
+        if not verified.ok or verified.receipt is None:
+            self.result_store.abandon(receipt_id, request_digest)
+            return ProviderExecutionOutcome("denied", verified.receipt, findings=verified.findings)
+        try:
+            result = handler(verified.receipt)
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception:
+            self.result_store.abandon(receipt_id, request_digest)
+            raise
+        self.result_store.complete(receipt_id, request_digest, result, now=self.verifier.now())
+        return ProviderExecutionOutcome("executed", verified.receipt, result)
 
 
 def verify_provider_receipt(
@@ -264,6 +403,7 @@ def verify_provider_receipt(
     replay_store: ReplayStore | None = None,
     revocation_store: RevocationStore | None = None,
     receipt_ledger: ReceiptLedgerStore | None = None,
+    consume_receipt: bool = True,
     now: Callable[[], datetime] | None = None,
 ) -> ReceiptVerification:
     if value is None:
@@ -322,7 +462,7 @@ def verify_provider_receipt(
     if findings == [] and revocation_store and receipt_id and revocation_store.is_revoked(receipt_id):
         findings.append("receipt is revoked")
 
-    if findings == [] and receipt_ledger and policy and receipt_id and expires_at:
+    if consume_receipt and findings == [] and receipt_ledger and policy and receipt_id and expires_at:
         ledger_options, ledger_finding = ledger_options_for_receipt(receipt, args, policy)
         if ledger_finding:
             findings.append(ledger_finding)
@@ -331,7 +471,7 @@ def verify_provider_receipt(
             if not consumption.allowed:
                 findings.append(consumption.finding or "receipt budget is exhausted")
 
-    if findings == [] and replay_store and policy and policy.single_use and receipt_id and expires_at:
+    if consume_receipt and findings == [] and replay_store and policy and policy.single_use and receipt_id and expires_at:
         if not replay_store.consume(str(receipt["decision_id"]), expires_at):
             findings.append("receipt was already used")
 
@@ -351,6 +491,12 @@ def parse_mcp_tool_call(body: dict[str, Any]) -> tuple[str, dict[str, Any]] | No
     if not isinstance(args, dict):
         args = {}
     return tool, args
+
+
+def provider_request_digest(tool: str, args: dict[str, Any], receipt_argument: str) -> str:
+    bound_args = {key: value for key, value in args.items() if key != receipt_argument}
+    payload = json.dumps({"tool": tool, "arguments": bound_args}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def expected_resource_for_policy(policy: ToolReceiptPolicy | None, args: dict[str, Any]) -> str | None:

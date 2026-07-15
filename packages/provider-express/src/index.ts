@@ -1,4 +1,4 @@
-import { createHmac, createPrivateKey, createPublicKey, createSign, createVerify, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, createPrivateKey, createPublicKey, createSign, createVerify, timingSafeEqual } from "node:crypto";
 
 export type ProviderAuthorizationReceipt = {
   decision_id: string;
@@ -74,6 +74,28 @@ export type ReceiptLedgerStore = {
     expiresAt: Date,
     options: { maxUses?: number; maxAmount?: number; amount?: number; now: Date },
   ): LedgerConsumption | Promise<LedgerConsumption>;
+};
+
+export type ExecutionStoreEntry = {
+  status: "execute" | "replayed" | "out_of_scope" | "in_progress";
+  requestDigest: string;
+  result?: unknown;
+  replayCount?: number;
+};
+
+export type ExecutionResultStore = {
+  begin(receiptId: string, requestDigest: string, expiresAt: Date, options: { now: Date }): ExecutionStoreEntry | Promise<ExecutionStoreEntry>;
+  complete(receiptId: string, requestDigest: string, result: unknown, options: { now: Date }): void | Promise<void>;
+  abandon(receiptId: string, requestDigest: string): void | Promise<void>;
+};
+
+export type ProviderExecutionOutcome = {
+  status: "executed" | "replayed" | "denied";
+  receipt?: ProviderAuthorizationReceipt;
+  result?: unknown;
+  findings: string[];
+  codes: string[];
+  replayCount?: number;
 };
 
 export type ToolReceiptPolicy = {
@@ -222,6 +244,40 @@ export class MemoryReceiptLedger implements ReceiptLedgerStore {
   }
 }
 
+export class MemoryExecutionResultStore implements ExecutionResultStore {
+  private records = new Map<string, { expiresAt: number; requestDigest: string; status: "pending" | "completed"; result?: unknown; replayCount: number }>();
+
+  begin(receiptId: string, requestDigest: string, expiresAt: Date, options: { now: Date }): ExecutionStoreEntry {
+    for (const [id, record] of this.records) {
+      if (record.expiresAt <= options.now.getTime()) this.records.delete(id);
+    }
+    const record = this.records.get(receiptId);
+    if (!record) {
+      this.records.set(receiptId, { expiresAt: expiresAt.getTime(), requestDigest, status: "pending", replayCount: 0 });
+      return { status: "execute", requestDigest };
+    }
+    if (record.requestDigest !== requestDigest) return { status: "out_of_scope", requestDigest: record.requestDigest };
+    if (record.status === "completed") {
+      record.replayCount += 1;
+      return { status: "replayed", requestDigest, result: record.result, replayCount: record.replayCount };
+    }
+    return { status: "in_progress", requestDigest };
+  }
+
+  complete(receiptId: string, requestDigest: string, result: unknown): void {
+    const record = this.records.get(receiptId);
+    if (record && record.requestDigest === requestDigest) {
+      record.status = "completed";
+      record.result = result;
+    }
+  }
+
+  abandon(receiptId: string, requestDigest: string): void {
+    const record = this.records.get(receiptId);
+    if (record?.status === "pending" && record.requestDigest === requestDigest) this.records.delete(receiptId);
+  }
+}
+
 export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpressOptions = {}) {
   const receiptArgument = options.receiptArgument || "_agentid_receipt";
   const requireSigned = options.requireSigned !== false;
@@ -345,6 +401,7 @@ export async function verifyProviderReceipt(
     replayStore?: ReplayStore;
     revocationStore?: RevocationStore;
     receiptLedger?: ReceiptLedgerStore;
+    consumeReceipt?: boolean;
     now?: () => Date;
   } = {},
 ): Promise<ReceiptVerificationResult> {
@@ -414,7 +471,7 @@ export async function verifyProviderReceipt(
     if (await options.revocationStore.isRevoked(receipt.decision_id)) findings.push("receipt is revoked");
   }
 
-  if (findings.length === 0 && options.receiptLedger && options.policy && stringValue(receipt.decision_id) && expiresAt) {
+  if (options.consumeReceipt !== false && findings.length === 0 && options.receiptLedger && options.policy && stringValue(receipt.decision_id) && expiresAt) {
     const ledger = ledgerOptionsForReceipt(receipt, options.args || {}, options.policy);
     if (ledger.finding) findings.push(ledger.finding);
     else if (ledger.options) {
@@ -425,7 +482,7 @@ export async function verifyProviderReceipt(
 
   if (
     findings.length === 0 &&
-    options.replayStore &&
+    options.consumeReceipt !== false && options.replayStore &&
     options.policy?.singleUse !== false &&
     stringValue(receipt.decision_id) &&
     expiresAt
@@ -442,6 +499,67 @@ export async function verifyProviderReceipt(
   };
 }
 
+export async function executeProviderTool(
+  body: unknown,
+  handler: (receipt: ProviderAuthorizationReceipt) => unknown | Promise<unknown>,
+  options: AgentPassProviderExpressOptions & { resultStore: ExecutionResultStore },
+): Promise<ProviderExecutionOutcome> {
+  const parsed = parseMcpToolCall(body);
+  if (!parsed) return executionDenied(undefined, ["MCP tools/call request is required"]);
+  const policy = options.tools?.[parsed.tool];
+  if (!policy || policy.required === false) return executionDenied(undefined, ["provider receipt policy is required"]);
+
+  const secret = await resolveSecret(options.secret);
+  const jwks = await resolveJwks(options.jwks);
+  const base = {
+    secret,
+    jwks,
+    jwksUri: options.jwksUri,
+    jwksCache: options.jwksCache,
+    jwksCacheTtlMs: options.jwksCacheTtlMs,
+    jwksStaleIfErrorMs: options.jwksStaleIfErrorMs,
+    fetch: options.fetch,
+    issuer: options.issuer,
+    audience: options.audience,
+    allowedAlgorithms: options.allowedAlgorithms,
+    requireSigned: options.requireSigned !== false,
+    tool: parsed.tool,
+    args: parsed.args,
+    policy,
+    replayStore: options.replayStore,
+    revocationStore: options.revocationStore,
+    receiptLedger: options.receiptLedger,
+    now: options.now,
+  };
+  const preflight = await verifyProviderReceipt(parsed.args[options.receiptArgument || "_agentid_receipt"], { ...base, consumeReceipt: false });
+  if (!preflight.ok || !preflight.receipt) return executionDenied(preflight.receipt, preflight.findings);
+  const expiresAt = parseTimestamp(preflight.receipt.expires_at);
+  if (!expiresAt || !stringValue(preflight.receipt.decision_id)) return executionDenied(preflight.receipt, ["receipt execution identity is invalid"]);
+
+  const current = options.now ? options.now() : new Date();
+  const digest = providerRequestDigest(parsed.tool, parsed.args, options.receiptArgument || "_agentid_receipt");
+  const state = await options.resultStore.begin(preflight.receipt.decision_id, digest, expiresAt, { now: current });
+  if (state.status === "replayed") {
+    return { status: "replayed", receipt: preflight.receipt, result: state.result, findings: [], codes: [], replayCount: state.replayCount };
+  }
+  if (state.status === "out_of_scope") return executionDenied(preflight.receipt, ["provider execution retry has different request digest"]);
+  if (state.status === "in_progress") return executionDenied(preflight.receipt, ["provider execution is already in progress"]);
+
+  const verified = await verifyProviderReceipt(parsed.args[options.receiptArgument || "_agentid_receipt"], base);
+  if (!verified.ok || !verified.receipt) {
+    await options.resultStore.abandon(preflight.receipt.decision_id, digest);
+    return executionDenied(verified.receipt, verified.findings);
+  }
+  try {
+    const result = await handler(verified.receipt);
+    await options.resultStore.complete(verified.receipt.decision_id, digest, result, { now: current });
+    return { status: "executed", receipt: verified.receipt, result, findings: [], codes: [] };
+  } catch (error) {
+    await options.resultStore.abandon(verified.receipt.decision_id, digest);
+    throw error;
+  }
+}
+
 export function providerReceiptFailureCodes(findings: string[]): string[] {
   const codes: string[] = [];
   for (const finding of findings) {
@@ -452,8 +570,12 @@ export function providerReceiptFailureCodes(findings: string[]): string[] {
         ? "revoked"
       : lowered.includes("budget is exhausted")
           ? "budget_exhausted"
-          : lowered.includes("contract digest mismatch")
+      : lowered.includes("contract digest mismatch")
             ? "contract_drift"
+          : lowered.includes("different request digest")
+            ? "out_of_scope"
+            : lowered.includes("already in progress")
+              ? "execution_in_progress"
       : lowered.includes("expired")
         ? "expired"
         : lowered.includes("key not found")
@@ -472,6 +594,16 @@ export function providerReceiptFailureCodes(findings: string[]): string[] {
     if (!codes.includes(code)) codes.push(code);
   }
   return codes;
+}
+
+function executionDenied(receipt: ProviderAuthorizationReceipt | undefined, findings: string[]): ProviderExecutionOutcome {
+  return { status: "denied", receipt, findings, codes: providerReceiptFailureCodes(findings) };
+}
+
+function providerRequestDigest(tool: string, args: Record<string, unknown>, receiptArgument: string): string {
+  const boundArgs = { ...args };
+  delete boundArgs[receiptArgument];
+  return createHash("sha256").update(canonicalJson({ tool, arguments: boundArgs })).digest("hex");
 }
 
 function ledgerOptionsForReceipt(

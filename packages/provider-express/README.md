@@ -25,9 +25,11 @@ npm run build
 import express from "express";
 import {
   MemoryReceiptLedger,
+  MemoryExecutionResultStore,
   MemoryReplayStore,
   MemoryRevocationStore,
   createAgentPassReceiptMiddleware,
+  executeProviderTool,
 } from "@agentpass/provider-express";
 
 const app = express();
@@ -83,6 +85,20 @@ createAgentPassReceiptMiddleware({
 );
 ```
 
+For side-effectful tools, use `executeProviderTool` instead of attaching the
+standalone receipt middleware to that route. With a shared result store, an
+identical retry returns the recorded result and a changed retry is rejected
+before the mutating handler runs:
+
+```ts
+const outcome = await executeProviderTool(req.body, (receipt) => issueCredit(receipt, req.body), {
+  secret: process.env.AGENTPASS_RECEIPT_SECRET,
+  resultStore: new MemoryExecutionResultStore(),
+  tools: { "provider.billing.issue_credit": receiptPolicy },
+});
+res.json({ status: outcome.status, result: outcome.result });
+```
+
 The legacy `createAgentIdReceiptMiddleware` export and `req.agentidReceipt`
 property remain available as compatibility aliases.
 
@@ -102,6 +118,7 @@ property remain available as compatibility aliases.
 - Optional single-use replay protection
 - Optional receipt revocation before execution
 - Receipt-level bounded-use and spend-cap consumption
+- Provider execution-result replay for identical retries
 
 Remote JWKS fetches are cached for 5 minutes by default, fall back to stale
 keys for up to 5 more minutes when refresh fails, and force a refresh when a
@@ -112,3 +129,5 @@ HMAC receipts are intended for local demos and simple integrations. Production
 providers should prefer managed keys with JWS/JWKS or receipt introspection.
 Use durable, atomic revocation and ledger implementations in production; the
 in-memory stores are deterministic references for tests and local development.
+Use a durable execution-result store shared by all provider instances in the
+same way.

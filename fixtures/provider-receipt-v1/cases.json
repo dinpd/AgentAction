@@ -73,6 +73,11 @@
       "expect": { "ok": false, "codes": ["already_consumed"] }
     },
     {
+      "id": "replayed_prior_outcome",
+      "execution_replay": true,
+      "expect": { "status": "replayed", "replay_count": 1 }
+    },
+    {
       "id": "budget_exhausted",
       "receipt_overrides": { "max_amount": "75" },
       "args_overrides": { "amount": "40" },

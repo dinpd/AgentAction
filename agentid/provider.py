@@ -673,6 +673,10 @@ def provider_receipt_failure_codes(findings: list[str]) -> list[str]:
             code = "budget_exhausted"
         elif "contract digest mismatch" in lowered:
             code = "contract_drift"
+        elif "different request digest" in lowered:
+            code = "out_of_scope"
+        elif "already in progress" in lowered:
+            code = "execution_in_progress"
         elif "expired" in lowered:
             code = "expired"
         elif "key not found" in lowered:

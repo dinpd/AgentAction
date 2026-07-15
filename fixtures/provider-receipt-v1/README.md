@@ -13,6 +13,7 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 - `already_consumed`
 - `budget_exhausted`
 - `contract_drift`
+- `replayed_prior_outcome`
 - `out_of_scope`
 - `unknown_key`
 - `invalid_signature`
@@ -21,7 +22,7 @@ The stable `expect.codes` vocabulary is intentionally separate from detailed
 - `wrong_audience`
 - `invalid_receipt`
 
-The corpus covers stateless validation, revocation, single-use consumption, and
-spend-capped consumption, contract pinning, and JWS unknown-key handling.
-Prior-outcome replay remains pending until the corresponding provider control is
-implemented.
+The corpus covers stateless validation, revocation, single-use consumption,
+spend-capped consumption, contract pinning, JWS unknown-key handling, and
+replayed prior outcomes. A changed retry under the same receipt is rejected
+before the mutating handler runs.

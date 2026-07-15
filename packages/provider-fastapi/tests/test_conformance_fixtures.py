@@ -6,11 +6,15 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+import pytest
 
 from agentid_provider_fastapi import (
     InMemoryReceiptLedger,
+    InMemoryExecutionResultStore,
     InMemoryReplayStore,
     InMemoryRevocationStore,
+    ProviderExecutionGate,
+    ProviderReceiptVerifier,
     ToolReceiptPolicy,
     sign_provider_receipt,
     sign_provider_receipt_jws,
@@ -21,7 +25,8 @@ from agentid_provider_fastapi import (
 FIXTURES = Path(__file__).resolve().parents[3] / "fixtures" / "provider-receipt-v1" / "cases.json"
 
 
-def test_provider_receipt_v1_conformance_cases():
+@pytest.mark.anyio
+async def test_provider_receipt_v1_conformance_cases(anyio_backend):
     corpus = json.loads(FIXTURES.read_text(encoding="utf-8"))
     now = datetime.fromisoformat(corpus["now"].replace("Z", "+00:00"))
     policy_defaults = {
@@ -60,6 +65,31 @@ def test_provider_receipt_v1_conformance_cases():
         }
         if case.get("jws_unknown_key"):
             options["jwks"] = {"keys": []}
+        if case.get("execution_replay"):
+            verifier = ProviderReceiptVerifier(
+                secret=corpus["secret"],
+                replay_store=store,
+                now=lambda: now,
+                tools={receipt["tool"]: options["policy"]},
+            )
+            gate = ProviderExecutionGate(verifier, InMemoryExecutionResultStore())
+            body = {
+                "method": "tools/call",
+                "params": {"name": receipt["tool"], "arguments": {**options["args"], "_agentid_receipt": value}},
+            }
+            executions = 0
+
+            def handler(verified_receipt):
+                nonlocal executions
+                executions += 1
+                return {"provider_execution_id": "fixture-exec-1", "decision_id": verified_receipt["decision_id"]}
+
+            await gate.execute(body, handler)
+            replayed = await gate.execute(body, handler)
+            assert replayed.status == case["expect"]["status"], case["id"]
+            assert replayed.replay_count == case["expect"]["replay_count"], case["id"]
+            assert executions == 1, case["id"]
+            continue
         if case.get("preconsume"):
             assert verify_provider_receipt(value, **options).ok
 
@@ -76,3 +106,8 @@ def private_key() -> str:
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ).decode("ascii")
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
