@@ -278,6 +278,7 @@ test("middleware returns 403 for denied receipts", async () => {
   assert.equal(res.statusCode, 403);
   assert.deepEqual(res.body, {
     error: "AgentPass provider authorization receipt denied",
+    codes: ["missing_receipt"],
     findings: ["missing _agentid_receipt"],
   });
 });

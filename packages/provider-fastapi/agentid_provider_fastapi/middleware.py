@@ -6,6 +6,7 @@ from typing import Any, Callable, Protocol
 
 from agentid.provider import (
     ProviderReceiptJwksCache,
+    provider_receipt_failure_codes,
     sign_provider_receipt,
     sign_provider_receipt_jws,
     verify_provider_receipt as verify_receipt_envelope,
@@ -51,6 +52,10 @@ class ReceiptVerification:
     ok: bool
     receipt: dict[str, Any] | None
     findings: list[str]
+
+    @property
+    def codes(self) -> list[str]:
+        return provider_receipt_failure_codes(self.findings)
 
 
 class AgentIdReceiptError(Exception):

@@ -96,8 +96,11 @@ more about hardening the production boundary:
   UI, and audit events;
 - close the provider trust gate with signed contracts, drift detection, and
   provider execution receipts;
+- make provider-trust semantics explicit enough for MCP fine-grained
+  authorization comparison: receipt state, revocation, ledgered consumption,
+  retry replay, and verifier failure classes;
 - document stateless versus stateful enforcement boundaries;
-- add more integration guides around the existing packages.
+- add more integration guides around the existing packages;
 - align the gateway adapter with emerging MCP interceptor/PDP shapes without
   requiring AgentPass to become the network gateway.
 
@@ -123,7 +126,7 @@ Current issue mapping:
 | P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
 | P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
 | P3 | Production deploy action gate | Complete |
-| P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
+| P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift, revocation, ledgered consumption, fixtures, and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
 | P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
 
 Issues [#6](https://github.com/dinpd/AgentPass/issues/6),
@@ -290,7 +293,10 @@ Current status:
 #### P4: Provider Trust Gate
 
 Close the authorization loop at the provider boundary after the first three
-user-visible safety flows are complete.
+user-visible safety flows are complete. This priority should keep AgentPass
+focused on the authorization decision, approval evidence, provider contract,
+and verifier semantics, without requiring AgentPass to become the network
+gateway or MCP proxy.
 
 Ship together:
 
@@ -298,14 +304,29 @@ Ship together:
 - Key rotation and unknown-`kid` refresh behavior.
 - Signed provider contracts and drift checks for high-risk tools.
 - Provider execution receipts correlated with enterprise authorization.
+- Provider-declared receipt requirements for high-risk tools, including
+  binding fields, canonicalization profile, expected issuer/audience, and
+  transport location.
+- Mid-flight revocation checks so TTL is not the only live-window control.
+- Ledgered consumption semantics for single-use, bounded-use, and spend-capped
+  receipts.
 - Structured trust-gate failure classes.
+- Conformance fixtures / test vectors for verifier behavior.
 
 Demo gate:
 
 - A valid scoped receipt executes at the provider.
-- Expired, replayed, wrongly scoped, unknown-key, and drifted-contract requests
-  fail closed with distinct machine-readable reasons.
+- Expired, revoked, replayed, already-consumed, budget-exhausted, wrongly
+  scoped, unknown-key, and drifted-contract requests fail closed with distinct
+  machine-readable reasons.
+- An identical retry after provider success returns the prior provider outcome
+  without running the mutating handler again.
+- A changed retry under the same receipt, idempotency key, or ledger entry is
+  rejected as out of scope before provider business logic runs.
 - Key rotation succeeds without disabling verification.
+- Published fixtures cover valid, expired, revoked, already-consumed,
+  budget-exhausted, out-of-scope, unknown-key, drifted-contract, and replayed
+  prior-outcome cases.
 
 Current status:
 
@@ -318,8 +339,14 @@ Current status:
   publication without leaking private key material.
 - Existing provider verifier tests cover unknown-`kid` remote JWKS refresh and
   stale-if-error behavior.
+- The initial portable fixture corpus covers valid, expired, out-of-scope,
+  invalid-signature, already-consumed, and missing-receipt outcomes against the
+  FastAPI reference verifier; both Python and Express expose the same stable
+  failure-code vocabulary.
 - Remaining P4 work is to wire signed provider contract drift checks into the
-  hosted path and add structured provider trust failure classes.
+  hosted path, add revocation and ledgered consumption checks, and expand the
+  corpus with revoked, budget-exhausted, unknown-key, drifted-contract, and
+  replayed-prior-outcome cases for MCP fine-grained authorization discussions.
 
 #### P5: Framework And Workflow Distribution
 

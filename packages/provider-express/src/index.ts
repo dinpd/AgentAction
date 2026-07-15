@@ -44,6 +44,7 @@ export type JsonWebKeySet = {
 export type ReceiptVerificationResult = {
   ok: boolean;
   receipt?: ProviderAuthorizationReceipt;
+  codes: string[];
   findings: string[];
 };
 
@@ -196,6 +197,7 @@ export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpre
         }
         res.status(403).json({
           error: "AgentPass provider authorization receipt denied",
+          codes: verification.codes,
           findings: verification.findings,
         });
         return;
@@ -293,7 +295,8 @@ export async function verifyProviderReceipt(
   });
 
   if (!value) {
-    return { ok: false, findings: ["missing _agentid_receipt"] };
+    const findings = ["missing _agentid_receipt"];
+    return { ok: false, codes: providerReceiptFailureCodes(findings), findings };
   }
   if (requireSigned && !isSignedReceiptEnvelope(value) && !isJwsReceipt(value)) {
     findings.push("receipt must be signed");
@@ -301,7 +304,10 @@ export async function verifyProviderReceipt(
 
   findings.push(...unwrapped.findings);
   const receipt = unwrapped.receipt;
-  if (!receipt) return { ok: false, findings: findings.length ? findings : ["receipt payload is required"] };
+  if (!receipt) {
+    const finalFindings = findings.length ? findings : ["receipt payload is required"];
+    return { ok: false, codes: providerReceiptFailureCodes(finalFindings), findings: finalFindings };
+  }
 
   findings.push(...receiptFieldFindings(receipt, options.policy));
   findings.push(...receiptValueFindings(receipt, options.policy));
@@ -345,8 +351,35 @@ export async function verifyProviderReceipt(
   return {
     ok: findings.length === 0,
     receipt,
+    codes: providerReceiptFailureCodes(findings),
     findings,
   };
+}
+
+export function providerReceiptFailureCodes(findings: string[]): string[] {
+  const codes: string[] = [];
+  for (const finding of findings) {
+    const lowered = finding.toLowerCase();
+    const code = lowered.includes("already used")
+      ? "already_consumed"
+      : lowered.includes("expired")
+        ? "expired"
+        : lowered.includes("key not found")
+          ? "unknown_key"
+          : lowered.includes("issuer mismatch")
+            ? "untrusted_issuer"
+            : lowered.includes("audience mismatch")
+              ? "wrong_audience"
+              : lowered.includes("signature") || lowered.includes("jws alg")
+                ? "invalid_signature"
+                : lowered.includes("missing _agentid_receipt") || lowered.includes("receipt payload is required") || lowered.includes("receipt must be signed") || lowered.includes("receipt jws is required")
+                  ? "missing_receipt"
+                  : lowered.includes("mismatch") || lowered.includes("missing value") || lowered.includes(" is required")
+                    ? "out_of_scope"
+                    : "invalid_receipt";
+    if (!codes.includes(code)) codes.push(code);
+  }
+  return codes;
 }
 
 export function unwrapProviderReceipt(

@@ -567,6 +567,30 @@ def test_cli_provider_verify_receipt(tmp_path, capsys):
     assert "Provider authorization receipt is valid." in output
 
 
+def test_cli_provider_verify_receipt_returns_machine_readable_codes(tmp_path, capsys):
+    receipt_path = tmp_path / "expired-receipt.yaml"
+    receipt_path.write_text(
+        yaml.safe_dump(sign_provider_receipt({**provider_receipt(), "expires_at": "2026-05-28T12:00:30Z"}, "test-secret")),
+        encoding="utf-8",
+    )
+
+    code = main(
+        [
+            "provider",
+            "verify-receipt",
+            str(receipt_path),
+            "--secret",
+            "test-secret",
+            "--require-signed",
+            "--json",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 1
+    assert payload["codes"] == ["expired"]
+
+
 def test_cli_provider_verify_jws_receipt(tmp_path, capsys):
     private_key, jwks = rsa_key_and_jwks()
     receipt_path = tmp_path / "receipt.yaml"

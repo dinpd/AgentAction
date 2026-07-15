@@ -109,3 +109,19 @@ Before executing a high-risk provider action, a verifier should check:
 Provider business authorization still runs after receipt verification. A valid
 AgentPass receipt proves enterprise-side runtime authorization; it does not prove
 the provider should mutate state.
+
+## Failure Codes And Fixtures
+
+Verifiers should preserve detailed human-readable findings but also return a
+stable, ordered `codes` array for machine handling. The AgentPass reference
+vocabulary currently includes `expired`, `already_consumed`, `out_of_scope`,
+`unknown_key`, `invalid_signature`, `missing_receipt`, `untrusted_issuer`,
+`wrong_audience`, and `invalid_receipt`.
+
+The executable reference cases are in
+[`../fixtures/provider-receipt-v1/`](../fixtures/provider-receipt-v1/). They
+cover valid, expired, out-of-scope, invalid-signature, already-consumed, and
+missing-receipt outcomes against the FastAPI provider reference verifier.
+Revocation, ledgered budget consumption, contract drift, and replayed prior
+outcomes are intentionally pending until the corresponding stateful controls
+are implemented.

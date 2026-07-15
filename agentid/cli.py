@@ -39,6 +39,7 @@ from agentid.provider import (
     provider_contract_yaml,
     provider_diff_to_dict,
     provider_manifest_yaml,
+    provider_receipt_failure_codes,
     provider_schema_json,
     validate_provider_contract,
     verify_provider_receipt,
@@ -400,7 +401,17 @@ def main(argv: list[str] | None = None) -> int:
                 expected_amount=args.amount,
             )
             if args.json:
-                print(json.dumps({"ok": result.ok, "findings": result.findings, "receipt": result.receipt}, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "ok": result.ok,
+                            "codes": provider_receipt_failure_codes(result.findings),
+                            "findings": result.findings,
+                            "receipt": result.receipt,
+                        },
+                        indent=2,
+                    )
+                )
             elif result.ok:
                 print("Provider authorization receipt is valid.")
             else:
