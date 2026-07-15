@@ -1,0 +1,78 @@
+{
+  "schema_version": "agentpass.provider-receipt-fixtures.v1",
+  "description": "Portable receipt-verifier cases for a scoped, signed provider tool call.",
+  "secret": "agentpass-provider-fixture-secret",
+  "now": "2026-05-28T12:01:00Z",
+  "receipt": {
+    "decision_id": "fixture-decision-1",
+    "tenant_id": "tenant-a",
+    "agent_id": "enterprise-support-agent",
+    "user_id": "support-rep-17",
+    "tool": "provider.crm.update_customer",
+    "action": "write",
+    "resource": "provider/customer/cus_123",
+    "job_id": "support_case_resolution",
+    "case_id": "case-1042",
+    "customer_id": "cus_123",
+    "approval_id": "approval-1",
+    "jit_grant_id": "grant-1",
+    "issued_at": "2026-05-28T12:00:00Z",
+    "expires_at": "2099-05-28T12:05:00Z"
+  },
+  "args": {
+    "customer_id": "cus_123",
+    "job_id": "support_case_resolution",
+    "case_id": "case-1042",
+    "approval_id": "approval-1",
+    "jit_grant_id": "grant-1"
+  },
+  "cases": [
+    {
+      "id": "valid",
+      "expect": { "ok": true, "codes": [] }
+    },
+    {
+      "id": "expired",
+      "receipt_overrides": { "expires_at": "2026-05-28T12:00:30Z" },
+      "expect": { "ok": false, "codes": ["expired"] }
+    },
+    {
+      "id": "revoked",
+      "revoke": true,
+      "expect": { "ok": false, "codes": ["revoked"] }
+    },
+    {
+      "id": "out_of_scope",
+      "receipt_overrides": { "resource": "provider/customer/cus_456" },
+      "expect": { "ok": false, "codes": ["out_of_scope"] }
+    },
+    {
+      "id": "invalid_signature",
+      "signing_secret": "wrong-fixture-secret",
+      "expect": { "ok": false, "codes": ["invalid_signature"] }
+    },
+    {
+      "id": "already_consumed",
+      "preconsume": true,
+      "expect": { "ok": false, "codes": ["already_consumed"] }
+    },
+    {
+      "id": "budget_exhausted",
+      "receipt_overrides": { "max_amount": "75" },
+      "args_overrides": { "amount": "40" },
+      "policy_overrides": {
+        "single_use": false,
+        "max_amount": "100",
+        "amount_arg": "amount"
+      },
+      "ledger": true,
+      "preconsume": true,
+      "expect": { "ok": false, "codes": ["budget_exhausted"] }
+    },
+    {
+      "id": "missing_receipt",
+      "missing_receipt": true,
+      "expect": { "ok": false, "codes": ["missing_receipt"] }
+    }
+  ]
+}

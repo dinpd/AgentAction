@@ -3,7 +3,9 @@ import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
 import {
+  MemoryReceiptLedger,
   MemoryReplayStore,
+  MemoryRevocationStore,
   RemoteJwksCache,
   createAgentIdReceiptMiddleware,
   createAgentPassReceiptMiddleware,
@@ -232,6 +234,64 @@ test("MemoryReplayStore rejects reused receipts", async () => {
   assert.ok(second.findings.includes("receipt was already used"));
 });
 
+test("MemoryRevocationStore rejects a receipt before consumption", async () => {
+  const revoked = new MemoryRevocationStore();
+  revoked.revoke("dec-1");
+
+  const result = await verifyProviderReceipt(signProviderReceipt(signedReceipt(), "secret-1"), {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy,
+    revocationStore: revoked,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.codes, ["revoked"]);
+});
+
+test("MemoryReceiptLedger enforces bounded use from a signed receipt", async () => {
+  const ledger = new MemoryReceiptLedger();
+  const boundedPolicy = { ...policy, singleUse: false, maxUses: 3 };
+  const signed = signProviderReceipt({ ...signedReceipt(), max_uses: 2 }, "secret-1");
+  const options = {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: toolArgs(),
+    policy: boundedPolicy,
+    receiptLedger: ledger,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  };
+
+  assert.equal((await verifyProviderReceipt(signed, options)).ok, true);
+  assert.equal((await verifyProviderReceipt(signed, options)).ok, true);
+  const exhausted = await verifyProviderReceipt(signed, options);
+
+  assert.equal(exhausted.ok, false);
+  assert.deepEqual(exhausted.codes, ["budget_exhausted"]);
+});
+
+test("MemoryReceiptLedger enforces the more restrictive spend cap", async () => {
+  const ledger = new MemoryReceiptLedger();
+  const spendCappedPolicy = { ...policy, singleUse: false, maxAmount: 100, amountArg: "amount" };
+  const signed = signProviderReceipt({ ...signedReceipt(), max_amount: 75 }, "secret-1");
+  const options = {
+    secret: "secret-1",
+    tool: "provider.crm.update_customer",
+    args: { ...toolArgs(), amount: 40 },
+    policy: spendCappedPolicy,
+    receiptLedger: ledger,
+    now: () => new Date("2026-05-28T12:01:00Z"),
+  };
+
+  assert.equal((await verifyProviderReceipt(signed, options)).ok, true);
+  const exhausted = await verifyProviderReceipt(signed, options);
+
+  assert.equal(exhausted.ok, false);
+  assert.deepEqual(exhausted.codes, ["budget_exhausted"]);
+});
+
 test("middleware attaches verified receipt and calls next", async () => {
   const req = {
     body: mcpRequest(signProviderReceipt(signedReceipt(), "secret-1")),
@@ -278,6 +338,7 @@ test("middleware returns 403 for denied receipts", async () => {
   assert.equal(res.statusCode, 403);
   assert.deepEqual(res.body, {
     error: "AgentPass provider authorization receipt denied",
+    codes: ["missing_receipt"],
     findings: ["missing _agentid_receipt"],
   });
 });

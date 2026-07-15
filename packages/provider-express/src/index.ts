@@ -14,6 +14,8 @@ export type ProviderAuthorizationReceipt = {
   approval_id?: string;
   jit_grant_id?: string;
   amount?: string;
+  max_uses?: number;
+  max_amount?: number | string;
   enterprise_issuer?: string;
   enterprise_subject?: string;
   enterprise_client_id?: string;
@@ -44,6 +46,7 @@ export type JsonWebKeySet = {
 export type ReceiptVerificationResult = {
   ok: boolean;
   receipt?: ProviderAuthorizationReceipt;
+  codes: string[];
   findings: string[];
 };
 
@@ -55,6 +58,23 @@ export type ReplayStore = {
   consume(receiptId: string, expiresAt: Date): boolean | Promise<boolean>;
 };
 
+export type RevocationStore = {
+  isRevoked(receiptId: string): boolean | Promise<boolean>;
+};
+
+export type LedgerConsumption = {
+  allowed: boolean;
+  finding?: string;
+};
+
+export type ReceiptLedgerStore = {
+  consume(
+    receiptId: string,
+    expiresAt: Date,
+    options: { maxUses?: number; maxAmount?: number; amount?: number; now: Date },
+  ): LedgerConsumption | Promise<LedgerConsumption>;
+};
+
 export type ToolReceiptPolicy = {
   required?: boolean;
   action?: string;
@@ -64,6 +84,9 @@ export type ToolReceiptPolicy = {
   requiredReceiptValues?: Record<string, string | string[]>;
   bindArgs?: Record<string, string>;
   singleUse?: boolean;
+  maxUses?: number;
+  maxAmount?: number;
+  amountArg?: string;
 };
 
 export type AgentPassProviderExpressOptions = {
@@ -81,6 +104,8 @@ export type AgentPassProviderExpressOptions = {
   receiptArgument?: string;
   tools?: Record<string, ToolReceiptPolicy>;
   replayStore?: ReplayStore;
+  revocationStore?: RevocationStore;
+  receiptLedger?: ReceiptLedgerStore;
   now?: () => Date;
   onDenied?: (
     req: RequestLike,
@@ -155,6 +180,46 @@ export class MemoryReplayStore implements ReplayStore {
   }
 }
 
+export class MemoryRevocationStore implements RevocationStore {
+  private revoked = new Set<string>();
+
+  revoke(receiptId: string): void {
+    this.revoked.add(receiptId);
+  }
+
+  isRevoked(receiptId: string): boolean {
+    return this.revoked.has(receiptId);
+  }
+}
+
+export class MemoryReceiptLedger implements ReceiptLedgerStore {
+  private entries = new Map<string, { expiresAt: number; uses: number; amount: number }>();
+
+  consume(
+    receiptId: string,
+    expiresAt: Date,
+    options: { maxUses?: number; maxAmount?: number; amount?: number; now: Date },
+  ): LedgerConsumption {
+    for (const [id, entry] of this.entries) {
+      if (entry.expiresAt <= options.now.getTime()) this.entries.delete(id);
+    }
+    const entry = this.entries.get(receiptId) || { expiresAt: expiresAt.getTime(), uses: 0, amount: 0 };
+    if (options.maxUses !== undefined && entry.uses >= options.maxUses) {
+      return { allowed: false, finding: options.maxUses === 1 ? "receipt was already used" : "receipt use budget is exhausted" };
+    }
+    if (options.maxAmount !== undefined) {
+      if (options.amount === undefined) return { allowed: false, finding: "receipt spend amount is required" };
+      if (entry.amount + options.amount > options.maxAmount) {
+        return { allowed: false, finding: "receipt spend budget is exhausted" };
+      }
+    }
+    entry.uses += 1;
+    if (options.amount !== undefined) entry.amount += options.amount;
+    this.entries.set(receiptId, entry);
+    return { allowed: true };
+  }
+}
+
 export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpressOptions = {}) {
   const receiptArgument = options.receiptArgument || "_agentid_receipt";
   const requireSigned = options.requireSigned !== false;
@@ -186,6 +251,8 @@ export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpre
         args: parsed.args,
         policy,
         replayStore: options.replayStore,
+        revocationStore: options.revocationStore,
+        receiptLedger: options.receiptLedger,
         now,
       });
 
@@ -196,6 +263,7 @@ export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpre
         }
         res.status(403).json({
           error: "AgentPass provider authorization receipt denied",
+          codes: verification.codes,
           findings: verification.findings,
         });
         return;
@@ -273,6 +341,8 @@ export async function verifyProviderReceipt(
     args?: Record<string, unknown>;
     policy?: ToolReceiptPolicy;
     replayStore?: ReplayStore;
+    revocationStore?: RevocationStore;
+    receiptLedger?: ReceiptLedgerStore;
     now?: () => Date;
   } = {},
 ): Promise<ReceiptVerificationResult> {
@@ -293,7 +363,8 @@ export async function verifyProviderReceipt(
   });
 
   if (!value) {
-    return { ok: false, findings: ["missing _agentid_receipt"] };
+    const findings = ["missing _agentid_receipt"];
+    return { ok: false, codes: providerReceiptFailureCodes(findings), findings };
   }
   if (requireSigned && !isSignedReceiptEnvelope(value) && !isJwsReceipt(value)) {
     findings.push("receipt must be signed");
@@ -301,7 +372,10 @@ export async function verifyProviderReceipt(
 
   findings.push(...unwrapped.findings);
   const receipt = unwrapped.receipt;
-  if (!receipt) return { ok: false, findings: findings.length ? findings : ["receipt payload is required"] };
+  if (!receipt) {
+    const finalFindings = findings.length ? findings : ["receipt payload is required"];
+    return { ok: false, codes: providerReceiptFailureCodes(finalFindings), findings: finalFindings };
+  }
 
   findings.push(...receiptFieldFindings(receipt, options.policy));
   findings.push(...receiptValueFindings(receipt, options.policy));
@@ -331,6 +405,19 @@ export async function verifyProviderReceipt(
   if (!expiresAt) findings.push("receipt expires_at is invalid");
   else if (expiresAt <= current) findings.push("receipt is expired");
 
+  if (findings.length === 0 && options.revocationStore && stringValue(receipt.decision_id)) {
+    if (await options.revocationStore.isRevoked(receipt.decision_id)) findings.push("receipt is revoked");
+  }
+
+  if (findings.length === 0 && options.receiptLedger && options.policy && stringValue(receipt.decision_id) && expiresAt) {
+    const ledger = ledgerOptionsForReceipt(receipt, options.args || {}, options.policy);
+    if (ledger.finding) findings.push(ledger.finding);
+    else if (ledger.options) {
+      const consumed = await options.receiptLedger.consume(receipt.decision_id, expiresAt, { ...ledger.options, now: current });
+      if (!consumed.allowed) findings.push(consumed.finding || "receipt budget is exhausted");
+    }
+  }
+
   if (
     findings.length === 0 &&
     options.replayStore &&
@@ -345,8 +432,82 @@ export async function verifyProviderReceipt(
   return {
     ok: findings.length === 0,
     receipt,
+    codes: providerReceiptFailureCodes(findings),
     findings,
   };
+}
+
+export function providerReceiptFailureCodes(findings: string[]): string[] {
+  const codes: string[] = [];
+  for (const finding of findings) {
+    const lowered = finding.toLowerCase();
+    const code = lowered.includes("already used")
+      ? "already_consumed"
+      : lowered.includes("revoked")
+        ? "revoked"
+        : lowered.includes("budget is exhausted")
+          ? "budget_exhausted"
+      : lowered.includes("expired")
+        ? "expired"
+        : lowered.includes("key not found")
+          ? "unknown_key"
+          : lowered.includes("issuer mismatch")
+            ? "untrusted_issuer"
+            : lowered.includes("audience mismatch")
+              ? "wrong_audience"
+              : lowered.includes("signature") || lowered.includes("jws alg")
+                ? "invalid_signature"
+                : lowered.includes("missing _agentid_receipt") || lowered.includes("receipt payload is required") || lowered.includes("receipt must be signed") || lowered.includes("receipt jws is required")
+                  ? "missing_receipt"
+                  : lowered.includes("mismatch") || lowered.includes("missing value") || lowered.includes(" is required")
+                    ? "out_of_scope"
+                    : "invalid_receipt";
+    if (!codes.includes(code)) codes.push(code);
+  }
+  return codes;
+}
+
+function ledgerOptionsForReceipt(
+  receipt: ProviderAuthorizationReceipt,
+  args: Record<string, unknown>,
+  policy: ToolReceiptPolicy,
+): { options?: { maxUses?: number; maxAmount?: number; amount?: number }; finding?: string } {
+  const receiptMaxUses = positiveInteger(receipt.max_uses);
+  if (receipt.max_uses !== undefined && receiptMaxUses === undefined) return { finding: "receipt max_uses is invalid" };
+  const policyMaxUses = positiveInteger(policy.maxUses);
+  if (policy.maxUses !== undefined && policyMaxUses === undefined) return { finding: "provider max_uses policy is invalid" };
+  const receiptMaxAmount = positiveNumber(receipt.max_amount);
+  if (receipt.max_amount !== undefined && receiptMaxAmount === undefined) return { finding: "receipt max_amount is invalid" };
+  const policyMaxAmount = positiveNumber(policy.maxAmount);
+  if (policy.maxAmount !== undefined && policyMaxAmount === undefined) return { finding: "provider max_amount policy is invalid" };
+
+  const maxUses = moreRestrictive(receiptMaxUses, policyMaxUses);
+  const maxAmount = moreRestrictive(receiptMaxAmount, policyMaxAmount);
+  if (maxUses === undefined && maxAmount === undefined) return {};
+
+  let amount: number | undefined;
+  if (maxAmount !== undefined) {
+    if (!policy.amountArg) return { finding: "provider amount_arg is required for a spend-capped receipt" };
+    amount = positiveNumber(args[policy.amountArg]);
+    if (amount === undefined) return { finding: `receipt amount is invalid: ${policy.amountArg}` };
+  }
+  return { options: { maxUses, maxAmount, amount } };
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function moreRestrictive(first: number | undefined, second: number | undefined): number | undefined {
+  if (first === undefined) return second;
+  if (second === undefined) return first;
+  return Math.min(first, second);
 }
 
 export function unwrapProviderReceipt(

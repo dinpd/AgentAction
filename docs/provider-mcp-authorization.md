@@ -398,6 +398,8 @@ receipt locally or introspect it with the AgentPass gateway.
   "customer_id": "cus_123",
   "approval_id": "approval-456",
   "jit_grant_id": "grant_789",
+  "max_uses": 1,
+  "max_amount": "100.00",
   "expires_at": "2026-05-28T20:15:00Z"
 }
 ```
@@ -406,6 +408,13 @@ The provider-side verifier should reject the call if the receipt is missing,
 expired, invalid, already consumed when single-use authority is required, or not
 bound to the exact tool, action, tenant, resource, customer, case, and user in
 the MCP request.
+
+For stateful authority, `max_uses` and `max_amount` are signed upper bounds on
+the receipt. The provider applies the more restrictive of those receipt limits
+and its local tool policy, then atomically records consumption before invoking
+the mutating handler. A receipt may also be revoked before expiry. Production
+providers must back both checks with durable stores shared by all verifier
+instances; the reference in-memory stores are only for tests and local demos.
 
 ## Provider-Side Enforcement
 

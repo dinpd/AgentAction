@@ -24,7 +24,9 @@ npm run build
 ```ts
 import express from "express";
 import {
+  MemoryReceiptLedger,
   MemoryReplayStore,
+  MemoryRevocationStore,
   createAgentPassReceiptMiddleware,
 } from "@agentpass/provider-express";
 
@@ -38,6 +40,8 @@ createAgentPassReceiptMiddleware({
     issuer: "https://enterprise.example.com",
     audience: "provider-crm-mcp",
     replayStore: new MemoryReplayStore(),
+    revocationStore: new MemoryRevocationStore(),
+    receiptLedger: new MemoryReceiptLedger(),
     tools: {
       "provider.crm.update_customer": {
         action: "write",
@@ -96,6 +100,8 @@ property remain available as compatibility aliases.
 - Receipt fields bound to MCP tool arguments
 - `issued_at` and `expires_at`
 - Optional single-use replay protection
+- Optional receipt revocation before execution
+- Receipt-level bounded-use and spend-cap consumption
 
 Remote JWKS fetches are cached for 5 minutes by default, fall back to stale
 keys for up to 5 more minutes when refresh fails, and force a refresh when a
@@ -104,3 +110,5 @@ receipt `kid` is missing so key rotation can land before the TTL expires. Use
 
 HMAC receipts are intended for local demos and simple integrations. Production
 providers should prefer managed keys with JWS/JWKS or receipt introspection.
+Use durable, atomic revocation and ledger implementations in production; the
+in-memory stores are deterministic references for tests and local development.

@@ -10,7 +10,9 @@ from jwt.algorithms import RSAAlgorithm
 
 from agentid_provider_fastapi import (
     AgentIdReceiptError,
+    InMemoryReceiptLedger,
     InMemoryReplayStore,
+    InMemoryRevocationStore,
     ProviderReceiptJwksCache,
     ProviderReceiptVerifier,
     ToolReceiptPolicy,
@@ -216,6 +218,77 @@ def test_replay_store_rejects_reused_receipts():
     assert first.ok
     assert not second.ok
     assert "receipt was already used" in second.findings
+
+
+def test_revocation_store_rejects_a_receipt_before_consumption():
+    revoked = InMemoryRevocationStore()
+    revoked.revoke("dec-1")
+
+    result = verify_provider_receipt(
+        sign_provider_receipt(receipt(), "secret-1"),
+        secret="secret-1",
+        tool="provider.crm.update_customer",
+        args=tool_args(),
+        policy=policy(),
+        revocation_store=revoked,
+        now=lambda: instant("2026-05-28T12:01:00Z"),
+    )
+
+    assert not result.ok
+    assert result.findings == ["receipt is revoked"]
+    assert result.codes == ["revoked"]
+
+
+def test_receipt_ledger_enforces_bounded_use_from_signed_receipt():
+    ledger = InMemoryReceiptLedger()
+    bounded = ToolReceiptPolicy(
+        **{**policy().__dict__, "single_use": False, "max_uses": 3},
+    )
+    signed = sign_provider_receipt({**receipt(), "max_uses": 2}, "secret-1")
+    options = {
+        "secret": "secret-1",
+        "tool": "provider.crm.update_customer",
+        "args": tool_args(),
+        "policy": bounded,
+        "receipt_ledger": ledger,
+        "now": lambda: instant("2026-05-28T12:01:00Z"),
+    }
+
+    assert verify_provider_receipt(signed, **options).ok
+    assert verify_provider_receipt(signed, **options).ok
+    exhausted = verify_provider_receipt(signed, **options)
+
+    assert not exhausted.ok
+    assert exhausted.findings == ["receipt use budget is exhausted"]
+    assert exhausted.codes == ["budget_exhausted"]
+
+
+def test_receipt_ledger_enforces_the_more_restrictive_spend_cap():
+    ledger = InMemoryReceiptLedger()
+    spend_capped = ToolReceiptPolicy(
+        **{
+            **policy().__dict__,
+            "single_use": False,
+            "max_amount": "100",
+            "amount_arg": "amount",
+        },
+    )
+    signed = sign_provider_receipt({**receipt(), "max_amount": "75"}, "secret-1")
+    options = {
+        "secret": "secret-1",
+        "tool": "provider.crm.update_customer",
+        "args": {**tool_args(), "amount": "40"},
+        "policy": spend_capped,
+        "receipt_ledger": ledger,
+        "now": lambda: instant("2026-05-28T12:01:00Z"),
+    }
+
+    assert verify_provider_receipt(signed, **options).ok
+    exhausted = verify_provider_receipt(signed, **options)
+
+    assert not exhausted.ok
+    assert exhausted.findings == ["receipt spend budget is exhausted"]
+    assert exhausted.codes == ["budget_exhausted"]
 
 
 def test_verifier_dependency_returns_receipt_for_configured_tool():

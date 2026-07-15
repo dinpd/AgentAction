@@ -53,6 +53,11 @@ class ProviderReceiptVerification:
     receipt: dict[str, Any] | None
     findings: list[str]
 
+    @property
+    def codes(self) -> list[str]:
+        """Stable, machine-readable classes for the verifier findings."""
+        return provider_receipt_failure_codes(self.findings)
+
 
 @dataclass
 class ProviderReceiptJwksCacheEntry:
@@ -636,6 +641,47 @@ def verify_provider_receipt(
         findings.append("receipt issued_at is in the future")
 
     return ProviderReceiptVerification(ok=not findings, receipt=receipt, findings=findings)
+
+
+def provider_receipt_failure_codes(findings: list[str]) -> list[str]:
+    """Map diagnostic findings to the portable provider-receipt vocabulary.
+
+    Findings remain detailed and backwards compatible. Consumers that need
+    programmatic behavior should use these codes instead of parsing text.
+    """
+    codes: list[str] = []
+    for finding in findings:
+        lowered = finding.lower()
+        if "already used" in lowered:
+            code = "already_consumed"
+        elif "revoked" in lowered:
+            code = "revoked"
+        elif "budget is exhausted" in lowered:
+            code = "budget_exhausted"
+        elif "expired" in lowered:
+            code = "expired"
+        elif "key not found" in lowered:
+            code = "unknown_key"
+        elif "issuer mismatch" in lowered:
+            code = "untrusted_issuer"
+        elif "audience mismatch" in lowered:
+            code = "wrong_audience"
+        elif "signature" in lowered or "jws alg" in lowered:
+            code = "invalid_signature"
+        elif (
+            "missing _agentid_receipt" in lowered
+            or "receipt payload is required" in lowered
+            or "receipt must be signed" in lowered
+            or "receipt jws is required" in lowered
+        ):
+            code = "missing_receipt"
+        elif "mismatch" in lowered or "missing value" in lowered or " is required" in lowered:
+            code = "out_of_scope"
+        else:
+            code = "invalid_receipt"
+        if code not in codes:
+            codes.append(code)
+    return codes
 
 
 def _validate_provider_tool(

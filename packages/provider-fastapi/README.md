@@ -20,7 +20,9 @@ python -m pytest packages/provider-fastapi/tests
 ```python
 from fastapi import Depends, FastAPI
 from agentid_provider_fastapi import (
+    InMemoryReceiptLedger,
     InMemoryReplayStore,
+    InMemoryRevocationStore,
     ProviderReceiptVerifier,
     ToolReceiptPolicy,
 )
@@ -32,6 +34,8 @@ verifier = ProviderReceiptVerifier(
     issuer="https://enterprise.example.com",
     audience="provider-crm-mcp",
     replay_store=InMemoryReplayStore(),
+    revocation_store=InMemoryRevocationStore(),
+    receipt_ledger=InMemoryReceiptLedger(),
     tools={
         "provider.crm.update_customer": ToolReceiptPolicy(
             action="write",
@@ -88,6 +92,8 @@ async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
 - Receipt fields bound to MCP tool arguments
 - `issued_at` and `expires_at`
 - Optional single-use replay protection
+- Optional receipt revocation before execution
+- Receipt-level bounded-use and spend-cap consumption
 
 Remote JWKS fetches are cached for 5 minutes by default, fall back to stale
 keys for up to 5 more minutes when refresh fails, and force a refresh when a
@@ -96,3 +102,5 @@ receipt `kid` is missing so key rotation can land before the TTL expires. Use
 
 HMAC receipts are intended for local demos and simple integrations. Production
 providers should prefer managed keys with JWS/JWKS or receipt introspection.
+Use durable, atomic revocation and ledger implementations in production; the
+in-memory stores are deterministic references for tests and local development.
