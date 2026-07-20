@@ -13,6 +13,8 @@ export function mapToolCallToAuthorize(
 
   return compactPayload({
     agent_id: context.agentId || config.agent.id,
+    intent_id: context.intentId,
+    intent_digest: context.intentDigest,
     tenant_id: context.tenantId || config.agentid.tenant_id,
     user_id: valueFromArg(args, mapping.user_id_arg) || context.userId,
     tool: toolName,

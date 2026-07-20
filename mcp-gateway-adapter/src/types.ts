@@ -23,6 +23,8 @@ export type JsonRpcResponse = {
 export type AgentIdAuthorizeRequest = {
   [key: string]: unknown;
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   data_from?: string;
@@ -149,6 +151,8 @@ export type AuthorizationDecisionLog = {
   [key: string]: unknown;
   event: "agentid.mcp.authorization";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tenant_id?: string;
   user_id?: string;
   tool: string;
@@ -166,6 +170,8 @@ export type AuthorizationDecisionLog = {
 export type ProviderAuthorizationReceipt = {
   [key: string]: unknown;
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tenant_id?: string;
   agent_id: string;
   user_id?: string;
@@ -203,6 +209,8 @@ export type JwsProviderAuthorizationReceipt = {
 
 export type RequestContext = {
   agentId?: string;
+  intentId?: string;
+  intentDigest?: string;
   tenantId?: string;
   userId?: string;
   bearerToken?: string;

@@ -44,6 +44,8 @@ type AuthContext = {
 type Grant = {
   jit_grant_id: string;
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   resource: string;
@@ -60,6 +62,8 @@ type Grant = {
 type ApprovalEvidence = {
   schema_version: "agentpass.approval-evidence.v1";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   user_id?: string;
   tenant_id?: string;
   job_id?: string;
@@ -95,6 +99,8 @@ type ApprovalRequest = {
   approval_id: string;
   status: "pending" | "approved" | "denied" | "expired";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   resource: string;
@@ -115,6 +121,9 @@ type ApprovalRequest = {
 type ProviderExecutionReceipt = {
   schema_version: "agentpass.provider-execution-receipt.v1";
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
+  job_id?: string;
   tool: string;
   action: string;
   resource?: string;
@@ -124,12 +133,16 @@ type ProviderExecutionReceipt = {
   request_digest: string;
   status: "executed" | "replayed";
   executed_at: string;
+  completed_at?: string;
+  result_digest?: string;
   replayed_from_decision_id?: string;
   replay_count?: number;
 };
 type ProviderAuthorizationReceipt = {
   schema_version: "agentpass.provider-authorization-receipt.v1";
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tenant_id?: string;
   agent_id: string;
   user_id?: string;
@@ -156,6 +169,8 @@ type IdempotencyResultRecord = {
   idempotency_key: string;
   request_digest: string;
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   resource?: string;
@@ -759,6 +774,7 @@ export class AgentIdJitGrants {
         status: "replayed",
         decision_id: stringValue(event.decision_id) || crypto.randomUUID(),
         executed_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
         replayed_from_decision_id: record.receipt.decision_id,
         replay_count: record.replay_count,
       };
@@ -796,6 +812,9 @@ export class AgentIdJitGrants {
       const receipt: ProviderExecutionReceipt = {
         schema_version: "agentpass.provider-execution-receipt.v1",
         decision_id: stringValue(event.decision_id) || crypto.randomUUID(),
+        intent_id: optionalString(event.intent_id),
+        intent_digest: optionalString(event.intent_digest),
+        job_id: optionalString(event.job_id),
         tool: stringValue(event.tool),
         action: stringValue(event.action),
         resource: optionalString(event.resource),
@@ -805,12 +824,16 @@ export class AgentIdJitGrants {
         request_digest: requestDigest,
         status: "executed",
         executed_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        result_digest: await canonicalDigest(result),
       };
       const record: IdempotencyResultRecord = {
         schema_version: "agentpass.idempotency-result.v1",
         idempotency_key: key,
         request_digest: requestDigest,
         agent_id: stringValue(event.agent_id),
+        intent_id: optionalString(event.intent_id),
+        intent_digest: optionalString(event.intent_digest),
         tool: stringValue(event.tool),
         action: stringValue(event.action),
         resource: optionalString(event.resource),
@@ -866,6 +889,8 @@ export class AgentIdJitGrants {
     if (Date.parse(grant.expires_at) <= Date.now()) findings.push("JIT grant is expired");
     if (grant.used && !options.allowUsed) findings.push("JIT grant was already used");
     if (grant.agent_id !== event.agent_id) findings.push("JIT grant agent_id mismatch");
+    if (grant.intent_id && grant.intent_id !== event.intent_id) findings.push("JIT grant intent_id mismatch");
+    if (grant.intent_digest && grant.intent_digest !== event.intent_digest) findings.push("JIT grant intent_digest mismatch");
     if (grant.tool !== event.tool) findings.push("JIT grant tool mismatch");
     if (grant.action !== event.action) findings.push("JIT grant action mismatch");
     if (grant.resource && event.resource && grant.resource !== event.resource) {
@@ -887,6 +912,8 @@ export class AgentIdJitGrants {
     }
 
     event.jit_grant_agent_id = grant.agent_id;
+    event.jit_grant_intent_id = grant.intent_id;
+    event.jit_grant_intent_digest = grant.intent_digest;
     event.jit_grant_tool = grant.tool;
     event.jit_grant_action = grant.action;
     event.jit_grant_approval_id = grant.approval_id;
@@ -932,6 +959,8 @@ export class AgentIdJitGrants {
     if (approval.tool !== toolName) return ["approval request tool mismatch"];
     if (approval.action !== stringValue(request.action)) return ["approval request action mismatch"];
     const fields: Array<[string, unknown, unknown]> = [
+      ["intent_id", approval.intent_id, request.intent_id],
+      ["intent_digest", approval.intent_digest, request.intent_digest],
       ["resource", approval.resource, request.resource],
       ["job_id", approval.job_id, request.job_id],
       ["case_id", approval.case_id, request.case_id],
@@ -1048,6 +1077,8 @@ async function createProviderAuthorizationReceipt(
   const receipt: ProviderAuthorizationReceipt = {
     schema_version: "agentpass.provider-authorization-receipt.v1",
     decision_id: stringValue(event.decision_id),
+    intent_id: optionalString(event.intent_id),
+    intent_digest: optionalString(event.intent_digest),
     tenant_id: optionalString(event.tenant_id ?? tenantId),
     agent_id: stringValue(event.agent_id),
     user_id: optionalString(event.user_id),
@@ -1230,6 +1261,8 @@ function toolEventFromPayload(manifest: AgentIdManifest, payload: ToolEvent, ten
   const event: ToolEvent = {
     decision_id: stringValue(payload.decision_id) || crypto.randomUUID(),
     agent_id: payload.agent_id ?? manifest.agent?.id,
+    intent_id: payload.intent_id,
+    intent_digest: payload.intent_digest,
     tool: payload.tool,
     capability: payload.capability,
     skill_id: payload.skill_id,
@@ -1302,6 +1335,8 @@ async function createApprovalRequest(
     approval_id: stringValue(payload.approval_id) || crypto.randomUUID(),
     status: "pending",
     agent_id: agentId,
+    intent_id: optionalString(payload.intent_id),
+    intent_digest: optionalString(payload.intent_digest),
     tool: toolName,
     action,
     resource,
@@ -1335,6 +1370,8 @@ function createJitGrant(manifest: AgentIdManifest, payload: ToolEvent, approval?
   return {
     jit_grant_id: crypto.randomUUID(),
     agent_id: agentId,
+    intent_id: optionalString(payload.intent_id),
+    intent_digest: optionalString(payload.intent_digest),
     tool: toolName,
     action,
     resource: stringValue(payload.resource),
@@ -1362,6 +1399,8 @@ async function createApprovalEvidence(
   return {
     schema_version: "agentpass.approval-evidence.v1",
     agent_id: stringValue(payload.agent_id ?? manifest.agent?.id),
+    intent_id: optionalString(payload.intent_id),
+    intent_digest: optionalString(payload.intent_digest),
     user_id: optionalString(payload.user_id ?? payload.requested_by),
     tenant_id: optionalString(payload.tenant_id),
     job_id: optionalString(payload.job_id),
@@ -1801,6 +1840,8 @@ async function approvalRequestDigest(payload: ToolEvent, evidence?: ApprovalEvid
     : stringContext(payload);
   const scope = {
     agent_id: stringValue(payload.agent_id),
+    intent_id: stringValue(payload.intent_id),
+    intent_digest: stringValue(payload.intent_digest),
     tenant_id: stringValue(payload.tenant_id),
     user_id: stringValue(payload.user_id ?? payload.requested_by),
     job_id: stringValue(payload.job_id),
@@ -1829,6 +1870,12 @@ async function approvalRequestDigest(payload: ToolEvent, evidence?: ApprovalEvid
   const bytes = new TextEncoder().encode(canonicalJson(scope));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function canonicalDigest(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(canonicalJson(value));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function replayRequestDigest(event: ToolEvent, record: IdempotencyResultRecord): Promise<string> {
@@ -2266,6 +2313,8 @@ const RESERVED_CONTEXT_FIELDS = new Set([
   "delegation_grant_id",
   "approval_source",
   "approval_agent",
+  "intent_id",
+  "intent_digest",
   "tenant_id",
   "user_id",
   "job_id",

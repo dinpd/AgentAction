@@ -16,6 +16,8 @@ test("authorizeToolCall posts tenant authorize request with bearer token", async
 
   const response = await client.authorizeToolCall("tenant-a", {
     agent_id: "agent-a",
+    intent_id: "intent-1",
+    intent_digest: "abc123",
     tool: "docs.search",
     action: "read",
   });
@@ -26,7 +28,10 @@ test("authorizeToolCall posts tenant authorize request with bearer token", async
     "content-type": "application/json",
     authorization: "Bearer token-1",
   });
-  assert.equal(JSON.parse(String(calls[0].init.body)).tool, "docs.search");
+  const body = JSON.parse(String(calls[0].init.body));
+  assert.equal(body.tool, "docs.search");
+  assert.equal(body.intent_id, "intent-1");
+  assert.equal(body.intent_digest, "abc123");
 });
 
 test("assertAllowed throws on deny decisions", async () => {

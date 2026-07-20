@@ -121,6 +121,8 @@ function authorizationLog(
   return compactLog({
     event: "agentid.mcp.authorization",
     agent_id: payload.agent_id,
+    intent_id: payload.intent_id,
+    intent_digest: payload.intent_digest,
     tenant_id: payload.tenant_id,
     user_id: payload.user_id,
     tool: payload.tool,
@@ -188,6 +190,8 @@ function providerReceipt(
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
   return compactReceipt({
     decision_id: decisionId(request, payload, decision),
+    intent_id: payload.intent_id,
+    intent_digest: payload.intent_digest,
     tenant_id: payload.tenant_id || config.provider_receipts?.tenant_id,
     agent_id: payload.agent_id,
     user_id: payload.user_id,
@@ -285,6 +289,8 @@ function contextFromPayload(payload: AgentIdAuthorizeRequest): Record<string, un
 
 const KNOWN_PAYLOAD_FIELDS = new Set([
   "agent_id",
+  "intent_id",
+  "intent_digest",
   "tenant_id",
   "user_id",
   "tool",

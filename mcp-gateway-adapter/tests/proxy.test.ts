@@ -172,7 +172,10 @@ test("forwards provider receipt for high-risk tools", async () => {
         },
       },
     },
-    {},
+    {
+      intentId: "intent-case-1042",
+      intentDigest: "digest-1042",
+    },
     async (url, init) => {
       if (String(url).includes("/authorize")) {
         return jsonResponse({ allow: true, decision: "allow", findings: [], event: { decision_id: "dec-1" } });
@@ -184,6 +187,8 @@ test("forwards provider receipt for high-risk tools", async () => {
 
   const receipt = forwardedRequest.params.arguments._agentid_receipt;
   assert.equal(receipt.decision_id, "dec-1");
+  assert.equal(receipt.intent_id, "intent-case-1042");
+  assert.equal(receipt.intent_digest, "digest-1042");
   assert.equal(receipt.tenant_id, "tenant-a");
   assert.equal(receipt.agent_id, "enterprise-support-agent");
   assert.equal(receipt.tool, "provider.crm.update_customer");

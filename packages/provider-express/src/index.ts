@@ -2,6 +2,8 @@ import { createHmac, createPrivateKey, createPublicKey, createSign, createVerify
 
 export type ProviderAuthorizationReceipt = {
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tenant_id?: string;
   agent_id: string;
   user_id?: string;

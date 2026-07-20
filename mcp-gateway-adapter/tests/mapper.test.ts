@@ -76,6 +76,25 @@ test("maps enterprise auth context to AgentPass authorize payload", () => {
   });
 });
 
+test("maps intent binding from gateway context to authorize payload", () => {
+  const payload = mapToolCallToAuthorize(
+    config,
+    "provider.crm.update_customer",
+    {
+      customer_id: "cus_123",
+      job_id: "support_case_resolution",
+      case_id: "case-1042",
+    },
+    {
+      intentId: "intent-case-1042",
+      intentDigest: "digest-1042",
+    },
+  );
+
+  assert.equal(payload.intent_id, "intent-case-1042");
+  assert.equal(payload.intent_digest, "digest-1042");
+});
+
 test("maps configured domain context arguments to authorize payload", () => {
   const payload = mapToolCallToAuthorize(devopsConfig, "devops.deploy.production", {
     service_id: "checkout-api",

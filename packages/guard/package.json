@@ -55,6 +55,7 @@
     "demo": "node --import tsx examples/support-refund-demo.ts",
     "demo:gate": "node --import tsx examples/tool-gate-demo.ts",
     "demo:pii": "node --import tsx examples/pii-exfiltration-demo.ts",
+    "demo:intent": "node --import tsx examples/intent-evaluation-demo.ts",
     "test": "node --test --import tsx tests/*.test.ts"
   },
   "devDependencies": {
