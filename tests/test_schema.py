@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -52,3 +53,15 @@ def test_schema_cli_payload_is_json():
     payload = json.loads(schema_json())
 
     assert payload["title"] == "AgentPass Manifest"
+
+
+def test_intent_schemas_and_refund_examples_are_valid():
+    contract_schema = json.loads(Path("schema/intent-contract.schema.json").read_text())
+    evaluation_schema = json.loads(Path("schema/intent-evaluation.schema.json").read_text())
+    contract = json.loads(Path("packages/guard/examples/support-refund-intent.json").read_text())
+    evaluation = json.loads(Path("packages/guard/examples/support-refund-evaluation.json").read_text())
+
+    Draft202012Validator.check_schema(contract_schema)
+    Draft202012Validator.check_schema(evaluation_schema)
+    Draft202012Validator(contract_schema).validate(contract)
+    Draft202012Validator(evaluation_schema).validate(evaluation)

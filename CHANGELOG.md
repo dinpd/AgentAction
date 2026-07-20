@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Intent assurance
+
+- Added versioned schemas for immutable per-job intent contracts and
+  post-execution intent evaluation receipts.
+- Added canonical intent hashing, typed deterministic predicates, evidence
+  binding, outcome and constraint evaluation, execution-discipline metrics,
+  and explicit indeterminate results for missing evidence.
+- Bound optional intent identifiers and digests through guard decisions,
+  approval evidence, local and hosted execution receipts, the TypeScript
+  client, and MCP gateway authorization receipts.
+- Added a runnable `support_refund.v1` intent demo and tests for completed,
+  partial, noncompliant, indeterminate, and tampered-contract cases.
+
 ### Provider trust gate
 
 - Added hosted provider authorization receipts signed as RS256 JWS tokens on

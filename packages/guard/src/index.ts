@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+export * from "./intent.js";
+
 export type AgentAction =
   | "read"
   | "write"
@@ -86,6 +88,8 @@ export type GuardPolicy = {
 export type GuardCheck = {
   agentId: string;
   tenantId?: string;
+  intentId?: string;
+  intentDigest?: string;
   tool: string;
   action: AgentAction;
   jobId?: string;
@@ -144,6 +148,8 @@ export type GuardChallenge = {
 export type ApprovalEvidence = {
   schema_version: "agentpass.approval-evidence.v1";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   user_id?: string;
   tenant_id?: string;
   job_id?: string;
@@ -178,6 +184,8 @@ export type GuardDecisionEvent = {
   allowed: boolean;
   reasons: string[];
   agentId: string;
+  intentId?: string;
+  intentDigest?: string;
   tool: string;
   action: AgentAction;
   jobId?: string;
@@ -196,6 +204,7 @@ export type GuardDecisionEvent = {
   recordCount?: number;
   estimatedTokens?: number;
   estimatedCostUsd?: number;
+  retryCount?: number;
   enterpriseAuth?: EnterpriseAuthContext;
   issuedAt: string;
   approvalEvidence: ApprovalEvidence;
@@ -219,6 +228,9 @@ export type GuardedToolExecutor<TResult> = (
 export type ProviderExecutionReceipt = {
   schema_version: "agentpass.provider-execution-receipt.v1";
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
+  job_id?: string;
   tool: string;
   action: AgentAction;
   resource?: string;
@@ -228,6 +240,12 @@ export type ProviderExecutionReceipt = {
   request_digest: string;
   status: "executed" | "replayed";
   executed_at: string;
+  completed_at?: string;
+  latency_ms?: number;
+  result_digest?: string;
+  outcome_code?: string;
+  provider_resource_id?: string;
+  error_code?: string;
   replayed_from_decision_id?: string;
   replay_count?: number;
 };
@@ -262,6 +280,8 @@ export type McpToolsCallRequest = {
 export type McpGuardContext = {
   agentId: string;
   tenantId?: string;
+  intentId?: string;
+  intentDigest?: string;
   jobId?: string;
   userId?: string;
   approvalId?: string;
@@ -580,6 +600,8 @@ function approvalEvidence(input: GuardCheck, reasons: string[]): ApprovalEvidenc
   return {
     schema_version: "agentpass.approval-evidence.v1",
     agent_id: input.agentId,
+    ...(input.intentId === undefined ? {} : { intent_id: input.intentId }),
+    ...(input.intentDigest === undefined ? {} : { intent_digest: input.intentDigest }),
     user_id: input.userId,
     tenant_id: input.tenantId,
     job_id: input.jobId,
@@ -639,6 +661,8 @@ function decisionEvent(
     allowed: type === "allow",
     reasons,
     agentId: input.agentId,
+    ...(input.intentId === undefined ? {} : { intentId: input.intentId }),
+    ...(input.intentDigest === undefined ? {} : { intentDigest: input.intentDigest }),
     tool: input.tool,
     action: input.action,
     jobId: input.jobId,
@@ -657,6 +681,7 @@ function decisionEvent(
     recordCount: input.recordCount,
     estimatedTokens: input.estimatedTokens,
     estimatedCostUsd: input.estimatedCostUsd,
+    ...(input.retryCount === undefined ? {} : { retryCount: input.retryCount }),
     enterpriseAuth: input.enterpriseAuth,
     issuedAt,
     approvalEvidence: approvalEvidence(input, reasons),
@@ -715,6 +740,7 @@ export class AgentPassToolGate {
           replayedFromDecisionId: replayRecord.receipt.decision_id,
           replayCount: replayRecord.replayCount,
           executedAt: this.now().toISOString(),
+          resultDigest: replayRecord.receipt.result_digest,
         }),
       };
     }
@@ -727,9 +753,13 @@ export class AgentPassToolGate {
       };
     }
 
+    const executionStartedAtMs = this.now().getTime();
     const result = await execute({ check: input, decision });
+    const completedAt = this.now();
     const receipt = providerExecutionReceipt(input, decision, requestDigest, "executed", {
-      executedAt: this.now().toISOString(),
+      executedAt: completedAt.toISOString(),
+      latencyMs: Math.max(0, completedAt.getTime() - executionStartedAtMs),
+      resultDigest: resultDigestFor(result),
     });
     if (replayKey) {
       this.idempotencyResults.set(replayKey, {
@@ -826,6 +856,8 @@ export function mcpToolCallToGuardCheck(
   return {
     agentId: context.agentId,
     tenantId: context.tenantId,
+    ...(context.intentId === undefined ? {} : { intentId: context.intentId }),
+    ...(context.intentDigest === undefined ? {} : { intentDigest: context.intentDigest }),
     jobId: context.jobId,
     userId: context.userId,
     approvalId: context.approvalId,
@@ -957,6 +989,8 @@ function requestDigestFor(input: GuardCheck): string {
     stableStringify({
       agentId: input.agentId,
       tenantId: input.tenantId,
+      intentId: input.intentId,
+      intentDigest: input.intentDigest,
       tool: input.tool,
       action: input.action,
       jobId: input.jobId,
@@ -988,11 +1022,20 @@ function providerExecutionReceipt(
   decision: GuardDecision,
   requestDigest: string,
   status: ProviderExecutionReceipt["status"],
-  options: { executedAt: string; replayedFromDecisionId?: string; replayCount?: number },
+  options: {
+    executedAt: string;
+    replayedFromDecisionId?: string;
+    replayCount?: number;
+    latencyMs?: number;
+    resultDigest?: string;
+  },
 ): ProviderExecutionReceipt {
   return {
     schema_version: "agentpass.provider-execution-receipt.v1",
     decision_id: decision.event.decisionId,
+    ...(input.intentId === undefined ? {} : { intent_id: input.intentId }),
+    ...(input.intentDigest === undefined ? {} : { intent_digest: input.intentDigest }),
+    ...(input.jobId === undefined ? {} : { job_id: input.jobId }),
     tool: input.tool,
     action: input.action,
     resource: input.resource,
@@ -1002,9 +1045,20 @@ function providerExecutionReceipt(
     request_digest: requestDigest,
     status,
     executed_at: options.executedAt,
+    completed_at: options.executedAt,
+    latency_ms: options.latencyMs,
+    result_digest: options.resultDigest,
     replayed_from_decision_id: options.replayedFromDecisionId,
     replay_count: options.replayCount,
   };
+}
+
+function resultDigestFor(result: unknown): string | undefined {
+  try {
+    return sha256(stableStringify(result));
+  } catch {
+    return undefined;
+  }
 }
 
 function sha256(value: string): string {

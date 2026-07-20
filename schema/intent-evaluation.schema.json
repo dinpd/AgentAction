@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentpass.dev/schema/intent-evaluation.schema.json",
+  "title": "AgentPass Intent Evaluation Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evaluation_id",
+    "intent_id",
+    "intent_digest",
+    "profile",
+    "job_id",
+    "evaluated_at",
+    "verdict",
+    "constraint_compliance",
+    "qualified_success",
+    "goal_attainment",
+    "evidence_confidence",
+    "outcomes",
+    "constraints",
+    "execution_discipline",
+    "evidence_findings"
+  ],
+  "properties": {
+    "schema_version": { "const": "agentpass.intent-evaluation.v1" },
+    "evaluation_id": { "type": "string", "minLength": 1 },
+    "intent_id": { "type": "string", "minLength": 1 },
+    "intent_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "profile": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluated_at": { "type": "string", "format": "date-time" },
+    "verdict": {
+      "type": "string",
+      "enum": ["completed", "partial", "failed", "indeterminate"]
+    },
+    "constraint_compliance": {
+      "type": "string",
+      "enum": ["pass", "fail", "indeterminate"]
+    },
+    "qualified_success": { "type": "boolean" },
+    "goal_attainment": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "outcomes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/predicateEvaluation" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/predicateEvaluation" }
+    },
+    "execution_discipline": { "$ref": "#/$defs/executionDiscipline" },
+    "evidence_findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+        }
+      ]
+    },
+    "predicateEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate_id", "status", "observed_count", "reason"],
+      "properties": {
+        "predicate_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["pass", "fail", "indeterminate"] },
+        "observed_count": { "type": "integer", "minimum": 0 },
+        "expected": { "$ref": "#/$defs/jsonValue" },
+        "actual": { "$ref": "#/$defs/jsonValue" },
+        "reason": { "type": "string" }
+      }
+    },
+    "executionDiscipline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "execution_receipts",
+        "executions",
+        "replays",
+        "retries",
+        "denied_decisions",
+        "challenge_decisions",
+        "estimated_cost_usd",
+        "preferences_met",
+        "preference_findings"
+      ],
+      "properties": {
+        "tool_calls": { "type": "integer", "minimum": 0 },
+        "execution_receipts": { "type": "integer", "minimum": 0 },
+        "executions": { "type": "integer", "minimum": 0 },
+        "replays": { "type": "integer", "minimum": 0 },
+        "retries": { "type": "integer", "minimum": 0 },
+        "denied_decisions": { "type": "integer", "minimum": 0 },
+        "challenge_decisions": { "type": "integer", "minimum": 0 },
+        "estimated_cost_usd": { "type": "number", "minimum": 0 },
+        "runtime_ms": { "type": "number", "minimum": 0 },
+        "preferences_met": { "type": ["boolean", "null"] },
+        "preference_findings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

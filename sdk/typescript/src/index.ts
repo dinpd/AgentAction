@@ -8,6 +8,8 @@ export type AgentIdClientOptions = AgentPassClientOptions;
 
 export type ToolCallRequest = {
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   data_from?: string;
@@ -50,6 +52,8 @@ export type ToolCallRequest = {
 export type ApprovalEvidence = {
   schema_version: "agentpass.approval-evidence.v1";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   user_id?: string;
   tenant_id?: string;
   job_id?: string;
@@ -92,6 +96,8 @@ export type ApprovalRequest = {
   approval_id: string;
   status: "pending" | "approved" | "denied" | "expired";
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   resource: string;
@@ -144,6 +150,9 @@ export type AuditListResponse = {
 export type ProviderExecutionReceipt = {
   schema_version: "agentpass.provider-execution-receipt.v1";
   decision_id: string;
+  intent_id?: string;
+  intent_digest?: string;
+  job_id?: string;
   tool: string;
   action: string;
   resource?: string;
@@ -153,6 +162,12 @@ export type ProviderExecutionReceipt = {
   request_digest: string;
   status: "executed" | "replayed";
   executed_at: string;
+  completed_at?: string;
+  latency_ms?: number;
+  result_digest?: string;
+  outcome_code?: string;
+  provider_resource_id?: string;
+  error_code?: string;
   replayed_from_decision_id?: string;
   replay_count?: number;
 };
@@ -199,6 +214,8 @@ export type AuthorizeResponse = {
 export type JitGrantRequest = {
   tool: string;
   action: string;
+  intent_id?: string;
+  intent_digest?: string;
   resource?: string;
   approval_id?: string;
   user_id?: string;
@@ -212,6 +229,8 @@ export type JitGrantRequest = {
 export type JitGrantResponse = {
   jit_grant_id: string;
   agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
   tool: string;
   action: string;
   resource: string;

@@ -41,6 +41,8 @@ export function mapToolCallToGuardCheck(
   return compactCheck({
     agentId: payload.agent_id,
     tenantId: payload.tenant_id,
+    intentId: payload.intent_id,
+    intentDigest: payload.intent_digest,
     userId: payload.user_id,
     tool: payload.tool,
     action: payload.action,

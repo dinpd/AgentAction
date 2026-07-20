@@ -211,6 +211,30 @@ gate.
 - Optional `callFingerprint` values for detecting repeated tool calls without
   storing full tool parameters
 
+## Intent Assurance
+
+Intent assurance evaluates a completed, bounded job against a structured intent
+contract. It keeps outcome completion, hard-constraint compliance, execution
+discipline, and evidence confidence separate.
+
+```ts
+import { bindIntentContract, evaluateIntent } from "@dinpd/ai-agent-guard";
+
+const contract = bindIntentContract(rawContract);
+const evaluation = evaluateIntent(contract, {
+  decision_events: decisions,
+  execution_receipts: receipts,
+  observations,
+  job
+});
+```
+
+Every evidence record must carry the contract's `intent_id` and canonical
+`intent_digest`. Missing evidence produces an `indeterminate` result rather
+than being treated as proof of failure. See the repository's
+[`Intent Assurance`](../../docs/intent-assurance.md) guide and the
+[`support_refund.v1`](examples/support-refund-intent.json) example contract.
+
 ## Stateful Runtime Memory
 
 The guard tracks per-job state for repeated calls, idempotency keys, cached
@@ -242,6 +266,7 @@ npm run demo
 npm run demo:circuit
 npm run demo:gate
 npm run demo:pii
+npm run demo:intent
 ```
 
 The refund demo shows the runtime-guard and replay story:
@@ -267,3 +292,10 @@ The PII demo shows destination-specific data movement rules:
 4. Raw PII prompts to model providers are denied.
 5. Bulk file exports are capped by record count.
 6. High-risk fields are blocked for browser automation.
+
+The intent demo shows post-execution assurance:
+
+1. A support application issues and hashes a per-job refund intent.
+2. Guard decisions and the execution receipt preserve that intent binding.
+3. A provider observation verifies the resulting refund state.
+4. The evaluator emits a completed, compliant, evidence-backed receipt.

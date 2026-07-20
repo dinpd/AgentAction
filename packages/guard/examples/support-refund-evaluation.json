@@ -1,0 +1,72 @@
+{
+  "schema_version": "agentpass.intent-evaluation.v1",
+  "evaluation_id": "eval-refund-1042",
+  "intent_id": "refund-case-1042",
+  "intent_digest": "cca53a992d75306cf35671fcbffeeabe17fac90e0754e36109d24ac5b4d5e33e",
+  "profile": "support_refund.v1",
+  "job_id": "case-1042",
+  "evaluated_at": "2026-07-20T18:00:01.000Z",
+  "verdict": "completed",
+  "constraint_compliance": "pass",
+  "qualified_success": true,
+  "goal_attainment": 1,
+  "evidence_confidence": 1,
+  "outcomes": [
+    {
+      "predicate_id": "refund-executed-once",
+      "status": "pass",
+      "observed_count": 1,
+      "expected": 1,
+      "actual": 1,
+      "reason": "execution_receipts count satisfied count_equals"
+    },
+    {
+      "predicate_id": "refund-provider-succeeded",
+      "status": "pass",
+      "observed_count": 1,
+      "expected": "succeeded",
+      "actual": "succeeded",
+      "reason": "any selected evidence satisfied equals"
+    },
+    {
+      "predicate_id": "refund-amount-correct",
+      "status": "pass",
+      "observed_count": 1,
+      "expected": 49,
+      "actual": 49,
+      "reason": "all selected evidence satisfied equals"
+    }
+  ],
+  "constraints": [
+    {
+      "predicate_id": "no-denied-actions",
+      "status": "pass",
+      "observed_count": 0,
+      "expected": 0,
+      "actual": 0,
+      "reason": "decision_events count satisfied count_equals"
+    },
+    {
+      "predicate_id": "no-external-email",
+      "status": "pass",
+      "observed_count": 0,
+      "expected": 0,
+      "actual": 0,
+      "reason": "decision_events count satisfied count_equals"
+    }
+  ],
+  "execution_discipline": {
+    "tool_calls": 1,
+    "execution_receipts": 1,
+    "executions": 1,
+    "replays": 0,
+    "retries": 0,
+    "denied_decisions": 0,
+    "challenge_decisions": 0,
+    "estimated_cost_usd": 0.01,
+    "runtime_ms": 1000,
+    "preferences_met": true,
+    "preference_findings": []
+  },
+  "evidence_findings": []
+}

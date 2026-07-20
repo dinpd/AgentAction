@@ -272,6 +272,8 @@ test("hosted idempotency replays completed refund result and denies changed retr
   const ctx = new TestContext();
   const approval = {
     approval_id: "approval-refund-replay",
+    intent_id: "intent-refund-replay",
+    intent_digest: "cca53a992d75306cf35671fcbffeeabe17fac90e0754e36109d24ac5b4d5e33e",
     tool: "stripe.create_refund",
     action: "write",
     resource: "refund/re_replay/customer/cus_1",
@@ -285,6 +287,8 @@ test("hosted idempotency replays completed refund result and denies changed retr
   };
 
   const created = await call(env, ctx, "POST", "/approval-requests", approval);
+  assert.equal(created.body.evidence.intent_id, approval.intent_id);
+  assert.equal(created.body.evidence.intent_digest, approval.intent_digest);
   await call(env, ctx, "POST", "/approval-requests/approval-refund-replay/approve", {
     decided_by: "manager-1",
     decision_reason: "refund evidence verified",
@@ -292,6 +296,8 @@ test("hosted idempotency replays completed refund result and denies changed retr
   const grantRequest = {
     tool: approval.tool,
     action: approval.action,
+    intent_id: approval.intent_id,
+    intent_digest: approval.intent_digest,
     resource: approval.resource,
     approval_id: approval.approval_id,
     user_id: approval.user_id,
@@ -301,6 +307,8 @@ test("hosted idempotency replays completed refund result and denies changed retr
     idempotency_key: approval.idempotency_key,
   };
   const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+  assert.equal(grant.body.intent_id, approval.intent_id);
+  assert.equal(grant.body.intent_digest, approval.intent_digest);
   const action = {
     agent_id: "customer-support-refund-agent",
     ...grantRequest,
@@ -331,6 +339,10 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.equal(recorded.status, 201);
   assert.equal(recorded.body.request_digest, created.body.evidence.request_digest);
   assert.equal(recorded.body.receipt.status, "executed");
+  assert.equal(recorded.body.receipt.intent_id, approval.intent_id);
+  assert.equal(recorded.body.receipt.intent_digest, approval.intent_digest);
+  assert.equal(recorded.body.receipt.job_id, approval.job_id);
+  assert.match(String(recorded.body.receipt.result_digest), /^[a-f0-9]{64}$/);
   await ctx.flush();
 
   const retry = await call(env, ctx, "POST", "/authorize", action);
@@ -339,6 +351,7 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.equal(retry.body.replayed, true);
   assert.deepEqual(retry.body.result, providerResult);
   assert.equal(retry.body.receipt.status, "replayed");
+  assert.equal(retry.body.receipt.intent_id, approval.intent_id);
   assert.equal(retry.body.receipt.replayed_from_decision_id, recorded.body.receipt.decision_id);
   await ctx.flush();
 
