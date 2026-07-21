@@ -168,6 +168,7 @@
             "policy_read": { "type": "string" },
             "policy_write": { "type": "string" },
             "intent_contract": { "type": "string" },
+            "intent_profile": { "type": "string" },
             "jit_grant": { "type": "string" }
           }
         }
@@ -192,6 +193,16 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "contract_issuance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["raw_compatible", "registered_profile_required"]
+            }
+          }
+        },
         "observations": {
           "type": "object",
           "additionalProperties": false,

@@ -4,6 +4,14 @@
 
 ### Intent assurance
 
+- Added frozen, tenant-scoped `agentpass.intent-profile.v1` definitions with
+  canonical profile digests, typed variables, deterministic contract issuance,
+  trusted-observation requirements, version lifecycle reads, and a reference
+  `support_refund.v1` profile.
+- Added `registered_profile_required` and `raw_compatible` tenant issuance
+  modes, profile version/digest propagation on contracts and evaluation
+  receipts, TypeScript client methods, and audit events for profile
+  registration and issuance replay.
 - Added versioned schemas for immutable per-job intent contracts and
   post-execution intent evaluation receipts.
 - Added canonical intent hashing, typed deterministic predicates, evidence

@@ -218,9 +218,19 @@ contract. It keeps outcome completion, hard-constraint compliance, execution
 discipline, and evidence confidence separate.
 
 ```ts
-import { bindIntentContract, evaluateIntent } from "@dinpd/ai-agent-guard";
+import {
+  bindIntentProfile,
+  evaluateIntent,
+  issueIntentContract
+} from "@dinpd/ai-agent-guard";
 
-const contract = bindIntentContract(rawContract);
+const profile = bindIntentProfile(rawProfile);
+const contract = issueIntentContract(profile, {
+  intent_id: "refund-case-1042",
+  job_id: "case-1042",
+  variables: { payment_id: "pi_123", refund_amount: 49 },
+  issued_at: "2026-07-20T17:59:00Z"
+});
 const evaluation = evaluateIntent(contract, {
   decision_events: decisions,
   execution_receipts: receipts,
@@ -233,7 +243,7 @@ Every evidence record must carry the contract's `intent_id` and canonical
 `intent_digest`. Missing evidence produces an `indeterminate` result rather
 than being treated as proof of failure. See the repository's
 [`Intent Assurance`](../../docs/intent-assurance.md) guide and the
-[`support_refund.v1`](examples/support-refund-intent.json) example contract.
+[`support_refund.v1`](examples/support-refund-profile.json) example profile.
 
 ## Stateful Runtime Memory
 

@@ -56,21 +56,35 @@ def test_schema_cli_payload_is_json():
 
 
 def test_intent_schemas_and_refund_examples_are_valid():
+    profile_schema = json.loads(Path("schema/intent-profile.schema.json").read_text())
     contract_schema = json.loads(Path("schema/intent-contract.schema.json").read_text())
     evaluation_schema = json.loads(Path("schema/intent-evaluation.schema.json").read_text())
     observation_schema = json.loads(Path("schema/intent-observation.schema.json").read_text())
     snapshot_schema = json.loads(Path("schema/intent-evidence-snapshot.schema.json").read_text())
+    profile = json.loads(Path("packages/guard/examples/support-refund-profile.json").read_text())
     contract = json.loads(Path("packages/guard/examples/support-refund-intent.json").read_text())
     evaluation = json.loads(Path("packages/guard/examples/support-refund-evaluation.json").read_text())
 
+    Draft202012Validator.check_schema(profile_schema)
     Draft202012Validator.check_schema(contract_schema)
     Draft202012Validator.check_schema(evaluation_schema)
     Draft202012Validator.check_schema(observation_schema)
     Draft202012Validator.check_schema(snapshot_schema)
+    Draft202012Validator(profile_schema).validate(profile)
     Draft202012Validator(contract_schema).validate(contract)
+    profile_contract = {
+        **contract,
+        "profile_version": "v1",
+        "profile_digest": "d" * 64,
+        "profile_variables": {"payment_id": "pi_123", "refund_amount": 49, "currency": "USD"},
+        "trusted_observation_requirements": profile["trusted_observation_requirements"],
+    }
+    Draft202012Validator(contract_schema).validate(profile_contract)
     Draft202012Validator(evaluation_schema).validate(evaluation)
     Draft202012Validator(evaluation_schema).validate({
         **evaluation,
+        "profile_version": "v1",
+        "profile_digest": "d" * 64,
         "evaluation_mode": "final",
         "snapshot_id": f"snapshot_{'b' * 24}",
         "evidence_digest": "c" * 64,
@@ -128,6 +142,9 @@ def test_intent_observation_trust_policy_matches_manifest_schema():
             "purpose": "test",
         },
         "intent_assurance": {
+            "contract_issuance": {
+                "mode": "registered_profile_required",
+            },
             "observations": {
                 "max_age_seconds": 300,
                 "max_future_skew_seconds": 30,

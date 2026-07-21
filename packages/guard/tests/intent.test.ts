@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   bindIntentContract,
+  bindIntentProfile,
   createToolGate,
   digestIntentContract,
   digestIntentObservation,
+  digestIntentProfile,
   evaluateIntent,
+  issueIntentContract,
   type IntentContract,
   type IntentEvidence,
+  type IntentProfile,
 } from "../src/index.ts";
 
 const EVALUATED_AT = new Date("2026-07-20T18:00:00.000Z");
@@ -22,6 +27,88 @@ test("intent contracts are canonically hashed and reject post-issue mutation", (
     () => evaluateIntent({ ...contract, objective: "Refund a different payment" }, {}, evaluatorOptions()),
     /digest does not match/,
   );
+});
+
+test("versioned profiles issue deterministic typed contracts without weakening controls", () => {
+  const profile = bindIntentProfile(refundProfile());
+  const input = {
+    intent_id: "refund-case-1042",
+    job_id: "case-1042",
+    variables: { refund_amount: 49, payment_id: "pi_123" },
+    issued_at: "2026-07-20T17:59:00Z",
+    expires_at: "2026-07-20T18:30:00Z",
+  };
+  const first = issueIntentContract(profile, input);
+  const reordered = issueIntentContract(profile, {
+    ...input,
+    variables: { payment_id: "pi_123", refund_amount: 49 },
+    issued_at: "2026-07-20T17:59:00.000+00:00",
+  });
+
+  assert.equal(profile.profile_digest, digestIntentProfile(profile));
+  assert.equal(first.profile, "support_refund.v1");
+  assert.equal(first.profile_version, "v1");
+  assert.equal(first.profile_digest, profile.profile_digest);
+  assert.equal(first.objective, "Refund the duplicate charge for payment pi_123");
+  assert.equal(first.required_outcomes[2]?.assertion.value, 49);
+  assert.deepEqual(first.hard_constraints, profile.hard_constraints);
+  assert.deepEqual(first.evidence_requirements, profile.evidence_requirements);
+  assert.deepEqual(first.trusted_observation_requirements, profile.trusted_observation_requirements);
+  assert.equal(first.issued_at, "2026-07-20T17:59:00.000Z");
+  assert.equal(first.intent_digest, reordered.intent_digest);
+  assert.deepEqual(first, reordered);
+});
+
+test("profile issuance rejects invalid variables and a mutated frozen profile", () => {
+  const profile = bindIntentProfile(refundProfile());
+  const base = {
+    intent_id: "refund-case-1042",
+    job_id: "case-1042",
+    variables: { payment_id: "pi_123", refund_amount: 49 },
+    issued_at: "2026-07-20T17:59:00.000Z",
+  };
+
+  assert.throws(
+    () => issueIntentContract(profile, { ...base, variables: { payment_id: "pi_123" } }),
+    /variable is required: refund_amount/,
+  );
+  assert.throws(
+    () => issueIntentContract(profile, { ...base, variables: { ...base.variables, refund_amount: 101 } }),
+    /exceeds maximum 100/,
+  );
+  assert.throws(
+    () => issueIntentContract(profile, { ...base, variables: { ...base.variables, hard_constraints: [] } }),
+    /unknown intent profile issuance variable/,
+  );
+  assert.throws(
+    () => issueIntentContract({ ...profile, hard_constraints: [] }, base),
+    /profile digest does not match/,
+  );
+});
+
+test("profile-required trusted observations affect confidence and qualified success", () => {
+  const contract = issueIntentContract(bindIntentProfile(refundProfile()), {
+    intent_id: "refund-case-1042",
+    job_id: "case-1042",
+    variables: { payment_id: "pi_123", refund_amount: 49 },
+    issued_at: "2026-07-20T17:59:00.000Z",
+  });
+  const evidence = completedEvidence(contract);
+  const observation = { ...evidence.observations?.[0] as Record<string, unknown>, issuer: "unapproved-adapter" };
+  const provenance = { ...observation.provenance as Record<string, unknown>, verified_issuer: "unapproved-adapter" };
+  observation.provenance = provenance;
+  observation.payload_digest = digestIntentObservation(observation);
+  evidence.observations = [observation];
+
+  const receipt = evaluateIntent(contract, evidence, evaluatorOptions());
+
+  assert.equal(receipt.profile_version, "v1");
+  assert.equal(receipt.profile_digest, contract.profile_digest);
+  assert.equal(receipt.verdict, "partial");
+  assert.equal(receipt.qualified_success, false);
+  assert.ok(receipt.evidence_confidence < 1);
+  assert.ok(receipt.evidence_findings.includes("ignored observations[0] outside profile trusted observation requirements"));
+  assert.ok(receipt.evidence_findings.includes("required trusted observation is missing: refund.status"));
 });
 
 test("completed refund evidence produces a qualified success receipt", () => {
@@ -311,4 +398,10 @@ function evaluatorOptions() {
     now: () => EVALUATED_AT,
     idGenerator: () => "eval-refund-1042",
   };
+}
+
+function refundProfile(): IntentProfile {
+  return JSON.parse(
+    readFileSync(new URL("../examples/support-refund-profile.json", import.meta.url), "utf8"),
+  ) as IntentProfile;
 }

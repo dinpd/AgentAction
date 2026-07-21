@@ -12,6 +12,10 @@ allow/deny/JIT decisions before tool execution:
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
 | `POST /execution-results` | Record a completed provider result for idempotent replay |
+| `POST /intent-profiles` | Register and freeze a versioned intent profile with its canonical digest |
+| `GET /intent-profiles` | List registered profile versions for the tenant |
+| `GET /intent-profiles/<profile>.<version>` | Read one frozen profile definition and lifecycle status |
+| `POST /intent-profiles/<profile>.<version>/issue` | Deterministically issue and register a per-job contract from typed variables |
 | `POST /intent-contracts` | Register and freeze an intent contract with its canonical digest |
 | `GET /intent-contracts` | List registered intent contracts |
 | `GET /intent-contracts/<intent-id>` | Read a registered contract and lifecycle status |
@@ -39,9 +43,59 @@ allow/deny/JIT decisions before tool execution:
 Approval requests, JIT grants, and idempotent execution results are stored in a
 SQLite-backed Durable Object namespace. This keeps approval state, single-use
 grant enforcement, and retry-safe result replay durable across Worker isolates.
-Intent contracts, bound decision events, execution receipts, observations, job
-evidence, and evaluation receipts use the same tenant-scoped durable store. All
-API routes in the table can be prefixed with `/tenants/<tenant-id>`.
+Intent profiles, issued contracts, bound decision events, execution receipts,
+observations, job evidence, and evaluation receipts use the same tenant-scoped
+durable store. All API routes in the table can be prefixed with
+`/tenants/<tenant-id>`.
+
+## Versioned intent profiles
+
+Register the frozen profile definition before issuing job contracts:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-profiles \
+  -H 'content-type: application/json' \
+  -d @../packages/guard/examples/support-refund-profile.json
+```
+
+The gateway computes `profile_digest` over the canonical
+`agentpass.intent-profile.v1` definition and freezes the composite key, such as
+`support_refund.v1`. Re-registering the same definition is idempotent. Changed
+contents under the same profile name/version return `intent_profile_frozen`;
+a changed definition must use a new version.
+
+Issue a contract with only the profile's declared, typed variables and explicit
+timestamps:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-profiles/support_refund.v1/issue \
+  -H 'content-type: application/json' \
+  -d '{"intent_id":"refund-case-1042","job_id":"case-1042","variables":{"payment_id":"pi_123","refund_amount":49},"issued_at":"2026-07-20T17:59:00Z","expires_at":"2026-07-20T18:30:00Z"}'
+```
+
+Issuance resolves explicit `{ "$variable": "name" }` values in profile
+predicates, applies typed defaults, copies profile outcomes, hard constraints,
+evidence requirements, trusted-observation requirements, and preferences, then
+binds the resulting contract to `profile_version`, `profile_digest`, and the
+normalized `profile_variables`.
+Unknown variables or top-level contract overrides are rejected, so job input
+cannot weaken the profile. Equivalent timestamps and reordered variable objects
+produce the same contract and `intent_digest`.
+
+Tenant manifests select the raw-contract compatibility boundary:
+
+```yaml
+intent_assurance:
+  contract_issuance:
+    mode: registered_profile_required # or raw_compatible
+```
+
+`registered_profile_required` rejects direct `POST /intent-contracts` calls.
+`raw_compatible` preserves the original raw-contract registration route, while
+profile-bound contracts must still use the profile issuance endpoint. A profile
+with trusted-observation requirements can be registered or issued only when the
+tenant observation policy permits a matching issuer, predicate, profile key,
+and verification method.
 
 ## Hosted intent trust gate
 

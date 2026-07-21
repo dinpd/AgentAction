@@ -46,10 +46,58 @@ export type IntentPreferences = {
   max_estimated_cost_usd?: number;
 };
 
+export type IntentTrustedObservationRequirement = {
+  predicate: string;
+  issuers: string[];
+  verification_methods?: Array<"oidc" | "jws" | "unsigned_dev">;
+};
+
+export type IntentProfileVariableDefinition = {
+  type: "string" | "number" | "integer" | "boolean";
+  description?: string;
+  required?: boolean;
+  default?: string | number | boolean;
+  enum?: Array<string | number | boolean>;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
+};
+
+export type IntentProfileVariableReference = {
+  $variable: string;
+};
+
+export type IntentProfile = {
+  schema_version: "agentpass.intent-profile.v1";
+  profile: string;
+  version: string;
+  issuer: string;
+  issued_at: string;
+  objective_template?: string;
+  variables: Record<string, IntentProfileVariableDefinition>;
+  required_outcomes: IntentPredicate[];
+  hard_constraints: IntentPredicate[];
+  preferences?: IntentPreferences;
+  evidence_requirements?: IntentEvidenceSource[];
+  trusted_observation_requirements?: IntentTrustedObservationRequirement[];
+  profile_digest?: string;
+};
+
+export type IntentProfileIssuanceInput = {
+  intent_id: string;
+  job_id: string;
+  variables: Record<string, unknown>;
+  issued_at: string;
+  expires_at?: string;
+};
+
 export type IntentContract = {
   schema_version: "agentpass.intent-contract.v1";
   intent_id: string;
   profile: string;
+  profile_version?: string;
+  profile_digest?: string;
+  profile_variables?: Record<string, string | number | boolean>;
   issuer: string;
   job_id: string;
   objective?: string;
@@ -57,6 +105,7 @@ export type IntentContract = {
   hard_constraints: IntentPredicate[];
   preferences?: IntentPreferences;
   evidence_requirements?: IntentEvidenceSource[];
+  trusted_observation_requirements?: IntentTrustedObservationRequirement[];
   issued_at: string;
   expires_at?: string;
   intent_digest?: string;
@@ -121,6 +170,8 @@ export type IntentEvaluationReceipt = {
   intent_id: string;
   intent_digest: string;
   profile: string;
+  profile_version?: string;
+  profile_digest?: string;
   job_id: string;
   evaluated_at: string;
   verdict: "completed" | "partial" | "failed" | "indeterminate";
@@ -161,6 +212,72 @@ export function digestIntentContract(contract: IntentContract): string {
   const unsigned = { ...contract };
   delete unsigned.intent_digest;
   return sha256(stableStringify(unsigned));
+}
+
+export function intentProfileKey(profile: Pick<IntentProfile, "profile" | "version">): string {
+  return `${profile.profile}.${profile.version}`;
+}
+
+export function digestIntentProfile(profile: IntentProfile): string {
+  const unsigned = { ...profile };
+  delete unsigned.profile_digest;
+  return sha256(stableStringify(unsigned));
+}
+
+export function bindIntentProfile(profile: IntentProfile): IntentProfile {
+  validateIntentProfile(profile);
+  return {
+    ...profile,
+    profile_digest: digestIntentProfile(profile),
+  };
+}
+
+export function issueIntentContract(profileInput: IntentProfile, input: IntentProfileIssuanceInput): IntentContract {
+  const profile = bindIntentProfile(profileInput);
+  if (profileInput.profile_digest && profileInput.profile_digest !== profile.profile_digest) {
+    throw new Error("intent profile digest does not match profile contents");
+  }
+  for (const field of Object.keys(input)) {
+    if (!["intent_id", "job_id", "variables", "issued_at", "expires_at"].includes(field)) {
+      throw new Error(`unsupported intent profile issuance field: ${field}`);
+    }
+  }
+  for (const [field, value] of [["intent_id", input.intent_id], ["job_id", input.job_id], ["issued_at", input.issued_at]]) {
+    if (typeof value !== "string" || value.length === 0) throw new Error(`intent profile issuance ${field} is required`);
+  }
+  const issuedAt = normalizeDateTime(input.issued_at, "intent profile issuance issued_at");
+  const expiresAt = input.expires_at
+    ? normalizeDateTime(input.expires_at, "intent profile issuance expires_at")
+    : undefined;
+  if (expiresAt && Date.parse(expiresAt) <= Date.parse(issuedAt)) {
+    throw new Error("intent profile issuance expires_at must be after issued_at");
+  }
+  const variables = normalizeProfileVariables(profile, input.variables);
+  const requiredOutcomes = resolveProfileTemplate(profile.required_outcomes, variables) as IntentPredicate[];
+  const hardConstraints = resolveProfileTemplate(profile.hard_constraints, variables) as IntentPredicate[];
+  const objective = profile.objective_template
+    ? interpolateProfileObjective(profile.objective_template, variables)
+    : undefined;
+  return bindIntentContract({
+    schema_version: "agentpass.intent-contract.v1",
+    intent_id: input.intent_id,
+    profile: intentProfileKey(profile),
+    profile_version: profile.version,
+    profile_digest: profile.profile_digest,
+    profile_variables: variables,
+    issuer: profile.issuer,
+    job_id: input.job_id,
+    ...(objective ? { objective } : {}),
+    required_outcomes: requiredOutcomes,
+    hard_constraints: hardConstraints,
+    ...(profile.preferences ? { preferences: resolveProfileTemplate(profile.preferences, variables) as IntentPreferences } : {}),
+    ...(profile.evidence_requirements ? { evidence_requirements: [...profile.evidence_requirements] } : {}),
+    ...(profile.trusted_observation_requirements
+      ? { trusted_observation_requirements: resolveProfileTemplate(profile.trusted_observation_requirements, variables) as IntentTrustedObservationRequirement[] }
+      : {}),
+    issued_at: issuedAt,
+    ...(expiresAt ? { expires_at: expiresAt } : {}),
+  });
 }
 
 export function digestIntentObservation(observation: IntentObservation | Record<string, unknown>): string {
@@ -211,6 +328,15 @@ export function evaluateIntent(
       evidenceFindings.push(`required evidence source is missing: ${source}`);
     }
   }
+  const trustedObservationRequirements = contract.trusted_observation_requirements || [];
+  let availableTrustedObservations = 0;
+  for (const requirement of trustedObservationRequirements) {
+    if (hasTrustedObservation(bound.observations, requirement)) {
+      availableTrustedObservations += 1;
+    } else {
+      evidenceFindings.push(`required trusted observation is missing: ${requirement.predicate}`);
+    }
+  }
 
   const outcomes = contract.required_outcomes.map((predicate) => evaluatePredicate(predicate, bound));
   const constraints = contract.hard_constraints.map((predicate) => evaluatePredicate(predicate, bound));
@@ -222,12 +348,16 @@ export function evaluateIntent(
     [...contract.required_outcomes, ...contract.hard_constraints],
     [...outcomes, ...constraints],
   );
-  const confidenceDenominator = predicateWeight + requirements.length;
+  const confidenceDenominator = predicateWeight + requirements.length + trustedObservationRequirements.length;
   const evidenceConfidence =
     confidenceDenominator === 0
       ? 1
-      : roundMetric((determinedWeight + availableRequirements) / confidenceDenominator);
-  const requiredEvidenceComplete = availableRequirements === requirements.length;
+      : roundMetric(
+        (determinedWeight + availableRequirements + availableTrustedObservations) / confidenceDenominator,
+      );
+  const requiredEvidenceComplete =
+    availableRequirements === requirements.length &&
+    availableTrustedObservations === trustedObservationRequirements.length;
 
   return {
     schema_version: "agentpass.intent-evaluation.v1",
@@ -235,6 +365,8 @@ export function evaluateIntent(
     intent_id: contract.intent_id,
     intent_digest: intentDigest,
     profile: contract.profile,
+    ...(contract.profile_version ? { profile_version: contract.profile_version } : {}),
+    ...(contract.profile_digest ? { profile_digest: contract.profile_digest } : {}),
     job_id: contract.job_id,
     evaluated_at: (options.now?.() || new Date()).toISOString(),
     verdict,
@@ -266,6 +398,25 @@ function validateIntentContract(contract: IntentContract): void {
     throw new Error("intent contract requires at least one required outcome");
   }
   if (!Array.isArray(contract.hard_constraints)) throw new Error("intent contract hard_constraints must be an array");
+  const profileBindingCount = [
+    contract.profile_version !== undefined,
+    contract.profile_digest !== undefined,
+    contract.profile_variables !== undefined,
+  ].filter(Boolean).length;
+  if (profileBindingCount !== 0 && profileBindingCount !== 3) {
+    throw new Error("intent contract profile_version, profile_digest, and profile_variables are required together");
+  }
+  if (contract.profile_version && !contract.profile.endsWith(`.${contract.profile_version}`)) {
+    throw new Error("intent contract profile must include profile_version");
+  }
+  if (contract.profile_digest && !/^[a-f0-9]{64}$/.test(contract.profile_digest)) {
+    throw new Error("intent contract profile_digest must be a SHA-256 digest");
+  }
+  for (const [name, value] of Object.entries(contract.profile_variables || {})) {
+    if (!["string", "number", "boolean"].includes(typeof value) || (typeof value === "number" && !Number.isFinite(value))) {
+      throw new Error(`intent contract profile variable is invalid: ${name}`);
+    }
+  }
 
   const predicateIds = new Set<string>();
   for (const predicate of [...contract.required_outcomes, ...contract.hard_constraints]) {
@@ -276,6 +427,300 @@ function validateIntentContract(contract: IntentContract): void {
   for (const source of contract.evidence_requirements || []) {
     if (!EVIDENCE_SOURCES.includes(source)) throw new Error(`unsupported intent evidence source: ${source}`);
   }
+  validateTrustedObservationRequirements(contract.trusted_observation_requirements || []);
+}
+
+function validateIntentProfile(profile: IntentProfile): void {
+  if (profile.schema_version !== "agentpass.intent-profile.v1") {
+    throw new Error(`unsupported intent profile schema_version: ${profile.schema_version}`);
+  }
+  for (const [field, value] of [
+    ["profile", profile.profile],
+    ["version", profile.version],
+    ["issuer", profile.issuer],
+    ["issued_at", profile.issued_at],
+  ]) {
+    if (typeof value !== "string" || value.length === 0) throw new Error(`intent profile ${field} is required`);
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(profile.profile)) {
+    throw new Error("intent profile name contains unsupported characters");
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(profile.version)) {
+    throw new Error("intent profile version contains unsupported characters");
+  }
+  normalizeDateTime(profile.issued_at, "intent profile issued_at");
+  if (!profile.variables || typeof profile.variables !== "object" || Array.isArray(profile.variables)) {
+    throw new Error("intent profile variables must be an object");
+  }
+  for (const [name, definition] of Object.entries(profile.variables)) {
+    validateProfileVariableDefinition(name, definition);
+  }
+  if (!Array.isArray(profile.required_outcomes) || profile.required_outcomes.length === 0) {
+    throw new Error("intent profile requires at least one required outcome");
+  }
+  if (!Array.isArray(profile.hard_constraints)) throw new Error("intent profile hard_constraints must be an array");
+  const predicateIds = new Set<string>();
+  for (const predicate of [...profile.required_outcomes, ...profile.hard_constraints]) {
+    validateProfilePredicate(profile, predicate);
+    if (predicateIds.has(predicate.id)) throw new Error(`duplicate intent predicate id: ${predicate.id}`);
+    predicateIds.add(predicate.id);
+  }
+  for (const source of profile.evidence_requirements || []) {
+    if (!EVIDENCE_SOURCES.includes(source)) throw new Error(`unsupported intent evidence source: ${source}`);
+  }
+  validateTrustedObservationRequirements(profile.trusted_observation_requirements || []);
+  for (const reference of collectVariableReferences(profile)) {
+    const definition = profile.variables[reference];
+    if (!definition) throw new Error(`unknown intent profile variable reference: ${reference}`);
+    if (definition.required !== true && definition.default === undefined) {
+      throw new Error(`referenced intent profile variable must be required or have a default: ${reference}`);
+    }
+  }
+  for (const match of profile.objective_template?.matchAll(/{{\s*([A-Za-z0-9_.-]+)\s*}}/g) || []) {
+    const reference = match[1] || "";
+    const definition = profile.variables[reference];
+    if (!definition) throw new Error(`unknown intent profile objective variable: ${reference}`);
+    if (definition.required !== true && definition.default === undefined) {
+      throw new Error(`objective intent profile variable must be required or have a default: ${reference}`);
+    }
+  }
+}
+
+function validateProfileVariableDefinition(name: string, definition: IntentProfileVariableDefinition): void {
+  if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(name)) {
+    throw new Error(`intent profile variable name is invalid: ${name}`);
+  }
+  if (!definition || !["string", "number", "integer", "boolean"].includes(definition.type)) {
+    throw new Error(`intent profile variable type is invalid: ${name}`);
+  }
+  if (definition.minimum !== undefined && definition.maximum !== undefined && definition.minimum > definition.maximum) {
+    throw new Error(`intent profile variable minimum exceeds maximum: ${name}`);
+  }
+  if (definition.pattern !== undefined) {
+    if (definition.type !== "string") throw new Error(`intent profile variable pattern requires string type: ${name}`);
+    try {
+      new RegExp(definition.pattern);
+    } catch {
+      throw new Error(`intent profile variable pattern is invalid: ${name}`);
+    }
+  }
+  if ((definition.minimum !== undefined || definition.maximum !== undefined) && !["number", "integer"].includes(definition.type)) {
+    throw new Error(`intent profile variable numeric bounds require numeric type: ${name}`);
+  }
+  if (definition.default !== undefined) validateProfileVariableValue(name, definition.default, definition);
+  for (const value of definition.enum || []) validateProfileVariableValue(name, value, definition, false);
+}
+
+function validateProfileVariableValue(
+  name: string,
+  value: unknown,
+  definition: IntentProfileVariableDefinition,
+  enforceEnum = true,
+): void {
+  const validType = definition.type === "integer"
+    ? typeof value === "number" && Number.isInteger(value)
+    : typeof value === definition.type && (typeof value !== "number" || Number.isFinite(value));
+  if (!validType) throw new Error(`intent profile variable ${name} must be ${definition.type}`);
+  if (typeof value === "number") {
+    if (definition.minimum !== undefined && value < definition.minimum) {
+      throw new Error(`intent profile variable ${name} is below minimum ${definition.minimum}`);
+    }
+    if (definition.maximum !== undefined && value > definition.maximum) {
+      throw new Error(`intent profile variable ${name} exceeds maximum ${definition.maximum}`);
+    }
+  }
+  if (typeof value === "string" && definition.pattern && !new RegExp(definition.pattern).test(value)) {
+    throw new Error(`intent profile variable ${name} does not match its pattern`);
+  }
+  if (enforceEnum && definition.enum && !definition.enum.some((candidate) => deepEqual(candidate, value))) {
+    throw new Error(`intent profile variable ${name} is not an allowed value`);
+  }
+}
+
+function normalizeProfileVariables(
+  profile: IntentProfile,
+  input: Record<string, unknown>,
+): Record<string, string | number | boolean> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("intent profile issuance variables must be an object");
+  }
+  for (const name of Object.keys(input)) {
+    if (!profile.variables[name]) throw new Error(`unknown intent profile issuance variable: ${name}`);
+  }
+  const normalized: Record<string, string | number | boolean> = {};
+  for (const name of Object.keys(profile.variables).sort()) {
+    const definition = profile.variables[name] as IntentProfileVariableDefinition;
+    const supplied = Object.prototype.hasOwnProperty.call(input, name);
+    const value = supplied ? input[name] : definition.default;
+    if (value === undefined) {
+      if (definition.required === true) throw new Error(`intent profile issuance variable is required: ${name}`);
+      continue;
+    }
+    validateProfileVariableValue(name, value, definition);
+    normalized[name] = value as string | number | boolean;
+  }
+  return normalized;
+}
+
+function validateProfilePredicate(profile: IntentProfile, predicate: IntentPredicate): void {
+  if (!predicate.id) throw new Error("intent predicate id is required");
+  if (!EVIDENCE_SOURCES.includes(predicate.source)) {
+    throw new Error(`unsupported evidence source for ${predicate.id}: ${predicate.source}`);
+  }
+  if (predicate.weight !== undefined && (!Number.isFinite(predicate.weight) || predicate.weight <= 0)) {
+    throw new Error(`intent predicate weight must be positive: ${predicate.id}`);
+  }
+  for (const filter of predicate.where || []) {
+    if (!filter.path) throw new Error(`intent predicate filter path is required: ${predicate.id}`);
+    if (["in", "not_in"].includes(filter.operator) && !Array.isArray(filter.value)) {
+      throw new Error(`intent predicate filter ${filter.operator} requires an array value: ${predicate.id}`);
+    }
+    if (filter.operator !== "exists" && !("value" in filter)) {
+      throw new Error(`intent predicate filter value is required: ${predicate.id}`);
+    }
+  }
+  const assertion = predicate.assertion;
+  if (!assertion?.operator) throw new Error(`intent predicate assertion is required: ${predicate.id}`);
+  if (!COUNT_OPERATORS.has(assertion.operator) && !assertion.path) {
+    throw new Error(`intent predicate assertion path is required: ${predicate.id}`);
+  }
+  if (assertion.operator !== "exists" && !("value" in assertion)) {
+    throw new Error(`intent predicate assertion value is required: ${predicate.id}`);
+  }
+  if (["in", "not_in"].includes(assertion.operator) && !Array.isArray(assertion.value)) {
+    throw new Error(`intent predicate assertion ${assertion.operator} requires an array value: ${predicate.id}`);
+  }
+  if (COUNT_OPERATORS.has(assertion.operator)) {
+    const reference = variableReference(assertion.value);
+    if (reference) {
+      const definition = profile.variables[reference];
+      if (definition && !["number", "integer"].includes(definition.type)) {
+        throw new Error(`intent predicate count variable must be numeric: ${predicate.id}`);
+      }
+    } else if (typeof assertion.value !== "number") {
+      throw new Error(`intent predicate count assertion requires a numeric value: ${predicate.id}`);
+    }
+  }
+}
+
+function validateTrustedObservationRequirements(requirements: IntentTrustedObservationRequirement[]): void {
+  for (const requirement of requirements) {
+    if (!requirement?.predicate) throw new Error("trusted observation requirement predicate is required");
+    if (!Array.isArray(requirement.issuers) || requirement.issuers.length === 0 || requirement.issuers.some((issuer) => !issuer)) {
+      throw new Error(`trusted observation requirement issuers are required: ${requirement.predicate}`);
+    }
+    if (new Set(requirement.issuers).size !== requirement.issuers.length) {
+      throw new Error(`trusted observation requirement issuers must be unique: ${requirement.predicate}`);
+    }
+    if (requirement.verification_methods && requirement.verification_methods.length === 0) {
+      throw new Error(`trusted observation verification methods cannot be empty: ${requirement.predicate}`);
+    }
+    for (const method of requirement.verification_methods || []) {
+      if (!["oidc", "jws", "unsigned_dev"].includes(method)) {
+        throw new Error(`unsupported trusted observation verification method: ${method}`);
+      }
+    }
+    if (
+      requirement.verification_methods &&
+      new Set(requirement.verification_methods).size !== requirement.verification_methods.length
+    ) {
+      throw new Error(`trusted observation verification methods must be unique: ${requirement.predicate}`);
+    }
+  }
+}
+
+function hasTrustedObservation(
+  observations: unknown[] | undefined,
+  requirement: IntentTrustedObservationRequirement,
+): boolean {
+  return (observations || []).some((value) => matchesTrustedObservationRequirement(value, requirement));
+}
+
+function observationProfileTrustFinding(
+  value: unknown,
+  requirements: IntentTrustedObservationRequirement[],
+): string | undefined {
+  const observation = asRecord(value);
+  if (!observation) return "outside profile trusted observation requirements";
+  const applicable = requirements.filter((requirement) => requirement.predicate === observation.predicate);
+  if (applicable.length === 0) return undefined;
+  return applicable.some((requirement) => matchesTrustedObservationRequirement(value, requirement))
+    ? undefined
+    : "outside profile trusted observation requirements";
+}
+
+function matchesTrustedObservationRequirement(
+  value: unknown,
+  requirement: IntentTrustedObservationRequirement,
+): boolean {
+  const observation = asRecord(value);
+  const provenance = asRecord(observation?.provenance);
+  if (!observation || !provenance) return false;
+  if (observation.predicate !== requirement.predicate) return false;
+  if (!requirement.issuers.includes(String(observation.issuer))) return false;
+  const methods = requirement.verification_methods || [];
+  return methods.length === 0 || methods.includes(
+    provenance.verification_method as "oidc" | "jws" | "unsigned_dev",
+  );
+}
+
+function collectVariableReferences(value: unknown): string[] {
+  const references = new Set<string>();
+  const visit = (candidate: unknown): void => {
+    const reference = variableReference(candidate);
+    if (reference) {
+      references.add(reference);
+      return;
+    }
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit);
+      return;
+    }
+    const object = asRecord(candidate);
+    if (object) Object.values(object).forEach(visit);
+  };
+  visit(value);
+  return [...references];
+}
+
+function variableReference(value: unknown): string | undefined {
+  const object = asRecord(value);
+  if (!object || Object.keys(object).length !== 1 || typeof object.$variable !== "string") return undefined;
+  return object.$variable;
+}
+
+function resolveProfileTemplate(value: unknown, variables: Record<string, string | number | boolean>): unknown {
+  const reference = variableReference(value);
+  if (reference) {
+    if (!Object.prototype.hasOwnProperty.call(variables, reference)) {
+      throw new Error(`intent profile issuance variable is unavailable: ${reference}`);
+    }
+    return variables[reference];
+  }
+  if (Array.isArray(value)) return value.map((entry) => resolveProfileTemplate(entry, variables));
+  const object = asRecord(value);
+  if (!object) return value;
+  const resolved: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(object)) resolved[key] = resolveProfileTemplate(entry, variables);
+  return resolved;
+}
+
+function interpolateProfileObjective(
+  template: string,
+  variables: Record<string, string | number | boolean>,
+): string {
+  return template.replace(/{{\s*([A-Za-z0-9_.-]+)\s*}}/g, (_match, name: string) => {
+    if (!Object.prototype.hasOwnProperty.call(variables, name)) {
+      throw new Error(`intent profile objective variable is unavailable: ${name}`);
+    }
+    return String(variables[name]);
+  });
+}
+
+function normalizeDateTime(value: string, label: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new Error(`${label} must be a valid date-time`);
+  return new Date(timestamp).toISOString();
 }
 
 function validatePredicate(predicate: IntentPredicate): void {
@@ -358,6 +803,14 @@ function bindRecordArray(
       const provenanceFinding = observationProvenanceFinding(record);
       if (provenanceFinding) {
         findings.push(`ignored observations[${index}] ${provenanceFinding}`);
+        return;
+      }
+      const profileTrustFinding = observationProfileTrustFinding(
+        record,
+        contract.trusted_observation_requirements || [],
+      );
+      if (profileTrustFinding) {
+        findings.push(`ignored observations[${index}] ${profileTrustFinding}`);
         return;
       }
     }
