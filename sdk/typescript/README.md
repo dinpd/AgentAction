@@ -53,12 +53,24 @@ await agentpass.recordExecutionResult("tenant-a", {
 });
 ```
 
-For intent-bound jobs, register the contract before requesting authority, carry
-the returned digest on every request, and evaluate the durable evidence after
-execution:
+For comparable intent-bound jobs, register a frozen profile, issue the per-job
+contract from typed variables, carry the returned digest on every request, and
+evaluate the durable evidence after execution:
 
 ```ts
-const registered = await agentpass.registerIntentContract("tenant-a", contract);
+const profile = await agentpass.registerIntentProfile("tenant-a", profileDefinition);
+
+const registered = await agentpass.issueIntentContract(
+  "tenant-a",
+  profile.profile_key,
+  {
+    intent_id: "refund-case-1042",
+    job_id: "case-1042",
+    variables: { payment_id: "pi_123", refund_amount: 49 },
+    issued_at: "2026-07-20T17:59:00Z",
+    expires_at: "2026-07-20T18:30:00Z",
+  },
+);
 
 const binding = {
   intent_id: registered.intent_id,
@@ -101,9 +113,14 @@ const lifecycle = await agentpass.getIntentEvaluations(
 );
 ```
 
-`registerIntentContract` is idempotent for identical contents and fails if an
-existing `intent_id` is reused with changed contents. `listIntentContracts` and
-`getIntentContract` expose the tenant registry and lifecycle status.
+`registerIntentProfile` is idempotent for identical contents and freezes each
+profile name/version. `listIntentProfiles` and `getIntentProfile` expose the
+tenant registry. `issueIntentContract` rejects unknown or incorrectly typed
+variables and returns the same contract for the same normalized inputs.
+`registerIntentContract` remains available for tenants using the explicit
+`raw_compatible` policy mode; profile-bound contracts cannot use that route.
+`listIntentContracts` and `getIntentContract` expose issued job contracts and
+lifecycle status.
 `recordIntentObservation` accepts either direct OIDC-bound observation input or
 `{ jws: compactRs256Jws }`, and returns the verified observation plus its replay
 status. The gateway supplies route-bound tenant and intent fields and records

@@ -1,32 +1,31 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentpass.dev/schema/intent-contract.schema.json",
-  "title": "AgentPass Intent Contract",
+  "$id": "https://agentpass.dev/schema/intent-profile.schema.json",
+  "title": "AgentPass Intent Profile",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "intent_id",
     "profile",
+    "version",
     "issuer",
-    "job_id",
+    "issued_at",
+    "variables",
     "required_outcomes",
-    "hard_constraints",
-    "issued_at"
+    "hard_constraints"
   ],
   "properties": {
-    "schema_version": { "const": "agentpass.intent-contract.v1" },
-    "intent_id": { "type": "string", "minLength": 1 },
-    "profile": { "type": "string", "minLength": 1 },
-    "profile_version": { "type": "string", "minLength": 1 },
-    "profile_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "profile_variables": {
-      "type": "object",
-      "additionalProperties": { "type": ["string", "number", "boolean"] }
-    },
+    "schema_version": { "const": "agentpass.intent-profile.v1" },
+    "profile": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+    "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
     "issuer": { "type": "string", "minLength": 1 },
-    "job_id": { "type": "string", "minLength": 1 },
-    "objective": { "type": "string", "minLength": 1 },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "objective_template": { "type": "string", "minLength": 1 },
+    "variables": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$" },
+      "additionalProperties": { "$ref": "#/$defs/variableDefinition" }
+    },
     "required_outcomes": {
       "type": "array",
       "minItems": 1,
@@ -46,41 +45,58 @@
       "type": "array",
       "items": { "$ref": "#/$defs/trustedObservationRequirement" }
     },
-    "issued_at": { "type": "string", "format": "date-time" },
-    "expires_at": { "type": "string", "format": "date-time" },
-    "intent_digest": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    }
+    "profile_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   },
-  "allOf": [
-    {
-      "if": {
-        "anyOf": [
-          { "required": ["profile_version"] },
-          { "required": ["profile_digest"] },
-          { "required": ["profile_variables"] }
-        ]
-      },
-      "then": { "required": ["profile_version", "profile_digest", "profile_variables"] }
-    }
-  ],
   "$defs": {
+    "jsonPrimitive": {
+      "type": ["boolean", "number", "string"]
+    },
     "jsonValue": {
       "oneOf": [
         { "type": "null" },
         { "type": "boolean" },
         { "type": "number" },
         { "type": "string" },
-        {
-          "type": "array",
-          "items": { "$ref": "#/$defs/jsonValue" }
-        },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
         {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/jsonValue" }
         }
       ]
+    },
+    "variableReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$variable"],
+      "properties": {
+        "$variable": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$" }
+      }
+    },
+    "templateValue": {
+      "anyOf": [
+        { "$ref": "#/$defs/jsonValue" },
+        { "$ref": "#/$defs/variableReference" }
+      ]
+    },
+    "variableDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["string", "number", "integer", "boolean"] },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "default": { "$ref": "#/$defs/jsonPrimitive" },
+        "enum": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/jsonPrimitive" }
+        },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "pattern": { "type": "string" }
+      }
     },
     "evidenceSource": {
       "type": "string",
@@ -92,11 +108,8 @@
       "required": ["path", "operator"],
       "properties": {
         "path": { "type": "string", "minLength": 1 },
-        "operator": {
-          "type": "string",
-          "enum": ["equals", "not_equals", "in", "not_in", "exists"]
-        },
-        "value": { "$ref": "#/$defs/jsonValue" }
+        "operator": { "enum": ["equals", "not_equals", "in", "not_in", "exists"] },
+        "value": { "$ref": "#/$defs/templateValue" }
       }
     },
     "assertion": {
@@ -105,7 +118,6 @@
       "required": ["operator"],
       "properties": {
         "operator": {
-          "type": "string",
           "enum": [
             "count_equals",
             "count_lte",
@@ -120,12 +132,8 @@
           ]
         },
         "path": { "type": "string", "minLength": 1 },
-        "value": { "$ref": "#/$defs/jsonValue" },
-        "quantifier": {
-          "type": "string",
-          "enum": ["any", "all"],
-          "default": "any"
-        }
+        "value": { "$ref": "#/$defs/templateValue" },
+        "quantifier": { "enum": ["any", "all"] }
       }
     },
     "predicate": {
@@ -136,12 +144,9 @@
         "id": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
         "source": { "$ref": "#/$defs/evidenceSource" },
-        "where": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/filter" }
-        },
+        "where": { "type": "array", "items": { "$ref": "#/$defs/filter" } },
         "assertion": { "$ref": "#/$defs/assertion" },
-        "weight": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+        "weight": { "type": "number", "exclusiveMinimum": 0 }
       }
     },
     "trustedObservationRequirement": {

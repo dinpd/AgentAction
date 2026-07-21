@@ -1,10 +1,16 @@
 import {
   bindIntentContract,
+  bindIntentProfile,
   digestIntentContract,
+  digestIntentProfile,
   evaluateIntent,
+  intentProfileKey,
+  issueIntentContract,
   type IntentContract,
   type IntentEvidence,
   type IntentEvaluationReceipt,
+  type IntentProfile,
+  type IntentProfileIssuanceInput,
 } from "../../packages/guard/src/intent.ts";
 import {
   IntentObservationVerificationError,
@@ -210,6 +216,17 @@ type IntentContractRecord = {
   registered_by?: string;
   contract: IntentContract;
 };
+type IntentProfileRecord = {
+  schema_version: "agentpass.intent-profile-registry-record.v1";
+  profile_key: string;
+  profile: string;
+  version: string;
+  profile_digest: string;
+  tenant_id?: string;
+  registered_at: string;
+  registered_by?: string;
+  definition: IntentProfile;
+};
 type IntentEvidenceSourceName = "decision_events" | "execution_receipts" | "observations" | "job";
 type IntentEvidenceManifest = Record<IntentEvidenceSourceName, {
   count: number;
@@ -404,7 +421,128 @@ export default {
         return json(body, stored.status);
       }
 
+      if (request.method === "POST" && route.endpoint === "intent-profiles" && !route.resourceId) {
+        const submitted = await readJson(request) as IntentProfile;
+        let profile: IntentProfile;
+        try {
+          const submittedDigest = optionalString(submitted.profile_digest);
+          const computedDigest = digestIntentProfile(submitted);
+          if (submittedDigest && submittedDigest !== computedDigest) {
+            return json({ error: "intent profile digest does not match profile contents", error_code: "intent_profile_digest_mismatch" }, 400);
+          }
+          profile = bindIntentProfile(submitted);
+        } catch (error) {
+          return json({ error: (error as Error).message, error_code: "intent_profile_invalid" }, 400);
+        }
+        const trustFinding = intentProfileTrustFinding(manifest, profile);
+        if (trustFinding) {
+          return json({ error: trustFinding, error_code: "profile_trust_requirement_unsatisfied" }, 409);
+        }
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/intent-profiles", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              profile,
+              tenant_id: route.tenantId,
+              registered_by: auth.context.subject || auth.context.user_id || auth.context.agent_id || auth.context.method,
+            }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: stored.status === 201
+                ? "agentpass.intent.profile.registered"
+                : "agentpass.intent.profile.replayed",
+              tenant_id: route.tenantId,
+              profile_key: stringValue(body.profile_key),
+              profile_digest: stringValue(body.profile_digest),
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "GET" && route.endpoint === "intent-profiles" && !route.resourceId) {
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/intent-profiles"),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "GET" && route.endpoint === "intent-profiles" && route.resourceId && !route.action) {
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/intent-profiles/${encodeURIComponent(route.resourceId)}`),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
+        request.method === "POST" &&
+        route.endpoint === "intent-profiles" &&
+        route.resourceId &&
+        route.action === "issue"
+      ) {
+        const issuance = await readJson(request);
+        const store = authorizationStore(env, route.tenantId, manifest);
+        const registered = await store.fetch(
+          new Request(`https://agentid.local/intent-profiles/${encodeURIComponent(route.resourceId)}`),
+        );
+        if (!registered.ok) {
+          const body = await registered.json() as Record<string, unknown>;
+          body.auth = auth.context;
+          return json(body, registered.status);
+        }
+        const registeredBody = await registered.json() as Record<string, unknown>;
+        const trustFinding = intentProfileTrustFinding(manifest, recordValue(registeredBody.definition) as IntentProfile);
+        if (trustFinding) {
+          return json({ error: trustFinding, error_code: "profile_trust_requirement_unsatisfied", auth: auth.context }, 409);
+        }
+        const stored = await store.fetch(
+          new Request(`https://agentid.local/intent-profiles/${encodeURIComponent(route.resourceId)}/issue`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              issuance,
+              tenant_id: route.tenantId,
+              registered_by: auth.context.subject || auth.context.user_id || auth.context.agent_id || auth.context.method,
+            }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: stored.status === 201 ? "agentpass.intent.issued" : "agentpass.intent.issuance.replayed",
+              tenant_id: route.tenantId,
+              profile_key: route.resourceId,
+              profile_digest: stringValue(body.profile_digest),
+              intent_id: stringValue(body.intent_id),
+              intent_digest: stringValue(body.intent_digest),
+              job_id: stringValue(body.job_id),
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
       if (request.method === "POST" && route.endpoint === "intent-contracts" && !route.resourceId) {
+        if (intentContractIssuanceMode(manifest) === "registered_profile_required") {
+          return json({
+            error: "tenant policy requires contracts issued from a registered intent profile",
+            error_code: "registered_profile_required",
+          }, 409);
+        }
         const contract = await readJson(request);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/intent-contracts", {
@@ -1073,9 +1211,105 @@ export class AgentIdJitGrants {
       return json({ events, count: events.length });
     }
 
+    if (request.method === "POST" && url.pathname === "/intent-profiles") {
+      try {
+        const submitted = recordValue(payload.profile) as IntentProfile;
+        const submittedDigest = optionalString(submitted.profile_digest);
+        const computedDigest = digestIntentProfile(submitted);
+        if (submittedDigest && submittedDigest !== computedDigest) {
+          return json({ error: "intent profile digest does not match profile contents", error_code: "intent_profile_digest_mismatch" }, 400);
+        }
+        const profile = bindIntentProfile(submitted);
+        const profileKey = intentProfileKey(profile);
+        const existing = await this.state.storage.get<IntentProfileRecord>(`intent-profile:${profileKey}`);
+        if (existing) {
+          if (existing.profile_digest !== profile.profile_digest) {
+            return json({ error: `intent profile version is frozen: ${profileKey}`, error_code: "intent_profile_frozen" }, 409);
+          }
+          return json(intentProfileResponse(existing));
+        }
+        const record: IntentProfileRecord = {
+          schema_version: "agentpass.intent-profile-registry-record.v1",
+          profile_key: profileKey,
+          profile: profile.profile,
+          version: profile.version,
+          profile_digest: stringValue(profile.profile_digest),
+          tenant_id: optionalString(payload.tenant_id),
+          registered_at: new Date().toISOString(),
+          registered_by: optionalString(payload.registered_by),
+          definition: profile,
+        };
+        const index = await this.state.storage.get<string[]>("intent-profile:index") || [];
+        const next = [profileKey, ...index.filter((key) => key !== profileKey)].slice(0, 1_000);
+        await this.state.storage.put(`intent-profile:${profileKey}`, record);
+        await this.state.storage.put("intent-profile:index", next);
+        return json(intentProfileResponse(record), 201);
+      } catch (error) {
+        return json({ error: (error as Error).message, error_code: "intent_profile_invalid" }, 400);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/intent-profiles") {
+      const index = await this.state.storage.get<string[]>("intent-profile:index") || [];
+      const profiles: Record<string, unknown>[] = [];
+      for (const profileKey of index) {
+        const record = await this.state.storage.get<IntentProfileRecord>(`intent-profile:${profileKey}`);
+        if (record) profiles.push(intentProfileResponse(record));
+      }
+      return json({ intent_profiles: profiles, count: profiles.length });
+    }
+
+    if (url.pathname.startsWith("/intent-profiles/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const profileKey = decodeURIComponent(parts[1]);
+      const record = await this.state.storage.get<IntentProfileRecord>(`intent-profile:${profileKey}`);
+      if (!record) return json({ error: `intent profile not found: ${profileKey}`, error_code: "intent_profile_not_found" }, 404);
+      if (request.method === "GET" && parts.length === 2) return json(intentProfileResponse(record));
+      if (request.method === "POST" && parts.length === 3 && parts[2] === "issue") {
+        if (Date.parse(record.definition.issued_at) > Date.now()) {
+          return json({ error: `intent profile is not active yet: ${profileKey}`, error_code: "intent_profile_not_active" }, 409);
+        }
+        try {
+          const issuance = recordValue(payload.issuance) as IntentProfileIssuanceInput;
+          const contract = issueIntentContract(record.definition, issuance);
+          const existing = await this.state.storage.get<IntentContractRecord>(`intent:${contract.intent_id}:contract`);
+          if (existing) {
+            if (existing.intent_digest !== contract.intent_digest) {
+              return json({ error: `intent contract is frozen: ${contract.intent_id}`, error_code: "intent_contract_frozen" }, 409);
+            }
+            return json(intentContractResponse(existing));
+          }
+          const contractRecord: IntentContractRecord = {
+            schema_version: "agentpass.intent-registry-record.v1",
+            intent_id: contract.intent_id,
+            intent_digest: stringValue(contract.intent_digest),
+            job_id: contract.job_id,
+            tenant_id: optionalString(payload.tenant_id),
+            registered_at: new Date().toISOString(),
+            registered_by: optionalString(payload.registered_by),
+            contract,
+          };
+          const index = await this.state.storage.get<string[]>("intent:index") || [];
+          const next = [contractRecord.intent_id, ...index.filter((id) => id !== contractRecord.intent_id)].slice(0, 1_000);
+          await this.state.storage.put(`intent:${contractRecord.intent_id}:contract`, contractRecord);
+          await this.state.storage.put("intent:index", next);
+          return json(intentContractResponse(contractRecord), 201);
+        } catch (error) {
+          return json({ error: (error as Error).message, error_code: "intent_profile_issuance_invalid" }, 400);
+        }
+      }
+      return json({ error: "not found" }, 404);
+    }
+
     if (request.method === "POST" && url.pathname === "/intent-contracts") {
       try {
         const submitted = recordValue(payload.contract) as IntentContract;
+        if (submitted.profile_version || submitted.profile_digest || submitted.profile_variables !== undefined) {
+          return json({
+            error: "profile-bound intent contracts must use the registered profile issuance endpoint",
+            error_code: "profile_issuance_endpoint_required",
+          }, 409);
+        }
         const submittedDigest = optionalString(submitted.intent_digest);
         const computedDigest = digestIntentContract(submitted);
         if (submittedDigest && submittedDigest !== computedDigest) {
@@ -2758,7 +2992,51 @@ function intentContractResponse(record: IntentContractRecord): Record<string, un
   const issuedAt = Date.parse(record.contract.issued_at);
   const expiresAt = record.contract.expires_at ? Date.parse(record.contract.expires_at) : Number.POSITIVE_INFINITY;
   const status = issuedAt > Date.now() ? "pending" : expiresAt <= Date.now() ? "expired" : "active";
-  return { ...record, status };
+  return {
+    ...record,
+    ...(record.contract.profile_version ? { profile_key: record.contract.profile } : {}),
+    ...(record.contract.profile_version ? { profile_version: record.contract.profile_version } : {}),
+    ...(record.contract.profile_digest ? { profile_digest: record.contract.profile_digest } : {}),
+    status,
+  };
+}
+
+function intentProfileResponse(record: IntentProfileRecord): Record<string, unknown> {
+  const issuedAt = Date.parse(record.definition.issued_at);
+  return { ...record, status: issuedAt > Date.now() ? "pending" : "active" };
+}
+
+function intentContractIssuanceMode(manifest: AgentIdManifest): "raw_compatible" | "registered_profile_required" {
+  const assurance = recordValue(manifest.intent_assurance);
+  const issuance = recordValue(assurance.contract_issuance);
+  return issuance.mode === "registered_profile_required" ? "registered_profile_required" : "raw_compatible";
+}
+
+function intentProfileTrustFinding(manifest: AgentIdManifest, profile: IntentProfile): string {
+  const requirements = profile.trusted_observation_requirements || [];
+  if (requirements.length === 0) return "";
+  const assurance = recordValue(manifest.intent_assurance);
+  const observations = recordValue(assurance.observations);
+  const policies = Array.isArray(observations.trusted_issuers)
+    ? observations.trusted_issuers.map(recordValue)
+    : [];
+  const profileKey = intentProfileKey(profile);
+  for (const requirement of requirements) {
+    const satisfied = policies.some((policy) => {
+      if (!requirement.issuers.includes(stringValue(policy.issuer))) return false;
+      const profiles = arrayValue(policy.profiles);
+      if (profiles.length > 0 && !profiles.includes(profileKey)) return false;
+      const predicates = arrayValue(policy.predicates);
+      if (predicates.length > 0 && !predicates.includes(requirement.predicate)) return false;
+      const trustedMethods = arrayValue(policy.verification_methods);
+      const requiredMethods = requirement.verification_methods || [];
+      return requiredMethods.length === 0 || requiredMethods.some((method) => trustedMethods.includes(method));
+    });
+    if (!satisfied) {
+      return `tenant observation policy does not satisfy profile requirement: ${requirement.predicate}`;
+    }
+  }
+  return "";
 }
 
 function intentContractDateFinding(contract: IntentContract): string {
@@ -3077,6 +3355,7 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "intent-contracts") return stringValue(scopes.intent_contract ?? scopes.authorize);
+  if (endpoint === "intent-profiles") return stringValue(scopes.intent_profile ?? scopes.intent_contract ?? scopes.authorize);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
   return "";
 }

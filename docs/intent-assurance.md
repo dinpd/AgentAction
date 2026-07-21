@@ -19,8 +19,10 @@ a hard constraint was violated.
 ## Trust Boundary
 
 An intent contract is issued per job by a user, application, workflow, or
-policy authority. An agent may propose contract contents, but should not issue,
-approve, or mutate its own contract after execution begins.
+policy authority. For comparable production workloads, the authority should
+issue it from a frozen, versioned intent profile. An agent may propose job
+variables, but should not issue, approve, or mutate its own profile or contract
+after execution begins.
 
 `bindIntentContract` computes a canonical SHA-256 digest. The job supplies the
 resulting `intent_id` and `intent_digest` with every guarded call. AgentPass
@@ -32,6 +34,49 @@ Observations additionally require verified provenance and a valid canonical
 payload digest; unverified or altered observations produce an evidence finding
 and do not influence the verdict. If required evidence is unavailable, the
 result is `indeterminate`; missing evidence is not treated as proof of failure.
+
+## Versioned Profiles and Contract Issuance
+
+The profile schema is
+[`agentpass.intent-profile.v1`](../schema/intent-profile.schema.json). A profile
+freezes the comparison boundary shared by equivalent jobs:
+
+- profile name, version, issuer, and canonical `profile_digest`;
+- typed job-variable definitions and defaults;
+- required outcomes and hard constraints;
+- required evidence sources and trusted-observation requirements; and
+- default execution preferences.
+
+Predicate values may use an explicit `{ "$variable": "refund_amount" }`
+reference. `issueIntentContract` validates the supplied variables, resolves
+those references without executing code, normalizes timestamps, copies every
+profile control, and emits a canonical per-job contract carrying
+`profile_version`, `profile_digest`, and the normalized `profile_variables`.
+The issuance input has no fields for overriding predicates or evidence
+requirements, and unknown fields are rejected.
+
+```ts
+import {
+  bindIntentProfile,
+  issueIntentContract,
+  type IntentProfile
+} from "@dinpd/ai-agent-guard";
+
+const profile = bindIntentProfile(rawProfile as IntentProfile);
+const contract = issueIntentContract(profile, {
+  intent_id: "refund-case-1042",
+  job_id: "case-1042",
+  variables: { payment_id: "pi_123", refund_amount: 49 },
+  issued_at: "2026-07-20T17:59:00Z",
+  expires_at: "2026-07-20T18:30:00Z"
+});
+```
+
+Canonicalization makes issuance insensitive to object-key order and equivalent
+date-time notation. The same frozen profile and normalized job inputs produce
+the same contract and digest. Changing a profile requires a new version rather
+than editing the registered version in place. The reference definition is
+[`support-refund-profile.json`](../packages/guard/examples/support-refund-profile.json).
 
 ## Contract Shape
 
@@ -67,12 +112,12 @@ receipt with separate dimensions:
 - `verdict`: `completed`, `partial`, `failed`, or `indeterminate`.
 - `constraint_compliance`: `pass`, `fail`, or `indeterminate`.
 - `goal_attainment`: weighted required-outcome completion from 0 to 1.
-- `evidence_confidence`: the share of predicates and required sources that were
-  determinately evaluated.
+- `evidence_confidence`: the share of predicates, required sources, and trusted
+  observation requirements that were determinately satisfied.
 - `execution_discipline`: observed calls, executions, replays, retries,
   denials, challenges, cost, runtime, and preference findings.
 - `qualified_success`: true only when outcomes are completed, constraints pass,
-  and all required evidence sources are present.
+  and all required evidence sources and trusted observations are present.
 
 Soft preferences do not change `qualified_success`. They remain visible as
 execution-quality findings rather than silently overriding goal completion or
@@ -119,8 +164,15 @@ receipt.
 The Cloudflare gateway provides a tenant-scoped trust gate for the same
 contract and evaluation model:
 
+- `POST /tenants/<tenant-id>/intent-profiles` registers and freezes a versioned
+  profile definition.
+- `GET /tenants/<tenant-id>/intent-profiles` and `GET .../<profile>.<version>`
+  expose tenant-scoped lifecycle reads.
+- `POST .../<profile>.<version>/issue` deterministically issues and registers a
+  profile-bound job contract.
 - `POST /tenants/<tenant-id>/intent-contracts` calculates the canonical digest
-  and freezes the contract under its `intent_id`.
+  and freezes a raw compatibility contract under its `intent_id` when tenant
+  policy permits raw issuance.
 - `GET /tenants/<tenant-id>/intent-contracts/<intent-id>` returns the frozen
   contract and its `pending`, `active`, or `expired` status.
 - Intent-bound approval, JIT, authorization, and execution-result requests fail
@@ -140,6 +192,12 @@ Calls without either intent binding field retain the existing authorization
 behavior. If either field is present, both are required. Contract expiry blocks
 new runtime authority but does not prevent late evidence collection or
 post-execution evaluation.
+
+Tenant policy sets `intent_assurance.contract_issuance.mode` to either
+`registered_profile_required` or `raw_compatible`. Profile-bound contracts
+always use the issuance endpoint; direct registration cannot attach a profile
+digest to an independently authored contract. Evaluation receipts propagate the
+profile version and digest so later rollups compare only equivalent definitions.
 
 ## Immutable Evidence Finalization
 

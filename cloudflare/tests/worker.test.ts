@@ -640,6 +640,194 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
   assert.ok(types.includes("agentpass.intent.evidence.rejected"));
 });
 
+test("versioned intent profiles freeze definitions and issue deterministic comparable contracts", async () => {
+  const namespace = new MemoryNamespace();
+  const manifest = trustedObservationManifest({
+    verification_methods: ["oidc", "jws"],
+    profiles: ["support_refund.v1", "support_refund.v2"],
+  });
+  const assurance = manifest.intent_assurance as Record<string, unknown>;
+  assurance.contract_issuance = { mode: "registered_profile_required" };
+  const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(manifest) };
+  const ctx = new TestContext();
+  const tenant = "/tenants/acme";
+  const profile = hostedRefundIntentProfile();
+
+  const registered = await call(env, ctx, "POST", `${tenant}/intent-profiles`, profile);
+  assert.equal(registered.status, 201);
+  assert.equal(registered.body.profile_key, "support_refund.v1");
+  assert.equal(registered.body.status, "active");
+  assert.match(String(registered.body.profile_digest), /^[a-f0-9]{64}$/);
+  assert.equal(registered.body.definition.profile_digest, registered.body.profile_digest);
+
+  const replayedRegistration = await call(env, ctx, "POST", `${tenant}/intent-profiles`, profile);
+  assert.equal(replayedRegistration.status, 200);
+  assert.equal(replayedRegistration.body.profile_digest, registered.body.profile_digest);
+  const badDigest = await call(env, ctx, "POST", `${tenant}/intent-profiles`, {
+    ...profile,
+    profile_digest: "0".repeat(64),
+  });
+  assert.equal(badDigest.status, 400);
+  assert.equal(badDigest.body.error_code, "intent_profile_digest_mismatch");
+  const changedProfile = await call(env, ctx, "POST", `${tenant}/intent-profiles`, {
+    ...profile,
+    preferences: { ...profile.preferences as Record<string, unknown>, max_tool_calls: 99 },
+  });
+  assert.equal(changedProfile.status, 409);
+  assert.equal(changedProfile.body.error_code, "intent_profile_frozen");
+  const versionTwo = await call(env, ctx, "POST", `${tenant}/intent-profiles`, {
+    ...profile,
+    version: "v2",
+    objective_template: "Refund verified duplicate payment {{payment_id}} for {{refund_amount}} {{currency}}",
+  });
+  assert.equal(versionTwo.status, 201);
+  assert.equal(versionTwo.body.profile_key, "support_refund.v2");
+  assert.notEqual(versionTwo.body.profile_digest, registered.body.profile_digest);
+
+  const listed = await call(env, ctx, "GET", `${tenant}/intent-profiles`);
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.count, 2);
+  assert.deepEqual(
+    listed.body.intent_profiles.map((item: Record<string, unknown>) => item.profile_key),
+    ["support_refund.v2", "support_refund.v1"],
+  );
+  const fetched = await call(env, ctx, "GET", `${tenant}/intent-profiles/support_refund.v1`);
+  assert.equal(fetched.status, 200);
+  assert.deepEqual(fetched.body.definition, registered.body.definition);
+
+  const raw = await call(env, ctx, "POST", `${tenant}/intent-contracts`, hostedRefundIntentContract("raw-intent", "raw-job"));
+  assert.equal(raw.status, 409);
+  assert.equal(raw.body.error_code, "registered_profile_required");
+
+  const issuance = {
+    intent_id: "intent-profile-refund",
+    job_id: "job-profile-refund",
+    variables: { refund_amount: 49, payment_id: "pi_123" },
+    issued_at: "2026-07-20T17:59:00Z",
+    expires_at: "2099-07-20T18:30:00Z",
+  };
+  const issued = await call(env, ctx, "POST", `${tenant}/intent-profiles/support_refund.v1/issue`, issuance);
+  assert.equal(issued.status, 201);
+  assert.equal(issued.body.profile_key, "support_refund.v1");
+  assert.equal(issued.body.profile_version, "v1");
+  assert.equal(issued.body.profile_digest, registered.body.profile_digest);
+  assert.equal(issued.body.contract.profile_version, "v1");
+  assert.equal(issued.body.contract.profile_digest, registered.body.profile_digest);
+  assert.deepEqual(issued.body.contract.profile_variables, {
+    currency: "USD",
+    payment_id: "pi_123",
+    refund_amount: 49,
+  });
+  assert.equal(issued.body.contract.objective, "Refund duplicate payment pi_123 for 49 USD");
+  assert.equal(issued.body.contract.required_outcomes[2].assertion.value, 49);
+  assert.deepEqual(issued.body.contract.hard_constraints, profile.hard_constraints);
+  assert.deepEqual(issued.body.contract.evidence_requirements, profile.evidence_requirements);
+  assert.deepEqual(
+    issued.body.contract.trusted_observation_requirements,
+    profile.trusted_observation_requirements,
+  );
+  assert.equal(issued.body.contract.issued_at, "2026-07-20T17:59:00.000Z");
+  assert.equal(issued.body.contract.expires_at, "2099-07-20T18:30:00.000Z");
+
+  const replayedIssuance = await call(env, ctx, "POST", `${tenant}/intent-profiles/support_refund.v1/issue`, {
+    ...issuance,
+    variables: { payment_id: "pi_123", refund_amount: 49 },
+    issued_at: "2026-07-20T17:59:00.000+00:00",
+    expires_at: "2099-07-20T18:30:00.000+00:00",
+  });
+  assert.equal(replayedIssuance.status, 200);
+  assert.equal(replayedIssuance.body.intent_digest, issued.body.intent_digest);
+  assert.deepEqual(replayedIssuance.body.contract, issued.body.contract);
+
+  const weakened = await call(env, ctx, "POST", `${tenant}/intent-profiles/support_refund.v1/issue`, {
+    ...issuance,
+    hard_constraints: [],
+  });
+  assert.equal(weakened.status, 400);
+  assert.equal(weakened.body.error_code, "intent_profile_issuance_invalid");
+  assert.match(String(weakened.body.error), /unsupported intent profile issuance field/);
+  const removedEvidence = await call(env, ctx, "POST", `${tenant}/intent-profiles/support_refund.v1/issue`, {
+    ...issuance,
+    evidence_requirements: [],
+  });
+  assert.equal(removedEvidence.status, 400);
+  assert.match(String(removedEvidence.body.error), /unsupported intent profile issuance field/);
+  const badVariable = await call(env, ctx, "POST", `${tenant}/intent-profiles/support_refund.v1/issue`, {
+    ...issuance,
+    intent_id: "intent-profile-refund-bad-variable",
+    variables: { payment_id: "pi_123", refund_amount: 101 },
+  });
+  assert.equal(badVariable.status, 400);
+  assert.match(String(badVariable.body.error), /exceeds maximum 100/);
+
+  const preview = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/${issuance.intent_id}/evaluate`,
+    { job: { completed_at: "2026-07-20T18:00:00.000Z" } },
+  );
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.profile, "support_refund.v1");
+  assert.equal(preview.body.profile_version, "v1");
+  assert.equal(preview.body.profile_digest, registered.body.profile_digest);
+  const finalized = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/${issuance.intent_id}/finalize`,
+    { job: { completed_at: "2026-07-20T18:00:00.000Z" } },
+  );
+  assert.equal(finalized.status, 201);
+  assert.equal(finalized.body.evaluation.profile_version, "v1");
+  assert.equal(finalized.body.evaluation.profile_digest, registered.body.profile_digest);
+
+  const otherTenant = await call(env, ctx, "GET", "/tenants/other/intent-profiles/support_refund.v1");
+  assert.equal(otherTenant.status, 404);
+
+  const untrustedNamespace = new MemoryNamespace();
+  const untrustedEnv = {
+    JIT_GRANTS: untrustedNamespace,
+    AGENTID_MANIFEST_JSON: JSON.stringify(trustedObservationManifest({ verification_methods: ["unsigned_dev"] })),
+  };
+  const untrusted = await call(untrustedEnv, new TestContext(), "POST", "/tenants/untrusted/intent-profiles", profile);
+  assert.equal(untrusted.status, 409);
+  assert.equal(untrusted.body.error_code, "profile_trust_requirement_unsatisfied");
+
+  const compatibleNamespace = new MemoryNamespace();
+  const compatibleManifest = trustedObservationManifest({ verification_methods: ["oidc", "jws"] });
+  (compatibleManifest.intent_assurance as Record<string, unknown>).contract_issuance = { mode: "raw_compatible" };
+  const compatibleEnv = {
+    JIT_GRANTS: compatibleNamespace,
+    AGENTID_MANIFEST_JSON: JSON.stringify(compatibleManifest),
+  };
+  const compatibleRaw = await call(
+    compatibleEnv,
+    new TestContext(),
+    "POST",
+    "/tenants/compatible/intent-contracts",
+    hostedRefundIntentContract("raw-compatible", "raw-compatible-job"),
+  );
+  assert.equal(compatibleRaw.status, 201);
+  const compatibleProfileBound = await call(
+    compatibleEnv,
+    new TestContext(),
+    "POST",
+    "/tenants/compatible/intent-contracts",
+    issued.body.contract,
+  );
+  assert.equal(compatibleProfileBound.status, 409);
+  assert.equal(compatibleProfileBound.body.error_code, "profile_issuance_endpoint_required");
+
+  await ctx.flush();
+  const audit = await call(env, ctx, "GET", "/audit/events?tenant_id=acme&limit=50");
+  const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
+  assert.ok(types.includes("agentpass.intent.profile.registered"));
+  assert.ok(types.includes("agentpass.intent.profile.replayed"));
+  assert.ok(types.includes("agentpass.intent.issued"));
+  assert.ok(types.includes("agentpass.intent.issuance.replayed"));
+});
+
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
   const namespace = new MemoryNamespace();
   const env = trustedUnsignedObservationEnv(namespace);
@@ -1693,6 +1881,68 @@ function hostedLifecycleIntentContract(intentId: string, jobId: string): Record<
     evidence_requirements: ["decision_events", "observations", "job"],
     issued_at: "2026-07-20T17:59:00.000Z",
     expires_at: "2099-07-20T18:30:00.000Z",
+  };
+}
+
+function hostedRefundIntentProfile(): Record<string, unknown> {
+  return {
+    schema_version: "agentpass.intent-profile.v1",
+    profile: "support_refund",
+    version: "v1",
+    issuer: "support-application",
+    issued_at: "2026-07-20T00:00:00.000Z",
+    objective_template: "Refund duplicate payment {{payment_id}} for {{refund_amount}} {{currency}}",
+    variables: {
+      payment_id: { type: "string", required: true, pattern: "^pi_[A-Za-z0-9]+$" },
+      refund_amount: { type: "number", required: true, minimum: 0.01, maximum: 100 },
+      currency: { type: "string", default: "USD", enum: ["USD"] },
+    },
+    required_outcomes: [
+      {
+        id: "refund-executed-once",
+        source: "execution_receipts",
+        where: [
+          { path: "tool", operator: "equals", value: "stripe.create_refund" },
+          { path: "status", operator: "equals", value: "executed" },
+        ],
+        assertion: { operator: "count_equals", value: 1 },
+      },
+      {
+        id: "refund-provider-succeeded",
+        source: "observations",
+        where: [{ path: "predicate", operator: "equals", value: "refund.status" }],
+        assertion: { path: "value", operator: "equals", value: "succeeded" },
+      },
+      {
+        id: "refund-amount-correct",
+        source: "execution_receipts",
+        where: [{ path: "tool", operator: "equals", value: "stripe.create_refund" }],
+        assertion: { path: "amount", operator: "equals", value: { $variable: "refund_amount" }, quantifier: "all" },
+      },
+    ],
+    hard_constraints: [
+      {
+        id: "no-denied-actions",
+        source: "decision_events",
+        where: [{ path: "decision", operator: "equals", value: "deny" }],
+        assertion: { operator: "count_equals", value: 0 },
+      },
+    ],
+    preferences: {
+      max_tool_calls: 2,
+      max_execution_receipts: 1,
+      max_retries: 1,
+      max_replays: 0,
+      max_denied_decisions: 0,
+      max_runtime_ms: 30_000,
+      max_estimated_cost_usd: 0.05,
+    },
+    evidence_requirements: ["decision_events", "execution_receipts", "observations", "job"],
+    trusted_observation_requirements: [{
+      predicate: "refund.status",
+      issuers: ["stripe-adapter"],
+      verification_methods: ["oidc", "jws"],
+    }],
   };
 }
 

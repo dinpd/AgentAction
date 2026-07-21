@@ -152,6 +152,28 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
     issued_at: "2026-07-20T00:00:00.000Z",
   };
 
+  const profile = {
+    schema_version: "agentpass.intent-profile.v1" as const,
+    profile: "support_refund",
+    version: "v1",
+    issuer: "support-app",
+    issued_at: "2026-07-20T00:00:00.000Z",
+    variables: {
+      refund_amount: { type: "number" as const, required: true },
+    },
+    required_outcomes: contract.required_outcomes,
+    hard_constraints: [],
+  };
+
+  await client.registerIntentProfile("tenant-a", profile);
+  await client.listIntentProfiles("tenant-a");
+  await client.getIntentProfile("tenant-a", "support_refund.v1");
+  await client.issueIntentContract("tenant-a", "support_refund.v1", {
+    intent_id: "intent-1",
+    job_id: "job-1",
+    variables: { refund_amount: 49 },
+    issued_at: "2026-07-20T00:00:00.000Z",
+  });
   await client.registerIntentContract("tenant-a", contract);
   await client.listIntentContracts("tenant-a");
   await client.getIntentContract("tenant-a", "intent-1");
@@ -168,6 +190,10 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
   await client.getIntentEvaluations("tenant-a", "intent-1", { limit: 25 });
 
   assert.deepEqual(calls.map(({ url, method }) => ({ url, method })), [
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-profiles", method: "POST" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-profiles", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-profiles/support_refund.v1", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-profiles/support_refund.v1/issue", method: "POST" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts", method: "POST" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts", method: "GET" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1", method: "GET" },
@@ -176,9 +202,11 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/finalize", method: "POST" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/evaluations?limit=25", method: "GET" },
   ]);
-  assert.equal(calls[0].body?.intent_id, "intent-1");
-  assert.equal(calls[3].body?.predicate, "refund.status");
-  assert.equal(calls[3].body?.observation_id, "obs-1");
+  assert.equal(calls[0].body?.profile, "support_refund");
+  assert.equal(calls[3].body?.intent_id, "intent-1");
+  assert.equal(calls[4].body?.intent_id, "intent-1");
+  assert.equal(calls[7].body?.predicate, "refund.status");
+  assert.equal(calls[7].body?.observation_id, "obs-1");
 });
 
 test("recordIntentObservation accepts a signed JWS envelope and idempotent replay", async () => {

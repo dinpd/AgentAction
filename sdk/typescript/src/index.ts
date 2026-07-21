@@ -36,10 +36,82 @@ export type IntentPredicate = {
   weight?: number;
 };
 
+export type IntentTrustedObservationRequirement = {
+  predicate: string;
+  issuers: string[];
+  verification_methods?: Array<"oidc" | "jws" | "unsigned_dev">;
+};
+
+export type IntentProfileVariableDefinition = {
+  type: "string" | "number" | "integer" | "boolean";
+  description?: string;
+  required?: boolean;
+  default?: string | number | boolean;
+  enum?: Array<string | number | boolean>;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
+};
+
+export type IntentProfile = {
+  schema_version: "agentpass.intent-profile.v1";
+  profile: string;
+  version: string;
+  issuer: string;
+  issued_at: string;
+  objective_template?: string;
+  variables: Record<string, IntentProfileVariableDefinition>;
+  required_outcomes: IntentPredicate[];
+  hard_constraints: IntentPredicate[];
+  preferences?: {
+    max_tool_calls?: number;
+    max_execution_receipts?: number;
+    max_retries?: number;
+    max_replays?: number;
+    max_denied_decisions?: number;
+    max_runtime_ms?: number;
+    max_estimated_cost_usd?: number;
+  };
+  evidence_requirements?: IntentEvidenceSource[];
+  trusted_observation_requirements?: IntentTrustedObservationRequirement[];
+  profile_digest?: string;
+};
+
+export type RegisteredIntentProfile = {
+  schema_version: "agentpass.intent-profile-registry-record.v1";
+  profile_key: string;
+  profile: string;
+  version: string;
+  profile_digest: string;
+  tenant_id?: string;
+  registered_at: string;
+  registered_by?: string;
+  status: "pending" | "active";
+  definition: IntentProfile;
+  auth?: Record<string, unknown>;
+};
+
+export type IntentProfileListResponse = {
+  intent_profiles: RegisteredIntentProfile[];
+  count: number;
+  auth?: Record<string, unknown>;
+};
+
+export type IntentProfileIssuanceInput = {
+  intent_id: string;
+  job_id: string;
+  variables: Record<string, unknown>;
+  issued_at: string;
+  expires_at?: string;
+};
+
 export type IntentContract = {
   schema_version: "agentpass.intent-contract.v1";
   intent_id: string;
   profile: string;
+  profile_version?: string;
+  profile_digest?: string;
+  profile_variables?: Record<string, string | number | boolean>;
   issuer: string;
   job_id: string;
   objective?: string;
@@ -55,6 +127,7 @@ export type IntentContract = {
     max_estimated_cost_usd?: number;
   };
   evidence_requirements?: IntentEvidenceSource[];
+  trusted_observation_requirements?: IntentTrustedObservationRequirement[];
   issued_at: string;
   expires_at?: string;
   intent_digest?: string;
@@ -65,6 +138,9 @@ export type RegisteredIntentContract = {
   intent_id: string;
   intent_digest: string;
   job_id: string;
+  profile_key?: string;
+  profile_version?: string;
+  profile_digest?: string;
   tenant_id?: string;
   registered_at: string;
   registered_by?: string;
@@ -134,6 +210,8 @@ export type IntentEvaluationReceipt = {
   intent_id: string;
   intent_digest: string;
   profile: string;
+  profile_version?: string;
+  profile_digest?: string;
   job_id: string;
   evaluated_at: string;
   verdict: "completed" | "partial" | "failed" | "indeterminate";
@@ -476,6 +554,37 @@ export class AgentPassClient {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.token = options.token;
     this.fetchImpl = options.fetch || fetch;
+  }
+
+  async registerIntentProfile(tenantId: string, profile: IntentProfile): Promise<RegisteredIntentProfile> {
+    return this.post<RegisteredIntentProfile>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-profiles`,
+      profile,
+      [200, 201],
+    );
+  }
+
+  async listIntentProfiles(tenantId: string): Promise<IntentProfileListResponse> {
+    return this.get<IntentProfileListResponse>(`/tenants/${encodeURIComponent(tenantId)}/intent-profiles`, [200]);
+  }
+
+  async getIntentProfile(tenantId: string, profileKey: string): Promise<RegisteredIntentProfile> {
+    return this.get<RegisteredIntentProfile>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-profiles/${encodeURIComponent(profileKey)}`,
+      [200],
+    );
+  }
+
+  async issueIntentContract(
+    tenantId: string,
+    profileKey: string,
+    request: IntentProfileIssuanceInput,
+  ): Promise<RegisteredIntentContract> {
+    return this.post<RegisteredIntentContract>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-profiles/${encodeURIComponent(profileKey)}/issue`,
+      request,
+      [200, 201],
+    );
   }
 
   async registerIntentContract(tenantId: string, contract: IntentContract): Promise<RegisteredIntentContract> {

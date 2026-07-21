@@ -289,9 +289,10 @@ AgentPass currently includes:
 - Local idempotency result replay for retry-safe side-effect execution
 - Runnable demos for refunds, circuit breakers, MCP calls, direct tool gates,
   and PII flows
-- Local intent assurance with immutable per-job contracts, deterministic
+- Local and hosted intent assurance with frozen versioned profiles,
+  deterministic per-job contract issuance, immutable evidence snapshots,
   outcome and constraint evaluation, evidence confidence, and a runnable
-  `support_refund.v1` demo; see
+  `support_refund.v1` reference profile; see
   [`Intent Assurance`](docs/intent-assurance.md)
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
   checks, and audit events

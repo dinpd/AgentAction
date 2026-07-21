@@ -1,0 +1,104 @@
+{
+  "schema_version": "agentpass.intent-profile.v1",
+  "profile": "support_refund",
+  "version": "v1",
+  "issuer": "support-application",
+  "issued_at": "2026-07-20T00:00:00.000Z",
+  "objective_template": "Refund the duplicate charge for payment {{payment_id}}",
+  "variables": {
+    "payment_id": {
+      "type": "string",
+      "description": "Provider payment identifier bound to this refund job.",
+      "required": true,
+      "pattern": "^pi_[A-Za-z0-9]+$"
+    },
+    "refund_amount": {
+      "type": "number",
+      "description": "Approved refund amount.",
+      "required": true,
+      "minimum": 0.01,
+      "maximum": 100
+    },
+    "currency": {
+      "type": "string",
+      "description": "Refund currency.",
+      "default": "USD",
+      "enum": ["USD"]
+    }
+  },
+  "required_outcomes": [
+    {
+      "id": "refund-executed-once",
+      "description": "The provider performed exactly one refund mutation.",
+      "source": "execution_receipts",
+      "where": [
+        { "path": "tool", "operator": "equals", "value": "stripe.refund" },
+        { "path": "status", "operator": "equals", "value": "executed" }
+      ],
+      "assertion": { "operator": "count_equals", "value": 1 }
+    },
+    {
+      "id": "refund-provider-succeeded",
+      "description": "The provider reports that the refund succeeded.",
+      "source": "observations",
+      "where": [
+        { "path": "predicate", "operator": "equals", "value": "refund.status" }
+      ],
+      "assertion": { "path": "value", "operator": "equals", "value": "succeeded" }
+    },
+    {
+      "id": "refund-amount-correct",
+      "description": "Every matching refund receipt has the approved amount.",
+      "source": "execution_receipts",
+      "where": [
+        { "path": "tool", "operator": "equals", "value": "stripe.refund" }
+      ],
+      "assertion": {
+        "path": "amount",
+        "operator": "equals",
+        "value": { "$variable": "refund_amount" },
+        "quantifier": "all"
+      }
+    }
+  ],
+  "hard_constraints": [
+    {
+      "id": "no-denied-actions",
+      "source": "decision_events",
+      "where": [
+        { "path": "decision", "operator": "equals", "value": "deny" }
+      ],
+      "assertion": { "operator": "count_equals", "value": 0 }
+    },
+    {
+      "id": "no-external-email",
+      "source": "decision_events",
+      "where": [
+        { "path": "tool", "operator": "equals", "value": "gmail.send" }
+      ],
+      "assertion": { "operator": "count_equals", "value": 0 }
+    }
+  ],
+  "preferences": {
+    "max_tool_calls": 3,
+    "max_execution_receipts": 1,
+    "max_retries": 1,
+    "max_replays": 0,
+    "max_denied_decisions": 0,
+    "max_runtime_ms": 30000,
+    "max_estimated_cost_usd": 0.05
+  },
+  "evidence_requirements": [
+    "decision_events",
+    "execution_receipts",
+    "observations",
+    "job"
+  ],
+  "trusted_observation_requirements": [
+    {
+      "predicate": "refund.status",
+      "issuers": ["stripe-adapter"],
+      "verification_methods": ["oidc", "jws"]
+    }
+  ]
+}

@@ -459,6 +459,9 @@ MCP gateway that performs the actual traffic forwarding. It exposes:
 | `GET /health` | Check gateway health and active agent ID |
 | `GET /policy?target=opa` | Return generated policy for the active manifest |
 | `POST /authorize` | Authorize a proposed tool call against the manifest |
+| `POST /intent-profiles` | Register and freeze a versioned intent profile |
+| `GET /intent-profiles/:profile` | Read a frozen profile version and digest |
+| `POST /intent-profiles/:profile/issue` | Issue a deterministic per-job contract from typed variables |
 | `POST /intent-contracts` | Register and freeze a per-job intent contract |
 | `GET /intent-contracts/:id` | Return the frozen contract and lifecycle status |
 | `POST /intent-contracts/:id/observations` | Add bound application or provider evidence |
