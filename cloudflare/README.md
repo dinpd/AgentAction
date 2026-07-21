@@ -16,7 +16,9 @@ allow/deny/JIT decisions before tool execution:
 | `GET /intent-contracts` | List registered intent contracts |
 | `GET /intent-contracts/<intent-id>` | Read a registered contract and lifecycle status |
 | `POST /intent-contracts/<intent-id>/observations` | Record a provider or application observation bound to the contract |
-| `POST /intent-contracts/<intent-id>/evaluate` | Evaluate durable evidence and emit an intent evaluation receipt |
+| `POST /intent-contracts/<intent-id>/evaluate` | Emit a non-finalizing preview evaluation |
+| `POST /intent-contracts/<intent-id>/finalize` | Atomically freeze evidence and emit the one final snapshot-bound receipt |
+| `GET /intent-contracts/<intent-id>/evaluations` | Read evaluation history, latest preview, final receipt, and evidence snapshot |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -117,15 +119,41 @@ an agent environment of `dev`, `development`, `test`, or `local`; issuer policy
 method `unsigned_dev`; and Worker variable
 `AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED=true`.
 
-Evaluate only the evidence collected for the frozen contract. The optional job
-object is bound server-side to the registered intent and retained for later
-evaluations:
+Preview the evidence collected for the frozen contract without closing the job.
+The optional job object is bound server-side to the registered intent and may be
+updated by later previews until finalization starts:
 
 ```bash
 curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/evaluate \
   -H 'content-type: application/json' \
   -d '{"job":{"started_at":"2026-07-20T18:00:00.000Z","completed_at":"2026-07-20T18:00:01.000Z"}}'
 ```
+
+Finalize once the trusted evidence set is complete:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/finalize \
+  -H 'content-type: application/json' \
+  -d '{"job":{"started_at":"2026-07-20T18:00:00.000Z","completed_at":"2026-07-20T18:00:01.000Z"}}'
+```
+
+Finalization freezes decision events, execution receipts, verified observations,
+and job evidence. The resulting `agentpass.intent-evidence-snapshot.v1` records
+per-source counts, stable evidence IDs, source digests, and one canonical
+`evidence_digest`. The final evaluation ID and snapshot ID are deterministic for
+that evidence state. An identical retry returns the same receipt and snapshot
+with `replayed: true`; changed job evidence or new runtime evidence returns
+`409` with `error_code: "intent_evidence_finalized"`.
+
+Read the complete lifecycle:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/evaluations
+```
+
+The response contains evaluation history, `latest_preview`, `final`, `snapshot`,
+and `finalization_status`. Audit events distinguish preview evaluation, initial
+finalization, repeated finalization, and rejected late evidence.
 
 ## Local development
 

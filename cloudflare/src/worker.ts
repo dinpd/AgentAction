@@ -4,6 +4,7 @@ import {
   evaluateIntent,
   type IntentContract,
   type IntentEvidence,
+  type IntentEvaluationReceipt,
 } from "../../packages/guard/src/intent.ts";
 import {
   IntentObservationVerificationError,
@@ -209,9 +210,50 @@ type IntentContractRecord = {
   registered_by?: string;
   contract: IntentContract;
 };
+type IntentEvidenceSourceName = "decision_events" | "execution_receipts" | "observations" | "job";
+type IntentEvidenceManifest = Record<IntentEvidenceSourceName, {
+  count: number;
+  evidence_ids: string[];
+  digest: string;
+}>;
+type IntentEvidenceSnapshot = {
+  schema_version: "agentpass.intent-evidence-snapshot.v1";
+  snapshot_id: string;
+  tenant_id: string;
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  captured_at: string;
+  evidence_digest: string;
+  sources: IntentEvidenceManifest;
+  evidence: {
+    decision_events: Record<string, unknown>[];
+    execution_receipts: Record<string, unknown>[];
+    observations: Record<string, unknown>[];
+    job?: Record<string, unknown>;
+  };
+};
+type HostedIntentEvaluationReceipt = IntentEvaluationReceipt & {
+  evaluation_mode: "preview" | "final";
+  snapshot_id?: string;
+  evidence_digest?: string;
+};
+type IntentFinalizationState = {
+  status: "finalizing" | "finalized";
+  started_at: string;
+  finalized_at?: string;
+  pending_job?: Record<string, unknown>;
+};
+type IntentFinalizationRecord = {
+  schema_version: "agentpass.intent-finalization.v1";
+  finalized_at: string;
+  snapshot: IntentEvidenceSnapshot;
+  evaluation: HostedIntentEvaluationReceipt;
+};
 type IntentBindingResult = {
   status: "unbound" | "bound";
   contract?: IntentContract;
+  error_code?: string;
 };
 type AuditRecord = {
   audit_id: string;
@@ -243,6 +285,7 @@ type AuthorizationDecision = {
   replayed?: boolean;
   result?: unknown;
   receipt?: ProviderExecutionReceipt;
+  errorCode?: string;
 };
 
 const APPROVAL_REQUIRED = new Set(["required", "human_confirm", "step_up", "manager"]);
@@ -411,6 +454,23 @@ export default {
       }
 
       if (
+        request.method === "GET" &&
+        route.endpoint === "intent-contracts" &&
+        route.resourceId &&
+        route.action === "evaluations"
+      ) {
+        const search = new URLSearchParams(url.searchParams);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(
+            `https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/evaluations?${search.toString()}`,
+          ),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
         request.method === "POST" &&
         route.endpoint === "intent-contracts" &&
         route.resourceId &&
@@ -496,9 +556,12 @@ export default {
         } else {
           ctx.waitUntil(
             emitAudit(env, {
-              type: "agentpass.intent.observation.rejected",
+              type: body.error_code === "intent_evidence_finalized"
+                ? "agentpass.intent.evidence.rejected"
+                : "agentpass.intent.observation.rejected",
               tenant_id: route.tenantId,
               intent_id: route.resourceId,
+              evidence_source: "observations",
               ...observationAuditMetadata(observation),
               error_code: stringValue(body.error_code) || "observation_storage_rejected",
               error: stringValue(body.error),
@@ -514,11 +577,11 @@ export default {
         request.method === "POST" &&
         route.endpoint === "intent-contracts" &&
         route.resourceId &&
-        route.action === "evaluate"
+        (route.action === "evaluate" || route.action === "finalize")
       ) {
         const evaluationRequest = await readJson(request);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
-          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/evaluate`, {
+          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/${route.action}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(evaluationRequest),
@@ -526,16 +589,38 @@ export default {
         );
         const body = await stored.json() as Record<string, unknown>;
         if (stored.ok) {
+          const evaluation = route.action === "finalize" ? recordValue(body.evaluation) : body;
+          const snapshot = route.action === "finalize" ? recordValue(body.snapshot) : {};
           ctx.waitUntil(
             emitAudit(env, {
-              type: "agentpass.intent.evaluated",
+              type: route.action === "finalize"
+                ? body.replayed === true
+                  ? "agentpass.intent.finalization.replayed"
+                  : "agentpass.intent.finalized"
+                : "agentpass.intent.evaluation.previewed",
               tenant_id: route.tenantId,
-              intent_id: stringValue(body.intent_id),
-              intent_digest: stringValue(body.intent_digest),
-              job_id: stringValue(body.job_id),
-              verdict: stringValue(body.verdict),
-              qualified_success: body.qualified_success === true,
-              evaluation: body,
+              intent_id: stringValue(evaluation.intent_id),
+              intent_digest: stringValue(evaluation.intent_digest),
+              job_id: stringValue(evaluation.job_id),
+              evaluation_id: stringValue(evaluation.evaluation_id),
+              evaluation_mode: route.action === "finalize" ? "final" : "preview",
+              snapshot_id: stringValue(snapshot.snapshot_id),
+              evidence_digest: stringValue(snapshot.evidence_digest),
+              evidence_counts: recordValue(snapshot.sources),
+              verdict: stringValue(evaluation.verdict),
+              qualified_success: evaluation.qualified_success === true,
+              auth: auth.context,
+            }),
+          );
+        } else if (body.error_code === "intent_evidence_finalized") {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.evidence.rejected",
+              tenant_id: route.tenantId,
+              intent_id: route.resourceId,
+              evidence_source: "job",
+              error_code: body.error_code,
+              error: stringValue(body.error),
               auth: auth.context,
             }),
           );
@@ -567,6 +652,20 @@ export default {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
         await recordIntentDecisionEvidence(env, route.tenantId, manifest, decision);
+        if (decision.errorCode === "intent_evidence_finalized") {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.evidence.rejected",
+              tenant_id: route.tenantId,
+              intent_id: stringValue(decision.event.intent_id),
+              intent_digest: stringValue(decision.event.intent_digest),
+              evidence_source: "decision_events",
+              error_code: decision.errorCode,
+              error: decision.findings[0],
+              auth: auth.context,
+            }),
+          );
+        }
         const authorizationReceipt = decision.allow && !decision.replayed
           ? await createProviderAuthorizationReceipt(env, decision.event, route.tenantId)
           : undefined;
@@ -583,6 +682,7 @@ export default {
             failure_class: decision.allow ? undefined : "permission_failure",
             decision_summary: decisionSummary(decision.allow, decision.findings, decision.event),
             authorization_receipt: authorizationReceipt,
+            error_code: decision.errorCode,
             auth: auth.context,
           }),
         );
@@ -613,6 +713,7 @@ export default {
             result: decision.result,
             receipt: decision.receipt,
             authorization_receipt: authorizationReceipt,
+            error_code: decision.errorCode,
             auth: auth.context,
           },
           decision.allow ? 200 : 403,
@@ -623,6 +724,20 @@ export default {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
         await recordIntentDecisionEvidence(env, route.tenantId, manifest, decision);
+        if (decision.errorCode === "intent_evidence_finalized") {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.evidence.rejected",
+              tenant_id: route.tenantId,
+              intent_id: stringValue(decision.event.intent_id),
+              intent_digest: stringValue(decision.event.intent_digest),
+              evidence_source: "decision_events",
+              error_code: decision.errorCode,
+              error: decision.findings[0],
+              auth: auth.context,
+            }),
+          );
+        }
         ctx.waitUntil(
           emitAudit(env, {
             type: "agentid.decision",
@@ -645,6 +760,7 @@ export default {
               findings: decision.findings,
               decision: decision.challengeRequired ? "challenge_required" : "deny",
               event: decision.event,
+              error_code: decision.errorCode,
               auth: auth.context,
             },
             403,
@@ -710,7 +826,12 @@ export default {
         const payload = await readJson(request);
         const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, payload);
         if (intentBinding.findings.length > 0) {
-          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+          return json({
+            error: intentBinding.findings[0],
+            error_code: intentBinding.errorCode,
+            findings: intentBinding.findings,
+            auth: auth.context,
+          }, intentBinding.errorCode === "intent_evidence_finalized" ? 409 : 400);
         }
         const approval = await createApprovalRequest(manifest, payload, route.tenantId);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
@@ -775,7 +896,26 @@ export default {
         const event = toolEventFromPayload(manifest, payload, route.tenantId);
         const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, event);
         if (intentBinding.findings.length > 0) {
-          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+          if (intentBinding.errorCode === "intent_evidence_finalized") {
+            ctx.waitUntil(
+              emitAudit(env, {
+                type: "agentpass.intent.evidence.rejected",
+                tenant_id: route.tenantId,
+                intent_id: stringValue(event.intent_id),
+                intent_digest: stringValue(event.intent_digest),
+                evidence_source: "execution_receipts",
+                error_code: intentBinding.errorCode,
+                error: intentBinding.findings[0],
+                auth: auth.context,
+              }),
+            );
+          }
+          return json({
+            error: intentBinding.findings[0],
+            error_code: intentBinding.errorCode,
+            findings: intentBinding.findings,
+            auth: auth.context,
+          }, intentBinding.errorCode === "intent_evidence_finalized" ? 409 : 400);
         }
         const resultPayload = hasValue(payload.result) ? payload.result : payload.provider_result;
         if (!hasValue(resultPayload)) return json({ error: "result is required" }, 400);
@@ -812,7 +952,12 @@ export default {
         const payload = await readJson(request);
         const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, payload);
         if (intentBinding.findings.length > 0) {
-          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+          return json({
+            error: intentBinding.findings[0],
+            error_code: intentBinding.errorCode,
+            findings: intentBinding.findings,
+            auth: auth.context,
+          }, intentBinding.errorCode === "intent_evidence_finalized" ? 409 : 400);
         }
         const checked = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/approvals/require-approved", {
@@ -880,6 +1025,7 @@ export class AgentIdJitGrants {
       put<T = unknown>(key: string, value: T): Promise<void>;
     };
   };
+  private intentFinalizationQueues = new Map<string, Promise<void>>();
 
   constructor(state: AgentIdJitGrants["state"]) {
     this.state = state;
@@ -979,7 +1125,9 @@ export class AgentIdJitGrants {
 
     if (request.method === "POST" && url.pathname === "/intent-contracts/resolve") {
       const resolved = await this.resolveIntentRecord(recordValue(payload.event));
-      if (resolved.error) return json({ error: resolved.error, findings: [resolved.error] }, resolved.httpStatus);
+      if (resolved.error) {
+        return json({ error: resolved.error, error_code: resolved.errorCode, findings: [resolved.error] }, resolved.httpStatus);
+      }
       if (!resolved.record) return json({ status: "unbound" } satisfies IntentBindingResult);
       return json({ status: "bound", contract: resolved.record.contract } satisfies IntentBindingResult);
     }
@@ -993,16 +1141,19 @@ export class AgentIdJitGrants {
 
     if (request.method === "GET" && url.pathname.startsWith("/intent-contracts/")) {
       const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length !== 2) return json({ error: "not found" }, 404);
       const intentId = decodeURIComponent(parts[1]);
       const record = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
       if (!record) return json({ error: `intent contract not found: ${intentId}` }, 404);
+      if (parts.length === 3 && parts[2] === "evaluations") {
+        return this.intentEvaluationHistory(intentId, record, url);
+      }
+      if (parts.length !== 2) return json({ error: "not found" }, 404);
       return json(intentContractResponse(record));
     }
 
     if (request.method === "POST" && url.pathname.startsWith("/intent-contracts/")) {
       const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length !== 3 || !["observations", "evaluate"].includes(parts[2])) {
+      if (parts.length !== 3 || !["observations", "evaluate", "finalize"].includes(parts[2])) {
         return json({ error: "not found" }, 404);
       }
       const intentId = decodeURIComponent(parts[1]);
@@ -1038,33 +1189,8 @@ export class AgentIdJitGrants {
         return json({ observation: appended.record, replayed: appended.replayed === true }, appended.httpStatus);
       }
 
-      const jobInput = payload.job === undefined ? undefined : recordValue(payload.job);
-      let job: Record<string, unknown> | undefined;
-      if (jobInput) {
-        const bindingFinding = suppliedIntentBindingFinding(jobInput, registered);
-        if (bindingFinding) return json({ error: bindingFinding }, 409);
-        job = {
-          ...jobInput,
-          intent_id: registered.intent_id,
-          intent_digest: registered.intent_digest,
-          job_id: registered.job_id,
-        };
-        await this.state.storage.put(`intent:${intentId}:job`, job);
-      } else {
-        job = await this.state.storage.get<Record<string, unknown>>(`intent:${intentId}:job`);
-      }
-      const evidence: IntentEvidence = {
-        decision_events: await this.intentEvidence(intentId, "decision_events"),
-        execution_receipts: await this.intentEvidence(intentId, "execution_receipts"),
-        observations: await this.intentEvidence(intentId, "observations"),
-        job,
-      };
-      const evaluation = evaluateIntent(registered.contract, evidence, {
-        idGenerator: () => `eval_${crypto.randomUUID()}`,
-      });
-      await this.state.storage.put(`intent:${intentId}:evaluation:${evaluation.evaluation_id}`, evaluation);
-      await this.state.storage.put(`intent:${intentId}:evaluation:latest`, evaluation);
-      return json(evaluation);
+      if (parts[2] === "finalize") return this.finalizeIntentEvaluation(intentId, registered, payload);
+      return this.previewIntentEvaluation(intentId, registered, payload);
     }
 
     if (request.method === "POST" && url.pathname === "/approvals") {
@@ -1269,7 +1395,7 @@ export class AgentIdJitGrants {
     event: Record<string, unknown>,
     requireJob = true,
     allowExpired = false,
-  ): Promise<{ record?: IntentContractRecord; error?: string; httpStatus: number }> {
+  ): Promise<{ record?: IntentContractRecord; error?: string; errorCode?: string; httpStatus: number }> {
     const intentId = stringValue(event.intent_id ?? event.intentId);
     const intentDigest = stringValue(event.intent_digest ?? event.intentDigest);
     if (!intentId && !intentDigest) return { httpStatus: 200 };
@@ -1283,6 +1409,14 @@ export class AgentIdJitGrants {
     }
     if (digestIntentContract(record.contract) !== record.intent_digest) {
       return { error: "registered intent contract failed digest verification", httpStatus: 409 };
+    }
+    const finalization = await this.state.storage.get<IntentFinalizationState>(`intent:${intentId}:finalization:state`);
+    if (!allowExpired && finalization) {
+      return {
+        error: `intent evidence is ${finalization.status}: ${intentId}`,
+        errorCode: "intent_evidence_finalized",
+        httpStatus: 409,
+      };
     }
     const issuedAt = Date.parse(record.contract.issued_at);
     if (Number.isFinite(issuedAt) && issuedAt > Date.now()) {
@@ -1298,6 +1432,278 @@ export class AgentIdJitGrants {
       }
     }
     return { record, httpStatus: 200 };
+  }
+
+  async previewIntentEvaluation(
+    intentId: string,
+    registered: IntentContractRecord,
+    payload: Record<string, unknown>,
+  ): Promise<Response> {
+    const finalization = await this.state.storage.get<IntentFinalizationState>(`intent:${intentId}:finalization:state`);
+    const finalRecord = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+    const jobInput = payload.job === undefined ? undefined : recordValue(payload.job);
+    if (jobInput && finalization) {
+      return json({
+        error: `intent evidence is ${finalization.status}: ${intentId}`,
+        error_code: "intent_evidence_finalized",
+      }, 409);
+    }
+    if (finalization?.status === "finalizing" && !finalRecord) {
+      return json({ error: `intent finalization is in progress: ${intentId}`, error_code: "intent_finalization_in_progress" }, 409);
+    }
+
+    let job: Record<string, unknown> | undefined;
+    if (jobInput) {
+      const bindingFinding = suppliedIntentBindingFinding(jobInput, registered);
+      if (bindingFinding) return json({ error: bindingFinding, error_code: "intent_job_binding_mismatch" }, 409);
+      job = boundIntentJob(jobInput, registered);
+      await this.state.storage.put(`intent:${intentId}:job`, job);
+    } else if (finalRecord) {
+      job = finalRecord.snapshot.evidence.job;
+    } else {
+      job = await this.state.storage.get<Record<string, unknown>>(`intent:${intentId}:job`);
+    }
+
+    const evidence = finalRecord
+      ? snapshotIntentEvidence(finalRecord.snapshot)
+      : await this.currentIntentEvidence(intentId, job);
+    const evaluation: HostedIntentEvaluationReceipt = {
+      ...evaluateIntent(registered.contract, evidence, {
+        idGenerator: () => `eval_${crypto.randomUUID()}`,
+      }),
+      evaluation_mode: "preview",
+    };
+    await this.persistIntentEvaluation(intentId, evaluation);
+    return json(evaluation);
+  }
+
+  async finalizeIntentEvaluation(
+    intentId: string,
+    registered: IntentContractRecord,
+    payload: Record<string, unknown>,
+  ): Promise<Response> {
+    const previous = this.intentFinalizationQueues.get(intentId) || Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const queued = previous.then(() => current);
+    this.intentFinalizationQueues.set(intentId, queued);
+    await previous;
+    try {
+      return await this.finalizeIntentEvaluationLocked(intentId, registered, payload);
+    } finally {
+      release();
+      if (this.intentFinalizationQueues.get(intentId) === queued) {
+        this.intentFinalizationQueues.delete(intentId);
+      }
+    }
+  }
+
+  async finalizeIntentEvaluationLocked(
+    intentId: string,
+    registered: IntentContractRecord,
+    payload: Record<string, unknown>,
+  ): Promise<Response> {
+    const jobInput = payload.job === undefined ? undefined : recordValue(payload.job);
+    if (jobInput) {
+      const bindingFinding = suppliedIntentBindingFinding(jobInput, registered);
+      if (bindingFinding) return json({ error: bindingFinding, error_code: "intent_job_binding_mismatch" }, 409);
+    }
+    const requestedJob = jobInput ? boundIntentJob(jobInput, registered) : undefined;
+    const finalizationKey = `intent:${intentId}:finalization`;
+    const stateKey = `intent:${intentId}:finalization:state`;
+    const existing = await this.state.storage.get<IntentFinalizationRecord>(finalizationKey);
+    if (existing) {
+      if (requestedJob && canonicalJson(requestedJob) !== canonicalJson(existing.snapshot.evidence.job)) {
+        return json({
+          error: `intent evidence is finalized with different job evidence: ${intentId}`,
+          error_code: "intent_evidence_finalized",
+        }, 409);
+      }
+      await this.state.storage.put(stateKey, {
+        status: "finalized",
+        started_at: existing.snapshot.captured_at,
+        finalized_at: existing.finalized_at,
+      } satisfies IntentFinalizationState);
+      return json({ evaluation: existing.evaluation, snapshot: existing.snapshot, replayed: true });
+    }
+
+    const priorState = await this.state.storage.get<IntentFinalizationState>(stateKey);
+    const storedJob = await this.state.storage.get<Record<string, unknown>>(`intent:${intentId}:job`);
+    const frozenJob = priorState ? priorState.pending_job || storedJob : undefined;
+    if (priorState && requestedJob && frozenJob && canonicalJson(requestedJob) !== canonicalJson(frozenJob)) {
+      return json({
+        error: `intent finalization already started with different job evidence: ${intentId}`,
+        error_code: "intent_evidence_finalized",
+      }, 409);
+    }
+    const job = priorState ? frozenJob || requestedJob : requestedJob || storedJob;
+    const capturedAt = priorState?.started_at || new Date().toISOString();
+    await this.state.storage.put(stateKey, {
+      status: "finalizing",
+      started_at: capturedAt,
+      pending_job: job,
+    } satisfies IntentFinalizationState);
+
+    const snapshot = await this.createIntentEvidenceSnapshot(intentId, registered, job, capturedAt);
+    const evaluation: HostedIntentEvaluationReceipt = {
+      ...evaluateIntent(registered.contract, snapshotIntentEvidence(snapshot), {
+        now: () => new Date(capturedAt),
+        idGenerator: () => `eval_final_${snapshot.evidence_digest.slice(0, 24)}`,
+      }),
+      evaluation_mode: "final",
+      snapshot_id: snapshot.snapshot_id,
+      evidence_digest: snapshot.evidence_digest,
+    };
+    const finalizedAt = capturedAt;
+    const record: IntentFinalizationRecord = {
+      schema_version: "agentpass.intent-finalization.v1",
+      finalized_at: finalizedAt,
+      snapshot,
+      evaluation,
+    };
+    if (job) await this.state.storage.put(`intent:${intentId}:job`, job);
+    await this.state.storage.put(`intent:${intentId}:snapshot:${snapshot.snapshot_id}`, snapshot);
+    await this.persistIntentEvaluation(intentId, evaluation);
+    await this.state.storage.put(stateKey, {
+      status: "finalized",
+      started_at: capturedAt,
+      finalized_at: finalizedAt,
+    } satisfies IntentFinalizationState);
+    await this.state.storage.put(finalizationKey, record);
+    return json({ evaluation, snapshot, replayed: false }, 201);
+  }
+
+  async createIntentEvidenceSnapshot(
+    intentId: string,
+    registered: IntentContractRecord,
+    job: Record<string, unknown> | undefined,
+    capturedAt: string,
+  ): Promise<IntentEvidenceSnapshot> {
+    const decisions = await this.sortedIntentEvidence(intentId, "decision_events");
+    const receipts = await this.sortedIntentEvidence(intentId, "execution_receipts");
+    const observations = (await this.sortedIntentEvidence(intentId, "observations", true));
+    const jobDigest = await canonicalDigest(job ?? null);
+    const sources: IntentEvidenceManifest = {
+      decision_events: {
+        count: decisions.records.length,
+        evidence_ids: decisions.ids,
+        digest: decisions.digest,
+      },
+      execution_receipts: {
+        count: receipts.records.length,
+        evidence_ids: receipts.ids,
+        digest: receipts.digest,
+      },
+      observations: {
+        count: observations.records.length,
+        evidence_ids: observations.ids,
+        digest: observations.digest,
+      },
+      job: {
+        count: job ? 1 : 0,
+        evidence_ids: job ? [registered.job_id] : [],
+        digest: jobDigest,
+      },
+    };
+    const evidence = {
+      decision_events: decisions.records,
+      execution_receipts: receipts.records,
+      observations: observations.records,
+      job,
+    };
+    const evidenceDigest = await canonicalDigest({
+      schema_version: "agentpass.intent-evidence-snapshot.v1",
+      tenant_id: registered.tenant_id || "default",
+      intent_id: registered.intent_id,
+      intent_digest: registered.intent_digest,
+      job_id: registered.job_id,
+      sources,
+    });
+    return {
+      schema_version: "agentpass.intent-evidence-snapshot.v1",
+      snapshot_id: `snapshot_${evidenceDigest.slice(0, 24)}`,
+      tenant_id: registered.tenant_id || "default",
+      intent_id: registered.intent_id,
+      intent_digest: registered.intent_digest,
+      job_id: registered.job_id,
+      captured_at: capturedAt,
+      evidence_digest: evidenceDigest,
+      sources,
+      evidence,
+    };
+  }
+
+  async sortedIntentEvidence(
+    intentId: string,
+    source: "decision_events" | "execution_receipts" | "observations",
+    verifiedOnly = false,
+  ): Promise<{ ids: string[]; records: Record<string, unknown>[]; digest: string }> {
+    const records = (await this.intentEvidence(intentId, source))
+      .filter((record) => !verifiedOnly || verifiedIntentObservationFinding(record) === undefined);
+    const entries = await Promise.all(records.map(async (record) => ({
+      id: intentEvidenceIdentifier(source, record) || `${source}_${(await canonicalDigest(record)).slice(0, 24)}`,
+      record,
+    })));
+    entries.sort((left, right) => left.id.localeCompare(right.id) || canonicalJson(left.record).localeCompare(canonicalJson(right.record)));
+    const sortedRecords = entries.map((entry) => entry.record);
+    return {
+      ids: entries.map((entry) => entry.id),
+      records: sortedRecords,
+      digest: await canonicalDigest(sortedRecords),
+    };
+  }
+
+  async currentIntentEvidence(intentId: string, job?: Record<string, unknown>): Promise<IntentEvidence> {
+    return {
+      decision_events: await this.intentEvidence(intentId, "decision_events"),
+      execution_receipts: await this.intentEvidence(intentId, "execution_receipts"),
+      observations: await this.intentEvidence(intentId, "observations"),
+      job,
+    };
+  }
+
+  async persistIntentEvaluation(intentId: string, evaluation: HostedIntentEvaluationReceipt): Promise<void> {
+    const indexKey = `intent:${intentId}:evaluation:index`;
+    const index = await this.state.storage.get<string[]>(indexKey) || [];
+    const next = [evaluation.evaluation_id, ...index.filter((id) => id !== evaluation.evaluation_id)].slice(0, 1_000);
+    await this.state.storage.put(`intent:${intentId}:evaluation:${evaluation.evaluation_id}`, evaluation);
+    await this.state.storage.put(indexKey, next);
+    await this.state.storage.put(
+      `intent:${intentId}:evaluation:${evaluation.evaluation_mode === "final" ? "final" : "latest-preview"}`,
+      evaluation,
+    );
+  }
+
+  async intentEvaluationHistory(intentId: string, registered: IntentContractRecord, url: URL): Promise<Response> {
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || "100"), 1), 250);
+    const index = await this.state.storage.get<string[]>(`intent:${intentId}:evaluation:index`) || [];
+    const evaluations: HostedIntentEvaluationReceipt[] = [];
+    for (const evaluationId of index.slice(0, limit)) {
+      const evaluation = await this.state.storage.get<HostedIntentEvaluationReceipt>(
+        `intent:${intentId}:evaluation:${evaluationId}`,
+      );
+      if (evaluation) evaluations.push(evaluation);
+    }
+    const latestPreview = await this.state.storage.get<HostedIntentEvaluationReceipt>(
+      `intent:${intentId}:evaluation:latest-preview`,
+    );
+    const finalization = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+    const finalizationState = await this.state.storage.get<IntentFinalizationState>(`intent:${intentId}:finalization:state`);
+    return json({
+      intent_id: registered.intent_id,
+      intent_digest: registered.intent_digest,
+      job_id: registered.job_id,
+      tenant_id: registered.tenant_id || "default",
+      evaluations,
+      count: evaluations.length,
+      total_count: index.length,
+      latest_preview: latestPreview,
+      final: finalization?.evaluation,
+      snapshot: finalization?.snapshot,
+      finalization_status: finalization ? "finalized" : finalizationState?.status || "open",
+    });
   }
 
   async appendIntentEvidence(
@@ -1329,6 +1735,16 @@ export class AgentIdJitGrants {
           httpStatus: 409,
         };
       }
+    }
+    const finalization = await this.state.storage.get<IntentFinalizationState>(
+      `intent:${resolved.record.intent_id}:finalization:state`,
+    );
+    if (finalization) {
+      return {
+        error: `intent evidence is ${finalization.status}: ${resolved.record.intent_id}`,
+        errorCode: "intent_evidence_finalized",
+        httpStatus: 409,
+      };
     }
     const index = await this.state.storage.get<string[]>(indexKey) || [];
     const next = [evidenceId, ...index.filter((id) => id !== evidenceId)].slice(0, 2_000);
@@ -1489,7 +1905,7 @@ async function authorize(
   const intentBinding = await resolveIntentBinding(env, tenantId, manifest, event);
   if (intentBinding.findings.length > 0) {
     event.intent_registry_bound = false;
-    return { allow: false, findings: intentBinding.findings, event };
+    return { allow: false, findings: intentBinding.findings, event, errorCode: intentBinding.errorCode };
   }
   if (intentBinding.contract) {
     event.intent_registry_bound = true;
@@ -2274,7 +2690,7 @@ async function resolveIntentBinding(
   tenantId: string | null,
   manifest: AgentIdManifest,
   event: ToolEvent,
-): Promise<{ contract?: IntentContract; findings: string[] }> {
+): Promise<{ contract?: IntentContract; findings: string[]; errorCode?: string }> {
   const response = await authorizationStore(env, tenantId, manifest).fetch(
     new Request("https://agentid.local/intent-contracts/resolve", {
       method: "POST",
@@ -2283,7 +2699,12 @@ async function resolveIntentBinding(
     }),
   );
   const body = await response.json() as IntentBindingResult & { error?: string; findings?: string[] };
-  if (!response.ok) return { findings: body.findings || [body.error || "intent binding could not be resolved"] };
+  if (!response.ok) {
+    return {
+      findings: body.findings || [body.error || "intent binding could not be resolved"],
+      errorCode: body.error_code,
+    };
+  }
   return { contract: body.contract, findings: [] };
 }
 
@@ -2366,6 +2787,7 @@ function suppliedIntentBindingFinding(
   registered: IntentContractRecord,
 ): string {
   const fields: Array<[string, string]> = [
+    ["tenant_id", registered.tenant_id || "default"],
     ["intent_id", registered.intent_id],
     ["intent_digest", registered.intent_digest],
     ["job_id", registered.job_id],
@@ -2376,6 +2798,33 @@ function suppliedIntentBindingFinding(
     }
   }
   return "";
+}
+
+function boundIntentJob(job: Record<string, unknown>, registered: IntentContractRecord): Record<string, unknown> {
+  return {
+    ...job,
+    tenant_id: registered.tenant_id || "default",
+    intent_id: registered.intent_id,
+    intent_digest: registered.intent_digest,
+    job_id: registered.job_id,
+  };
+}
+
+function snapshotIntentEvidence(snapshot: IntentEvidenceSnapshot): IntentEvidence {
+  return {
+    decision_events: snapshot.evidence.decision_events,
+    execution_receipts: snapshot.evidence.execution_receipts,
+    observations: snapshot.evidence.observations,
+    job: snapshot.evidence.job,
+  };
+}
+
+function intentEvidenceIdentifier(
+  source: "decision_events" | "execution_receipts" | "observations",
+  record: Record<string, unknown>,
+): string {
+  if (source === "observations") return stringValue(record.observation_id);
+  return stringValue(record.decision_id ?? record.event_id ?? record.receipt_id);
 }
 
 function declaredCapabilities(manifest: AgentIdManifest): Array<Record<string, unknown>> {

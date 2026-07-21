@@ -129,13 +129,49 @@ contract and evaluation model:
   durably. `POST .../<intent-id>/observations` adds application or provider
   observations using
   [`agentpass.intent-observation.v1`](../schema/intent-observation.schema.json).
-- `POST .../<intent-id>/evaluate` evaluates only the evidence stored for that
-  tenant and contract, persists the receipt, and emits an audit event.
+- `POST .../<intent-id>/evaluate` emits a non-finalizing preview over the
+  currently stored evidence.
+- `POST .../<intent-id>/finalize` freezes a canonical evidence snapshot and
+  emits the one final receipt bound to its digest.
+- `GET .../<intent-id>/evaluations` returns history, the latest preview, final
+  receipt, immutable snapshot, and finalization status.
 
 Calls without either intent binding field retain the existing authorization
 behavior. If either field is present, both are required. Contract expiry blocks
 new runtime authority but does not prevent late evidence collection or
 post-execution evaluation.
+
+## Immutable Evidence Finalization
+
+Preview and final evaluation have deliberately different semantics. A preview
+answers “what would the verdict be with the evidence available now?” and may be
+repeated while job evidence is still changing. It does not close the job.
+
+Finalization creates an `agentpass.intent-evidence-snapshot.v1` containing the
+exact bound decision events, provider execution receipts, verified
+observations, and job evidence used by the evaluator. Its source manifest
+records, for each evidence source:
+
+- the evidence count;
+- stable evidence identifiers; and
+- a canonical SHA-256 source digest.
+
+Those manifests produce one canonical `evidence_digest` and deterministic
+snapshot ID. The final `agentpass.intent-evaluation.v1` receipt declares
+`evaluation_mode: final` and carries both `snapshot_id` and `evidence_digest`.
+This makes the result reproducible without treating a mutable query result as a
+final quality record.
+
+The durable finalization marker is the evidence freeze boundary. Identical
+finalization retries return the stored receipt and snapshot without adding
+history entries. A changed finalization request or later decision, execution,
+observation, or job write fails with `intent_evidence_finalized`. Lifecycle
+reads remain tenant-scoped and expose the latest preview separately from the
+single final receipt.
+
+Audit types distinguish `agentpass.intent.evaluation.previewed`,
+`agentpass.intent.finalized`, `agentpass.intent.finalization.replayed`, and
+`agentpass.intent.evidence.rejected`.
 
 ## Trusted Observation Provenance
 
