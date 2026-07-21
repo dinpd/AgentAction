@@ -6,6 +6,122 @@ export type AgentPassClientOptions = {
 
 export type AgentIdClientOptions = AgentPassClientOptions;
 
+export type IntentEvidenceSource = "decision_events" | "execution_receipts" | "observations" | "job";
+
+export type IntentPredicate = {
+  id: string;
+  description?: string;
+  source: IntentEvidenceSource;
+  where?: Array<{
+    path: string;
+    operator: "equals" | "not_equals" | "in" | "not_in" | "exists";
+    value?: unknown;
+  }>;
+  assertion: {
+    operator:
+      | "count_equals"
+      | "count_lte"
+      | "count_gte"
+      | "equals"
+      | "not_equals"
+      | "in"
+      | "not_in"
+      | "lte"
+      | "gte"
+      | "exists";
+    path?: string;
+    value?: unknown;
+    quantifier?: "any" | "all";
+  };
+  weight?: number;
+};
+
+export type IntentContract = {
+  schema_version: "agentpass.intent-contract.v1";
+  intent_id: string;
+  profile: string;
+  issuer: string;
+  job_id: string;
+  objective?: string;
+  required_outcomes: IntentPredicate[];
+  hard_constraints: IntentPredicate[];
+  preferences?: {
+    max_tool_calls?: number;
+    max_execution_receipts?: number;
+    max_retries?: number;
+    max_replays?: number;
+    max_denied_decisions?: number;
+    max_runtime_ms?: number;
+    max_estimated_cost_usd?: number;
+  };
+  evidence_requirements?: IntentEvidenceSource[];
+  issued_at: string;
+  expires_at?: string;
+  intent_digest?: string;
+};
+
+export type RegisteredIntentContract = {
+  schema_version: "agentpass.intent-registry-record.v1";
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  tenant_id?: string;
+  registered_at: string;
+  registered_by?: string;
+  status: "pending" | "active" | "expired";
+  contract: IntentContract;
+  auth?: Record<string, unknown>;
+};
+
+export type IntentContractListResponse = {
+  intent_contracts: RegisteredIntentContract[];
+  count: number;
+  auth?: Record<string, unknown>;
+};
+
+export type IntentObservationInput = {
+  schema_version?: "agentpass.intent-observation.v1";
+  intent_id?: string;
+  intent_digest?: string;
+  predicate: string;
+  value: unknown;
+  observed_at: string;
+  issuer: string;
+  resource?: string;
+};
+
+export type IntentObservation = Required<Pick<IntentObservationInput, "predicate" | "observed_at" | "issuer">> &
+  Omit<IntentObservationInput, "schema_version" | "intent_id" | "intent_digest"> & {
+    schema_version: "agentpass.intent-observation.v1";
+    intent_id: string;
+    intent_digest: string;
+    auth?: Record<string, unknown>;
+  };
+
+export type IntentEvaluationReceipt = {
+  schema_version: "agentpass.intent-evaluation.v1";
+  evaluation_id: string;
+  intent_id: string;
+  intent_digest: string;
+  profile: string;
+  job_id: string;
+  evaluated_at: string;
+  verdict: "completed" | "partial" | "failed" | "indeterminate";
+  constraint_compliance: "pass" | "fail" | "indeterminate";
+  qualified_success: boolean;
+  goal_attainment: number;
+  evidence_confidence: number;
+  outcomes: Array<Record<string, unknown>>;
+  constraints: Array<Record<string, unknown>>;
+  execution_discipline: Record<string, unknown>;
+  evidence_findings: string[];
+  auth?: Record<string, unknown>;
+};
+
+export type IntentEvaluationInput = {
+  job?: Record<string, unknown>;
+};
+
 export type ToolCallRequest = {
   agent_id: string;
   intent_id?: string;
@@ -132,6 +248,7 @@ export type AuditRecord = {
   type: string;
   tenant_id?: string | null;
   agent_id?: string;
+  intent_id?: string;
   tool?: string;
   action?: string;
   resource?: string;
@@ -278,6 +395,49 @@ export class AgentPassClient {
     this.fetchImpl = options.fetch || fetch;
   }
 
+  async registerIntentContract(tenantId: string, contract: IntentContract): Promise<RegisteredIntentContract> {
+    return this.post<RegisteredIntentContract>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts`,
+      contract,
+      [200, 201],
+    );
+  }
+
+  async listIntentContracts(tenantId: string): Promise<IntentContractListResponse> {
+    return this.get<IntentContractListResponse>(`/tenants/${encodeURIComponent(tenantId)}/intent-contracts`, [200]);
+  }
+
+  async getIntentContract(tenantId: string, intentId: string): Promise<RegisteredIntentContract> {
+    return this.get<RegisteredIntentContract>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}`,
+      [200],
+    );
+  }
+
+  async recordIntentObservation(
+    tenantId: string,
+    intentId: string,
+    observation: IntentObservationInput,
+  ): Promise<IntentObservation> {
+    return this.post<IntentObservation>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/observations`,
+      observation,
+      [201],
+    );
+  }
+
+  async evaluateIntent(
+    tenantId: string,
+    intentId: string,
+    request: IntentEvaluationInput = {},
+  ): Promise<IntentEvaluationReceipt> {
+    return this.post<IntentEvaluationReceipt>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/evaluate`,
+      request,
+      [200],
+    );
+  }
+
   async authorizeToolCall(tenantId: string, request: ToolCallRequest): Promise<AuthorizeResponse> {
     return this.post<AuthorizeResponse>(`/tenants/${encodeURIComponent(tenantId)}/authorize`, request, [200, 403]);
   }
@@ -334,10 +494,11 @@ export class AgentPassClient {
   }
 
   async listAuditEvents(
-    options: { tenantId?: string; approvalId?: string; jitGrantId?: string; limit?: number } = {},
+    options: { tenantId?: string; intentId?: string; approvalId?: string; jitGrantId?: string; limit?: number } = {},
   ): Promise<AuditListResponse> {
     const search = new URLSearchParams();
     if (options.tenantId) search.set("tenant_id", options.tenantId);
+    if (options.intentId) search.set("intent_id", options.intentId);
     if (options.approvalId) search.set("approval_id", options.approvalId);
     if (options.jitGrantId) search.set("jit_grant_id", options.jitGrantId);
     if (options.limit) search.set("limit", String(options.limit));

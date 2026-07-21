@@ -14,6 +14,15 @@
   client, and MCP gateway authorization receipts.
 - Added a runnable `support_refund.v1` intent demo and tests for completed,
   partial, noncompliant, indeterminate, and tampered-contract cases.
+- Added a tenant-scoped hosted intent registry that canonically binds and
+  freezes contracts, with idempotent registration and lifecycle reads.
+- Made hosted intent-bound approval, JIT, authorization, and execution paths
+  fail closed for incomplete, unknown, altered, expired, or job-mismatched
+  contracts while preserving compatibility for unbound calls.
+- Added durable decision, execution-receipt, observation, and job evidence plus
+  a hosted evaluation endpoint and intent-filtered audit events.
+- Replaced the Node-only intent hashing dependency with a portable synchronous
+  SHA-256 implementation shared by local and Cloudflare runtimes.
 
 ### Provider trust gate
 

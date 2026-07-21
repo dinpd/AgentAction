@@ -58,10 +58,22 @@ def test_schema_cli_payload_is_json():
 def test_intent_schemas_and_refund_examples_are_valid():
     contract_schema = json.loads(Path("schema/intent-contract.schema.json").read_text())
     evaluation_schema = json.loads(Path("schema/intent-evaluation.schema.json").read_text())
+    observation_schema = json.loads(Path("schema/intent-observation.schema.json").read_text())
     contract = json.loads(Path("packages/guard/examples/support-refund-intent.json").read_text())
     evaluation = json.loads(Path("packages/guard/examples/support-refund-evaluation.json").read_text())
 
     Draft202012Validator.check_schema(contract_schema)
     Draft202012Validator.check_schema(evaluation_schema)
+    Draft202012Validator.check_schema(observation_schema)
     Draft202012Validator(contract_schema).validate(contract)
     Draft202012Validator(evaluation_schema).validate(evaluation)
+    Draft202012Validator(observation_schema).validate({
+        "schema_version": "agentpass.intent-observation.v1",
+        "intent_id": contract["intent_id"],
+        "intent_digest": evaluation["intent_digest"],
+        "predicate": "refund.status",
+        "value": "succeeded",
+        "observed_at": "2026-07-20T18:00:01.000Z",
+        "issuer": "stripe-adapter",
+        "resource": "payment/pi_123",
+    })

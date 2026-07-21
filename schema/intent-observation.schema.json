@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentpass.dev/schema/intent-observation.schema.json",
+  "title": "AgentPass Intent Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "intent_digest",
+    "predicate",
+    "value",
+    "observed_at",
+    "issuer"
+  ],
+  "properties": {
+    "schema_version": { "const": "agentpass.intent-observation.v1" },
+    "intent_id": { "type": "string", "minLength": 1 },
+    "intent_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "predicate": { "type": "string", "minLength": 1 },
+    "value": { "$ref": "#/$defs/jsonValue" },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "issuer": { "type": "string", "minLength": 1 },
+    "resource": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    }
+  }
+}

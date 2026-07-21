@@ -53,6 +53,39 @@ await agentpass.recordExecutionResult("tenant-a", {
 });
 ```
 
+For intent-bound jobs, register the contract before requesting authority, carry
+the returned digest on every request, and evaluate the durable evidence after
+execution:
+
+```ts
+const registered = await agentpass.registerIntentContract("tenant-a", contract);
+
+const binding = {
+  intent_id: registered.intent_id,
+  intent_digest: registered.intent_digest,
+  job_id: registered.job_id,
+};
+
+await agentpass.recordIntentObservation("tenant-a", registered.intent_id, {
+  predicate: "refund.status",
+  value: "succeeded",
+  observed_at: new Date().toISOString(),
+  issuer: "stripe-adapter",
+});
+
+const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_id, {
+  job: {
+    ...binding,
+    started_at: jobStartedAt,
+    completed_at: jobCompletedAt,
+  },
+});
+```
+
+`registerIntentContract` is idempotent for identical contents and fails if an
+existing `intent_id` is reused with changed contents. `listIntentContracts` and
+`getIntentContract` expose the tenant registry and lifecycle status.
+
 For approval-gated actions, the client can drive the durable hosted lifecycle:
 
 ```ts

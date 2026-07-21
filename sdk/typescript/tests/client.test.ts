@@ -121,6 +121,59 @@ test("recordExecutionResult posts provider result for hosted replay", async () =
   assert.equal(response.receipt.status, "executed");
 });
 
+test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => {
+  const calls: Array<{ url: string; method: string; body?: Record<string, unknown> }> = [];
+  const client = new AgentPassClient({
+    baseUrl: "https://gateway.example.com",
+    fetch: async (url, init) => {
+      calls.push({
+        url: String(url),
+        method: init?.method || "GET",
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      const status = init?.method === "POST" && !String(url).endsWith("/evaluate") ? 201 : 200;
+      return jsonResponse(status, String(url).endsWith("/intent-contracts") && !init?.method
+        ? { intent_contracts: [], count: 0 }
+        : {});
+    },
+  });
+  const contract = {
+    schema_version: "agentpass.intent-contract.v1" as const,
+    intent_id: "intent-1",
+    profile: "support_refund.v1",
+    issuer: "support-app",
+    job_id: "job-1",
+    required_outcomes: [{
+      id: "completed",
+      source: "job" as const,
+      assertion: { operator: "exists" as const, path: "completed_at" },
+    }],
+    hard_constraints: [],
+    issued_at: "2026-07-20T00:00:00.000Z",
+  };
+
+  await client.registerIntentContract("tenant-a", contract);
+  await client.listIntentContracts("tenant-a");
+  await client.getIntentContract("tenant-a", "intent-1");
+  await client.recordIntentObservation("tenant-a", "intent-1", {
+    predicate: "refund.status",
+    value: "succeeded",
+    observed_at: "2026-07-20T00:00:01.000Z",
+    issuer: "stripe-adapter",
+  });
+  await client.evaluateIntent("tenant-a", "intent-1", { job: { completed_at: "2026-07-20T00:00:01.000Z" } });
+
+  assert.deepEqual(calls.map(({ url, method }) => ({ url, method })), [
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts", method: "POST" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1", method: "GET" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/observations", method: "POST" },
+    { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/evaluate", method: "POST" },
+  ]);
+  assert.equal(calls[0].body?.intent_id, "intent-1");
+  assert.equal(calls[3].body?.predicate, "refund.status");
+});
+
 test("approval lifecycle methods use tenant-scoped endpoints", async () => {
   const calls: Array<{ url: string; method: string }> = [];
   const client = new AgentPassClient({
@@ -162,12 +215,12 @@ test("listAuditEvents filters by approval correlation", async () => {
   const client = new AgentPassClient({
     baseUrl: "https://gateway.example.com",
     fetch: async (url) => {
-      assert.equal(String(url), "https://gateway.example.com/audit/events?tenant_id=tenant-a&approval_id=approval-1&limit=50");
+      assert.equal(String(url), "https://gateway.example.com/audit/events?tenant_id=tenant-a&intent_id=intent-1&approval_id=approval-1&limit=50");
       return jsonResponse(200, { events: [], count: 0 });
     },
   });
 
-  const response = await client.listAuditEvents({ tenantId: "tenant-a", approvalId: "approval-1", limit: 50 });
+  const response = await client.listAuditEvents({ tenantId: "tenant-a", intentId: "intent-1", approvalId: "approval-1", limit: 50 });
   assert.equal(response.count, 0);
 });
 
