@@ -53,8 +53,20 @@
     "evidence_findings": {
       "type": "array",
       "items": { "type": "string" }
-    }
+    },
+    "evaluation_mode": { "type": "string", "enum": ["preview", "final"] },
+    "snapshot_id": { "type": "string", "pattern": "^snapshot_[a-f0-9]{24}$" },
+    "evidence_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["evaluation_mode"],
+        "properties": { "evaluation_mode": { "const": "final" } }
+      },
+      "then": { "required": ["snapshot_id", "evidence_digest"] }
+    }
+  ],
   "$defs": {
     "jsonValue": {
       "oneOf": [

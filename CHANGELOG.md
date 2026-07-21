@@ -33,6 +33,10 @@
   rejected changed payloads under the same ID, ignored unverified observations
   during evaluation, and added value-redacted accepted/rejected/replayed audit
   events.
+- Added preview and final intent-evaluation lifecycle APIs, canonical immutable
+  evidence snapshots with per-source IDs/counts/digests, deterministic final
+  receipts, idempotent finalization, evaluation history reads, and fail-closed
+  late-evidence rejection.
 
 ### Provider trust gate
 

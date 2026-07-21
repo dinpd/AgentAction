@@ -442,7 +442,202 @@ test("hosted idempotency replays completed refund result and denies changed retr
   const intentTypes = intentAudit.body.events.map((event: Record<string, unknown>) => event.type);
   assert.ok(intentTypes.includes("agentpass.intent.registered"));
   assert.ok(intentTypes.includes("agentpass.intent.observation.accepted"));
-  assert.ok(intentTypes.includes("agentpass.intent.evaluated"));
+  assert.ok(intentTypes.includes("agentpass.intent.evaluation.previewed"));
+});
+
+test("intent finalization freezes one canonical evidence snapshot and is idempotent", async () => {
+  const namespace = new MemoryNamespace();
+  const env = trustedUnsignedObservationEnv(namespace);
+  const ctx = new TestContext();
+  const tenant = "/tenants/acme";
+  const intentId = "intent-finalization";
+  const jobId = "job-finalization";
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts`,
+    hostedLifecycleIntentContract(intentId, jobId),
+  );
+  assert.equal(registered.status, 201);
+
+  const job = {
+    tenant_id: "acme",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    job_id: jobId,
+    started_at: "2026-07-21T14:00:00.000Z",
+    completed_at: "2026-07-21T14:00:02.000Z",
+  };
+  const preview = await call(env, ctx, "POST", `${tenant}/intent-contracts/${intentId}/evaluate`, {
+    job: { ...job, completed_at: undefined },
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.evaluation_mode, "preview");
+  assert.equal(preview.body.snapshot_id, undefined);
+
+  const decision = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    agent_id: "customer-support-refund-agent",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    job_id: jobId,
+    tool: "zendesk.search_tickets",
+    action: "read",
+    data_from: "zendesk",
+    data_to: "stripe",
+  });
+  assert.equal(decision.status, 200);
+  assert.equal(decision.body.allow, true);
+
+  const approvalPayload = {
+    approval_id: "approval-finalization",
+    agent_id: "customer-support-refund-agent",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    job_id: jobId,
+    tool: "stripe.create_refund",
+    action: "write",
+    resource: "refund/re_finalization/customer/cus_1",
+    requested_by: "support-1",
+    user_id: "support-1",
+    reason: "duplicate charge verified",
+    amount: 49,
+    currency: "USD",
+    idempotency_key: "refund-finalization",
+  };
+  const approval = await call(env, ctx, "POST", `${tenant}/approval-requests`, approvalPayload);
+  assert.equal(approval.status, 201);
+  await call(env, ctx, "POST", `${tenant}/approval-requests/approval-finalization/approve`, {
+    decided_by: "manager-1",
+    decision_reason: "refund evidence verified",
+  });
+  const grant = await call(env, ctx, "POST", `${tenant}/jit-grants`, approvalPayload);
+  assert.equal(grant.status, 201);
+  const executionAction = {
+    ...approvalPayload,
+    approved: true,
+    jit_grant_id: grant.body.jit_grant_id,
+  };
+  const executionDecision = await call(env, ctx, "POST", `${tenant}/authorize`, executionAction);
+  assert.equal(executionDecision.status, 200);
+  const execution = await call(env, ctx, "POST", `${tenant}/execution-results`, {
+    ...executionAction,
+    result: { refund_id: "re_finalization", status: "succeeded" },
+  });
+  assert.equal(execution.status, 201);
+
+  const observationInput = {
+    schema_version: "agentpass.intent-observation.v1",
+    observation_id: "obs-finalization",
+    tenant_id: "acme",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    predicate: "refund.status",
+    value: "succeeded",
+    observed_at: new Date().toISOString(),
+    issued_at: new Date().toISOString(),
+    issuer: "stripe-adapter",
+    resource: "refund/re_finalization",
+  };
+  const observation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/${intentId}/observations`,
+    observationInput,
+  );
+  assert.equal(observation.status, 201);
+
+  const finalizationResults = await Promise.all([
+    call(env, ctx, "POST", `${tenant}/intent-contracts/${intentId}/finalize`, { job }),
+    call(env, ctx, "POST", `${tenant}/intent-contracts/${intentId}/finalize`, { job }),
+  ]);
+  const finalized = finalizationResults.find((result) => result.status === 201);
+  const concurrentReplay = finalizationResults.find((result) => result.status === 200);
+  assert.ok(finalized);
+  assert.ok(concurrentReplay);
+  assert.equal(finalized.status, 201);
+  assert.equal(finalized.body.replayed, false);
+  assert.equal(finalized.body.evaluation.evaluation_mode, "final");
+  assert.equal(finalized.body.evaluation.snapshot_id, finalized.body.snapshot.snapshot_id);
+  assert.equal(finalized.body.evaluation.evidence_digest, finalized.body.snapshot.evidence_digest);
+  assert.match(String(finalized.body.snapshot.snapshot_id), /^snapshot_[a-f0-9]{24}$/);
+  assert.match(String(finalized.body.snapshot.evidence_digest), /^[a-f0-9]{64}$/);
+  assert.ok(finalized.body.snapshot.sources.decision_events.evidence_ids.includes(decision.body.event.decision_id));
+  assert.ok(finalized.body.snapshot.sources.decision_events.evidence_ids.includes(executionDecision.body.event.decision_id));
+  assert.deepEqual(finalized.body.snapshot.sources.execution_receipts.evidence_ids, [execution.body.receipt.decision_id]);
+  assert.deepEqual(finalized.body.snapshot.sources.observations.evidence_ids, ["obs-finalization"]);
+  assert.deepEqual(finalized.body.snapshot.sources.job.evidence_ids, [jobId]);
+  assert.equal(finalized.body.snapshot.sources.decision_events.count, 2);
+  assert.equal(finalized.body.snapshot.sources.execution_receipts.count, 1);
+  assert.equal(finalized.body.snapshot.sources.observations.count, 1);
+  assert.equal(finalized.body.snapshot.sources.job.count, 1);
+  assert.equal(concurrentReplay.body.replayed, true);
+  assert.deepEqual(concurrentReplay.body.evaluation, finalized.body.evaluation);
+  assert.deepEqual(concurrentReplay.body.snapshot, finalized.body.snapshot);
+
+  const repeated = await call(env, ctx, "POST", `${tenant}/intent-contracts/${intentId}/finalize`, { job });
+  assert.equal(repeated.status, 200);
+  assert.equal(repeated.body.replayed, true);
+  assert.deepEqual(repeated.body.evaluation, finalized.body.evaluation);
+  assert.deepEqual(repeated.body.snapshot, finalized.body.snapshot);
+
+  const history = await call(env, ctx, "GET", `${tenant}/intent-contracts/${intentId}/evaluations`);
+  assert.equal(history.status, 200);
+  assert.equal(history.body.finalization_status, "finalized");
+  assert.equal(history.body.total_count, 2);
+  assert.equal(history.body.latest_preview.evaluation_id, preview.body.evaluation_id);
+  assert.equal(history.body.final.evaluation_id, finalized.body.evaluation.evaluation_id);
+  assert.equal(history.body.snapshot.evidence_digest, finalized.body.snapshot.evidence_digest);
+
+  const lateObservation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/${intentId}/observations`,
+    { ...observationInput, observation_id: "obs-finalization-late" },
+  );
+  assert.equal(lateObservation.status, 409);
+  assert.equal(lateObservation.body.error_code, "intent_evidence_finalized");
+
+  const lateDecision = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    agent_id: "customer-support-refund-agent",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    job_id: jobId,
+    tool: "zendesk.search_tickets",
+    action: "read",
+  });
+  assert.equal(lateDecision.status, 403);
+  assert.equal(lateDecision.body.error_code, "intent_evidence_finalized");
+
+  const lateExecution = await call(env, ctx, "POST", `${tenant}/execution-results`, {
+    ...executionAction,
+    result: { refund_id: "re_finalization", status: "changed" },
+  });
+  assert.equal(lateExecution.status, 409);
+  assert.equal(lateExecution.body.error_code, "intent_evidence_finalized");
+
+  const changedJob = await call(env, ctx, "POST", `${tenant}/intent-contracts/${intentId}/finalize`, {
+    job: { ...job, completed_at: "2026-07-21T14:00:03.000Z" },
+  });
+  assert.equal(changedJob.status, 409);
+  assert.equal(changedJob.body.error_code, "intent_evidence_finalized");
+
+  const otherTenant = await call(env, ctx, "GET", `/tenants/other/intent-contracts/${intentId}/evaluations`);
+  assert.equal(otherTenant.status, 404);
+  const store = namespace.stores.get("acme");
+  assert.equal((store?.get(`intent:${intentId}:evidence:decision_events:index`) as string[]).length, 2);
+  assert.equal((store?.get(`intent:${intentId}:evidence:execution_receipts:index`) as string[]).length, 1);
+  assert.deepEqual(store?.get(`intent:${intentId}:evidence:observations:index`), ["obs-finalization"]);
+
+  await ctx.flush();
+  const audit = await call(env, ctx, "GET", `/audit/events?intent_id=${intentId}&limit=50`);
+  const types = audit.body.events.map((event: Record<string, unknown>) => event.type);
+  assert.ok(types.includes("agentpass.intent.evaluation.previewed"));
+  assert.ok(types.includes("agentpass.intent.finalized"));
+  assert.ok(types.includes("agentpass.intent.finalization.replayed"));
+  assert.ok(types.includes("agentpass.intent.evidence.rejected"));
 });
 
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
@@ -1461,6 +1656,41 @@ function hostedRefundIntentContract(intentId: string, jobId: string): Record<str
       max_estimated_cost_usd: 0.05,
     },
     evidence_requirements: ["decision_events", "execution_receipts", "observations", "job"],
+    issued_at: "2026-07-20T17:59:00.000Z",
+    expires_at: "2099-07-20T18:30:00.000Z",
+  };
+}
+
+function hostedLifecycleIntentContract(intentId: string, jobId: string): Record<string, unknown> {
+  return {
+    schema_version: "agentpass.intent-contract.v1",
+    intent_id: intentId,
+    profile: "support_refund.v1",
+    issuer: "support-application",
+    job_id: jobId,
+    objective: "Observe the provider outcome and finalize one trusted job result",
+    required_outcomes: [
+      {
+        id: "refund-provider-succeeded",
+        source: "observations",
+        where: [{ path: "predicate", operator: "equals", value: "refund.status" }],
+        assertion: { path: "value", operator: "equals", value: "succeeded" },
+      },
+      {
+        id: "job-completed",
+        source: "job",
+        assertion: { path: "completed_at", operator: "exists" },
+      },
+    ],
+    hard_constraints: [
+      {
+        id: "no-denied-actions",
+        source: "decision_events",
+        where: [{ path: "decision", operator: "equals", value: "deny" }],
+        assertion: { operator: "count_equals", value: 0 },
+      },
+    ],
+    evidence_requirements: ["decision_events", "observations", "job"],
     issued_at: "2026-07-20T17:59:00.000Z",
     expires_at: "2099-07-20T18:30:00.000Z",
   };

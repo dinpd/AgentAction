@@ -86,6 +86,19 @@ const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_
     completed_at: jobCompletedAt,
   },
 });
+
+const finalization = await agentpass.finalizeIntent("tenant-a", registered.intent_id, {
+  job: {
+    ...binding,
+    started_at: jobStartedAt,
+    completed_at: jobCompletedAt,
+  },
+});
+
+const lifecycle = await agentpass.getIntentEvaluations(
+  "tenant-a",
+  registered.intent_id,
+);
 ```
 
 `registerIntentContract` is idempotent for identical contents and fails if an
@@ -96,6 +109,11 @@ existing `intent_id` is reused with changed contents. `listIntentContracts` and
 status. The gateway supplies route-bound tenant and intent fields and records
 verification provenance; signed envelopes must include those bindings and the
 canonical payload digest inside the signature.
+`evaluateIntent` creates a preview and leaves evidence open. `finalizeIntent`
+freezes the canonical evidence snapshot and returns the one snapshot-bound final
+receipt; identical retries set `replayed` without creating another evaluation.
+`getIntentEvaluations` returns history plus the latest preview, final receipt,
+snapshot, and finalization status.
 
 For approval-gated actions, the client can drive the durable hosted lifecycle:
 

@@ -145,11 +145,64 @@ export type IntentEvaluationReceipt = {
   constraints: Array<Record<string, unknown>>;
   execution_discipline: Record<string, unknown>;
   evidence_findings: string[];
+  evaluation_mode?: "preview" | "final";
+  snapshot_id?: string;
+  evidence_digest?: string;
   auth?: Record<string, unknown>;
 };
 
 export type IntentEvaluationInput = {
   job?: Record<string, unknown>;
+};
+
+export type IntentEvidenceSourceManifest = {
+  count: number;
+  evidence_ids: string[];
+  digest: string;
+};
+
+export type IntentEvidenceSnapshot = {
+  schema_version: "agentpass.intent-evidence-snapshot.v1";
+  snapshot_id: string;
+  tenant_id: string;
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  captured_at: string;
+  evidence_digest: string;
+  sources: Record<IntentEvidenceSource, IntentEvidenceSourceManifest>;
+  evidence: {
+    decision_events: Array<Record<string, unknown>>;
+    execution_receipts: Array<Record<string, unknown>>;
+    observations: Array<Record<string, unknown>>;
+    job?: Record<string, unknown>;
+  };
+};
+
+export type IntentFinalizationResponse = {
+  evaluation: IntentEvaluationReceipt & {
+    evaluation_mode: "final";
+    snapshot_id: string;
+    evidence_digest: string;
+  };
+  snapshot: IntentEvidenceSnapshot;
+  replayed: boolean;
+  auth?: Record<string, unknown>;
+};
+
+export type IntentEvaluationHistoryResponse = {
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  tenant_id: string;
+  evaluations: IntentEvaluationReceipt[];
+  count: number;
+  total_count: number;
+  latest_preview?: IntentEvaluationReceipt;
+  final?: IntentEvaluationReceipt;
+  snapshot?: IntentEvidenceSnapshot;
+  finalization_status: "open" | "finalizing" | "finalized";
+  auth?: Record<string, unknown>;
 };
 
 export type ToolCallRequest = {
@@ -464,6 +517,33 @@ export class AgentPassClient {
     return this.post<IntentEvaluationReceipt>(
       `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/evaluate`,
       request,
+      [200],
+    );
+  }
+
+  async finalizeIntent(
+    tenantId: string,
+    intentId: string,
+    request: IntentEvaluationInput = {},
+  ): Promise<IntentFinalizationResponse> {
+    return this.post<IntentFinalizationResponse>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/finalize`,
+      request,
+      [200, 201],
+    );
+  }
+
+  async getIntentEvaluations(
+    tenantId: string,
+    intentId: string,
+    options: { limit?: number } = {},
+  ): Promise<IntentEvaluationHistoryResponse> {
+    const search = new URLSearchParams();
+    if (options.limit) search.set("limit", String(options.limit));
+    return this.get<IntentEvaluationHistoryResponse>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/evaluations${
+        search.size ? `?${search}` : ""
+      }`,
       [200],
     );
   }

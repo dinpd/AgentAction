@@ -59,14 +59,22 @@ def test_intent_schemas_and_refund_examples_are_valid():
     contract_schema = json.loads(Path("schema/intent-contract.schema.json").read_text())
     evaluation_schema = json.loads(Path("schema/intent-evaluation.schema.json").read_text())
     observation_schema = json.loads(Path("schema/intent-observation.schema.json").read_text())
+    snapshot_schema = json.loads(Path("schema/intent-evidence-snapshot.schema.json").read_text())
     contract = json.loads(Path("packages/guard/examples/support-refund-intent.json").read_text())
     evaluation = json.loads(Path("packages/guard/examples/support-refund-evaluation.json").read_text())
 
     Draft202012Validator.check_schema(contract_schema)
     Draft202012Validator.check_schema(evaluation_schema)
     Draft202012Validator.check_schema(observation_schema)
+    Draft202012Validator.check_schema(snapshot_schema)
     Draft202012Validator(contract_schema).validate(contract)
     Draft202012Validator(evaluation_schema).validate(evaluation)
+    Draft202012Validator(evaluation_schema).validate({
+        **evaluation,
+        "evaluation_mode": "final",
+        "snapshot_id": f"snapshot_{'b' * 24}",
+        "evidence_digest": "c" * 64,
+    })
     Draft202012Validator(observation_schema).validate({
         "schema_version": "agentpass.intent-observation.v1",
         "observation_id": "obs-refund-1",
@@ -86,6 +94,25 @@ def test_intent_schemas_and_refund_examples_are_valid():
             "verified_issuer": "stripe-adapter",
             "verified_at": "2026-07-20T18:00:02.000Z",
             "verified_subject": "stripe-observer",
+        },
+    })
+    Draft202012Validator(snapshot_schema).validate({
+        "schema_version": "agentpass.intent-evidence-snapshot.v1",
+        "snapshot_id": f"snapshot_{'b' * 24}",
+        "tenant_id": "acme",
+        "intent_id": contract["intent_id"],
+        "intent_digest": evaluation["intent_digest"],
+        "job_id": contract["job_id"],
+        "captured_at": "2026-07-20T18:00:02.000Z",
+        "evidence_digest": "c" * 64,
+        "sources": {
+            source: {"count": 0, "evidence_ids": [], "digest": "d" * 64}
+            for source in ["decision_events", "execution_receipts", "observations", "job"]
+        },
+        "evidence": {
+            "decision_events": [],
+            "execution_receipts": [],
+            "observations": [],
         },
     })
 
