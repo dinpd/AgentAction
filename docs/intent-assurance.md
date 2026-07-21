@@ -112,10 +112,33 @@ The demo binds a refund intent, executes an approved refund through the local
 tool gate, creates a provider observation, and emits a qualified evaluation
 receipt.
 
+## Hosted Registry and Evaluation
+
+The Cloudflare gateway provides a tenant-scoped trust gate for the same
+contract and evaluation model:
+
+- `POST /tenants/<tenant-id>/intent-contracts` calculates the canonical digest
+  and freezes the contract under its `intent_id`.
+- `GET /tenants/<tenant-id>/intent-contracts/<intent-id>` returns the frozen
+  contract and its `pending`, `active`, or `expired` status.
+- Intent-bound approval, JIT, authorization, and execution-result requests fail
+  closed on incomplete, unknown, altered, expired, or job-mismatched bindings.
+- Authorization decisions and provider execution receipts are collected
+  durably. `POST .../<intent-id>/observations` adds application or provider
+  observations using
+  [`agentpass.intent-observation.v1`](../schema/intent-observation.schema.json).
+- `POST .../<intent-id>/evaluate` evaluates only the evidence stored for that
+  tenant and contract, persists the receipt, and emits an audit event.
+
+Calls without either intent binding field retain the existing authorization
+behavior. If either field is present, both are required. Contract expiry blocks
+new runtime authority but does not prevent late evidence collection or
+post-execution evaluation.
+
 ## Version 1 Scope
 
 Version 1 is deterministic and profile-specific. It does not infer intent from
 raw prompts, use an LLM judge in the trusted path, produce cross-domain agent
 rankings, prove causality, or automatically increase an agent's authority from
-historical quality scores. Subjective evaluator plugins and hosted persistence
-remain future work.
+historical quality scores. Subjective evaluator plugins, external evidence
+attestation, and aggregate quality analytics remain future work.

@@ -432,7 +432,8 @@ jobs:
 
 For application and gateway runtime integration, see the TypeScript helper in
 [`sdk/typescript/`](../sdk/typescript/). It provides `authorizeToolCall`,
-`requestJitGrant`, and `assertAllowed` wrappers for the gateway API.
+`requestJitGrant`, `assertAllowed`, intent contract registration, observation,
+and hosted evaluation wrappers for the gateway API.
 For architecture guidance, see
 [`docs/integration-patterns.md`](integration-patterns.md).
 For MCP server calls, including internal and provider-hosted servers, see
@@ -458,6 +459,10 @@ MCP gateway that performs the actual traffic forwarding. It exposes:
 | `GET /health` | Check gateway health and active agent ID |
 | `GET /policy?target=opa` | Return generated policy for the active manifest |
 | `POST /authorize` | Authorize a proposed tool call against the manifest |
+| `POST /intent-contracts` | Register and freeze a per-job intent contract |
+| `GET /intent-contracts/:id` | Return the frozen contract and lifecycle status |
+| `POST /intent-contracts/:id/observations` | Add bound application or provider evidence |
+| `POST /intent-contracts/:id/evaluate` | Emit a durable post-execution intent evaluation receipt |
 | `POST /approval-requests` | Create an in-memory approval request for an approval-gated tool |
 | `GET /approval-requests/:id` | Return approval request status and bound context |
 | `POST /approval-requests/:id/approve` | Mark an approval request approved |

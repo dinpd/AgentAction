@@ -1,3 +1,12 @@
+import {
+  bindIntentContract,
+  digestIntentContract,
+  evaluateIntent,
+  type IntentContract,
+  type IntentEvidence,
+  type IntentObservation,
+} from "../../packages/guard/src/intent.ts";
+
 type Env = {
   AGENTID_API_KEY?: string;
   AGENTID_AUDIT_WEBHOOK_TOKEN?: string;
@@ -184,6 +193,20 @@ type IdempotencyResultRecord = {
   created_at: string;
   replay_count: number;
 };
+type IntentContractRecord = {
+  schema_version: "agentpass.intent-registry-record.v1";
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  tenant_id?: string;
+  registered_at: string;
+  registered_by?: string;
+  contract: IntentContract;
+};
+type IntentBindingResult = {
+  status: "unbound" | "bound";
+  contract?: IntentContract;
+};
 type AuditRecord = {
   audit_id: string;
   received_at: string;
@@ -191,6 +214,7 @@ type AuditRecord = {
   type: string;
   tenant_id?: string | null;
   agent_id?: string;
+  intent_id?: string;
   tool?: string;
   action?: string;
   resource?: string;
@@ -204,6 +228,15 @@ type Route = {
   endpoint: string;
   resourceId: string;
   action: string;
+};
+type AuthorizationDecision = {
+  allow: boolean;
+  challengeRequired?: boolean;
+  findings: string[];
+  event: ToolEvent;
+  replayed?: boolean;
+  result?: unknown;
+  receipt?: ProviderExecutionReceipt;
 };
 
 const APPROVAL_REQUIRED = new Set(["required", "human_confirm", "step_up", "manager"]);
@@ -317,6 +350,120 @@ export default {
         return json(body, stored.status);
       }
 
+      if (request.method === "POST" && route.endpoint === "intent-contracts" && !route.resourceId) {
+        const contract = await readJson(request);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/intent-contracts", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              contract,
+              tenant_id: route.tenantId,
+              registered_by: auth.context.subject || auth.context.user_id || auth.context.agent_id || auth.context.method,
+            }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.registered",
+              tenant_id: route.tenantId,
+              intent_id: stringValue(body.intent_id),
+              intent_digest: stringValue(body.intent_digest),
+              job_id: stringValue(body.job_id),
+              intent_contract: body.contract,
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "GET" && route.endpoint === "intent-contracts" && !route.resourceId) {
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/intent-contracts"),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "GET" && route.endpoint === "intent-contracts" && route.resourceId && !route.action) {
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}`),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
+        request.method === "POST" &&
+        route.endpoint === "intent-contracts" &&
+        route.resourceId &&
+        route.action === "observations"
+      ) {
+        const observation = await readJson(request);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/observations`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ observation }),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.observation.recorded",
+              tenant_id: route.tenantId,
+              intent_id: stringValue(body.intent_id),
+              intent_digest: stringValue(body.intent_digest),
+              observation: body,
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
+        request.method === "POST" &&
+        route.endpoint === "intent-contracts" &&
+        route.resourceId &&
+        route.action === "evaluate"
+      ) {
+        const evaluationRequest = await readJson(request);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/evaluate`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(evaluationRequest),
+          }),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        if (stored.ok) {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.evaluated",
+              tenant_id: route.tenantId,
+              intent_id: stringValue(body.intent_id),
+              intent_digest: stringValue(body.intent_digest),
+              job_id: stringValue(body.job_id),
+              verdict: stringValue(body.verdict),
+              qualified_success: body.qualified_success === true,
+              evaluation: body,
+              auth: auth.context,
+            }),
+          );
+        }
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
       if (request.method === "GET" && route.endpoint === "approval-requests" && !route.resourceId) {
         const search = new URLSearchParams(url.searchParams);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
@@ -339,6 +486,7 @@ export default {
       if (request.method === "POST" && route.endpoint === "authorize") {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
+        await recordIntentDecisionEvidence(env, route.tenantId, manifest, decision);
         const authorizationReceipt = decision.allow && !decision.replayed
           ? await createProviderAuthorizationReceipt(env, decision.event, route.tenantId)
           : undefined;
@@ -394,6 +542,7 @@ export default {
       if (request.method === "POST" && route.endpoint === "github-actions" && route.resourceId === "dispatch") {
         const payload = await readJson(request);
         const decision = await authorize(manifest, payload, env, route.tenantId);
+        await recordIntentDecisionEvidence(env, route.tenantId, manifest, decision);
         ctx.waitUntil(
           emitAudit(env, {
             type: "agentid.decision",
@@ -479,6 +628,10 @@ export default {
 
       if (request.method === "POST" && route.endpoint === "approval-requests" && !route.resourceId) {
         const payload = await readJson(request);
+        const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, payload);
+        if (intentBinding.findings.length > 0) {
+          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+        }
         const approval = await createApprovalRequest(manifest, payload, route.tenantId);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/approvals", {
@@ -540,6 +693,10 @@ export default {
       if (request.method === "POST" && route.endpoint === "execution-results") {
         const payload = await readJson(request);
         const event = toolEventFromPayload(manifest, payload, route.tenantId);
+        const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, event);
+        if (intentBinding.findings.length > 0) {
+          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+        }
         const resultPayload = hasValue(payload.result) ? payload.result : payload.provider_result;
         if (!hasValue(resultPayload)) return json({ error: "result is required" }, 400);
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
@@ -573,6 +730,10 @@ export default {
 
       if (request.method === "POST" && route.endpoint === "jit-grants") {
         const payload = await readJson(request);
+        const intentBinding = await resolveIntentBinding(env, route.tenantId, manifest, payload);
+        if (intentBinding.findings.length > 0) {
+          return json({ error: intentBinding.findings[0], findings: intentBinding.findings, auth: auth.context }, 400);
+        }
         const checked = await authorizationStore(env, route.tenantId, manifest).fetch(
           new Request("https://agentid.local/approvals/require-approved", {
             method: "POST",
@@ -670,6 +831,7 @@ export class AgentIdJitGrants {
         type: url.searchParams.get("type") || "",
         tenant_id: url.searchParams.get("tenant_id") || "",
         agent_id: url.searchParams.get("agent_id") || "",
+        intent_id: url.searchParams.get("intent_id") || "",
         tool: url.searchParams.get("tool") || "",
         approval_id: url.searchParams.get("approval_id") || "",
         jit_grant_id: url.searchParams.get("jit_grant_id") || "",
@@ -683,6 +845,145 @@ export class AgentIdJitGrants {
         if (events.length >= limit) break;
       }
       return json({ events, count: events.length });
+    }
+
+    if (request.method === "POST" && url.pathname === "/intent-contracts") {
+      try {
+        const submitted = recordValue(payload.contract) as IntentContract;
+        const submittedDigest = optionalString(submitted.intent_digest);
+        const computedDigest = digestIntentContract(submitted);
+        if (submittedDigest && submittedDigest !== computedDigest) {
+          return json({ error: "intent contract digest does not match contract contents" }, 400);
+        }
+        const contract = bindIntentContract(submitted);
+        const dateFinding = intentContractDateFinding(contract);
+        if (dateFinding) return json({ error: dateFinding }, 400);
+
+        const existing = await this.state.storage.get<IntentContractRecord>(`intent:${contract.intent_id}:contract`);
+        if (existing) {
+          if (existing.intent_digest !== contract.intent_digest) {
+            return json({ error: `intent contract is frozen: ${contract.intent_id}` }, 409);
+          }
+          return json(intentContractResponse(existing));
+        }
+
+        const record: IntentContractRecord = {
+          schema_version: "agentpass.intent-registry-record.v1",
+          intent_id: contract.intent_id,
+          intent_digest: stringValue(contract.intent_digest),
+          job_id: contract.job_id,
+          tenant_id: optionalString(payload.tenant_id),
+          registered_at: new Date().toISOString(),
+          registered_by: optionalString(payload.registered_by),
+          contract,
+        };
+        const index = await this.state.storage.get<string[]>("intent:index") || [];
+        const next = [record.intent_id, ...index.filter((id) => id !== record.intent_id)].slice(0, 1_000);
+        await this.state.storage.put(`intent:${record.intent_id}:contract`, record);
+        await this.state.storage.put("intent:index", next);
+        return json(intentContractResponse(record), 201);
+      } catch (error) {
+        return json({ error: (error as Error).message }, 400);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/intent-contracts") {
+      const index = await this.state.storage.get<string[]>("intent:index") || [];
+      const contracts: Record<string, unknown>[] = [];
+      for (const intentId of index) {
+        const record = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+        if (record) contracts.push(intentContractResponse(record));
+      }
+      return json({ intent_contracts: contracts, count: contracts.length });
+    }
+
+    if (request.method === "POST" && url.pathname === "/intent-contracts/resolve") {
+      const resolved = await this.resolveIntentRecord(recordValue(payload.event));
+      if (resolved.error) return json({ error: resolved.error, findings: [resolved.error] }, resolved.httpStatus);
+      if (!resolved.record) return json({ status: "unbound" } satisfies IntentBindingResult);
+      return json({ status: "bound", contract: resolved.record.contract } satisfies IntentBindingResult);
+    }
+
+    if (request.method === "POST" && url.pathname === "/intent-evidence/decision-events") {
+      const event = recordValue(payload.event);
+      const appended = await this.appendIntentEvidence("decision_events", event);
+      if (appended.error) return json({ error: appended.error }, appended.httpStatus);
+      return json(appended.record, 201);
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/intent-contracts/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length !== 2) return json({ error: "not found" }, 404);
+      const intentId = decodeURIComponent(parts[1]);
+      const record = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+      if (!record) return json({ error: `intent contract not found: ${intentId}` }, 404);
+      return json(intentContractResponse(record));
+    }
+
+    if (request.method === "POST" && url.pathname.startsWith("/intent-contracts/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length !== 3 || !["observations", "evaluate"].includes(parts[2])) {
+        return json({ error: "not found" }, 404);
+      }
+      const intentId = decodeURIComponent(parts[1]);
+      const registered = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+      if (!registered) return json({ error: `intent contract not found: ${intentId}` }, 404);
+
+      if (parts[2] === "observations") {
+        const input = recordValue(payload.observation);
+        if (hasValue(input.schema_version) && input.schema_version !== "agentpass.intent-observation.v1") {
+          return json({ error: `unsupported intent observation schema_version: ${stringValue(input.schema_version)}` }, 400);
+        }
+        if (hasValue(input.intent_id) && stringValue(input.intent_id) !== intentId) {
+          return json({ error: "intent observation intent_id mismatch" }, 409);
+        }
+        if (hasValue(input.intent_digest) && stringValue(input.intent_digest) !== registered.intent_digest) {
+          return json({ error: "intent observation intent_digest mismatch" }, 409);
+        }
+        const observation: IntentObservation = {
+          schema_version: "agentpass.intent-observation.v1",
+          intent_id: intentId,
+          intent_digest: registered.intent_digest,
+          predicate: stringValue(input.predicate),
+          value: input.value,
+          observed_at: stringValue(input.observed_at),
+          issuer: stringValue(input.issuer),
+          resource: optionalString(input.resource),
+        };
+        const finding = intentObservationFinding(observation);
+        if (finding) return json({ error: finding }, 400);
+        const appended = await this.appendIntentEvidence("observations", observation as unknown as Record<string, unknown>);
+        if (appended.error) return json({ error: appended.error }, appended.httpStatus);
+        return json(observation, 201);
+      }
+
+      const jobInput = payload.job === undefined ? undefined : recordValue(payload.job);
+      let job: Record<string, unknown> | undefined;
+      if (jobInput) {
+        const bindingFinding = suppliedIntentBindingFinding(jobInput, registered);
+        if (bindingFinding) return json({ error: bindingFinding }, 409);
+        job = {
+          ...jobInput,
+          intent_id: registered.intent_id,
+          intent_digest: registered.intent_digest,
+          job_id: registered.job_id,
+        };
+        await this.state.storage.put(`intent:${intentId}:job`, job);
+      } else {
+        job = await this.state.storage.get<Record<string, unknown>>(`intent:${intentId}:job`);
+      }
+      const evidence: IntentEvidence = {
+        decision_events: await this.intentEvidence(intentId, "decision_events"),
+        execution_receipts: await this.intentEvidence(intentId, "execution_receipts"),
+        observations: await this.intentEvidence(intentId, "observations"),
+        job,
+      };
+      const evaluation = evaluateIntent(registered.contract, evidence, {
+        idGenerator: () => `eval_${crypto.randomUUID()}`,
+      });
+      await this.state.storage.put(`intent:${intentId}:evaluation:${evaluation.evaluation_id}`, evaluation);
+      await this.state.storage.put(`intent:${intentId}:evaluation:latest`, evaluation);
+      return json(evaluation);
     }
 
     if (request.method === "POST" && url.pathname === "/approvals") {
@@ -778,6 +1079,15 @@ export class AgentIdJitGrants {
         replayed_from_decision_id: record.receipt.decision_id,
         replay_count: record.replay_count,
       };
+      if (replayReceipt.intent_id) {
+        const appended = await this.appendIntentEvidence(
+          "execution_receipts",
+          replayReceipt as unknown as Record<string, unknown>,
+        );
+        if (appended.error) {
+          return json({ status: "mismatch", findings: [appended.error] }, appended.httpStatus);
+        }
+      }
       await this.state.storage.put(`idempotency:${key}`, record);
       event.idempotency_replayed = true;
       event.provider_execution_receipt = replayReceipt;
@@ -849,6 +1159,13 @@ export class AgentIdJitGrants {
         created_at: new Date().toISOString(),
         replay_count: 0,
       };
+      if (receipt.intent_id) {
+        const appended = await this.appendIntentEvidence(
+          "execution_receipts",
+          receipt as unknown as Record<string, unknown>,
+        );
+        if (appended.error) return json({ error: appended.error }, appended.httpStatus);
+      }
       await this.state.storage.put(`idempotency:${key}`, record);
       return json(record, 201);
     }
@@ -865,6 +1182,72 @@ export class AgentIdJitGrants {
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async resolveIntentRecord(
+    event: Record<string, unknown>,
+    requireJob = true,
+    allowExpired = false,
+  ): Promise<{ record?: IntentContractRecord; error?: string; httpStatus: number }> {
+    const intentId = stringValue(event.intent_id ?? event.intentId);
+    const intentDigest = stringValue(event.intent_digest ?? event.intentDigest);
+    if (!intentId && !intentDigest) return { httpStatus: 200 };
+    if (!intentId || !intentDigest) {
+      return { error: "intent_id and intent_digest are required together", httpStatus: 409 };
+    }
+    const record = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+    if (!record) return { error: `intent contract not found: ${intentId}`, httpStatus: 404 };
+    if (record.intent_digest !== intentDigest) {
+      return { error: "registered intent contract digest mismatch", httpStatus: 409 };
+    }
+    if (digestIntentContract(record.contract) !== record.intent_digest) {
+      return { error: "registered intent contract failed digest verification", httpStatus: 409 };
+    }
+    const issuedAt = Date.parse(record.contract.issued_at);
+    if (Number.isFinite(issuedAt) && issuedAt > Date.now()) {
+      return { error: `intent contract is not active yet: ${intentId}`, httpStatus: 409 };
+    }
+    if (!allowExpired && record.contract.expires_at && Date.parse(record.contract.expires_at) <= Date.now()) {
+      return { error: `intent contract is expired: ${intentId}`, httpStatus: 410 };
+    }
+    if (requireJob) {
+      const jobId = stringValue(event.job_id ?? event.jobId);
+      if (!jobId || jobId !== record.job_id) {
+        return { error: "registered intent contract job_id mismatch", httpStatus: 409 };
+      }
+    }
+    return { record, httpStatus: 200 };
+  }
+
+  async appendIntentEvidence(
+    source: "decision_events" | "execution_receipts" | "observations",
+    record: Record<string, unknown>,
+  ): Promise<{ record?: Record<string, unknown>; error?: string; httpStatus: number }> {
+    const resolved = await this.resolveIntentRecord(record, source !== "observations", true);
+    if (resolved.error) return { error: resolved.error, httpStatus: resolved.httpStatus };
+    if (!resolved.record) return { error: "intent evidence requires a registered intent binding", httpStatus: 409 };
+    const evidenceId = stringValue(record.decision_id ?? record.evaluation_id) || crypto.randomUUID();
+    const indexKey = `intent:${resolved.record.intent_id}:evidence:${source}:index`;
+    const index = await this.state.storage.get<string[]>(indexKey) || [];
+    const next = [evidenceId, ...index.filter((id) => id !== evidenceId)].slice(0, 2_000);
+    await this.state.storage.put(`intent:${resolved.record.intent_id}:evidence:${source}:${evidenceId}`, record);
+    await this.state.storage.put(indexKey, next);
+    return { record, httpStatus: 201 };
+  }
+
+  async intentEvidence(
+    intentId: string,
+    source: "decision_events" | "execution_receipts" | "observations",
+  ): Promise<Record<string, unknown>[]> {
+    const index = await this.state.storage.get<string[]>(`intent:${intentId}:evidence:${source}:index`) || [];
+    const evidence: Record<string, unknown>[] = [];
+    for (const evidenceId of index) {
+      const record = await this.state.storage.get<Record<string, unknown>>(
+        `intent:${intentId}:evidence:${source}:${evidenceId}`,
+      );
+      if (record) evidence.push(record);
+    }
+    return evidence;
   }
 
   async bindGrant(
@@ -996,10 +1379,20 @@ async function authorize(
   payload: ToolEvent,
   env: Env,
   tenantId: string | null,
-): Promise<{ allow: boolean; challengeRequired?: boolean; findings: string[]; event: ToolEvent; replayed?: boolean; result?: unknown; receipt?: ProviderExecutionReceipt }> {
+): Promise<AuthorizationDecision> {
   const event = toolEventFromPayload(manifest, payload, tenantId);
   const findings: string[] = [];
   const tool = toolByName(manifest, stringValue(event.tool ?? event.capability ?? event.skill_id));
+  const intentBinding = await resolveIntentBinding(env, tenantId, manifest, event);
+  if (intentBinding.findings.length > 0) {
+    event.intent_registry_bound = false;
+    return { allow: false, findings: intentBinding.findings, event };
+  }
+  if (intentBinding.contract) {
+    event.intent_registry_bound = true;
+    event.intent_profile = intentBinding.contract.profile;
+    event.intent_issuer = intentBinding.contract.issuer;
+  }
 
   const replay = await authorizationStore(env, tenantId, manifest).fetch(
     new Request("https://agentid.local/idempotency-replay", {
@@ -1773,6 +2166,53 @@ function authorizationStore(env: Env, tenantId: string | null, manifest: AgentId
   return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName(key));
 }
 
+async function resolveIntentBinding(
+  env: Env,
+  tenantId: string | null,
+  manifest: AgentIdManifest,
+  event: ToolEvent,
+): Promise<{ contract?: IntentContract; findings: string[] }> {
+  const response = await authorizationStore(env, tenantId, manifest).fetch(
+    new Request("https://agentid.local/intent-contracts/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event }),
+    }),
+  );
+  const body = await response.json() as IntentBindingResult & { error?: string; findings?: string[] };
+  if (!response.ok) return { findings: body.findings || [body.error || "intent binding could not be resolved"] };
+  return { contract: body.contract, findings: [] };
+}
+
+async function recordIntentDecisionEvidence(
+  env: Env,
+  tenantId: string | null,
+  manifest: AgentIdManifest,
+  decision: AuthorizationDecision,
+): Promise<void> {
+  if (decision.event.intent_registry_bound !== true) return;
+  const record = {
+    ...decision.event,
+    schema_version: "agentpass.intent-decision-evidence.v1",
+    decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
+    allow: decision.allow,
+    findings: decision.findings,
+    decided_at: new Date().toISOString(),
+    replayed: decision.replayed === true,
+  };
+  const stored = await authorizationStore(env, tenantId, manifest).fetch(
+    new Request("https://agentid.local/intent-evidence/decision-events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event: record }),
+    }),
+  );
+  if (!stored.ok) {
+    const body = await stored.json() as { error?: string };
+    throw new Error(body.error || "intent decision evidence could not be stored");
+  }
+}
+
 function auditStore(env: Env) {
   return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName("audit"));
 }
@@ -1788,6 +2228,50 @@ function parseRoute(pathname: string): Route {
     };
   }
   return { tenantId: null, endpoint: parts[0] ?? "", resourceId: parts[1] ?? "", action: parts[2] ?? "" };
+}
+
+function intentContractResponse(record: IntentContractRecord): Record<string, unknown> {
+  const issuedAt = Date.parse(record.contract.issued_at);
+  const expiresAt = record.contract.expires_at ? Date.parse(record.contract.expires_at) : Number.POSITIVE_INFINITY;
+  const status = issuedAt > Date.now() ? "pending" : expiresAt <= Date.now() ? "expired" : "active";
+  return { ...record, status };
+}
+
+function intentContractDateFinding(contract: IntentContract): string {
+  const issuedAt = Date.parse(contract.issued_at);
+  if (!Number.isFinite(issuedAt)) return "intent contract issued_at must be a valid date-time";
+  if (!contract.expires_at) return "";
+  const expiresAt = Date.parse(contract.expires_at);
+  if (!Number.isFinite(expiresAt)) return "intent contract expires_at must be a valid date-time";
+  if (expiresAt <= issuedAt) return "intent contract expires_at must be after issued_at";
+  return "";
+}
+
+function intentObservationFinding(observation: IntentObservation): string {
+  if (!observation.predicate) return "intent observation predicate is required";
+  if (!observation.issuer) return "intent observation issuer is required";
+  if (!observation.observed_at || !Number.isFinite(Date.parse(observation.observed_at))) {
+    return "intent observation observed_at must be a valid date-time";
+  }
+  if (observation.value === undefined) return "intent observation value is required";
+  return "";
+}
+
+function suppliedIntentBindingFinding(
+  supplied: Record<string, unknown>,
+  registered: IntentContractRecord,
+): string {
+  const fields: Array<[string, string]> = [
+    ["intent_id", registered.intent_id],
+    ["intent_digest", registered.intent_digest],
+    ["job_id", registered.job_id],
+  ];
+  for (const [field, expected] of fields) {
+    if (hasValue(supplied[field]) && stringValue(supplied[field]) !== expected) {
+      return `intent job evidence ${field} mismatch`;
+    }
+  }
+  return "";
 }
 
 function declaredCapabilities(manifest: AgentIdManifest): Array<Record<string, unknown>> {
@@ -2039,6 +2523,7 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   if (endpoint === "github-actions") return stringValue(scopes.authorize);
   if (endpoint === "jit-grants") return stringValue(scopes.jit_grant);
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
+  if (endpoint === "intent-contracts") return stringValue(scopes.intent_contract ?? scopes.authorize);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
   return "";
 }
@@ -2100,6 +2585,7 @@ function auditRecord(payload: Record<string, unknown>): AuditRecord {
     type: stringValue(payload.type || "agentid.audit"),
     tenant_id: typeof payload.tenant_id === "string" ? payload.tenant_id : payload.tenant_id === null ? null : undefined,
     agent_id: firstString(payload.agent_id, nestedEvent.agent_id, nestedApproval.agent_id, nestedGrant.agent_id),
+    intent_id: firstString(payload.intent_id, nestedEvent.intent_id, nestedApproval.intent_id, nestedGrant.intent_id),
     tool: firstString(payload.tool, nestedEvent.tool, nestedApproval.tool, nestedGrant.tool),
     action: firstString(payload.action, nestedEvent.action, nestedApproval.action, nestedGrant.action),
     resource: firstString(payload.resource, nestedEvent.resource, nestedApproval.resource, nestedGrant.resource),
@@ -2116,6 +2602,7 @@ function auditMatches(record: AuditRecord, filters: Record<string, string>): boo
     if (field === "tenant_id" && stringValue(record.tenant_id) !== expected) return false;
     if (field === "type" && record.type !== expected) return false;
     if (field === "agent_id" && stringValue(record.agent_id) !== expected) return false;
+    if (field === "intent_id" && stringValue(record.intent_id) !== expected) return false;
     if (field === "tool" && stringValue(record.tool) !== expected) return false;
     if (field === "approval_id" && stringValue(record.approval_id) !== expected) return false;
     if (field === "jit_grant_id" && stringValue(record.jit_grant_id) !== expected) return false;

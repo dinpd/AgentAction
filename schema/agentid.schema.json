@@ -167,6 +167,7 @@
             "authorize": { "type": "string" },
             "policy_read": { "type": "string" },
             "policy_write": { "type": "string" },
+            "intent_contract": { "type": "string" },
             "jit_grant": { "type": "string" }
           }
         }

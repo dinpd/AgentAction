@@ -270,10 +270,26 @@ test("hosted idempotency replays completed refund result and denies changed retr
   const namespace = new MemoryNamespace();
   const env = { JIT_GRANTS: namespace };
   const ctx = new TestContext();
+  const tenant = "/tenants/acme";
+  const intentContract = hostedRefundIntentContract("intent-refund-replay", "case-replay");
+  const registered = await call(env, ctx, "POST", `${tenant}/intent-contracts`, intentContract);
+  assert.equal(registered.status, 201);
+  assert.equal(registered.body.status, "active");
+  assert.match(String(registered.body.intent_digest), /^[a-f0-9]{64}$/);
+  const fetchedContract = await call(env, ctx, "GET", `${tenant}/intent-contracts/intent-refund-replay`);
+  assert.equal(fetchedContract.body.intent_digest, registered.body.intent_digest);
+  const frozen = await call(env, ctx, "POST", `${tenant}/intent-contracts`, {
+    ...intentContract,
+    objective: "Change the refund target after registration",
+  });
+  assert.equal(frozen.status, 409);
+  assert.equal(frozen.body.error, "intent contract is frozen: intent-refund-replay");
+  await ctx.flush();
+
   const approval = {
     approval_id: "approval-refund-replay",
     intent_id: "intent-refund-replay",
-    intent_digest: "cca53a992d75306cf35671fcbffeeabe17fac90e0754e36109d24ac5b4d5e33e",
+    intent_digest: registered.body.intent_digest,
     tool: "stripe.create_refund",
     action: "write",
     resource: "refund/re_replay/customer/cus_1",
@@ -286,10 +302,17 @@ test("hosted idempotency replays completed refund result and denies changed retr
     idempotency_key: "refund-case-replay",
   };
 
-  const created = await call(env, ctx, "POST", "/approval-requests", approval);
+  const wrongJob = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...approval,
+    job_id: "case-other",
+  });
+  assert.equal(wrongJob.status, 403);
+  assert.deepEqual(wrongJob.body.findings, ["registered intent contract job_id mismatch"]);
+
+  const created = await call(env, ctx, "POST", `${tenant}/approval-requests`, approval);
   assert.equal(created.body.evidence.intent_id, approval.intent_id);
   assert.equal(created.body.evidence.intent_digest, approval.intent_digest);
-  await call(env, ctx, "POST", "/approval-requests/approval-refund-replay/approve", {
+  await call(env, ctx, "POST", `${tenant}/approval-requests/approval-refund-replay/approve`, {
     decided_by: "manager-1",
     decision_reason: "refund evidence verified",
   });
@@ -306,7 +329,7 @@ test("hosted idempotency replays completed refund result and denies changed retr
     currency: approval.currency,
     idempotency_key: approval.idempotency_key,
   };
-  const grant = await call(env, ctx, "POST", "/jit-grants", grantRequest);
+  const grant = await call(env, ctx, "POST", `${tenant}/jit-grants`, grantRequest);
   assert.equal(grant.body.intent_id, approval.intent_id);
   assert.equal(grant.body.intent_digest, approval.intent_digest);
   const action = {
@@ -315,14 +338,14 @@ test("hosted idempotency replays completed refund result and denies changed retr
     approved: true,
     jit_grant_id: grant.body.jit_grant_id,
   };
-  const prematureRecord = await call(env, ctx, "POST", "/execution-results", {
+  const prematureRecord = await call(env, ctx, "POST", `${tenant}/execution-results`, {
     ...action,
     result: { refund_id: "should-not-record" },
   });
   assert.equal(prematureRecord.status, 409);
   assert.equal(prematureRecord.body.error, "JIT grant has not been consumed by authorize");
 
-  const first = await call(env, ctx, "POST", "/authorize", action);
+  const first = await call(env, ctx, "POST", `${tenant}/authorize`, action);
   assert.equal(first.status, 200);
   assert.equal(first.body.allow, true);
   await ctx.flush();
@@ -332,7 +355,7 @@ test("hosted idempotency replays completed refund result and denies changed retr
     amount: 49,
     provider_refund_calls: 1,
   };
-  const recorded = await call(env, ctx, "POST", "/execution-results", {
+  const recorded = await call(env, ctx, "POST", `${tenant}/execution-results`, {
     ...action,
     result: providerResult,
   });
@@ -345,7 +368,49 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.match(String(recorded.body.receipt.result_digest), /^[a-f0-9]{64}$/);
   await ctx.flush();
 
-  const retry = await call(env, ctx, "POST", "/authorize", action);
+  const observation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/intent-refund-replay/observations`,
+    {
+      schema_version: "agentpass.intent-observation.v1",
+      intent_id: approval.intent_id,
+      intent_digest: approval.intent_digest,
+      predicate: "refund.status",
+      value: "succeeded",
+      observed_at: "2026-07-20T18:00:01.000Z",
+      issuer: "stripe-adapter",
+      resource: approval.resource,
+    },
+  );
+  assert.equal(observation.status, 201);
+  const evaluation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/intent-refund-replay/evaluate`,
+    {
+      job: {
+        intent_id: approval.intent_id,
+        intent_digest: approval.intent_digest,
+        job_id: approval.job_id,
+        started_at: "2026-07-20T18:00:00.000Z",
+        completed_at: "2026-07-20T18:00:01.000Z",
+      },
+    },
+  );
+  assert.equal(evaluation.status, 200);
+  assert.equal(evaluation.body.verdict, "completed");
+  assert.equal(evaluation.body.constraint_compliance, "pass");
+  assert.equal(evaluation.body.qualified_success, true);
+  assert.equal(evaluation.body.goal_attainment, 1);
+  assert.equal(evaluation.body.evidence_confidence, 1);
+  assert.equal(evaluation.body.execution_discipline.tool_calls, 1);
+  assert.equal(evaluation.body.execution_discipline.execution_receipts, 1);
+  await ctx.flush();
+
+  const retry = await call(env, ctx, "POST", `${tenant}/authorize`, action);
   assert.equal(retry.status, 200);
   assert.equal(retry.body.allow, true);
   assert.equal(retry.body.replayed, true);
@@ -355,7 +420,7 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.equal(retry.body.receipt.replayed_from_decision_id, recorded.body.receipt.decision_id);
   await ctx.flush();
 
-  const changed = await call(env, ctx, "POST", "/authorize", { ...action, amount: 50 });
+  const changed = await call(env, ctx, "POST", `${tenant}/authorize`, { ...action, amount: 50 });
   assert.equal(changed.status, 403);
   assert.equal(changed.body.allow, false);
   assert.deepEqual(changed.body.findings, ["idempotencyKey was already used with different request digest"]);
@@ -366,6 +431,93 @@ test("hosted idempotency replays completed refund result and denies changed retr
   assert.ok(types.includes("agentid.provider.executed"));
   assert.ok(types.includes("agentid.provider.replayed"));
   assert.ok(types.includes("agentid.decision"));
+  const intentAudit = await call(env, ctx, "GET", "/audit/events?intent_id=intent-refund-replay&limit=30");
+  const intentTypes = intentAudit.body.events.map((event: Record<string, unknown>) => event.type);
+  assert.ok(intentTypes.includes("agentpass.intent.registered"));
+  assert.ok(intentTypes.includes("agentpass.intent.observation.recorded"));
+  assert.ok(intentTypes.includes("agentpass.intent.evaluated"));
+});
+
+test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const tenant = "/tenants/trust-gate";
+  const event = {
+    agent_id: "customer-support-refund-agent",
+    tool: "stripe.create_refund",
+    action: "write",
+    resource: "refund/re_trust/customer/cus_1",
+    job_id: "case-trust",
+  };
+
+  const incomplete = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...event,
+    intent_id: "intent-trust",
+  });
+  assert.equal(incomplete.status, 403);
+  assert.deepEqual(incomplete.body.findings, ["intent_id and intent_digest are required together"]);
+
+  const unknown = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...event,
+    intent_id: "intent-missing",
+    intent_digest: "a".repeat(64),
+  });
+  assert.equal(unknown.status, 403);
+  assert.deepEqual(unknown.body.findings, ["intent contract not found: intent-missing"]);
+
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts`,
+    hostedRefundIntentContract("intent-trust", "case-trust"),
+  );
+  const altered = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...event,
+    intent_id: "intent-trust",
+    intent_digest: "0".repeat(64),
+  });
+  assert.equal(altered.status, 403);
+  assert.deepEqual(altered.body.findings, ["registered intent contract digest mismatch"]);
+
+  const expiredContract = {
+    ...hostedRefundIntentContract("intent-expired", "case-expired"),
+    issued_at: "2020-01-01T00:00:00.000Z",
+    expires_at: "2021-01-01T00:00:00.000Z",
+  };
+  const expiredRegistered = await call(env, ctx, "POST", `${tenant}/intent-contracts`, expiredContract);
+  assert.equal(expiredRegistered.body.status, "expired");
+  const expired = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...event,
+    intent_id: "intent-expired",
+    intent_digest: expiredRegistered.body.intent_digest,
+    job_id: "case-expired",
+  });
+  assert.equal(expired.status, 403);
+  assert.deepEqual(expired.body.findings, ["intent contract is expired: intent-expired"]);
+
+  const lateObservation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/intent-expired/observations`,
+    {
+      predicate: "refund.status",
+      value: "succeeded",
+      observed_at: "2021-01-01T00:00:01.000Z",
+      issuer: "stripe-adapter",
+    },
+  );
+  assert.equal(lateObservation.status, 201);
+  const postExpiryEvaluation = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts/intent-expired/evaluate`,
+    { job: { started_at: "2020-12-31T23:59:59.000Z", completed_at: "2021-01-01T00:00:01.000Z" } },
+  );
+  assert.equal(postExpiryEvaluation.status, 200);
 });
 
 test("hosted production deploy gate dispatches GitHub workflow and binds rollback scope", async () => {
@@ -926,6 +1078,60 @@ async function call(
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+function hostedRefundIntentContract(intentId: string, jobId: string): Record<string, unknown> {
+  return {
+    schema_version: "agentpass.intent-contract.v1",
+    intent_id: intentId,
+    profile: "support_refund.v1",
+    issuer: "support-application",
+    job_id: jobId,
+    objective: "Refund the verified duplicate charge exactly once",
+    required_outcomes: [
+      {
+        id: "refund-executed-once",
+        source: "execution_receipts",
+        where: [
+          { path: "tool", operator: "equals", value: "stripe.create_refund" },
+          { path: "status", operator: "equals", value: "executed" },
+        ],
+        assertion: { operator: "count_equals", value: 1 },
+      },
+      {
+        id: "refund-provider-succeeded",
+        source: "observations",
+        where: [{ path: "predicate", operator: "equals", value: "refund.status" }],
+        assertion: { path: "value", operator: "equals", value: "succeeded" },
+      },
+      {
+        id: "refund-amount-correct",
+        source: "execution_receipts",
+        where: [{ path: "tool", operator: "equals", value: "stripe.create_refund" }],
+        assertion: { path: "amount", operator: "equals", value: 49, quantifier: "all" },
+      },
+    ],
+    hard_constraints: [
+      {
+        id: "no-denied-actions",
+        source: "decision_events",
+        where: [{ path: "decision", operator: "equals", value: "deny" }],
+        assertion: { operator: "count_equals", value: 0 },
+      },
+    ],
+    preferences: {
+      max_tool_calls: 2,
+      max_execution_receipts: 1,
+      max_retries: 1,
+      max_replays: 0,
+      max_denied_decisions: 0,
+      max_runtime_ms: 30_000,
+      max_estimated_cost_usd: 0.05,
+    },
+    evidence_requirements: ["decision_events", "execution_receipts", "observations", "job"],
+    issued_at: "2026-07-20T17:59:00.000Z",
+    expires_at: "2099-07-20T18:30:00.000Z",
+  };
 }
 
 async function receiptKeyEnv(): Promise<{ env: Record<string, string> }> {

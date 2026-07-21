@@ -12,6 +12,11 @@ allow/deny/JIT decisions before tool execution:
 | `GET /policy?target=opa` | Return generated OPA policy |
 | `POST /authorize` | Authorize a proposed tool call |
 | `POST /execution-results` | Record a completed provider result for idempotent replay |
+| `POST /intent-contracts` | Register and freeze an intent contract with its canonical digest |
+| `GET /intent-contracts` | List registered intent contracts |
+| `GET /intent-contracts/<intent-id>` | Read a registered contract and lifecycle status |
+| `POST /intent-contracts/<intent-id>/observations` | Record a provider or application observation bound to the contract |
+| `POST /intent-contracts/<intent-id>/evaluate` | Evaluate durable evidence and emit an intent evaluation receipt |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -32,6 +37,47 @@ allow/deny/JIT decisions before tool execution:
 Approval requests, JIT grants, and idempotent execution results are stored in a
 SQLite-backed Durable Object namespace. This keeps approval state, single-use
 grant enforcement, and retry-safe result replay durable across Worker isolates.
+Intent contracts, bound decision events, execution receipts, observations, job
+evidence, and evaluation receipts use the same tenant-scoped durable store. All
+API routes in the table can be prefixed with `/tenants/<tenant-id>`.
+
+## Hosted intent trust gate
+
+Register a contract before submitting intent-bound work:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts \
+  -H 'content-type: application/json' \
+  -d @intent-contract.json
+```
+
+Registration calculates the canonical `intent_digest` and freezes the first
+contract stored for an `intent_id`. Re-registering identical contents is
+idempotent; changed contents return `409`. Runtime requests remain backward
+compatible when both intent fields are absent. Once either `intent_id` or
+`intent_digest` is present, the gateway requires both and rejects unknown,
+altered, not-yet-active, expired, or job-mismatched contracts before normal
+tool authorization.
+
+Allowed and denied authorization decisions are recorded as intent evidence.
+`POST /execution-results` adds the provider execution receipt. Applications or
+provider adapters can add an observation such as `refund.status=succeeded`:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/observations \
+  -H 'content-type: application/json' \
+  -d '{"schema_version":"agentpass.intent-observation.v1","predicate":"refund.status","value":"succeeded","observed_at":"2026-07-20T18:00:01.000Z","issuer":"stripe-adapter"}'
+```
+
+Evaluate only the evidence collected for the frozen contract. The optional job
+object is bound server-side to the registered intent and retained for later
+evaluations:
+
+```bash
+curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/evaluate \
+  -H 'content-type: application/json' \
+  -d '{"job":{"started_at":"2026-07-20T18:00:00.000Z","completed_at":"2026-07-20T18:00:01.000Z"}}'
+```
 
 ## Local development
 
