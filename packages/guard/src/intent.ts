@@ -64,13 +64,25 @@ export type IntentContract = {
 
 export type IntentObservation = {
   schema_version: "agentpass.intent-observation.v1";
+  observation_id: string;
+  tenant_id: string;
   intent_id: string;
   intent_digest: string;
   predicate: string;
   value: unknown;
   observed_at: string;
+  issued_at: string;
+  expires_at: string;
   issuer: string;
   resource?: string;
+  payload_digest: string;
+  provenance: {
+    verification_method: "oidc" | "jws" | "unsigned_dev";
+    verified_issuer: string;
+    verified_at: string;
+    verified_subject?: string;
+    signature_kid?: string;
+  };
 };
 
 export type IntentEvidence = {
@@ -149,6 +161,24 @@ export function digestIntentContract(contract: IntentContract): string {
   const unsigned = { ...contract };
   delete unsigned.intent_digest;
   return sha256(stableStringify(unsigned));
+}
+
+export function digestIntentObservation(observation: IntentObservation | Record<string, unknown>): string {
+  const input = observation as Record<string, unknown>;
+  return sha256(stableStringify({
+    schema_version: input.schema_version,
+    observation_id: input.observation_id,
+    tenant_id: input.tenant_id,
+    intent_id: input.intent_id,
+    intent_digest: input.intent_digest,
+    predicate: input.predicate,
+    value: input.value,
+    observed_at: input.observed_at,
+    issued_at: input.issued_at,
+    expires_at: input.expires_at,
+    issuer: input.issuer,
+    resource: input.resource,
+  }));
 }
 
 export function bindIntentContract(contract: IntentContract): IntentContract {
@@ -320,13 +350,41 @@ function bindRecordArray(
   if (records === undefined) return undefined;
   const bound: unknown[] = [];
   records.forEach((record, index) => {
-    if (isBoundRecord(record, contract, intentDigest)) {
-      bound.push(record);
-    } else {
+    if (!isBoundRecord(record, contract, intentDigest)) {
       findings.push(`ignored ${source}[${index}] with missing or mismatched intent binding`);
+      return;
     }
+    if (source === "observations") {
+      const provenanceFinding = observationProvenanceFinding(record);
+      if (provenanceFinding) {
+        findings.push(`ignored observations[${index}] ${provenanceFinding}`);
+        return;
+      }
+    }
+    bound.push(record);
   });
   return bound;
+}
+
+function observationProvenanceFinding(record: unknown): string | undefined {
+  const observation = asRecord(record);
+  if (!observation) return "without verified provenance";
+  const provenance = asRecord(observation.provenance);
+  const method = provenance?.verification_method;
+  if (!provenance || !["oidc", "jws", "unsigned_dev"].includes(String(method))) {
+    return "without verified provenance";
+  }
+  if (provenance.verified_issuer !== observation.issuer) return "with mismatched verified issuer";
+  if (typeof provenance.verified_at !== "string" || !Number.isFinite(Date.parse(provenance.verified_at))) {
+    return "without a valid provenance timestamp";
+  }
+  if (typeof observation.payload_digest !== "string" || !/^[a-f0-9]{64}$/.test(observation.payload_digest)) {
+    return "without a valid payload digest";
+  }
+  if (digestIntentObservation(observation) !== observation.payload_digest) {
+    return "with an invalid payload digest";
+  }
+  return undefined;
 }
 
 function isBoundRecord(record: unknown, contract: IntentContract, intentDigest: string): boolean {

@@ -5,6 +5,7 @@ import {
   bindIntentContract,
   createToolGate,
   digestIntentContract,
+  digestIntentObservation,
   evaluateIntent,
   type IntentContract,
   type IntentEvidence,
@@ -60,12 +61,9 @@ test("completed refund evidence produces a qualified success receipt", () => {
 test("mixed refund outcomes produce a partial verdict", () => {
   const contract = refundContract();
   const evidence = completedEvidence(contract);
-  evidence.observations = [
-    {
-      ...evidence.observations?.[0] as object,
-      value: "pending",
-    },
-  ];
+  const observation = { ...evidence.observations?.[0] as Record<string, unknown>, value: "pending" };
+  observation.payload_digest = digestIntentObservation(observation);
+  evidence.observations = [observation];
 
   const receipt = evaluateIntent(contract, evidence, evaluatorOptions());
 
@@ -74,6 +72,21 @@ test("mixed refund outcomes produce a partial verdict", () => {
   assert.equal(receipt.qualified_success, false);
   assert.equal(receipt.goal_attainment, 0.666667);
   assert.equal(receipt.evidence_confidence, 1);
+});
+
+test("unverified observations are ignored with an explicit provenance finding", () => {
+  const contract = refundContract();
+  const evidence = completedEvidence(contract);
+  const observation = { ...evidence.observations?.[0] as Record<string, unknown> };
+  delete observation.provenance;
+  evidence.observations = [observation];
+
+  const receipt = evaluateIntent(contract, evidence, evaluatorOptions());
+
+  assert.equal(receipt.verdict, "partial");
+  assert.equal(receipt.qualified_success, false);
+  assert.ok(receipt.evidence_findings.includes("ignored observations[0] without verified provenance"));
+  assert.equal(receipt.outcomes[1]?.status, "indeterminate");
 });
 
 test("verified goal completion remains noncompliant when a hard constraint fails", () => {
@@ -247,19 +260,7 @@ function completedEvidence(contract: IntentContract): IntentEvidence {
         executed_at: "2026-07-20T18:00:00.000Z",
       },
     ],
-    observations: [
-      {
-        schema_version: "agentpass.intent-observation.v1",
-        intent_id: contract.intent_id,
-        intent_digest: digest,
-        job_id: contract.job_id,
-        predicate: "refund.status",
-        value: "succeeded",
-        resource: "refund/re_123",
-        observed_at: "2026-07-20T18:00:00.500Z",
-        issuer: "stripe-adapter",
-      },
-    ],
+    observations: [verifiedObservation(contract)],
     job: {
       intent_id: contract.intent_id,
       intent_digest: digest,
@@ -268,6 +269,32 @@ function completedEvidence(contract: IntentContract): IntentEvidence {
       completed_at: "2026-07-20T18:00:00.500Z",
     },
   };
+}
+
+function verifiedObservation(contract: IntentContract): Record<string, unknown> {
+  const observation: Record<string, unknown> = {
+    schema_version: "agentpass.intent-observation.v1",
+    observation_id: "obs-refund-1042",
+    tenant_id: "tenant-support",
+    intent_id: contract.intent_id,
+    intent_digest: contract.intent_digest || digestIntentContract(contract),
+    predicate: "refund.status",
+    value: "succeeded",
+    resource: "refund/re_123",
+    observed_at: "2026-07-20T18:00:00.500Z",
+    issued_at: "2026-07-20T18:00:00.500Z",
+    expires_at: "2026-07-20T18:05:00.500Z",
+    issuer: "stripe-adapter",
+    provenance: {
+      verification_method: "jws",
+      verified_issuer: "stripe-adapter",
+      verified_at: "2026-07-20T18:00:00.500Z",
+      verified_subject: "stripe-service",
+      signature_kid: "stripe-2026-07",
+    },
+  };
+  observation.payload_digest = digestIntentObservation(observation);
+  return observation;
 }
 
 function boundDecision(contract: IntentContract, event: Record<string, unknown>): Record<string, unknown> {

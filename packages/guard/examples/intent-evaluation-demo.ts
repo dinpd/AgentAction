@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import {
   bindIntentContract,
   createToolGate,
+  digestIntentObservation,
   evaluateIntent,
   type IntentContract,
   type IntentObservation,
@@ -52,14 +53,27 @@ if (!execution.executed) throw new Error(`refund was not executed: ${execution.d
 
 const observation: IntentObservation = {
   schema_version: "agentpass.intent-observation.v1",
+  observation_id: "obs-refund-1042",
+  tenant_id: "tenant-support",
   intent_id: contract.intent_id,
   intent_digest: contract.intent_digest || "",
   predicate: "refund.status",
   value: execution.result.status,
   resource: `refund/${execution.result.refund_id}`,
   observed_at: completedAt,
+  issued_at: completedAt,
+  expires_at: "2026-07-20T18:05:01.000Z",
   issuer: "stripe-adapter",
+  payload_digest: "",
+  provenance: {
+    verification_method: "jws",
+    verified_issuer: "stripe-adapter",
+    verified_at: completedAt,
+    verified_subject: "stripe-service",
+    signature_kid: "stripe-2026-07",
+  },
 };
+observation.payload_digest = digestIntentObservation(observation);
 
 const evaluation = evaluateIntent(
   contract,

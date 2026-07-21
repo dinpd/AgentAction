@@ -4,8 +4,12 @@ import {
   evaluateIntent,
   type IntentContract,
   type IntentEvidence,
-  type IntentObservation,
 } from "../../packages/guard/src/intent.ts";
+import {
+  IntentObservationVerificationError,
+  verifiedIntentObservationFinding,
+  verifyIntentObservationRequest,
+} from "./intent-observation.ts";
 
 type Env = {
   AGENTID_API_KEY?: string;
@@ -15,6 +19,7 @@ type Env = {
   AGENTID_GITHUB_API_BASE?: string;
   AGENTID_GITHUB_TOKEN?: string;
   AGENTID_MANIFEST_JSON?: string;
+  AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED?: string;
   AGENTID_MANIFESTS?: {
     get(key: string): Promise<string | null>;
   };
@@ -38,6 +43,7 @@ type AgentIdManifest = {
   delegation_chain?: Record<string, unknown>;
   job_boundary?: Record<string, unknown>;
   jit_authorization?: Record<string, unknown>;
+  intent_assurance?: Record<string, unknown>;
 };
 
 type ToolEvent = Record<string, unknown>;
@@ -325,10 +331,15 @@ export default {
       }
 
       const manifest = await loadManifest(env, route.tenantId);
-      const auth = await authenticate(request, env, manifest, route.tenantId, route.endpoint);
-      if (!auth.ok) {
-        return json({ error: auth.error }, auth.status);
+      const authentication = await authenticate(request, env, manifest, route.tenantId, route.endpoint);
+      const isObservationIngestion = request.method === "POST" &&
+        route.endpoint === "intent-contracts" && Boolean(route.resourceId) && route.action === "observations";
+      if (!authentication.ok && !isObservationIngestion) {
+        return json({ error: authentication.error }, authentication.status);
       }
+      const auth: { ok: true; context: AuthContext } = authentication.ok
+        ? authentication
+        : { ok: true, context: { method: "none" } };
 
       if (request.method === "GET" && route.endpoint === "health") {
         return json({ ok: true, agent_id: manifest.agent?.id ?? null, tenant_id: route.tenantId ?? null, auth: auth.context });
@@ -405,8 +416,59 @@ export default {
         route.resourceId &&
         route.action === "observations"
       ) {
-        const observation = await readJson(request);
-        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+        const submitted = await readJson(request);
+        const store = authorizationStore(env, route.tenantId, manifest);
+        const registeredResponse = await store.fetch(
+          new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}`),
+        );
+        if (!registeredResponse.ok) {
+          const body = await registeredResponse.json() as Record<string, unknown>;
+          const errorCode = registeredResponse.status === 404
+            ? "observation_intent_not_registered"
+            : "observation_registry_unavailable";
+          body.error_code = errorCode;
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.observation.rejected",
+              tenant_id: route.tenantId,
+              intent_id: route.resourceId,
+              ...observationAuditMetadata(submitted),
+              error_code: errorCode,
+              error: stringValue(body.error),
+              auth: auth.context,
+            }),
+          );
+          body.auth = auth.context;
+          return json(body, registeredResponse.status);
+        }
+        const registered = await registeredResponse.json() as Record<string, unknown>;
+        let observation: Record<string, unknown>;
+        try {
+          observation = await verifyIntentObservationRequest({
+            request: submitted,
+            manifest,
+            contract: recordValue(registered.contract) as IntentContract,
+            tenantId: route.tenantId,
+            routeIntentId: route.resourceId,
+            auth: auth.context,
+            env,
+          }) as unknown as Record<string, unknown>;
+        } catch (error) {
+          if (!(error instanceof IntentObservationVerificationError)) throw error;
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.observation.rejected",
+              tenant_id: route.tenantId,
+              intent_id: route.resourceId,
+              ...observationAuditMetadata(submitted),
+              error_code: error.code,
+              error: error.message,
+              auth: auth.context,
+            }),
+          );
+          return json({ error: error.message, error_code: error.code, details: error.details, auth: auth.context }, error.status);
+        }
+        const stored = await store.fetch(
           new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(route.resourceId)}/observations`, {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -415,13 +477,31 @@ export default {
         );
         const body = await stored.json() as Record<string, unknown>;
         if (stored.ok) {
+          const storedObservation = recordValue(body.observation);
+          const replayed = body.replayed === true;
           ctx.waitUntil(
             emitAudit(env, {
-              type: "agentpass.intent.observation.recorded",
+              type: replayed ? "agentpass.intent.observation.replayed" : "agentpass.intent.observation.accepted",
               tenant_id: route.tenantId,
-              intent_id: stringValue(body.intent_id),
-              intent_digest: stringValue(body.intent_digest),
-              observation: body,
+              intent_id: stringValue(storedObservation.intent_id),
+              intent_digest: stringValue(storedObservation.intent_digest),
+              observation_id: stringValue(storedObservation.observation_id),
+              issuer: stringValue(storedObservation.issuer),
+              predicate: stringValue(storedObservation.predicate),
+              payload_digest: stringValue(storedObservation.payload_digest),
+              verification_method: stringValue(recordValue(storedObservation.provenance).verification_method),
+              auth: auth.context,
+            }),
+          );
+        } else {
+          ctx.waitUntil(
+            emitAudit(env, {
+              type: "agentpass.intent.observation.rejected",
+              tenant_id: route.tenantId,
+              intent_id: route.resourceId,
+              ...observationAuditMetadata(observation),
+              error_code: stringValue(body.error_code) || "observation_storage_rejected",
+              error: stringValue(body.error),
               auth: auth.context,
             }),
           );
@@ -931,30 +1011,31 @@ export class AgentIdJitGrants {
 
       if (parts[2] === "observations") {
         const input = recordValue(payload.observation);
-        if (hasValue(input.schema_version) && input.schema_version !== "agentpass.intent-observation.v1") {
-          return json({ error: `unsupported intent observation schema_version: ${stringValue(input.schema_version)}` }, 400);
+        const provenanceFinding = verifiedIntentObservationFinding(input);
+        if (provenanceFinding) {
+          return json({
+            error: `intent observation provenance invalid: ${provenanceFinding}`,
+            error_code: "observation_provenance_invalid",
+          }, 400);
         }
-        if (hasValue(input.intent_id) && stringValue(input.intent_id) !== intentId) {
-          return json({ error: "intent observation intent_id mismatch" }, 409);
+        if (stringValue(input.intent_id) !== intentId) {
+          return json({ error: "intent observation intent_id mismatch", error_code: "observation_intent_mismatch" }, 409);
         }
-        if (hasValue(input.intent_digest) && stringValue(input.intent_digest) !== registered.intent_digest) {
-          return json({ error: "intent observation intent_digest mismatch" }, 409);
+        if (stringValue(input.intent_digest) !== registered.intent_digest) {
+          return json({
+            error: "intent observation intent_digest mismatch",
+            error_code: "observation_intent_digest_mismatch",
+          }, 409);
         }
-        const observation: IntentObservation = {
-          schema_version: "agentpass.intent-observation.v1",
-          intent_id: intentId,
-          intent_digest: registered.intent_digest,
-          predicate: stringValue(input.predicate),
-          value: input.value,
-          observed_at: stringValue(input.observed_at),
-          issuer: stringValue(input.issuer),
-          resource: optionalString(input.resource),
-        };
-        const finding = intentObservationFinding(observation);
-        if (finding) return json({ error: finding }, 400);
-        const appended = await this.appendIntentEvidence("observations", observation as unknown as Record<string, unknown>);
-        if (appended.error) return json({ error: appended.error }, appended.httpStatus);
-        return json(observation, 201);
+        const expectedTenant = registered.tenant_id || "default";
+        if (stringValue(input.tenant_id) !== expectedTenant) {
+          return json({ error: "intent observation tenant_id mismatch", error_code: "observation_tenant_mismatch" }, 409);
+        }
+        const appended = await this.appendIntentEvidence("observations", input);
+        if (appended.error) {
+          return json({ error: appended.error, error_code: appended.errorCode }, appended.httpStatus);
+        }
+        return json({ observation: appended.record, replayed: appended.replayed === true }, appended.httpStatus);
       }
 
       const jobInput = payload.job === undefined ? undefined : recordValue(payload.job);
@@ -1222,17 +1303,39 @@ export class AgentIdJitGrants {
   async appendIntentEvidence(
     source: "decision_events" | "execution_receipts" | "observations",
     record: Record<string, unknown>,
-  ): Promise<{ record?: Record<string, unknown>; error?: string; httpStatus: number }> {
+  ): Promise<{
+    record?: Record<string, unknown>;
+    error?: string;
+    errorCode?: string;
+    replayed?: boolean;
+    httpStatus: number;
+  }> {
     const resolved = await this.resolveIntentRecord(record, source !== "observations", true);
     if (resolved.error) return { error: resolved.error, httpStatus: resolved.httpStatus };
     if (!resolved.record) return { error: "intent evidence requires a registered intent binding", httpStatus: 409 };
-    const evidenceId = stringValue(record.decision_id ?? record.evaluation_id) || crypto.randomUUID();
+    const evidenceId = stringValue(record.observation_id ?? record.decision_id ?? record.evaluation_id) || crypto.randomUUID();
     const indexKey = `intent:${resolved.record.intent_id}:evidence:${source}:index`;
+    const recordKey = `intent:${resolved.record.intent_id}:evidence:${source}:${evidenceId}`;
+    const observationIdKey = `intent:evidence:observations:id:${evidenceId}`;
+    if (source === "observations") {
+      const existing = await this.state.storage.get<Record<string, unknown>>(observationIdKey);
+      if (existing) {
+        if (stringValue(existing.payload_digest) === stringValue(record.payload_digest)) {
+          return { record: existing, replayed: true, httpStatus: 200 };
+        }
+        return {
+          error: `intent observation_id already exists with different payload: ${evidenceId}`,
+          errorCode: "observation_id_conflict",
+          httpStatus: 409,
+        };
+      }
+    }
     const index = await this.state.storage.get<string[]>(indexKey) || [];
     const next = [evidenceId, ...index.filter((id) => id !== evidenceId)].slice(0, 2_000);
-    await this.state.storage.put(`intent:${resolved.record.intent_id}:evidence:${source}:${evidenceId}`, record);
+    await this.state.storage.put(recordKey, record);
+    if (source === "observations") await this.state.storage.put(observationIdKey, record);
     await this.state.storage.put(indexKey, next);
-    return { record, httpStatus: 201 };
+    return { record, replayed: false, httpStatus: 201 };
   }
 
   async intentEvidence(
@@ -2247,14 +2350,15 @@ function intentContractDateFinding(contract: IntentContract): string {
   return "";
 }
 
-function intentObservationFinding(observation: IntentObservation): string {
-  if (!observation.predicate) return "intent observation predicate is required";
-  if (!observation.issuer) return "intent observation issuer is required";
-  if (!observation.observed_at || !Number.isFinite(Date.parse(observation.observed_at))) {
-    return "intent observation observed_at must be a valid date-time";
+function observationAuditMetadata(value: unknown): Record<string, string> {
+  const submitted = recordValue(value);
+  const observation = recordValue(submitted.observation || submitted);
+  const metadata: Record<string, string> = {};
+  for (const field of ["observation_id", "issuer", "predicate", "payload_digest"]) {
+    const entry = optionalString(observation[field]);
+    if (entry) metadata[field] = entry;
   }
-  if (observation.value === undefined) return "intent observation value is required";
-  return "";
+  return metadata;
 }
 
 function suppliedIntentBindingFinding(

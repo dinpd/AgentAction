@@ -6,22 +6,45 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "observation_id",
+    "tenant_id",
     "intent_id",
     "intent_digest",
     "predicate",
     "value",
     "observed_at",
-    "issuer"
+    "issued_at",
+    "expires_at",
+    "issuer",
+    "payload_digest",
+    "provenance"
   ],
   "properties": {
     "schema_version": { "const": "agentpass.intent-observation.v1" },
+    "observation_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "minLength": 1 },
     "intent_id": { "type": "string", "minLength": 1 },
     "intent_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "predicate": { "type": "string", "minLength": 1 },
     "value": { "$ref": "#/$defs/jsonValue" },
     "observed_at": { "type": "string", "format": "date-time" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
     "issuer": { "type": "string", "minLength": 1 },
-    "resource": { "type": "string", "minLength": 1 }
+    "resource": { "type": "string", "minLength": 1 },
+    "payload_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verification_method", "verified_issuer", "verified_at"],
+      "properties": {
+        "verification_method": { "enum": ["oidc", "jws", "unsigned_dev"] },
+        "verified_issuer": { "type": "string", "minLength": 1 },
+        "verified_at": { "type": "string", "format": "date-time" },
+        "verified_subject": { "type": "string", "minLength": 1 },
+        "signature_kid": { "type": "string", "minLength": 1 }
+      }
+    }
   },
   "$defs": {
     "jsonValue": {

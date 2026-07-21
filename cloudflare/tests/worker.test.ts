@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import gateway, { AgentIdJitGrants } from "../src/worker.ts";
+import { digestIntentObservation } from "../../packages/guard/src/intent.ts";
 
 type Stored = Map<string, unknown>;
 
@@ -268,7 +269,7 @@ test("scope drift and expired approvals fail closed", async () => {
 
 test("hosted idempotency replays completed refund result and denies changed retry", async () => {
   const namespace = new MemoryNamespace();
-  const env = { JIT_GRANTS: namespace };
+  const env = trustedUnsignedObservationEnv(namespace);
   const ctx = new TestContext();
   const tenant = "/tenants/acme";
   const intentContract = hostedRefundIntentContract("intent-refund-replay", "case-replay");
@@ -375,16 +376,22 @@ test("hosted idempotency replays completed refund result and denies changed retr
     `${tenant}/intent-contracts/intent-refund-replay/observations`,
     {
       schema_version: "agentpass.intent-observation.v1",
+      observation_id: "obs-refund-replay",
+      tenant_id: "acme",
       intent_id: approval.intent_id,
       intent_digest: approval.intent_digest,
       predicate: "refund.status",
       value: "succeeded",
-      observed_at: "2026-07-20T18:00:01.000Z",
+      observed_at: new Date().toISOString(),
+      issued_at: new Date().toISOString(),
       issuer: "stripe-adapter",
       resource: approval.resource,
     },
   );
   assert.equal(observation.status, 201);
+  assert.equal(observation.body.replayed, false);
+  assert.equal(observation.body.observation.provenance.verification_method, "unsigned_dev");
+  assert.match(String(observation.body.observation.payload_digest), /^[a-f0-9]{64}$/);
   const evaluation = await call(
     env,
     ctx,
@@ -434,13 +441,13 @@ test("hosted idempotency replays completed refund result and denies changed retr
   const intentAudit = await call(env, ctx, "GET", "/audit/events?intent_id=intent-refund-replay&limit=30");
   const intentTypes = intentAudit.body.events.map((event: Record<string, unknown>) => event.type);
   assert.ok(intentTypes.includes("agentpass.intent.registered"));
-  assert.ok(intentTypes.includes("agentpass.intent.observation.recorded"));
+  assert.ok(intentTypes.includes("agentpass.intent.observation.accepted"));
   assert.ok(intentTypes.includes("agentpass.intent.evaluated"));
 });
 
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
   const namespace = new MemoryNamespace();
-  const env = { JIT_GRANTS: namespace };
+  const env = trustedUnsignedObservationEnv(namespace);
   const ctx = new TestContext();
   const tenant = "/tenants/trust-gate";
   const event = {
@@ -503,9 +510,14 @@ test("hosted intent runtime rejects incomplete unknown altered and expired bindi
     "POST",
     `${tenant}/intent-contracts/intent-expired/observations`,
     {
+      observation_id: "obs-late-expired-contract",
+      tenant_id: "trust-gate",
+      intent_id: "intent-expired",
+      intent_digest: expiredRegistered.body.intent_digest,
       predicate: "refund.status",
       value: "succeeded",
-      observed_at: "2021-01-01T00:00:01.000Z",
+      observed_at: new Date().toISOString(),
+      issued_at: new Date().toISOString(),
       issuer: "stripe-adapter",
     },
   );
@@ -518,6 +530,289 @@ test("hosted intent runtime rejects incomplete unknown altered and expired bindi
     { job: { started_at: "2020-12-31T23:59:59.000Z", completed_at: "2021-01-01T00:00:01.000Z" } },
   );
   assert.equal(postExpiryEvaluation.status, 200);
+});
+
+test("trusted OIDC observations fail closed and replay without duplicating evidence", async () => {
+  const namespace = new MemoryNamespace();
+  const secret = "trusted-observation-test-secret";
+  const issuer = "https://identity.example.com";
+  const manifest = trustedObservationManifest({
+    verification_methods: ["oidc"],
+    oidc_subjects: ["stripe-observer"],
+    oidc_issuers: [issuer],
+  }, {
+    agent: {
+      id: "customer-support-refund-agent",
+      name: "Customer Support Refund Agent",
+      owner: "support-platform-team",
+      environment: "production",
+      purpose: "Trusted intent observation tests",
+    },
+    oidc: {
+      enabled: true,
+      issuer,
+      audiences: ["agentpass-gateway"],
+      token_validation: "demo_hs256",
+      claim_mapping: { tenant_id: "tenant_id", agent_id: "agent_id" },
+    },
+  });
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_DEMO_OIDC_SECRET: secret,
+    AGENTID_MANIFEST_JSON: JSON.stringify(manifest),
+  };
+  const ctx = new TestContext();
+  const token = await signHs256Jwt({
+    iss: issuer,
+    aud: "agentpass-gateway",
+    sub: "stripe-observer",
+    tenant_id: "acme",
+    agent_id: "customer-support-refund-agent",
+    exp: Math.floor(Date.now() / 1_000) + 600,
+  }, secret);
+  const headers = { authorization: `Bearer ${token}` };
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts",
+    hostedRefundIntentContract("intent-oidc-observation", "job-oidc-observation"),
+    headers,
+  );
+  assert.equal(registered.status, 201);
+  const now = new Date();
+  const valid = {
+    schema_version: "agentpass.intent-observation.v1",
+    observation_id: "obs-oidc-1",
+    tenant_id: "acme",
+    intent_id: "intent-oidc-observation",
+    intent_digest: registered.body.intent_digest,
+    predicate: "refund.status",
+    value: "succeeded",
+    observed_at: now.toISOString(),
+    issued_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + 300_000).toISOString(),
+    issuer: "stripe-adapter",
+    resource: "refund/re_oidc",
+  };
+  const endpoint = "/tenants/acme/intent-contracts/intent-oidc-observation/observations";
+  const accepted = await call(env, ctx, "POST", endpoint, valid, headers);
+  assert.equal(accepted.status, 201);
+  assert.equal(accepted.body.replayed, false);
+  assert.equal(accepted.body.observation.provenance.verification_method, "oidc");
+  assert.equal(accepted.body.observation.provenance.verified_subject, "stripe-observer");
+
+  const replayed = await call(env, ctx, "POST", endpoint, valid, headers);
+  assert.equal(replayed.status, 200);
+  assert.equal(replayed.body.replayed, true);
+  const storedIndex = namespace.stores.get("acme")?.get(
+    "intent:intent-oidc-observation:evidence:observations:index",
+  ) as string[];
+  assert.deepEqual(storedIndex, ["obs-oidc-1"]);
+
+  const conflict = await call(env, ctx, "POST", endpoint, { ...valid, value: "failed" }, headers);
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.error_code, "observation_id_conflict");
+
+  const cases: Array<[Record<string, unknown>, number, string]> = [
+    [{ ...valid, observation_id: "obs-untrusted", issuer: "unknown-adapter" }, 403, "observation_untrusted_issuer"],
+    [{
+      ...valid,
+      observation_id: "obs-future",
+      issued_at: new Date(now.getTime() + 120_000).toISOString(),
+      observed_at: new Date(now.getTime() + 120_000).toISOString(),
+      expires_at: new Date(now.getTime() + 300_000).toISOString(),
+    }, 400, "observation_future_dated"],
+    [{
+      ...valid,
+      observation_id: "obs-expired",
+      issued_at: new Date(now.getTime() - 120_000).toISOString(),
+      observed_at: new Date(now.getTime() - 120_000).toISOString(),
+      expires_at: new Date(now.getTime() - 1_000).toISOString(),
+    }, 410, "observation_expired"],
+    [{ ...valid, observation_id: "obs-tenant", tenant_id: "other" }, 409, "observation_tenant_mismatch"],
+    [{ ...valid, observation_id: "obs-intent", intent_id: "intent-other" }, 409, "observation_intent_mismatch"],
+    [{ ...valid, observation_id: "obs-digest", intent_digest: "0".repeat(64) }, 409, "observation_intent_digest_mismatch"],
+    [{ ...valid, observation_id: "obs-predicate", predicate: "refund.internal_note" }, 403, "observation_untrusted_issuer"],
+    [{ ...valid, observation_id: "obs-altered", payload_digest: "f".repeat(64) }, 409, "observation_payload_digest_mismatch"],
+  ];
+  for (const [input, status, errorCode] of cases) {
+    const response = await call(env, ctx, "POST", endpoint, input, headers);
+    assert.equal(response.status, status, errorCode);
+    assert.equal(response.body.error_code, errorCode);
+  }
+  const unknownIntent = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts/intent-not-registered/observations",
+    { ...valid, observation_id: "obs-unknown-intent", intent_id: "intent-not-registered" },
+    headers,
+  );
+  assert.equal(unknownIntent.status, 404);
+  assert.equal(unknownIntent.body.error_code, "observation_intent_not_registered");
+
+  await ctx.flush();
+  const audit = await call(env, ctx, "GET", "/audit/events?intent_id=intent-oidc-observation&limit=50", undefined, headers);
+  const observationEvents = audit.body.events.filter((event: Record<string, unknown>) =>
+    String(event.type).startsWith("agentpass.intent.observation."));
+  const eventTypes = observationEvents.map((event: Record<string, unknown>) => event.type);
+  assert.ok(eventTypes.includes("agentpass.intent.observation.accepted"));
+  assert.ok(eventTypes.includes("agentpass.intent.observation.replayed"));
+  assert.ok(eventTypes.includes("agentpass.intent.observation.rejected"));
+  assert.equal(JSON.stringify(observationEvents).includes('"value"'), false);
+  assert.equal(JSON.stringify(observationEvents).includes("succeeded"), false);
+});
+
+test("signed JWS observations verify against issuer JWKS and reject tampering", async () => {
+  const namespace = new MemoryNamespace();
+  const signingKey = await receiptKeyPair("stripe-observation-2026-07");
+  const jwksUri = "https://stripe.example.com/.well-known/jwks.json";
+  const manifest = trustedObservationManifest({
+    verification_methods: ["jws"],
+    jws_subjects: ["stripe-observer"],
+    jwks_uri: jwksUri,
+    audiences: ["agentpass-observations"],
+  }, {
+    agent: {
+      id: "customer-support-refund-agent",
+      name: "Customer Support Refund Agent",
+      owner: "support-platform-team",
+      environment: "production",
+      purpose: "Trusted signed observation tests",
+    },
+  });
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "gateway-key",
+    AGENTID_MANIFEST_JSON: JSON.stringify(manifest),
+  };
+  const ctx = new TestContext();
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts",
+    hostedRefundIntentContract("intent-jws-observation", "job-jws-observation"),
+    { authorization: "Bearer gateway-key" },
+  );
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 300_000);
+  const observation: Record<string, unknown> = {
+    schema_version: "agentpass.intent-observation.v1",
+    observation_id: "obs-jws-1",
+    tenant_id: "acme",
+    intent_id: "intent-jws-observation",
+    intent_digest: registered.body.intent_digest,
+    predicate: "refund.status",
+    value: "succeeded",
+    observed_at: now.toISOString(),
+    issued_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    issuer: "stripe-adapter",
+    resource: "refund/re_jws",
+  };
+  observation.payload_digest = digestIntentObservation(observation as never);
+  const claims = {
+    iss: "stripe-adapter",
+    aud: "agentpass-observations",
+    sub: "stripe-observer",
+    jti: observation.observation_id,
+    iat: Math.floor(now.getTime() / 1_000),
+    exp: Math.floor(expiresAt.getTime() / 1_000),
+    observation,
+  };
+  const jws = await signRs256Jws(claims, signingKey.privateJwk);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
+    assert.equal(String(input), jwksUri);
+    return new Response(JSON.stringify({ keys: [signingKey.publicJwk] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const endpoint = "/tenants/acme/intent-contracts/intent-jws-observation/observations";
+    const accepted = await call(env, ctx, "POST", endpoint, { jws });
+    assert.equal(accepted.status, 201);
+    assert.equal(accepted.body.observation.provenance.verification_method, "jws");
+    assert.equal(accepted.body.observation.provenance.signature_kid, "stripe-observation-2026-07");
+
+    const parts = jws.split(".");
+    parts[2] = `${parts[2].startsWith("A") ? "B" : "A"}${parts[2].slice(1)}`;
+    const tampered = await call(env, ctx, "POST", endpoint, { jws: parts.join(".") });
+    assert.equal(tampered.status, 401);
+    assert.equal(tampered.body.error_code, "observation_jws_signature_invalid");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("unsigned observations require both development environment and explicit opt-in", async () => {
+  const namespace = new MemoryNamespace();
+  const manifest = trustedObservationManifest({ verification_methods: ["unsigned_dev"] });
+  const env = { JIT_GRANTS: namespace, AGENTID_MANIFEST_JSON: JSON.stringify(manifest) };
+  const ctx = new TestContext();
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts",
+    hostedRefundIntentContract("intent-unsigned-disabled", "job-unsigned-disabled"),
+  );
+  const now = new Date().toISOString();
+  const response = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts/intent-unsigned-disabled/observations",
+    {
+      observation_id: "obs-unsigned-disabled",
+      tenant_id: "acme",
+      intent_id: "intent-unsigned-disabled",
+      intent_digest: registered.body.intent_digest,
+      predicate: "refund.status",
+      value: "succeeded",
+      observed_at: now,
+      issued_at: now,
+      issuer: "stripe-adapter",
+    },
+  );
+  assert.equal(response.status, 403);
+  assert.equal(response.body.error_code, "observation_verification_required");
+
+  const productionManifest = trustedObservationManifest({ verification_methods: ["unsigned_dev"] }, {
+    agent: {
+      id: "customer-support-refund-agent",
+      name: "Customer Support Refund Agent",
+      owner: "support-platform-team",
+      environment: "production",
+      purpose: "Unsigned production rejection test",
+    },
+  });
+  const productionResponse = await call(
+    {
+      JIT_GRANTS: namespace,
+      AGENTID_MANIFEST_JSON: JSON.stringify(productionManifest),
+      AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED: "true",
+    },
+    ctx,
+    "POST",
+    "/tenants/acme/intent-contracts/intent-unsigned-disabled/observations",
+    {
+      observation_id: "obs-unsigned-production",
+      tenant_id: "acme",
+      intent_id: "intent-unsigned-disabled",
+      intent_digest: registered.body.intent_digest,
+      predicate: "refund.status",
+      value: "succeeded",
+      observed_at: now,
+      issued_at: now,
+      issuer: "stripe-adapter",
+    },
+  );
+  assert.equal(productionResponse.status, 403);
+  assert.equal(productionResponse.body.error_code, "observation_verification_required");
 });
 
 test("hosted production deploy gate dispatches GitHub workflow and binds rollback scope", async () => {
@@ -1067,17 +1362,54 @@ async function call(
   method: string,
   path: string,
   body?: Record<string, unknown>,
+  headers: Record<string, string> = {},
 ): Promise<{ status: number; body: any }> {
   const response = await gateway.fetch(
     new Request(`https://gateway.example.com${path}`, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
+      headers: body ? { "content-type": "application/json", ...headers } : headers,
       body: body ? JSON.stringify(body) : undefined,
     }),
     env as never,
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+async function signHs256Jwt(claims: Record<string, unknown>, secret: string): Promise<string> {
+  const encodedHeader = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+  );
+  return `${encodedHeader}.${encodedPayload}.${Buffer.from(signature).toString("base64url")}`;
+}
+
+async function signRs256Jws(claims: Record<string, unknown>, privateJwk: JsonWebKey): Promise<string> {
+  const encodedHeader = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: privateJwk.kid })).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    privateJwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+  );
+  return `${encodedHeader}.${encodedPayload}.${Buffer.from(signature).toString("base64url")}`;
 }
 
 function hostedRefundIntentContract(intentId: string, jobId: string): Record<string, unknown> {
@@ -1131,6 +1463,70 @@ function hostedRefundIntentContract(intentId: string, jobId: string): Record<str
     evidence_requirements: ["decision_events", "execution_receipts", "observations", "job"],
     issued_at: "2026-07-20T17:59:00.000Z",
     expires_at: "2099-07-20T18:30:00.000Z",
+  };
+}
+
+function trustedUnsignedObservationEnv(namespace: MemoryNamespace): Record<string, unknown> {
+  return {
+    JIT_GRANTS: namespace,
+    AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED: "true",
+    AGENTID_MANIFEST_JSON: JSON.stringify(trustedObservationManifest({ verification_methods: ["unsigned_dev"] })),
+  };
+}
+
+function trustedObservationManifest(
+  issuerPolicy: Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    agent: {
+      id: "customer-support-refund-agent",
+      name: "Customer Support Refund Agent",
+      owner: "support-platform-team",
+      environment: "test",
+      purpose: "Trusted intent observation tests",
+    },
+    jit_authorization: {
+      enabled: true,
+      default_ttl_seconds: 300,
+      bind_token_to: ["agent_id", "user_id", "tool", "action", "resource", "approval_id"],
+      revoke_after_use: true,
+    },
+    tools: [
+      { name: "zendesk.search_tickets", access: "read", auth_mode: "delegated", approval: "none" },
+      {
+        name: "stripe.create_refund",
+        access: "write",
+        auth_mode: "just_in_time",
+        approval: "human_confirm",
+        constraints: { max_amount_usd: 100, token_ttl_seconds: 300 },
+      },
+      {
+        name: "email.send_external",
+        access: "write",
+        auth_mode: "just_in_time",
+        approval: "human_confirm",
+        constraints: { token_ttl_seconds: 120 },
+      },
+    ],
+    data_flows: [
+      { from: "zendesk", to: "stripe", allowed: true },
+      { from: "customer_records", to: "external_email", allowed: false },
+    ],
+    intent_assurance: {
+      observations: {
+        max_age_seconds: 600,
+        max_future_skew_seconds: 30,
+        trusted_issuers: [{
+          issuer: "stripe-adapter",
+          profiles: ["support_refund.v1"],
+          predicates: ["refund.status"],
+          ...issuerPolicy,
+        }],
+      },
+    },
+    runtime: { enforce_manifest: true },
+    ...overrides,
   };
 }
 

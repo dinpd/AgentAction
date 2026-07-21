@@ -27,9 +27,11 @@ resulting `intent_id` and `intent_digest` with every guarded call. AgentPass
 carries that binding through decision events, approval evidence, request
 digests, and provider execution receipts.
 
-The evaluator ignores evidence with missing or mismatched intent bindings. If
-required evidence is unavailable, the result is `indeterminate`; missing
-evidence is not treated as proof of failure.
+The evaluator ignores evidence with missing or mismatched intent bindings.
+Observations additionally require verified provenance and a valid canonical
+payload digest; unverified or altered observations produce an evidence finding
+and do not influence the verdict. If required evidence is unavailable, the
+result is `indeterminate`; missing evidence is not treated as proof of failure.
 
 ## Contract Shape
 
@@ -135,10 +137,64 @@ behavior. If either field is present, both are required. Contract expiry blocks
 new runtime authority but does not prevent late evidence collection or
 post-execution evaluation.
 
+## Trusted Observation Provenance
+
+The tenant manifest controls which external issuers may prove each outcome.
+Trust can be narrowed by intent profile and predicate:
+
+```yaml
+intent_assurance:
+  observations:
+    max_age_seconds: 300
+    max_future_skew_seconds: 30
+    trusted_issuers:
+      - issuer: stripe-adapter
+        profiles: [support_refund.v1]
+        predicates: [refund.status]
+        verification_methods: [oidc, jws]
+        oidc_subjects: [stripe-observer]
+        oidc_issuers: [https://identity.example.com]
+        jws_subjects: [stripe-observer]
+        jwks_uri: https://stripe.example.com/.well-known/jwks.json
+        audiences: [agentpass-observations]
+```
+
+Direct JSON observations require an authenticated OIDC caller whose token
+issuer and subject match the selected issuer policy. Alternatively, the caller
+can submit `{ "jws": "<compact-RS256-JWS>" }`. The JWS payload contains `iss`,
+`aud`, `sub`, `jti`, `iat`, `exp`, and the complete `observation` object. Its
+`jti` must equal `observation_id`; signed tenant, intent, contract digest,
+lifetime, and payload digest values must all match.
+
+Accepted observations are normalized with:
+
+- a stable `observation_id`, tenant, intent ID, and frozen intent digest;
+- `issued_at`, `observed_at`, and bounded `expires_at` timestamps;
+- a canonical SHA-256 `payload_digest`; and
+- provenance containing the verification method, verified issuer, verification
+  timestamp, subject, and signing `kid` when applicable.
+
+Expired, stale, future-dated, untrusted, altered, or incorrectly bound evidence
+fails closed with a stable `error_code`. Repeating the exact observation ID and
+payload returns the original record with `replayed: true` and does not append
+evidence. Reusing the ID for different contents returns
+`observation_id_conflict`.
+
+Unsigned input is disabled by default. It is available only when the manifest
+environment is `dev`, `development`, `test`, or `local`, the selected issuer
+explicitly permits `unsigned_dev`, and the Worker variable
+`AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED` is exactly `true`. This mode must not
+be enabled for production tenants.
+
+Audit events distinguish `accepted`, `rejected`, and `replayed` observations.
+They retain correlation metadata and evidence digests but omit the raw
+observation value.
+
 ## Version 1 Scope
 
 Version 1 is deterministic and profile-specific. It does not infer intent from
 raw prompts, use an LLM judge in the trusted path, produce cross-domain agent
 rankings, prove causality, or automatically increase an agent's authority from
-historical quality scores. Subjective evaluator plugins, external evidence
-attestation, and aggregate quality analytics remain future work.
+historical quality scores. Subjective evaluator plugins and aggregate quality
+analytics remain future work. Version 1 external observation attestation is
+limited to OIDC-bound JSON and RS256/JWKS JWS envelopes.

@@ -188,6 +188,63 @@
         "max_session_extensions": { "type": "integer", "minimum": 0 }
       }
     },
+    "intent_assurance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "observations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trusted_issuers"],
+          "properties": {
+            "max_age_seconds": { "type": "integer", "minimum": 1 },
+            "max_future_skew_seconds": { "type": "integer", "minimum": 0 },
+            "trusted_issuers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["issuer", "verification_methods"],
+                "properties": {
+                  "issuer": { "type": "string", "minLength": 1 },
+                  "profiles": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "predicates": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "verification_methods": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "enum": ["oidc", "jws", "unsigned_dev"] }
+                  },
+                  "oidc_subjects": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "oidc_issuers": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "jws_subjects": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "jwks_uri": { "type": "string", "minLength": 1 },
+                  "audiences": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "capabilities": {
       "type": "array",
       "description": "First-class agent capabilities. Use this for MCP tools, API operations, local tools, and skills. The legacy tools field remains supported as shorthand for MCP tools.",
