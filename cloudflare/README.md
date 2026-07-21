@@ -60,14 +60,62 @@ altered, not-yet-active, expired, or job-mismatched contracts before normal
 tool authorization.
 
 Allowed and denied authorization decisions are recorded as intent evidence.
-`POST /execution-results` adds the provider execution receipt. Applications or
-provider adapters can add an observation such as `refund.status=succeeded`:
+`POST /execution-results` adds the provider execution receipt. Provider and
+application observations are accepted only from an issuer trusted by the
+tenant's `intent_assurance.observations` policy. Trust can be scoped to intent
+profiles and predicates and bound either to the caller's OIDC issuer/subject or
+to an RS256 JWS verified against the issuer's JWKS.
+
+An OIDC-authenticated adapter can submit direct JSON. Timestamps must be fresh
+under the tenant policy:
 
 ```bash
 curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/observations \
   -H 'content-type: application/json' \
-  -d '{"schema_version":"agentpass.intent-observation.v1","predicate":"refund.status","value":"succeeded","observed_at":"2026-07-20T18:00:01.000Z","issuer":"stripe-adapter"}'
+  -H 'authorization: Bearer <provider-oidc-token>' \
+  -d '{"schema_version":"agentpass.intent-observation.v1","observation_id":"obs-refund-1042","tenant_id":"acme","intent_id":"refund-case-1042","intent_digest":"<registered-intent-digest>","predicate":"refund.status","value":"succeeded","observed_at":"<current-ISO-timestamp>","issued_at":"<current-ISO-timestamp>","expires_at":"<short-lived-ISO-timestamp>","issuer":"stripe-adapter"}'
 ```
+
+For a signed envelope, post `{ "jws": "<compact-RS256-JWS>" }`. The JWS claims
+must include `iss`, `aud`, `sub`, `jti`, `iat`, `exp`, and `observation`; `jti`
+equals the observation ID. The signed observation includes its canonical
+`payload_digest`. Accepted responses have the shape
+`{ "observation": { ... }, "replayed": false }`.
+
+Exact retries return `200` with `replayed: true` without adding a second evidence
+record. Reusing an observation ID for changed contents returns `409` with
+`error_code: "observation_id_conflict"`. Other trust and binding failures also
+include machine-readable `error_code` values. Audit events record accepted,
+rejected, and replayed metadata without copying the raw observation value.
+
+Example tenant policy:
+
+```json
+{
+  "intent_assurance": {
+    "observations": {
+      "max_age_seconds": 300,
+      "max_future_skew_seconds": 30,
+      "trusted_issuers": [{
+        "issuer": "stripe-adapter",
+        "profiles": ["support_refund.v1"],
+        "predicates": ["refund.status"],
+        "verification_methods": ["oidc", "jws"],
+        "oidc_subjects": ["stripe-observer"],
+        "oidc_issuers": ["https://identity.example.com"],
+        "jws_subjects": ["stripe-observer"],
+        "jwks_uri": "https://stripe.example.com/.well-known/jwks.json",
+        "audiences": ["agentpass-observations"]
+      }]
+    }
+  }
+}
+```
+
+Unsigned observations are development-only. They require all three controls:
+an agent environment of `dev`, `development`, `test`, or `local`; issuer policy
+method `unsigned_dev`; and Worker variable
+`AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED=true`.
 
 Evaluate only the evidence collected for the frozen contract. The optional job
 object is bound server-side to the registered intent and retained for later

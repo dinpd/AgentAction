@@ -81,22 +81,52 @@ export type IntentContractListResponse = {
 
 export type IntentObservationInput = {
   schema_version?: "agentpass.intent-observation.v1";
+  observation_id: string;
+  tenant_id?: string;
   intent_id?: string;
   intent_digest?: string;
   predicate: string;
   value: unknown;
   observed_at: string;
+  issued_at: string;
+  expires_at?: string;
   issuer: string;
   resource?: string;
+  payload_digest?: string;
 };
 
-export type IntentObservation = Required<Pick<IntentObservationInput, "predicate" | "observed_at" | "issuer">> &
-  Omit<IntentObservationInput, "schema_version" | "intent_id" | "intent_digest"> & {
-    schema_version: "agentpass.intent-observation.v1";
-    intent_id: string;
-    intent_digest: string;
-    auth?: Record<string, unknown>;
+export type SignedIntentObservationInput = {
+  jws: string;
+};
+
+export type IntentObservation = {
+  schema_version: "agentpass.intent-observation.v1";
+  observation_id: string;
+  tenant_id: string;
+  intent_id: string;
+  intent_digest: string;
+  predicate: string;
+  value: unknown;
+  observed_at: string;
+  issued_at: string;
+  expires_at: string;
+  issuer: string;
+  resource?: string;
+  payload_digest: string;
+  provenance: {
+    verification_method: "oidc" | "jws" | "unsigned_dev";
+    verified_issuer: string;
+    verified_at: string;
+    verified_subject?: string;
+    signature_kid?: string;
   };
+};
+
+export type IntentObservationResponse = {
+  observation: IntentObservation;
+  replayed: boolean;
+  auth?: Record<string, unknown>;
+};
 
 export type IntentEvaluationReceipt = {
   schema_version: "agentpass.intent-evaluation.v1";
@@ -417,12 +447,12 @@ export class AgentPassClient {
   async recordIntentObservation(
     tenantId: string,
     intentId: string,
-    observation: IntentObservationInput,
-  ): Promise<IntentObservation> {
-    return this.post<IntentObservation>(
+    observation: IntentObservationInput | SignedIntentObservationInput,
+  ): Promise<IntentObservationResponse> {
+    return this.post<IntentObservationResponse>(
       `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/observations`,
       observation,
-      [201],
+      [200, 201],
     );
   }
 

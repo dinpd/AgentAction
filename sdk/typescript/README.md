@@ -66,12 +66,18 @@ const binding = {
   job_id: registered.job_id,
 };
 
-await agentpass.recordIntentObservation("tenant-a", registered.intent_id, {
+const recorded = await agentpass.recordIntentObservation("tenant-a", registered.intent_id, {
+  observation_id: "obs-refund-case-1042",
   predicate: "refund.status",
   value: "succeeded",
   observed_at: new Date().toISOString(),
+  issued_at: new Date().toISOString(),
   issuer: "stripe-adapter",
 });
+
+if (recorded.replayed) {
+  console.log("The identical observation was already stored");
+}
 
 const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_id, {
   job: {
@@ -85,6 +91,11 @@ const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_
 `registerIntentContract` is idempotent for identical contents and fails if an
 existing `intent_id` is reused with changed contents. `listIntentContracts` and
 `getIntentContract` expose the tenant registry and lifecycle status.
+`recordIntentObservation` accepts either direct OIDC-bound observation input or
+`{ jws: compactRs256Jws }`, and returns the verified observation plus its replay
+status. The gateway supplies route-bound tenant and intent fields and records
+verification provenance; signed envelopes must include those bindings and the
+canonical payload digest inside the signature.
 
 For approval-gated actions, the client can drive the durable hosted lifecycle:
 

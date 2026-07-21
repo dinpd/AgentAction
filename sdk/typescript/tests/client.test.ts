@@ -156,9 +156,11 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
   await client.listIntentContracts("tenant-a");
   await client.getIntentContract("tenant-a", "intent-1");
   await client.recordIntentObservation("tenant-a", "intent-1", {
+    observation_id: "obs-1",
     predicate: "refund.status",
     value: "succeeded",
     observed_at: "2026-07-20T00:00:01.000Z",
+    issued_at: "2026-07-20T00:00:01.000Z",
     issuer: "stripe-adapter",
   });
   await client.evaluateIntent("tenant-a", "intent-1", { job: { completed_at: "2026-07-20T00:00:01.000Z" } });
@@ -172,6 +174,27 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
   ]);
   assert.equal(calls[0].body?.intent_id, "intent-1");
   assert.equal(calls[3].body?.predicate, "refund.status");
+  assert.equal(calls[3].body?.observation_id, "obs-1");
+});
+
+test("recordIntentObservation accepts a signed JWS envelope and idempotent replay", async () => {
+  const client = new AgentPassClient({
+    baseUrl: "https://gateway.example.com",
+    fetch: async (_url, init) => {
+      assert.deepEqual(JSON.parse(String(init?.body)), { jws: "header.payload.signature" });
+      return jsonResponse(200, {
+        observation: { observation_id: "obs-signed-1" },
+        replayed: true,
+      });
+    },
+  });
+
+  const response = await client.recordIntentObservation("tenant-a", "intent-1", {
+    jws: "header.payload.signature",
+  });
+
+  assert.equal(response.replayed, true);
+  assert.equal(response.observation.observation_id, "obs-signed-1");
 });
 
 test("approval lifecycle methods use tenant-scoped endpoints", async () => {

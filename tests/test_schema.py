@@ -69,11 +69,54 @@ def test_intent_schemas_and_refund_examples_are_valid():
     Draft202012Validator(evaluation_schema).validate(evaluation)
     Draft202012Validator(observation_schema).validate({
         "schema_version": "agentpass.intent-observation.v1",
+        "observation_id": "obs-refund-1",
+        "tenant_id": "acme",
         "intent_id": contract["intent_id"],
         "intent_digest": evaluation["intent_digest"],
         "predicate": "refund.status",
         "value": "succeeded",
         "observed_at": "2026-07-20T18:00:01.000Z",
+        "issued_at": "2026-07-20T18:00:01.000Z",
+        "expires_at": "2026-07-20T18:05:01.000Z",
         "issuer": "stripe-adapter",
         "resource": "payment/pi_123",
+        "payload_digest": "a" * 64,
+        "provenance": {
+            "verification_method": "oidc",
+            "verified_issuer": "stripe-adapter",
+            "verified_at": "2026-07-20T18:00:02.000Z",
+            "verified_subject": "stripe-observer",
+        },
     })
+
+
+def test_intent_observation_trust_policy_matches_manifest_schema():
+    schema = load_schema()
+    manifest = {
+        "agent": {
+            "id": "a1",
+            "name": "Test Agent",
+            "owner": "team",
+            "environment": "production",
+            "purpose": "test",
+        },
+        "intent_assurance": {
+            "observations": {
+                "max_age_seconds": 300,
+                "max_future_skew_seconds": 30,
+                "trusted_issuers": [{
+                    "issuer": "stripe-adapter",
+                    "profiles": ["support_refund.v1"],
+                    "predicates": ["refund.status"],
+                    "verification_methods": ["oidc", "jws"],
+                    "oidc_subjects": ["stripe-observer"],
+                    "oidc_issuers": ["https://idp.example.com"],
+                    "jws_subjects": ["stripe-observer"],
+                    "jwks_uri": "https://stripe.example.com/.well-known/jwks.json",
+                    "audiences": ["agentpass-observations"],
+                }],
+            }
+        },
+    }
+
+    Draft202012Validator(schema).validate(manifest)

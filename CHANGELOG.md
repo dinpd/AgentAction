@@ -23,6 +23,16 @@
   a hosted evaluation endpoint and intent-filtered audit events.
 - Replaced the Node-only intent hashing dependency with a portable synchronous
   SHA-256 implementation shared by local and Cloudflare runtimes.
+- Added tenant-scoped trusted observation policies by issuer, intent profile,
+  predicate, and verification method, with OIDC identity binding and RS256/JWKS
+  signed-envelope verification.
+- Added stable observation IDs, canonical payload digests, stored verification
+  provenance, freshness enforcement, machine-readable failure reasons, and
+  development-only unsigned input behind an explicit opt-in.
+- Made exact observation retries idempotent without increasing evidence counts,
+  rejected changed payloads under the same ID, ignored unverified observations
+  during evaluation, and added value-redacted accepted/rejected/replayed audit
+  events.
 
 ### Provider trust gate
 
