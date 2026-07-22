@@ -231,6 +231,43 @@ Audit types distinguish `agentpass.intent.evaluation.previewed`,
 `agentpass.intent.finalized`, `agentpass.intent.finalization.replayed`, and
 `agentpass.intent.evidence.rejected`.
 
+## Profile-Scoped Quality Rollups
+
+`GET /tenants/<tenant-id>/intent-quality/rollups` converts immutable final
+receipts into an operational read model. It never evaluates mutable evidence or
+reuses preview receipts. The query requires `from` and `to`, uses a half-open
+`[from,to)` window, and rejects windows longer than 90 days.
+
+The grouping identity is the complete profile binding:
+
+```text
+tenant_id + profile_key + profile_version + profile_digest
+```
+
+This prevents a changed definition or unlike task from being blended into one
+quality score. A query may filter by profile key/version, agent, verdict, or
+constraint-compliance state. Without a profile filter, the response returns
+separate groups and paginates those groups with the returned cursor.
+
+Each group reports outcome and constraint counts and rates, qualified success,
+goal attainment, evidence-confidence distribution, execution-discipline totals
+and averages, preference compliance, metric coverage, and minimum-sample
+status. `indeterminate` remains a first-class outcome, and confidence below
+`0.75` is reported as low rather than converted into failure. Missing agent or
+runtime data appears in `data_quality.findings`.
+
+The response also exposes scanned, finalized, matched, and excluded counts.
+Exclusion reasons distinguish unfinalized contracts, invalid final receipts,
+unversioned profiles, time-window misses, and explicit query filters. This makes
+the denominator reviewable instead of silently dropping inconvenient records.
+
+Rollups are descriptive observability data. They cannot increase runtime
+authority, relax constraints, change budgets, or rank unlike profiles. See
+[`intent-quality-rollup.schema.json`](../schema/intent-quality-rollup.schema.json)
+for the API contract and
+[`support-refund-quality-rollup.json`](../packages/guard/examples/support-refund-quality-rollup.json)
+for a realistic response.
+
 ## Trusted Observation Provenance
 
 The tenant manifest controls which external issuers may prove each outcome.

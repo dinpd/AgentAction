@@ -4,6 +4,11 @@
 
 ### Intent assurance
 
+- Added tenant-scoped `agentpass.intent-quality-rollup.v1` aggregation over
+  immutable final receipts, with bounded windows, exact profile-version/digest
+  grouping, agent/verdict/compliance filters, group pagination, explicit
+  exclusions, minimum-sample findings, confidence distributions, and
+  execution-discipline metrics.
 - Added frozen, tenant-scoped `agentpass.intent-profile.v1` definitions with
   canonical profile digests, typed variables, deterministic contract issuance,
   trusted-observation requirements, version lifecycle reads, and a reference

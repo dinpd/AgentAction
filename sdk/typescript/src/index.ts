@@ -283,6 +283,115 @@ export type IntentEvaluationHistoryResponse = {
   auth?: Record<string, unknown>;
 };
 
+export type IntentQualityRollupQuery = {
+  from: string;
+  to: string;
+  profile_key?: string;
+  profile_version?: string;
+  agent_id?: string;
+  verdict?: IntentEvaluationReceipt["verdict"];
+  constraint_compliance?: IntentEvaluationReceipt["constraint_compliance"];
+  minimum_sample_size?: number;
+  limit?: number;
+  cursor?: string;
+};
+
+export type IntentQualityCountRate = {
+  count: number;
+  rate: number;
+};
+
+export type IntentQualityAppliedFilters = {
+  time_window: { from: string; to: string; boundary: "[from,to)"; maximum_days: 90 };
+  profile_key?: string;
+  profile_version?: string;
+  agent_id?: string;
+  verdict?: IntentEvaluationReceipt["verdict"];
+  constraint_compliance?: IntentEvaluationReceipt["constraint_compliance"];
+  minimum_sample_size: number;
+};
+
+export type IntentQualityExclusionReason =
+  | "not_finalized"
+  | "invalid_final_receipt"
+  | "unversioned_profile"
+  | "outside_time_window"
+  | "profile_filter"
+  | "agent_filter"
+  | "verdict_filter"
+  | "constraint_filter";
+
+export type IntentQualityRollup = {
+  schema_version: "agentpass.intent-quality-rollup.v1";
+  tenant_id: string;
+  profile_key: string;
+  profile_version: string;
+  profile_digest: string;
+  time_window: { from: string; to: string; boundary: "[from,to)" };
+  sample: {
+    finalized_jobs: number;
+    minimum_sample_size: number;
+    meets_minimum_sample_size: boolean;
+  };
+  outcomes: {
+    counts: Record<IntentEvaluationReceipt["verdict"], number>;
+    rates: Record<IntentEvaluationReceipt["verdict"], number>;
+    qualified_success: IntentQualityCountRate;
+    goal_attainment_average: number;
+  };
+  constraint_compliance: {
+    counts: Record<IntentEvaluationReceipt["constraint_compliance"], number>;
+    rates: Record<IntentEvaluationReceipt["constraint_compliance"], number>;
+  };
+  evidence_confidence: {
+    average: number;
+    minimum: number;
+    maximum: number;
+    thresholds: { low_below: number; high_at_or_above: number };
+    distribution: Record<"low" | "medium" | "high", IntentQualityCountRate>;
+  };
+  execution_discipline: {
+    totals: Record<string, number>;
+    averages: Record<string, number | null>;
+    preference_compliance: {
+      met: number;
+      not_met: number;
+      not_applicable: number;
+      rate: number | null;
+    };
+    coverage: { runtime_ms_records: number; preference_records: number };
+  };
+  data_quality: {
+    low_confidence_count: number;
+    indeterminate_count: number;
+    missing_agent_count: number;
+    missing_runtime_count: number;
+    findings: string[];
+  };
+};
+
+export type IntentQualityRollupsResponse = {
+  schema_version: "agentpass.intent-quality-rollups.v1";
+  tenant_id: string;
+  filters: IntentQualityAppliedFilters;
+  records_scanned: number;
+  finalized_records: number;
+  matched_records: number;
+  excluded_records: {
+    total: number;
+    by_reason: Record<IntentQualityExclusionReason, number>;
+  };
+  data_quality: { findings: string[] };
+  rollups: IntentQualityRollup[];
+  pagination: {
+    limit: number;
+    total_groups: number;
+    returned_groups: number;
+    next_cursor: string | null;
+  };
+  auth?: Record<string, unknown>;
+};
+
 export type ToolCallRequest = {
   agent_id: string;
   intent_id?: string;
@@ -653,6 +762,27 @@ export class AgentPassClient {
       `/tenants/${encodeURIComponent(tenantId)}/intent-contracts/${encodeURIComponent(intentId)}/evaluations${
         search.size ? `?${search}` : ""
       }`,
+      [200],
+    );
+  }
+
+  async getIntentQualityRollups(
+    tenantId: string,
+    options: IntentQualityRollupQuery,
+  ): Promise<IntentQualityRollupsResponse> {
+    const search = new URLSearchParams({ from: options.from, to: options.to });
+    if (options.profile_key) search.set("profile_key", options.profile_key);
+    if (options.profile_version) search.set("profile_version", options.profile_version);
+    if (options.agent_id) search.set("agent_id", options.agent_id);
+    if (options.verdict) search.set("verdict", options.verdict);
+    if (options.constraint_compliance) search.set("constraint_compliance", options.constraint_compliance);
+    if (options.minimum_sample_size !== undefined) {
+      search.set("minimum_sample_size", String(options.minimum_sample_size));
+    }
+    if (options.limit !== undefined) search.set("limit", String(options.limit));
+    if (options.cursor) search.set("cursor", options.cursor);
+    return this.get<IntentQualityRollupsResponse>(
+      `/tenants/${encodeURIComponent(tenantId)}/intent-quality/rollups?${search}`,
       [200],
     );
   }

@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentpass.dev/schema/intent-quality-rollup.schema.json",
+  "title": "AgentPass Intent Quality Rollups Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "filters",
+    "records_scanned",
+    "finalized_records",
+    "matched_records",
+    "excluded_records",
+    "data_quality",
+    "rollups",
+    "pagination"
+  ],
+  "properties": {
+    "schema_version": { "const": "agentpass.intent-quality-rollups.v1" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "filters": { "$ref": "#/$defs/filters" },
+    "records_scanned": { "$ref": "#/$defs/count" },
+    "finalized_records": { "$ref": "#/$defs/count" },
+    "matched_records": { "$ref": "#/$defs/count" },
+    "excluded_records": { "$ref": "#/$defs/excludedRecords" },
+    "data_quality": { "$ref": "#/$defs/findings" },
+    "rollups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rollup" }
+    },
+    "pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "total_groups", "returned_groups", "next_cursor"],
+      "properties": {
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "total_groups": { "$ref": "#/$defs/count" },
+        "returned_groups": { "$ref": "#/$defs/count" },
+        "next_cursor": { "type": ["string", "null"] }
+      }
+    },
+    "auth": { "type": "object", "additionalProperties": true }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "timeWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "boundary"],
+      "properties": {
+        "from": { "$ref": "#/$defs/dateTime" },
+        "to": { "$ref": "#/$defs/dateTime" },
+        "boundary": { "const": "[from,to)" },
+        "maximum_days": { "const": 90 }
+      }
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_window", "minimum_sample_size"],
+      "properties": {
+        "time_window": { "$ref": "#/$defs/timeWindow" },
+        "profile_key": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "agent_id": { "type": "string", "minLength": 1 },
+        "verdict": { "enum": ["completed", "partial", "failed", "indeterminate"] },
+        "constraint_compliance": { "enum": ["pass", "fail", "indeterminate"] },
+        "minimum_sample_size": { "type": "integer", "minimum": 1, "maximum": 1000 }
+      }
+    },
+    "excludedRecords": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_reason"],
+      "properties": {
+        "total": { "$ref": "#/$defs/count" },
+        "by_reason": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "not_finalized",
+            "invalid_final_receipt",
+            "unversioned_profile",
+            "outside_time_window",
+            "profile_filter",
+            "agent_filter",
+            "verdict_filter",
+            "constraint_filter"
+          ],
+          "properties": {
+            "not_finalized": { "$ref": "#/$defs/count" },
+            "invalid_final_receipt": { "$ref": "#/$defs/count" },
+            "unversioned_profile": { "$ref": "#/$defs/count" },
+            "outside_time_window": { "$ref": "#/$defs/count" },
+            "profile_filter": { "$ref": "#/$defs/count" },
+            "agent_filter": { "$ref": "#/$defs/count" },
+            "verdict_filter": { "$ref": "#/$defs/count" },
+            "constraint_filter": { "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings"],
+      "properties": {
+        "findings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "statusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completed", "partial", "failed", "indeterminate"],
+      "properties": {
+        "completed": { "$ref": "#/$defs/count" },
+        "partial": { "$ref": "#/$defs/count" },
+        "failed": { "$ref": "#/$defs/count" },
+        "indeterminate": { "$ref": "#/$defs/count" }
+      }
+    },
+    "statusRates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completed", "partial", "failed", "indeterminate"],
+      "properties": {
+        "completed": { "$ref": "#/$defs/rate" },
+        "partial": { "$ref": "#/$defs/rate" },
+        "failed": { "$ref": "#/$defs/rate" },
+        "indeterminate": { "$ref": "#/$defs/rate" }
+      }
+    },
+    "complianceCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "fail", "indeterminate"],
+      "properties": {
+        "pass": { "$ref": "#/$defs/count" },
+        "fail": { "$ref": "#/$defs/count" },
+        "indeterminate": { "$ref": "#/$defs/count" }
+      }
+    },
+    "complianceRates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "fail", "indeterminate"],
+      "properties": {
+        "pass": { "$ref": "#/$defs/rate" },
+        "fail": { "$ref": "#/$defs/rate" },
+        "indeterminate": { "$ref": "#/$defs/rate" }
+      }
+    },
+    "countRate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "rate"],
+      "properties": {
+        "count": { "$ref": "#/$defs/count" },
+        "rate": { "$ref": "#/$defs/rate" }
+      }
+    },
+    "disciplineTotals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "execution_receipts",
+        "executions",
+        "replays",
+        "retries",
+        "denied_decisions",
+        "challenge_decisions",
+        "estimated_cost_usd",
+        "runtime_ms"
+      ],
+      "properties": {
+        "tool_calls": { "type": "number", "minimum": 0 },
+        "execution_receipts": { "type": "number", "minimum": 0 },
+        "executions": { "type": "number", "minimum": 0 },
+        "replays": { "type": "number", "minimum": 0 },
+        "retries": { "type": "number", "minimum": 0 },
+        "denied_decisions": { "type": "number", "minimum": 0 },
+        "challenge_decisions": { "type": "number", "minimum": 0 },
+        "estimated_cost_usd": { "type": "number", "minimum": 0 },
+        "runtime_ms": { "type": "number", "minimum": 0 }
+      }
+    },
+    "disciplineAverages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "execution_receipts",
+        "executions",
+        "replays",
+        "retries",
+        "denied_decisions",
+        "challenge_decisions",
+        "estimated_cost_usd",
+        "runtime_ms"
+      ],
+      "properties": {
+        "tool_calls": { "type": "number", "minimum": 0 },
+        "execution_receipts": { "type": "number", "minimum": 0 },
+        "executions": { "type": "number", "minimum": 0 },
+        "replays": { "type": "number", "minimum": 0 },
+        "retries": { "type": "number", "minimum": 0 },
+        "denied_decisions": { "type": "number", "minimum": 0 },
+        "challenge_decisions": { "type": "number", "minimum": 0 },
+        "estimated_cost_usd": { "type": "number", "minimum": 0 },
+        "runtime_ms": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "rollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "tenant_id",
+        "profile_key",
+        "profile_version",
+        "profile_digest",
+        "time_window",
+        "sample",
+        "outcomes",
+        "constraint_compliance",
+        "evidence_confidence",
+        "execution_discipline",
+        "data_quality"
+      ],
+      "properties": {
+        "schema_version": { "const": "agentpass.intent-quality-rollup.v1" },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "profile_key": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "profile_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "time_window": { "$ref": "#/$defs/timeWindow" },
+        "sample": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["finalized_jobs", "minimum_sample_size", "meets_minimum_sample_size"],
+          "properties": {
+            "finalized_jobs": { "$ref": "#/$defs/count" },
+            "minimum_sample_size": { "type": "integer", "minimum": 1 },
+            "meets_minimum_sample_size": { "type": "boolean" }
+          }
+        },
+        "outcomes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["counts", "rates", "qualified_success", "goal_attainment_average"],
+          "properties": {
+            "counts": { "$ref": "#/$defs/statusCounts" },
+            "rates": { "$ref": "#/$defs/statusRates" },
+            "qualified_success": { "$ref": "#/$defs/countRate" },
+            "goal_attainment_average": { "$ref": "#/$defs/rate" }
+          }
+        },
+        "constraint_compliance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["counts", "rates"],
+          "properties": {
+            "counts": { "$ref": "#/$defs/complianceCounts" },
+            "rates": { "$ref": "#/$defs/complianceRates" }
+          }
+        },
+        "evidence_confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["average", "minimum", "maximum", "thresholds", "distribution"],
+          "properties": {
+            "average": { "$ref": "#/$defs/rate" },
+            "minimum": { "$ref": "#/$defs/rate" },
+            "maximum": { "$ref": "#/$defs/rate" },
+            "thresholds": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["low_below", "high_at_or_above"],
+              "properties": {
+                "low_below": { "$ref": "#/$defs/rate" },
+                "high_at_or_above": { "$ref": "#/$defs/rate" }
+              }
+            },
+            "distribution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["low", "medium", "high"],
+              "properties": {
+                "low": { "$ref": "#/$defs/countRate" },
+                "medium": { "$ref": "#/$defs/countRate" },
+                "high": { "$ref": "#/$defs/countRate" }
+              }
+            }
+          }
+        },
+        "execution_discipline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["totals", "averages", "preference_compliance", "coverage"],
+          "properties": {
+            "totals": { "$ref": "#/$defs/disciplineTotals" },
+            "averages": { "$ref": "#/$defs/disciplineAverages" },
+            "preference_compliance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["met", "not_met", "not_applicable", "rate"],
+              "properties": {
+                "met": { "$ref": "#/$defs/count" },
+                "not_met": { "$ref": "#/$defs/count" },
+                "not_applicable": { "$ref": "#/$defs/count" },
+                "rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              }
+            },
+            "coverage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["runtime_ms_records", "preference_records"],
+              "properties": {
+                "runtime_ms_records": { "$ref": "#/$defs/count" },
+                "preference_records": { "$ref": "#/$defs/count" }
+              }
+            }
+          }
+        },
+        "data_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "low_confidence_count",
+            "indeterminate_count",
+            "missing_agent_count",
+            "missing_runtime_count",
+            "findings"
+          ],
+          "properties": {
+            "low_confidence_count": { "$ref": "#/$defs/count" },
+            "indeterminate_count": { "$ref": "#/$defs/count" },
+            "missing_agent_count": { "$ref": "#/$defs/count" },
+            "missing_runtime_count": { "$ref": "#/$defs/count" },
+            "findings": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

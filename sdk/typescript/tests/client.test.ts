@@ -188,6 +188,18 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
   await client.evaluateIntent("tenant-a", "intent-1", { job: { completed_at: "2026-07-20T00:00:01.000Z" } });
   await client.finalizeIntent("tenant-a", "intent-1", { job: { completed_at: "2026-07-20T00:00:01.000Z" } });
   await client.getIntentEvaluations("tenant-a", "intent-1", { limit: 25 });
+  await client.getIntentQualityRollups("tenant-a", {
+    from: "2026-07-20T00:00:00.000Z",
+    to: "2026-07-21T00:00:00.000Z",
+    profile_key: "support_refund.v1",
+    profile_version: "v1",
+    agent_id: "agent-a",
+    verdict: "completed",
+    constraint_compliance: "pass",
+    minimum_sample_size: 10,
+    limit: 2,
+    cursor: "support_refund.v1|v1|abc",
+  });
 
   assert.deepEqual(calls.map(({ url, method }) => ({ url, method })), [
     { url: "https://gateway.example.com/tenants/tenant-a/intent-profiles", method: "POST" },
@@ -201,6 +213,10 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/evaluate", method: "POST" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/finalize", method: "POST" },
     { url: "https://gateway.example.com/tenants/tenant-a/intent-contracts/intent-1/evaluations?limit=25", method: "GET" },
+    {
+      url: "https://gateway.example.com/tenants/tenant-a/intent-quality/rollups?from=2026-07-20T00%3A00%3A00.000Z&to=2026-07-21T00%3A00%3A00.000Z&profile_key=support_refund.v1&profile_version=v1&agent_id=agent-a&verdict=completed&constraint_compliance=pass&minimum_sample_size=10&limit=2&cursor=support_refund.v1%7Cv1%7Cabc",
+      method: "GET",
+    },
   ]);
   assert.equal(calls[0].body?.profile, "support_refund");
   assert.equal(calls[3].body?.intent_id, "intent-1");

@@ -23,6 +23,7 @@ allow/deny/JIT decisions before tool execution:
 | `POST /intent-contracts/<intent-id>/evaluate` | Emit a non-finalizing preview evaluation |
 | `POST /intent-contracts/<intent-id>/finalize` | Atomically freeze evidence and emit the one final snapshot-bound receipt |
 | `GET /intent-contracts/<intent-id>/evaluations` | Read evaluation history, latest preview, final receipt, and evidence snapshot |
+| `GET /intent-quality/rollups` | Aggregate finalized receipts into profile-scoped quality groups for a bounded time window |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -208,6 +209,48 @@ curl -s http://127.0.0.1:8787/tenants/acme/intent-contracts/refund-case-1042/eva
 The response contains evaluation history, `latest_preview`, `final`, `snapshot`,
 and `finalization_status`. Audit events distinguish preview evaluation, initial
 finalization, repeated finalization, and rejected late evidence.
+
+## Profile-scoped intent quality rollups
+
+Query finalized execution quality over an explicit time window:
+
+```bash
+curl -s 'http://127.0.0.1:8787/tenants/acme/intent-quality/rollups?from=2026-07-20T00%3A00%3A00Z&to=2026-07-22T00%3A00%3A00Z&profile_key=support_refund.v1&profile_version=v1&minimum_sample_size=10'
+```
+
+Both `from` and `to` are required. The half-open `[from,to)` window is capped at
+90 days. Optional filters are `profile_key`, `profile_version`, `agent_id`,
+`verdict`, and `constraint_compliance`. `limit` and the returned `next_cursor`
+paginate immutable profile groups; they do not truncate the jobs used to
+calculate a returned group.
+The agent filter matches identities frozen in job, decision, or execution
+evidence; a final receipt with no agent identity remains visible through the
+group's missing-agent data-quality count.
+
+The API reads only `evaluation_mode: final` receipts bound to an immutable
+snapshot. Preview evaluations and unfinalized contracts are never counted.
+Receipts without a versioned profile binding are excluded, and different
+profile keys, versions, or digests are always returned as separate rollups.
+The response reports scanned, finalized, matched, and excluded record counts so
+filtering and incomplete data remain visible.
+
+Each `agentpass.intent-quality-rollup.v1` includes:
+
+- completed, partial, failed, and indeterminate counts and rates;
+- constraint pass, fail, and indeterminate counts and rates;
+- qualified-success rate and average goal attainment;
+- evidence-confidence distribution (`low < 0.75`, `medium < 0.9`, `high >= 0.9`);
+- tool-call, execution, retry, replay, denial, runtime, cost, and preference aggregates;
+- metric coverage, minimum-sample status, and explicit data-quality findings.
+
+Indeterminate and low-confidence jobs remain separate categories. Rollups are
+observability outputs only: they never expand permissions, budgets, or runtime
+authority. OIDC deployments can assign a dedicated `intent_quality` scope; if
+it is omitted, the endpoint falls back to the configured intent-contract scope.
+The complete response shape is defined by
+[`intent-quality-rollup.schema.json`](../schema/intent-quality-rollup.schema.json),
+with a realistic refund fixture at
+[`support-refund-quality-rollup.json`](../packages/guard/examples/support-refund-quality-rollup.json).
 
 ## Local development
 

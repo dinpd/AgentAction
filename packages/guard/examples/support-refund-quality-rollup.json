@@ -1,0 +1,162 @@
+{
+  "schema_version": "agentpass.intent-quality-rollups.v1",
+  "tenant_id": "acme",
+  "filters": {
+    "time_window": {
+      "from": "2026-07-20T00:00:00.000Z",
+      "to": "2026-07-22T00:00:00.000Z",
+      "boundary": "[from,to)",
+      "maximum_days": 90
+    },
+    "profile_key": "support_refund.v1",
+    "profile_version": "v1",
+    "minimum_sample_size": 4
+  },
+  "records_scanned": 7,
+  "finalized_records": 6,
+  "matched_records": 4,
+  "excluded_records": {
+    "total": 3,
+    "by_reason": {
+      "not_finalized": 1,
+      "invalid_final_receipt": 0,
+      "unversioned_profile": 1,
+      "outside_time_window": 0,
+      "profile_filter": 1,
+      "agent_filter": 0,
+      "verdict_filter": 0,
+      "constraint_filter": 0
+    }
+  },
+  "data_quality": {
+    "findings": [
+      "1 registered intent contract(s) are not finalized",
+      "1 finalized receipt(s) lack a versioned profile binding"
+    ]
+  },
+  "rollups": [
+    {
+      "schema_version": "agentpass.intent-quality-rollup.v1",
+      "tenant_id": "acme",
+      "profile_key": "support_refund.v1",
+      "profile_version": "v1",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "time_window": {
+        "from": "2026-07-20T00:00:00.000Z",
+        "to": "2026-07-22T00:00:00.000Z",
+        "boundary": "[from,to)"
+      },
+      "sample": {
+        "finalized_jobs": 4,
+        "minimum_sample_size": 4,
+        "meets_minimum_sample_size": true
+      },
+      "outcomes": {
+        "counts": {
+          "completed": 1,
+          "partial": 1,
+          "failed": 1,
+          "indeterminate": 1
+        },
+        "rates": {
+          "completed": 0.25,
+          "partial": 0.25,
+          "failed": 0.25,
+          "indeterminate": 0.25
+        },
+        "qualified_success": {
+          "count": 1,
+          "rate": 0.25
+        },
+        "goal_attainment_average": 0.375
+      },
+      "constraint_compliance": {
+        "counts": {
+          "pass": 2,
+          "fail": 1,
+          "indeterminate": 1
+        },
+        "rates": {
+          "pass": 0.5,
+          "fail": 0.25,
+          "indeterminate": 0.25
+        }
+      },
+      "evidence_confidence": {
+        "average": 0.575,
+        "minimum": 0,
+        "maximum": 1,
+        "thresholds": {
+          "low_below": 0.75,
+          "high_at_or_above": 0.9
+        },
+        "distribution": {
+          "high": {
+            "count": 1,
+            "rate": 0.25
+          },
+          "medium": {
+            "count": 1,
+            "rate": 0.25
+          },
+          "low": {
+            "count": 2,
+            "rate": 0.5
+          }
+        }
+      },
+      "execution_discipline": {
+        "totals": {
+          "tool_calls": 6,
+          "execution_receipts": 2,
+          "executions": 2,
+          "replays": 1,
+          "retries": 3,
+          "denied_decisions": 1,
+          "challenge_decisions": 1,
+          "estimated_cost_usd": 0.06,
+          "runtime_ms": 6000
+        },
+        "averages": {
+          "tool_calls": 1.5,
+          "execution_receipts": 0.5,
+          "executions": 0.5,
+          "replays": 0.25,
+          "retries": 0.75,
+          "denied_decisions": 0.25,
+          "challenge_decisions": 0.25,
+          "estimated_cost_usd": 0.015,
+          "runtime_ms": 2000
+        },
+        "preference_compliance": {
+          "met": 1,
+          "not_met": 2,
+          "not_applicable": 1,
+          "rate": 0.3333
+        },
+        "coverage": {
+          "runtime_ms_records": 3,
+          "preference_records": 3
+        }
+      },
+      "data_quality": {
+        "low_confidence_count": 2,
+        "indeterminate_count": 1,
+        "missing_agent_count": 1,
+        "missing_runtime_count": 1,
+        "findings": [
+          "2 low-confidence finalized job(s)",
+          "1 indeterminate finalized job(s)",
+          "1 finalized job(s) lack agent identity",
+          "1 finalized job(s) lack runtime metrics"
+        ]
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 25,
+    "total_groups": 1,
+    "returned_groups": 1,
+    "next_cursor": null
+  }
+}

@@ -291,8 +291,8 @@ AgentPass currently includes:
   and PII flows
 - Local and hosted intent assurance with frozen versioned profiles,
   deterministic per-job contract issuance, immutable evidence snapshots,
-  outcome and constraint evaluation, evidence confidence, and a runnable
-  `support_refund.v1` reference profile; see
+  outcome and constraint evaluation, evidence confidence, profile-scoped
+  quality rollups, and runnable `support_refund.v1` fixtures; see
   [`Intent Assurance`](docs/intent-assurance.md)
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
   checks, and audit events

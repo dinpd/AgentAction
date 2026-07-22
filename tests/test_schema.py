@@ -61,15 +61,18 @@ def test_intent_schemas_and_refund_examples_are_valid():
     evaluation_schema = json.loads(Path("schema/intent-evaluation.schema.json").read_text())
     observation_schema = json.loads(Path("schema/intent-observation.schema.json").read_text())
     snapshot_schema = json.loads(Path("schema/intent-evidence-snapshot.schema.json").read_text())
+    quality_schema = json.loads(Path("schema/intent-quality-rollup.schema.json").read_text())
     profile = json.loads(Path("packages/guard/examples/support-refund-profile.json").read_text())
     contract = json.loads(Path("packages/guard/examples/support-refund-intent.json").read_text())
     evaluation = json.loads(Path("packages/guard/examples/support-refund-evaluation.json").read_text())
+    quality_rollup = json.loads(Path("packages/guard/examples/support-refund-quality-rollup.json").read_text())
 
     Draft202012Validator.check_schema(profile_schema)
     Draft202012Validator.check_schema(contract_schema)
     Draft202012Validator.check_schema(evaluation_schema)
     Draft202012Validator.check_schema(observation_schema)
     Draft202012Validator.check_schema(snapshot_schema)
+    Draft202012Validator.check_schema(quality_schema)
     Draft202012Validator(profile_schema).validate(profile)
     Draft202012Validator(contract_schema).validate(contract)
     profile_contract = {
@@ -81,6 +84,11 @@ def test_intent_schemas_and_refund_examples_are_valid():
     }
     Draft202012Validator(contract_schema).validate(profile_contract)
     Draft202012Validator(evaluation_schema).validate(evaluation)
+    Draft202012Validator(quality_schema).validate(quality_rollup)
+    no_runtime_rollup = json.loads(json.dumps(quality_rollup))
+    no_runtime_rollup["rollups"][0]["execution_discipline"]["averages"]["runtime_ms"] = None
+    no_runtime_rollup["rollups"][0]["execution_discipline"]["coverage"]["runtime_ms_records"] = 0
+    Draft202012Validator(quality_schema).validate(no_runtime_rollup)
     Draft202012Validator(evaluation_schema).validate({
         **evaluation,
         "profile_version": "v1",

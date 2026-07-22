@@ -244,6 +244,9 @@ Every evidence record must carry the contract's `intent_id` and canonical
 than being treated as proof of failure. See the repository's
 [`Intent Assurance`](../../docs/intent-assurance.md) guide and the
 [`support_refund.v1`](examples/support-refund-profile.json) example profile.
+The hosted rollup API's expected aggregate is illustrated by the
+[`support-refund-quality-rollup.json`](examples/support-refund-quality-rollup.json)
+fixture.
 
 ## Stateful Runtime Memory
 

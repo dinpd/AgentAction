@@ -630,6 +630,10 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
   assert.equal((store?.get(`intent:${intentId}:evidence:decision_events:index`) as string[]).length, 2);
   assert.equal((store?.get(`intent:${intentId}:evidence:execution_receipts:index`) as string[]).length, 1);
   assert.deepEqual(store?.get(`intent:${intentId}:evidence:observations:index`), ["obs-finalization"]);
+  assert.deepEqual(
+    store?.get(`intent-quality:index:${String(finalized.body.evaluation.evaluated_at).slice(0, 10)}`),
+    [intentId],
+  );
 
   await ctx.flush();
   const audit = await call(env, ctx, "GET", `/audit/events?intent_id=${intentId}&limit=50`);
@@ -826,6 +830,267 @@ test("versioned intent profiles freeze definitions and issue deterministic compa
   assert.ok(types.includes("agentpass.intent.profile.replayed"));
   assert.ok(types.includes("agentpass.intent.issued"));
   assert.ok(types.includes("agentpass.intent.issuance.replayed"));
+});
+
+test("profile-scoped quality rollups aggregate only finalized comparable receipts", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const profileDigest = "a".repeat(64);
+  const v1Jobs = [
+    {
+      intentId: "quality-completed",
+      agentId: "agent-a",
+      verdict: "completed",
+      compliance: "pass",
+      qualifiedSuccess: true,
+      goalAttainment: 1,
+      confidence: 1,
+      discipline: qualityDiscipline({
+        tool_calls: 2,
+        execution_receipts: 1,
+        executions: 1,
+        challenge_decisions: 1,
+        estimated_cost_usd: 0.01,
+        runtime_ms: 1_000,
+        preferences_met: true,
+      }),
+    },
+    {
+      intentId: "quality-partial",
+      agentId: "agent-a",
+      verdict: "partial",
+      compliance: "pass",
+      qualifiedSuccess: false,
+      goalAttainment: 0.5,
+      confidence: 0.8,
+      discipline: qualityDiscipline({
+        tool_calls: 3,
+        execution_receipts: 1,
+        executions: 1,
+        replays: 1,
+        retries: 1,
+        estimated_cost_usd: 0.02,
+        runtime_ms: 2_000,
+        preferences_met: false,
+      }),
+    },
+    {
+      intentId: "quality-failed",
+      agentId: "agent-b",
+      verdict: "failed",
+      compliance: "fail",
+      qualifiedSuccess: false,
+      goalAttainment: 0,
+      confidence: 0.5,
+      discipline: qualityDiscipline({
+        tool_calls: 1,
+        retries: 2,
+        denied_decisions: 1,
+        estimated_cost_usd: 0.03,
+        runtime_ms: 3_000,
+        preferences_met: false,
+      }),
+    },
+    {
+      intentId: "quality-indeterminate",
+      verdict: "indeterminate",
+      compliance: "indeterminate",
+      qualifiedSuccess: false,
+      goalAttainment: 0,
+      confidence: 0,
+      discipline: qualityDiscipline({ preferences_met: null }),
+    },
+  ] as const;
+  for (const [index, job] of v1Jobs.entries()) {
+    seedIntentQualityFinalization(namespace, "acme", {
+      ...job,
+      profileKey: "support_refund.v1",
+      profileVersion: "v1",
+      profileDigest,
+      finalizedAt: `2026-07-21T10:0${index}:00.000Z`,
+    });
+  }
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "quality-v2",
+    agentId: "agent-a",
+    profileKey: "support_refund.v2",
+    profileVersion: "v2",
+    profileDigest: "b".repeat(64),
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T11:00:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 500, preferences_met: true }),
+  });
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "quality-unversioned",
+    agentId: "agent-a",
+    profileKey: "support_refund.v0",
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T12:00:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 500, preferences_met: true }),
+  });
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "quality-invalid-final",
+    agentId: "agent-a",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T12:30:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 500, preferences_met: true }),
+  });
+  const invalidFinal = namespace.stores.get("acme")?.get("intent:quality-invalid-final:finalization") as any;
+  invalidFinal.evaluation.evidence_confidence = Number.NaN;
+  seedIntentQualityPreview(namespace, "acme", "quality-preview-only");
+  seedIntentQualityFinalization(namespace, "other", {
+    intentId: "quality-other-tenant",
+    agentId: "agent-a",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T10:00:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 100, preferences_met: true }),
+  });
+
+  const baseQuery = "from=2026-07-20T00%3A00%3A00.000Z&to=2026-07-22T00%3A00%3A00.000Z";
+  const scopedPath = `/tenants/acme/intent-quality/rollups?${baseQuery}&profile_key=support_refund.v1&profile_version=v1&minimum_sample_size=4`;
+  const scoped = await call(env, ctx, "GET", scopedPath);
+  assert.equal(scoped.status, 200);
+  assert.equal(scoped.body.schema_version, "agentpass.intent-quality-rollups.v1");
+  assert.equal(scoped.body.tenant_id, "acme");
+  assert.equal(scoped.body.records_scanned, 8);
+  assert.equal(scoped.body.finalized_records, 7);
+  assert.equal(scoped.body.matched_records, 4);
+  assert.deepEqual(scoped.body.excluded_records.by_reason, {
+    not_finalized: 1,
+    invalid_final_receipt: 1,
+    unversioned_profile: 1,
+    outside_time_window: 0,
+    profile_filter: 1,
+    agent_filter: 0,
+    verdict_filter: 0,
+    constraint_filter: 0,
+  });
+  assert.equal(scoped.body.pagination.total_groups, 1);
+  assert.equal(scoped.body.pagination.next_cursor, null);
+  const rollup = scoped.body.rollups[0];
+  assert.equal(rollup.profile_key, "support_refund.v1");
+  assert.equal(rollup.profile_version, "v1");
+  assert.equal(rollup.profile_digest, profileDigest);
+  assert.deepEqual(rollup.sample, {
+    finalized_jobs: 4,
+    minimum_sample_size: 4,
+    meets_minimum_sample_size: true,
+  });
+  assert.deepEqual(rollup.outcomes.counts, { completed: 1, partial: 1, failed: 1, indeterminate: 1 });
+  assert.deepEqual(rollup.outcomes.rates, { completed: 0.25, partial: 0.25, failed: 0.25, indeterminate: 0.25 });
+  assert.deepEqual(rollup.outcomes.qualified_success, { count: 1, rate: 0.25 });
+  assert.equal(rollup.outcomes.goal_attainment_average, 0.375);
+  assert.deepEqual(rollup.constraint_compliance.counts, { pass: 2, fail: 1, indeterminate: 1 });
+  assert.deepEqual(rollup.constraint_compliance.rates, { pass: 0.5, fail: 0.25, indeterminate: 0.25 });
+  assert.equal(rollup.evidence_confidence.average, 0.575);
+  assert.deepEqual(rollup.evidence_confidence.distribution, {
+    high: { count: 1, rate: 0.25 },
+    medium: { count: 1, rate: 0.25 },
+    low: { count: 2, rate: 0.5 },
+  });
+  assert.deepEqual(rollup.execution_discipline.totals, {
+    tool_calls: 6,
+    execution_receipts: 2,
+    executions: 2,
+    replays: 1,
+    retries: 3,
+    denied_decisions: 1,
+    challenge_decisions: 1,
+    estimated_cost_usd: 0.06,
+    runtime_ms: 6_000,
+  });
+  assert.equal(rollup.execution_discipline.averages.runtime_ms, 2_000);
+  assert.deepEqual(rollup.execution_discipline.preference_compliance, {
+    met: 1,
+    not_met: 2,
+    not_applicable: 1,
+    rate: 0.3333,
+  });
+  assert.deepEqual(rollup.execution_discipline.coverage, { runtime_ms_records: 3, preference_records: 3 });
+  assert.equal(rollup.data_quality.low_confidence_count, 2);
+  assert.equal(rollup.data_quality.indeterminate_count, 1);
+  assert.equal(rollup.data_quality.missing_agent_count, 1);
+  assert.equal(rollup.data_quality.missing_runtime_count, 1);
+
+  const deterministicReplay = await call(env, ctx, "GET", scopedPath);
+  assert.deepEqual(deterministicReplay.body, scoped.body);
+
+  const agentFiltered = await call(env, ctx, "GET", `${scopedPath}&agent_id=agent-a`);
+  assert.equal(agentFiltered.body.matched_records, 2);
+  assert.deepEqual(agentFiltered.body.rollups[0].outcomes.counts, {
+    completed: 1,
+    partial: 1,
+    failed: 0,
+    indeterminate: 0,
+  });
+  assert.equal(agentFiltered.body.excluded_records.by_reason.agent_filter, 2);
+  assert.equal(agentFiltered.body.rollups[0].sample.meets_minimum_sample_size, false);
+  assert.ok(agentFiltered.body.rollups[0].data_quality.findings.includes("sample size 2 is below minimum 4"));
+  const verdictFiltered = await call(env, ctx, "GET", `${scopedPath}&verdict=indeterminate`);
+  assert.equal(verdictFiltered.body.matched_records, 1);
+  assert.equal(verdictFiltered.body.rollups[0].data_quality.indeterminate_count, 1);
+  const complianceFiltered = await call(env, ctx, "GET", `${scopedPath}&constraint_compliance=fail`);
+  assert.equal(complianceFiltered.body.matched_records, 1);
+  assert.equal(complianceFiltered.body.rollups[0].constraint_compliance.counts.fail, 1);
+
+  const firstPage = await call(env, ctx, "GET", `/tenants/acme/intent-quality/rollups?${baseQuery}&limit=1`);
+  assert.equal(firstPage.body.pagination.total_groups, 2);
+  assert.equal(firstPage.body.pagination.returned_groups, 1);
+  assert.equal(firstPage.body.rollups[0].profile_key, "support_refund.v1");
+  assert.equal(typeof firstPage.body.pagination.next_cursor, "string");
+  const secondPage = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/rollups?${baseQuery}&limit=1&cursor=${encodeURIComponent(firstPage.body.pagination.next_cursor)}`,
+  );
+  assert.equal(secondPage.body.rollups[0].profile_key, "support_refund.v2");
+  assert.equal(secondPage.body.pagination.next_cursor, null);
+
+  const otherTenant = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/other/intent-quality/rollups?${baseQuery}&profile_key=support_refund.v1`,
+  );
+  assert.equal(otherTenant.body.records_scanned, 1);
+  assert.equal(otherTenant.body.matched_records, 1);
+  assert.equal(otherTenant.body.rollups[0].sample.finalized_jobs, 1);
+
+  const missingWindow = await call(env, ctx, "GET", "/tenants/acme/intent-quality/rollups");
+  assert.equal(missingWindow.status, 400);
+  assert.equal(missingWindow.body.error_code, "intent_quality_time_window_required");
+  const oversizedWindow = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/rollups?from=2026-01-01T00%3A00%3A00Z&to=2026-07-21T00%3A00%3A00Z",
+  );
+  assert.equal(oversizedWindow.status, 400);
+  assert.equal(oversizedWindow.body.error_code, "intent_quality_time_window_too_large");
 });
 
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
@@ -1757,6 +2022,107 @@ async function call(
     ctx as never,
   );
   return { status: response.status, body: await response.json() };
+}
+
+function qualityDiscipline(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    tool_calls: 0,
+    execution_receipts: 0,
+    executions: 0,
+    replays: 0,
+    retries: 0,
+    denied_decisions: 0,
+    challenge_decisions: 0,
+    estimated_cost_usd: 0,
+    preferences_met: null,
+    preference_findings: [],
+    ...overrides,
+  };
+}
+
+function seedIntentQualityFinalization(
+  namespace: MemoryNamespace,
+  tenantId: string,
+  input: {
+    intentId: string;
+    agentId?: string;
+    profileKey: string;
+    profileVersion?: string;
+    profileDigest?: string;
+    verdict: "completed" | "partial" | "failed" | "indeterminate";
+    compliance: "pass" | "fail" | "indeterminate";
+    qualifiedSuccess: boolean;
+    goalAttainment: number;
+    confidence: number;
+    finalizedAt: string;
+    discipline: Record<string, unknown>;
+  },
+): void {
+  namespace.get(tenantId);
+  const store = namespace.stores.get(tenantId);
+  assert.ok(store);
+  const index = (store.get("intent:index") as string[] | undefined) || [];
+  const sequence = index.length + 1;
+  const intentDigest = sequence.toString(16).padStart(64, "c").slice(-64);
+  const evidenceDigest = sequence.toString(16).padStart(64, "d").slice(-64);
+  const snapshotId = `snapshot_${sequence.toString(16).padStart(24, "0")}`;
+  const jobId = `job-${input.intentId}`;
+  const evaluation = {
+    schema_version: "agentpass.intent-evaluation.v1",
+    evaluation_id: `eval-final-${input.intentId}`,
+    intent_id: input.intentId,
+    intent_digest: intentDigest,
+    profile: input.profileKey,
+    ...(input.profileVersion ? { profile_version: input.profileVersion } : {}),
+    ...(input.profileDigest ? { profile_digest: input.profileDigest } : {}),
+    job_id: jobId,
+    evaluated_at: input.finalizedAt,
+    verdict: input.verdict,
+    constraint_compliance: input.compliance,
+    qualified_success: input.qualifiedSuccess,
+    goal_attainment: input.goalAttainment,
+    evidence_confidence: input.confidence,
+    outcomes: [],
+    constraints: [],
+    execution_discipline: input.discipline,
+    evidence_findings: [],
+    evaluation_mode: "final",
+    snapshot_id: snapshotId,
+    evidence_digest: evidenceDigest,
+  };
+  const snapshot = {
+    schema_version: "agentpass.intent-evidence-snapshot.v1",
+    snapshot_id: snapshotId,
+    tenant_id: tenantId,
+    intent_id: input.intentId,
+    intent_digest: intentDigest,
+    job_id: jobId,
+    captured_at: input.finalizedAt,
+    evidence_digest: evidenceDigest,
+    sources: {},
+    evidence: {
+      decision_events: [],
+      execution_receipts: [],
+      observations: [],
+      job: input.agentId ? { agent_id: input.agentId } : {},
+    },
+  };
+  store.set(`intent:${input.intentId}:finalization`, {
+    schema_version: "agentpass.intent-finalization.v1",
+    finalized_at: input.finalizedAt,
+    evaluation,
+    snapshot,
+  });
+  store.set("intent:index", [input.intentId, ...index.filter((id) => id !== input.intentId)]);
+}
+
+function seedIntentQualityPreview(namespace: MemoryNamespace, tenantId: string, intentId: string): void {
+  namespace.get(tenantId);
+  const store = namespace.stores.get(tenantId);
+  assert.ok(store);
+  const index = (store.get("intent:index") as string[] | undefined) || [];
+  store.set(`intent:${intentId}:evaluation:latest-preview`, { evaluation_mode: "preview" });
+  store.set("intent:index", [intentId, ...index.filter((id) => id !== intentId)]);
 }
 
 async function signHs256Jwt(claims: Record<string, unknown>, secret: string): Promise<string> {

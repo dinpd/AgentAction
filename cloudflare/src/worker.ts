@@ -267,6 +267,39 @@ type IntentFinalizationRecord = {
   snapshot: IntentEvidenceSnapshot;
   evaluation: HostedIntentEvaluationReceipt;
 };
+type IntentQualityRecord = {
+  tenant_id: string;
+  profile_key: string;
+  profile_version: string;
+  profile_digest: string;
+  intent_id: string;
+  intent_digest: string;
+  job_id: string;
+  agent_ids: string[];
+  finalized_at: string;
+  evaluation: HostedIntentEvaluationReceipt;
+};
+type IntentQualityFilters = {
+  from: string;
+  to: string;
+  profile_key?: string;
+  profile_version?: string;
+  agent_id?: string;
+  verdict?: IntentEvaluationReceipt["verdict"];
+  constraint_compliance?: IntentEvaluationReceipt["constraint_compliance"];
+  minimum_sample_size: number;
+  limit: number;
+  cursor?: string;
+};
+type IntentQualityExclusionReason =
+  | "not_finalized"
+  | "invalid_final_receipt"
+  | "unversioned_profile"
+  | "outside_time_window"
+  | "profile_filter"
+  | "agent_filter"
+  | "verdict_filter"
+  | "constraint_filter";
 type IntentBindingResult = {
   status: "unbound" | "bound";
   contract?: IntentContract;
@@ -416,6 +449,22 @@ export default {
       if (request.method === "GET" && route.endpoint === "audit" && route.resourceId === "events") {
         const search = new URLSearchParams(url.searchParams);
         const stored = await auditStore(env).fetch(new Request(`https://agentid.local/audit-events?${search.toString()}`));
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (
+        request.method === "GET" &&
+        route.endpoint === "intent-quality" &&
+        route.resourceId === "rollups" &&
+        !route.action
+      ) {
+        const search = new URLSearchParams(url.searchParams);
+        search.set("tenant_id", route.tenantId || "default");
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/intent-quality/rollups?${search.toString()}`),
+        );
         const body = await stored.json() as Record<string, unknown>;
         body.auth = auth.context;
         return json(body, stored.status);
@@ -1211,6 +1260,10 @@ export class AgentIdJitGrants {
       return json({ events, count: events.length });
     }
 
+    if (request.method === "GET" && url.pathname === "/intent-quality/rollups") {
+      return this.intentQualityRollups(url);
+    }
+
     if (request.method === "POST" && url.pathname === "/intent-profiles") {
       try {
         const submitted = recordValue(payload.profile) as IntentProfile;
@@ -1760,6 +1813,7 @@ export class AgentIdJitGrants {
         started_at: existing.snapshot.captured_at,
         finalized_at: existing.finalized_at,
       } satisfies IntentFinalizationState);
+      await this.indexIntentQualityFinalization(intentId, existing.finalized_at);
       return json({ evaluation: existing.evaluation, snapshot: existing.snapshot, replayed: true });
     }
 
@@ -1806,6 +1860,7 @@ export class AgentIdJitGrants {
       finalized_at: finalizedAt,
     } satisfies IntentFinalizationState);
     await this.state.storage.put(finalizationKey, record);
+    await this.indexIntentQualityFinalization(intentId, finalizedAt);
     return json({ evaluation, snapshot, replayed: false }, 201);
   }
 
@@ -1896,6 +1951,152 @@ export class AgentIdJitGrants {
       observations: await this.intentEvidence(intentId, "observations"),
       job,
     };
+  }
+
+  async intentQualityRollups(url: URL): Promise<Response> {
+    const parsed = parseIntentQualityFilters(url);
+    if (parsed.error || !parsed.filters) {
+      return json({ error: parsed.error, error_code: parsed.errorCode }, 400);
+    }
+    const filters = parsed.filters;
+    const tenantId = url.searchParams.get("tenant_id") || "default";
+    const exclusionReasons: IntentQualityExclusionReason[] = [
+      "not_finalized",
+      "invalid_final_receipt",
+      "unversioned_profile",
+      "outside_time_window",
+      "profile_filter",
+      "agent_filter",
+      "verdict_filter",
+      "constraint_filter",
+    ];
+    const excluded = Object.fromEntries(exclusionReasons.map((reason) => [reason, 0])) as Record<
+      IntentQualityExclusionReason,
+      number
+    >;
+    const legacyIntentIndex = await this.state.storage.get<string[]>("intent:index") || [];
+    const qualityIntentIndex: string[] = [];
+    for (const date of intentQualityDateBuckets(filters.from, filters.to)) {
+      const ids = await this.state.storage.get<string[]>(`intent-quality:index:${date}`) || [];
+      qualityIntentIndex.push(...ids);
+    }
+    const intentIndex = [...new Set([...qualityIntentIndex, ...legacyIntentIndex])];
+    const groups = new Map<string, IntentQualityRecord[]>();
+    let finalizedRecords = 0;
+
+    for (const intentId of intentIndex) {
+      const finalization = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+      if (!finalization) {
+        const contract = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+        const registered = recordValue(contract);
+        const registeredAt = Date.parse(
+          optionalString(registered.registered_at) || optionalString(recordValue(registered.contract).issued_at) || "",
+        );
+        if (Number.isFinite(registeredAt) && (registeredAt < Date.parse(filters.from) || registeredAt >= Date.parse(filters.to))) {
+          excluded.outside_time_window += 1;
+        } else {
+          excluded.not_finalized += 1;
+        }
+        continue;
+      }
+      finalizedRecords += 1;
+      const finalizedAt = Date.parse(optionalString(recordValue(finalization).finalized_at) || "");
+      if (Number.isFinite(finalizedAt) && (finalizedAt < Date.parse(filters.from) || finalizedAt >= Date.parse(filters.to))) {
+        excluded.outside_time_window += 1;
+        continue;
+      }
+      const quality = intentQualityRecord(finalization);
+      if (quality.error || !quality.record) {
+        excluded[quality.error || "invalid_final_receipt"] += 1;
+        continue;
+      }
+      const record = quality.record;
+      if (
+        (filters.profile_key && record.profile_key !== filters.profile_key) ||
+        (filters.profile_version && record.profile_version !== filters.profile_version)
+      ) {
+        excluded.profile_filter += 1;
+        continue;
+      }
+      if (filters.agent_id && !record.agent_ids.includes(filters.agent_id)) {
+        excluded.agent_filter += 1;
+        continue;
+      }
+      if (filters.verdict && record.evaluation.verdict !== filters.verdict) {
+        excluded.verdict_filter += 1;
+        continue;
+      }
+      if (
+        filters.constraint_compliance &&
+        record.evaluation.constraint_compliance !== filters.constraint_compliance
+      ) {
+        excluded.constraint_filter += 1;
+        continue;
+      }
+      const groupKey = intentQualityGroupKey(record);
+      groups.set(groupKey, [...(groups.get(groupKey) || []), record]);
+    }
+
+    const groupKeys = [...groups.keys()].sort();
+    let start = 0;
+    if (filters.cursor) {
+      const cursorIndex = groupKeys.indexOf(filters.cursor);
+      if (cursorIndex < 0) {
+        return json({ error: "intent quality cursor is invalid", error_code: "intent_quality_cursor_invalid" }, 400);
+      }
+      start = cursorIndex + 1;
+    }
+    const pageKeys = groupKeys.slice(start, start + filters.limit);
+    const rollups = pageKeys.map((key) => intentQualityRollup(
+      tenantId,
+      groups.get(key) || [],
+      filters,
+    ));
+    const nextCursor = start + filters.limit < groupKeys.length
+      ? pageKeys.at(-1) || null
+      : null;
+    const excludedTotal = Object.values(excluded).reduce((total, count) => total + count, 0);
+    const dataQualityFindings: string[] = [];
+    if (excluded.not_finalized > 0) {
+      dataQualityFindings.push(`${excluded.not_finalized} registered intent contract(s) are not finalized`);
+    }
+    if (excluded.unversioned_profile > 0) {
+      dataQualityFindings.push(`${excluded.unversioned_profile} finalized receipt(s) lack a versioned profile binding`);
+    }
+    if (excluded.invalid_final_receipt > 0) {
+      dataQualityFindings.push(`${excluded.invalid_final_receipt} invalid final receipt(s) were excluded`);
+    }
+    if (groupKeys.length === 0) dataQualityFindings.push("no finalized receipts matched the requested filters");
+
+    return json({
+      schema_version: "agentpass.intent-quality-rollups.v1",
+      tenant_id: tenantId,
+      filters: intentQualityResponseFilters(filters),
+      records_scanned: intentIndex.length,
+      finalized_records: finalizedRecords,
+      matched_records: [...groups.values()].reduce((total, records) => total + records.length, 0),
+      excluded_records: {
+        total: excludedTotal,
+        by_reason: excluded,
+      },
+      data_quality: {
+        findings: dataQualityFindings,
+      },
+      rollups,
+      pagination: {
+        limit: filters.limit,
+        total_groups: groupKeys.length,
+        returned_groups: rollups.length,
+        next_cursor: nextCursor,
+      },
+    });
+  }
+
+  async indexIntentQualityFinalization(intentId: string, finalizedAt: string): Promise<void> {
+    const date = new Date(finalizedAt).toISOString().slice(0, 10);
+    const key = `intent-quality:index:${date}`;
+    const index = await this.state.storage.get<string[]>(key) || [];
+    if (!index.includes(intentId)) await this.state.storage.put(key, [...index, intentId].sort());
   }
 
   async persistIntentEvaluation(intentId: string, evaluation: HostedIntentEvaluationReceipt): Promise<void> {
@@ -2975,6 +3176,346 @@ function auditStore(env: Env) {
   return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName("audit"));
 }
 
+const INTENT_QUALITY_MAX_WINDOW_MS = 90 * 24 * 60 * 60 * 1_000;
+const INTENT_QUALITY_LOW_CONFIDENCE = 0.75;
+const INTENT_QUALITY_HIGH_CONFIDENCE = 0.9;
+
+function intentQualityDateBuckets(from: string, to: string): string[] {
+  const start = new Date(from);
+  let cursor = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const end = Date.parse(to);
+  const dates: string[] = [];
+  while (cursor < end) {
+    dates.push(new Date(cursor).toISOString().slice(0, 10));
+    cursor += 24 * 60 * 60 * 1_000;
+  }
+  return dates;
+}
+
+function parseIntentQualityFilters(url: URL): {
+  filters?: IntentQualityFilters;
+  error?: string;
+  errorCode?: string;
+} {
+  const fromInput = optionalString(url.searchParams.get("from"));
+  const toInput = optionalString(url.searchParams.get("to"));
+  if (!fromInput || !toInput) {
+    return {
+      error: "intent quality rollups require from and to date-time parameters",
+      errorCode: "intent_quality_time_window_required",
+    };
+  }
+  const fromMs = Date.parse(fromInput);
+  const toMs = Date.parse(toInput);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
+    return {
+      error: "intent quality time window must contain valid date-times with from before to",
+      errorCode: "intent_quality_time_window_invalid",
+    };
+  }
+  if (toMs - fromMs > INTENT_QUALITY_MAX_WINDOW_MS) {
+    return {
+      error: "intent quality time window cannot exceed 90 days",
+      errorCode: "intent_quality_time_window_too_large",
+    };
+  }
+
+  const verdict = optionalString(url.searchParams.get("verdict"));
+  if (verdict && !["completed", "partial", "failed", "indeterminate"].includes(verdict)) {
+    return { error: `unsupported intent quality verdict: ${verdict}`, errorCode: "intent_quality_filter_invalid" };
+  }
+  const compliance = optionalString(url.searchParams.get("constraint_compliance"));
+  if (compliance && !["pass", "fail", "indeterminate"].includes(compliance)) {
+    return {
+      error: `unsupported intent quality constraint_compliance: ${compliance}`,
+      errorCode: "intent_quality_filter_invalid",
+    };
+  }
+  const minimumSampleSize = boundedIntegerQuery(url, "minimum_sample_size", 5, 1, 1_000);
+  if (minimumSampleSize === null) {
+    return { error: "minimum_sample_size must be an integer from 1 to 1000", errorCode: "intent_quality_filter_invalid" };
+  }
+  const limit = boundedIntegerQuery(url, "limit", 25, 1, 100);
+  if (limit === null) {
+    return { error: "limit must be an integer from 1 to 100", errorCode: "intent_quality_filter_invalid" };
+  }
+
+  return {
+    filters: {
+      from: new Date(fromMs).toISOString(),
+      to: new Date(toMs).toISOString(),
+      ...(optionalString(url.searchParams.get("profile_key"))
+        ? { profile_key: stringValue(url.searchParams.get("profile_key")) }
+        : {}),
+      ...(optionalString(url.searchParams.get("profile_version"))
+        ? { profile_version: stringValue(url.searchParams.get("profile_version")) }
+        : {}),
+      ...(optionalString(url.searchParams.get("agent_id"))
+        ? { agent_id: stringValue(url.searchParams.get("agent_id")) }
+        : {}),
+      ...(verdict ? { verdict: verdict as IntentEvaluationReceipt["verdict"] } : {}),
+      ...(compliance
+        ? { constraint_compliance: compliance as IntentEvaluationReceipt["constraint_compliance"] }
+        : {}),
+      minimum_sample_size: minimumSampleSize,
+      limit,
+      ...(optionalString(url.searchParams.get("cursor"))
+        ? { cursor: stringValue(url.searchParams.get("cursor")) }
+        : {}),
+    },
+  };
+}
+
+function boundedIntegerQuery(url: URL, name: string, fallback: number, minimum: number, maximum: number): number | null {
+  const input = url.searchParams.get(name);
+  if (input === null || input === "") return fallback;
+  const value = Number(input);
+  return Number.isInteger(value) && value >= minimum && value <= maximum ? value : null;
+}
+
+function intentQualityRecord(value: unknown): {
+  record?: IntentQualityRecord;
+  error?: "invalid_final_receipt" | "unversioned_profile";
+} {
+  const finalization = recordValue(value) as IntentFinalizationRecord;
+  const evaluation = finalization.evaluation;
+  const snapshot = finalization.snapshot;
+  const discipline = recordValue(evaluation?.execution_discipline);
+  const requiredDisciplineMetrics = [
+    "tool_calls",
+    "execution_receipts",
+    "executions",
+    "replays",
+    "retries",
+    "denied_decisions",
+    "challenge_decisions",
+    "estimated_cost_usd",
+  ];
+  if (
+    finalization.schema_version !== "agentpass.intent-finalization.v1" ||
+    evaluation?.schema_version !== "agentpass.intent-evaluation.v1" ||
+    snapshot?.schema_version !== "agentpass.intent-evidence-snapshot.v1" ||
+    evaluation?.evaluation_mode !== "final" ||
+    !evaluation.snapshot_id ||
+    !evaluation.evidence_digest ||
+    evaluation.snapshot_id !== snapshot?.snapshot_id ||
+    evaluation.evidence_digest !== snapshot?.evidence_digest ||
+    evaluation.intent_id !== snapshot?.intent_id ||
+    evaluation.intent_digest !== snapshot?.intent_digest ||
+    evaluation.job_id !== snapshot?.job_id ||
+    !snapshot.tenant_id ||
+    !snapshot.evidence ||
+    !Array.isArray(snapshot.evidence.decision_events) ||
+    !Array.isArray(snapshot.evidence.execution_receipts) ||
+    !Array.isArray(snapshot.evidence.observations) ||
+    !Number.isFinite(Date.parse(finalization.finalized_at)) ||
+    Date.parse(evaluation.evaluated_at) !== Date.parse(finalization.finalized_at) ||
+    Date.parse(snapshot.captured_at) !== Date.parse(finalization.finalized_at) ||
+    !["completed", "partial", "failed", "indeterminate"].includes(evaluation.verdict) ||
+    !["pass", "fail", "indeterminate"].includes(evaluation.constraint_compliance) ||
+    typeof evaluation.qualified_success !== "boolean" ||
+    !qualityMetricInRange(evaluation.goal_attainment, 0, 1) ||
+    !qualityMetricInRange(evaluation.evidence_confidence, 0, 1) ||
+    requiredDisciplineMetrics.some((field) => !qualityMetricInRange(discipline[field], 0)) ||
+    (discipline.runtime_ms !== undefined && !qualityMetricInRange(discipline.runtime_ms, 0)) ||
+    ![true, false, null].includes(discipline.preferences_met as boolean | null)
+  ) {
+    return { error: "invalid_final_receipt" };
+  }
+  if (!evaluation.profile_version || !evaluation.profile_digest || !evaluation.profile) {
+    return { error: "unversioned_profile" };
+  }
+  if (
+    !evaluation.profile.endsWith(`.${evaluation.profile_version}`) ||
+    !/^[a-f0-9]{64}$/.test(evaluation.profile_digest)
+  ) return { error: "invalid_final_receipt" };
+  const agentIds = new Set<string>();
+  const jobAgent = optionalString(recordValue(snapshot.evidence.job).agent_id);
+  if (jobAgent) agentIds.add(jobAgent);
+  for (const event of snapshot.evidence.decision_events || []) {
+    const agentId = optionalString(recordValue(event).agent_id);
+    if (agentId) agentIds.add(agentId);
+  }
+  for (const receipt of snapshot.evidence.execution_receipts || []) {
+    const agentId = optionalString(recordValue(receipt).agent_id);
+    if (agentId) agentIds.add(agentId);
+  }
+  return {
+    record: {
+      tenant_id: snapshot.tenant_id,
+      profile_key: evaluation.profile,
+      profile_version: evaluation.profile_version,
+      profile_digest: evaluation.profile_digest,
+      intent_id: evaluation.intent_id,
+      intent_digest: evaluation.intent_digest,
+      job_id: evaluation.job_id,
+      agent_ids: [...agentIds].sort(),
+      finalized_at: new Date(finalization.finalized_at).toISOString(),
+      evaluation,
+    },
+  };
+}
+
+function intentQualityGroupKey(record: IntentQualityRecord): string {
+  return `${record.profile_key}|${record.profile_version}|${record.profile_digest}`;
+}
+
+function intentQualityResponseFilters(filters: IntentQualityFilters): Record<string, unknown> {
+  return {
+    time_window: { from: filters.from, to: filters.to, boundary: "[from,to)", maximum_days: 90 },
+    ...(filters.profile_key ? { profile_key: filters.profile_key } : {}),
+    ...(filters.profile_version ? { profile_version: filters.profile_version } : {}),
+    ...(filters.agent_id ? { agent_id: filters.agent_id } : {}),
+    ...(filters.verdict ? { verdict: filters.verdict } : {}),
+    ...(filters.constraint_compliance ? { constraint_compliance: filters.constraint_compliance } : {}),
+    minimum_sample_size: filters.minimum_sample_size,
+  };
+}
+
+function intentQualityRollup(
+  tenantId: string,
+  records: IntentQualityRecord[],
+  filters: IntentQualityFilters,
+): Record<string, unknown> {
+  records = [...records].sort((left, right) => left.intent_id < right.intent_id ? -1 : left.intent_id > right.intent_id ? 1 : 0);
+  const first = records[0];
+  const jobCount = records.length;
+  const verdicts: IntentEvaluationReceipt["verdict"][] = ["completed", "partial", "failed", "indeterminate"];
+  const complianceStates: IntentEvaluationReceipt["constraint_compliance"][] = ["pass", "fail", "indeterminate"];
+  const outcomeCounts = Object.fromEntries(verdicts.map((verdict) => [
+    verdict,
+    records.filter((record) => record.evaluation.verdict === verdict).length,
+  ])) as Record<IntentEvaluationReceipt["verdict"], number>;
+  const complianceCounts = Object.fromEntries(complianceStates.map((state) => [
+    state,
+    records.filter((record) => record.evaluation.constraint_compliance === state).length,
+  ])) as Record<IntentEvaluationReceipt["constraint_compliance"], number>;
+  const confidences = records.map((record) => record.evaluation.evidence_confidence);
+  const confidenceCounts = {
+    high: confidences.filter((value) => value >= INTENT_QUALITY_HIGH_CONFIDENCE).length,
+    medium: confidences.filter((value) => value >= INTENT_QUALITY_LOW_CONFIDENCE && value < INTENT_QUALITY_HIGH_CONFIDENCE).length,
+    low: confidences.filter((value) => value < INTENT_QUALITY_LOW_CONFIDENCE).length,
+  };
+  const disciplineFields = [
+    "tool_calls",
+    "execution_receipts",
+    "executions",
+    "replays",
+    "retries",
+    "denied_decisions",
+    "challenge_decisions",
+    "estimated_cost_usd",
+  ] as const;
+  const disciplineTotals = Object.fromEntries(disciplineFields.map((field) => [
+    field,
+    qualityRound(records.reduce(
+      (total, record) => total + qualityNumber(record.evaluation.execution_discipline[field]),
+      0,
+    )),
+  ])) as Record<(typeof disciplineFields)[number], number>;
+  const runtimeValues = records
+    .map((record) => record.evaluation.execution_discipline.runtime_ms)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const runtimeTotal = runtimeValues.reduce((total, value) => total + value, 0);
+  const preferencesMet = records.filter((record) => record.evaluation.execution_discipline.preferences_met === true).length;
+  const preferencesNotMet = records.filter((record) => record.evaluation.execution_discipline.preferences_met === false).length;
+  const preferencesNotApplicable = jobCount - preferencesMet - preferencesNotMet;
+  const qualifiedSuccesses = records.filter((record) => record.evaluation.qualified_success).length;
+  const missingAgentCount = records.filter((record) => record.agent_ids.length === 0).length;
+  const lowConfidenceCount = confidenceCounts.low;
+  const indeterminateCount = outcomeCounts.indeterminate;
+  const dataQualityFindings: string[] = [];
+  if (jobCount < filters.minimum_sample_size) {
+    dataQualityFindings.push(`sample size ${jobCount} is below minimum ${filters.minimum_sample_size}`);
+  }
+  if (lowConfidenceCount > 0) dataQualityFindings.push(`${lowConfidenceCount} low-confidence finalized job(s)`);
+  if (indeterminateCount > 0) dataQualityFindings.push(`${indeterminateCount} indeterminate finalized job(s)`);
+  if (missingAgentCount > 0) dataQualityFindings.push(`${missingAgentCount} finalized job(s) lack agent identity`);
+  if (runtimeValues.length < jobCount) {
+    dataQualityFindings.push(`${jobCount - runtimeValues.length} finalized job(s) lack runtime metrics`);
+  }
+
+  return {
+    schema_version: "agentpass.intent-quality-rollup.v1",
+    tenant_id: tenantId,
+    profile_key: first.profile_key,
+    profile_version: first.profile_version,
+    profile_digest: first.profile_digest,
+    time_window: { from: filters.from, to: filters.to, boundary: "[from,to)" },
+    sample: {
+      finalized_jobs: jobCount,
+      minimum_sample_size: filters.minimum_sample_size,
+      meets_minimum_sample_size: jobCount >= filters.minimum_sample_size,
+    },
+    outcomes: {
+      counts: outcomeCounts,
+      rates: Object.fromEntries(verdicts.map((verdict) => [verdict, qualityRate(outcomeCounts[verdict], jobCount)])),
+      qualified_success: { count: qualifiedSuccesses, rate: qualityRate(qualifiedSuccesses, jobCount) },
+      goal_attainment_average: qualityAverage(records.map((record) => record.evaluation.goal_attainment)),
+    },
+    constraint_compliance: {
+      counts: complianceCounts,
+      rates: Object.fromEntries(complianceStates.map((state) => [state, qualityRate(complianceCounts[state], jobCount)])),
+    },
+    evidence_confidence: {
+      average: qualityAverage(confidences),
+      minimum: qualityRound(Math.min(...confidences)),
+      maximum: qualityRound(Math.max(...confidences)),
+      thresholds: { low_below: INTENT_QUALITY_LOW_CONFIDENCE, high_at_or_above: INTENT_QUALITY_HIGH_CONFIDENCE },
+      distribution: Object.fromEntries(Object.entries(confidenceCounts).map(([bucket, count]) => [
+        bucket,
+        { count, rate: qualityRate(count, jobCount) },
+      ])),
+    },
+    execution_discipline: {
+      totals: { ...disciplineTotals, runtime_ms: qualityRound(runtimeTotal) },
+      averages: {
+        ...Object.fromEntries(disciplineFields.map((field) => [field, qualityRound(disciplineTotals[field] / jobCount)])),
+        runtime_ms: runtimeValues.length > 0 ? qualityRound(runtimeTotal / runtimeValues.length) : null,
+      },
+      preference_compliance: {
+        met: preferencesMet,
+        not_met: preferencesNotMet,
+        not_applicable: preferencesNotApplicable,
+        rate: preferencesMet + preferencesNotMet > 0
+          ? qualityRate(preferencesMet, preferencesMet + preferencesNotMet)
+          : null,
+      },
+      coverage: {
+        runtime_ms_records: runtimeValues.length,
+        preference_records: preferencesMet + preferencesNotMet,
+      },
+    },
+    data_quality: {
+      low_confidence_count: lowConfidenceCount,
+      indeterminate_count: indeterminateCount,
+      missing_agent_count: missingAgentCount,
+      missing_runtime_count: jobCount - runtimeValues.length,
+      findings: dataQualityFindings,
+    },
+  };
+}
+
+function qualityNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function qualityMetricInRange(value: unknown, minimum: number, maximum = Number.POSITIVE_INFINITY): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+function qualityRate(count: number, total: number): number {
+  return total > 0 ? qualityRound(count / total) : 0;
+}
+
+function qualityAverage(values: number[]): number {
+  return values.length > 0 ? qualityRound(values.reduce((total, value) => total + value, 0) / values.length) : 0;
+}
+
+function qualityRound(value: number): number {
+  return Math.round((value + Number.EPSILON) * 10_000) / 10_000;
+}
+
 function parseRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "tenants" && parts[1]) {
@@ -3356,6 +3897,7 @@ function requiredScopeForEndpoint(oidc: Record<string, any>, endpoint: string): 
   if (endpoint === "approval-requests") return stringValue(scopes.approval_request ?? scopes.jit_grant);
   if (endpoint === "intent-contracts") return stringValue(scopes.intent_contract ?? scopes.authorize);
   if (endpoint === "intent-profiles") return stringValue(scopes.intent_profile ?? scopes.intent_contract ?? scopes.authorize);
+  if (endpoint === "intent-quality") return stringValue(scopes.intent_quality ?? scopes.intent_contract ?? scopes.authorize);
   if (endpoint === "policy") return stringValue(scopes.policy_read);
   return "";
 }
