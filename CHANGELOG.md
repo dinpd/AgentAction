@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Hosted observability console
+
+- Added a dedicated Cloudflare Worker UI/BFF foundation with verified Access
+  JWT identity, signed tenant-claim isolation, a private gateway service
+  binding, read-only route/query allowlists, sanitized freshness states, and no
+  browser-visible gateway credentials.
+- Added an accessible responsive console shell, production and fail-closed
+  local-development configuration, security-boundary tests, conditional
+  Cloudflare deployment workflow, and operator setup and smoke-check guidance.
+
 ### Intent assurance
 
 - Added tenant-scoped `agentpass.intent-quality-rollup.v1` aggregation over
