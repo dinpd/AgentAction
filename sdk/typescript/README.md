@@ -132,6 +132,31 @@ receipt; identical retries set `replayed` without creating another evaluation.
 `getIntentEvaluations` returns history plus the latest preview, final receipt,
 snapshot, and finalization status.
 
+Once jobs are finalized, query comparable quality groups with an explicit,
+bounded time window:
+
+```ts
+const quality = await agentpass.getIntentQualityRollups("tenant-a", {
+  from: "2026-07-20T00:00:00Z",
+  to: "2026-07-22T00:00:00Z",
+  profile_key: "support_refund.v1",
+  profile_version: "v1",
+  agent_id: "refund-agent",
+  minimum_sample_size: 10,
+});
+
+for (const rollup of quality.rollups) {
+  console.log(rollup.profile_key, rollup.outcomes, rollup.data_quality);
+}
+```
+
+`getIntentQualityRollups` includes only immutable final receipts. Unlike profile
+versions or digests remain separate groups, and indeterminate or low-confidence
+jobs remain visible. Optional `verdict` and `constraint_compliance` filters
+narrow the job population. Use `limit` and `cursor` to page profile groups; the
+aggregate for each returned group is calculated over its complete matching
+population.
+
 For approval-gated actions, the client can drive the durable hosted lifecycle:
 
 ```ts

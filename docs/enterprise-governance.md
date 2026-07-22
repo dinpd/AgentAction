@@ -468,6 +468,7 @@ MCP gateway that performs the actual traffic forwarding. It exposes:
 | `POST /intent-contracts/:id/evaluate` | Emit a non-finalizing intent evaluation preview |
 | `POST /intent-contracts/:id/finalize` | Freeze evidence and emit the final snapshot-bound receipt |
 | `GET /intent-contracts/:id/evaluations` | Read preview/final history and the immutable evidence snapshot |
+| `GET /intent-quality/rollups` | Read tenant- and profile-scoped aggregates over finalized evaluation receipts |
 | `POST /approval-requests` | Create an in-memory approval request for an approval-gated tool |
 | `GET /approval-requests/:id` | Return approval request status and bound context |
 | `POST /approval-requests/:id/approve` | Mark an approval request approved |

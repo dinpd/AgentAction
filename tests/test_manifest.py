@@ -24,6 +24,9 @@ def test_valid_manifest_minimum():
             "required_scopes": {
                 "authorize": "agentid.authorize",
                 "policy_read": "agentid.policy.read",
+                "intent_contract": "agentpass.intent.contract",
+                "intent_profile": "agentpass.intent.profile",
+                "intent_quality": "agentpass.intent.quality",
                 "jit_grant": "agentid.jit.grant",
             },
         },
