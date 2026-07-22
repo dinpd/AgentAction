@@ -9,6 +9,7 @@
 /packages/provider-fastapi/ @dinpd
 /sdk/typescript/ @dinpd
 /cloudflare/ @dinpd
+/console/ @dinpd
 /demo/ @dinpd
 /solutions/devops-sre/ @dinpd
 /docs/ @dinpd

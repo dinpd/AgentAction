@@ -1,0 +1,31 @@
+name = "agentpass-observability-console"
+main = "src/worker.ts"
+compatibility_date = "2026-07-20"
+workers_dev = true
+preview_urls = false
+keep_vars = true
+
+[vars]
+CONSOLE_ENVIRONMENT = "production"
+ACCESS_TENANT_CLAIM = "custom.tenant_id"
+CONSOLE_STALE_AFTER_SECONDS = "300"
+
+[[services]]
+binding = "AGENTID_GATEWAY"
+service = "agentid-gateway"
+
+[env.development]
+name = "agentpass-observability-console-development"
+
+[env.development.vars]
+CONSOLE_ENVIRONMENT = "development"
+CONSOLE_ENABLE_MOCK_IDENTITY = "true"
+CONSOLE_MOCK_TENANT_ID = "refund-demo-agent"
+CONSOLE_MOCK_SUBJECT = "local-operator"
+CONSOLE_MOCK_EMAIL = "local-operator@agentpass.test"
+ACCESS_TENANT_CLAIM = "custom.tenant_id"
+CONSOLE_STALE_AFTER_SECONDS = "300"
+
+[[env.development.services]]
+binding = "AGENTID_GATEWAY"
+service = "agentid-gateway"
