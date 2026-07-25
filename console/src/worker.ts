@@ -126,7 +126,7 @@ const SHELL_HTML = `<!doctype html>
     <nav class="section-nav" aria-label="Console sections">
       <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
-      <a href="#job-detail">Job detail</a>
+      <a href="#job-detail" data-nav-job-detail>Job detail</a>
       <a href="#exceptions">Exceptions</a>
     </nav>
     <main id="main" tabindex="-1">
@@ -417,12 +417,100 @@ const SHELL_HTML = `<!doctype html>
           </div>
         </section>
       </section>
-      <div class="section-grid future-grid" aria-label="Planned observability views">
-        <section id="job-detail" class="placeholder-card" tabindex="-1">
-          <span class="card-index">03</span>
-          <div><h2>Job detail</h2><p>Aligned decisions, execution receipts, observations, and immutable job evidence.</p></div>
-          <span class="phase">Planned</span>
+      <section id="job-detail" class="job-detail-panel" data-console-view="job-detail" aria-labelledby="job-detail-heading" tabindex="-1" hidden>
+        <header class="section-heading">
+          <div>
+            <p class="eyebrow">Job detail</p>
+            <h2 id="job-detail-heading">Finalized execution evidence</h2>
+            <p>One immutable intent receipt, its profile boundary, safe evaluation summaries, and the ordered evidence path that produced the final outcome.</p>
+          </div>
+          <div class="detail-heading-actions">
+            <span class="read-only-badge">Read only</span>
+            <a class="text-link" href="#jobs" data-job-detail-back>Back to Jobs</a>
+          </div>
+        </header>
+        <section class="overview-state" data-job-detail-message data-state="empty" role="status" aria-live="polite" aria-atomic="true">
+          <div class="state-mark" aria-hidden="true">→</div>
+          <div>
+            <h3 data-job-detail-message-title>Select a finalized job</h3>
+            <p data-job-detail-message-detail>Open a Job ID from the finalized Jobs explorer to inspect its immutable evidence path.</p>
+          </div>
         </section>
+        <section class="job-detail-content" data-job-detail-content hidden>
+          <div class="detail-identity">
+            <div>
+              <p class="eyebrow">Immutable receipt</p>
+              <h3 data-job-detail-title>Waiting for a finalized job.</h3>
+              <p class="detail-subtitle" data-job-detail-subtitle></p>
+            </div>
+            <div data-job-detail-status></div>
+          </div>
+          <dl class="boundary-grid" data-job-detail-boundary aria-label="Immutable execution boundary"></dl>
+          <section class="detail-section" aria-labelledby="job-detail-outcome-title">
+            <div class="detail-section-heading">
+              <div>
+                <p class="eyebrow">Final evaluation</p>
+                <h3 id="job-detail-outcome-title">Outcome against intent</h3>
+              </div>
+              <p data-job-detail-evaluation-id></p>
+            </div>
+            <div class="detail-metric-grid" data-job-detail-metrics></div>
+            <div class="predicate-grid">
+              <section class="predicate-panel">
+                <h4>Outcomes</h4>
+                <div data-job-detail-outcomes></div>
+              </section>
+              <section class="predicate-panel">
+                <h4>Constraints</h4>
+                <div data-job-detail-constraints></div>
+              </section>
+              <section class="predicate-panel">
+                <h4>Execution discipline</h4>
+                <dl data-job-detail-discipline></dl>
+              </section>
+            </div>
+          </section>
+          <section class="detail-section" aria-labelledby="job-detail-timeline-title">
+            <div class="detail-section-heading">
+              <div>
+                <p class="eyebrow">Evidence path</p>
+                <h3 id="job-detail-timeline-title">Ordered execution timeline</h3>
+              </div>
+              <p data-job-detail-timeline-summary></p>
+            </div>
+            <ol class="evidence-timeline" data-job-detail-timeline></ol>
+          </section>
+          <div class="detail-lower-grid">
+            <section class="detail-section" aria-labelledby="job-detail-previews-title">
+              <div class="detail-section-heading">
+                <div>
+                  <p class="eyebrow">Before finalization</p>
+                  <h3 id="job-detail-previews-title">Preview history</h3>
+                </div>
+                <p data-job-detail-preview-summary></p>
+              </div>
+              <div class="preview-list" data-job-detail-previews></div>
+            </section>
+            <section class="detail-section" aria-labelledby="job-detail-sources-title">
+              <div class="detail-section-heading">
+                <div>
+                  <p class="eyebrow">Frozen snapshot</p>
+                  <h3 id="job-detail-sources-title">Evidence sources</h3>
+                </div>
+              </div>
+              <div class="source-grid" data-job-detail-sources></div>
+            </section>
+          </div>
+          <section class="finding-panel detail-findings" data-job-detail-findings hidden aria-labelledby="job-detail-findings-title">
+            <div>
+              <p class="eyebrow">Review</p>
+              <h3 id="job-detail-findings-title">Data-quality findings</h3>
+            </div>
+            <ul data-job-detail-findings-list></ul>
+          </section>
+        </section>
+      </section>
+      <div class="section-grid future-grid" aria-label="Planned observability views">
         <section id="exceptions" class="placeholder-card" tabindex="-1">
           <span class="card-index">04</span>
           <div><h2>Exceptions</h2><p>Missing evidence, low confidence, denials, retries, replays, and late evidence.</p></div>
@@ -567,7 +655,8 @@ button { cursor: pointer; }
 .text-button:hover,
 .text-button:focus-visible { background: var(--green-soft); outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .overview-panel,
-.jobs-panel {
+.jobs-panel,
+.job-detail-panel {
   margin-top: 12px;
   padding: clamp(20px, 3vw, 34px);
   border: 1px solid var(--line);
@@ -577,7 +666,9 @@ button { cursor: pointer; }
 .overview-panel:target,
 .overview-panel:focus-visible,
 .jobs-panel:target,
-.jobs-panel:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
+.jobs-panel:focus-visible,
+.job-detail-panel:target,
+.job-detail-panel:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -754,6 +845,69 @@ button { cursor: pointer; }
 .job-findings { margin: 2px 0 0; padding-left: 14px; color: #765013; font-size: 0.62rem; }
 .jobs-pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .jobs-pagination p { color: var(--muted); font-size: 0.72rem; }
+.detail-heading-actions { display: grid; justify-items: end; gap: 10px; }
+.text-link { color: var(--green); font-size: 0.74rem; font-weight: 800; text-underline-offset: 3px; }
+.job-detail-panel > .overview-state { margin-top: 18px; }
+.job-detail-content { display: grid; gap: 14px; margin-top: 18px; }
+.detail-identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+.detail-identity h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.45rem; font-weight: 400; overflow-wrap: anywhere; }
+.detail-subtitle { margin-top: 4px; color: var(--muted); font-size: 0.76rem; overflow-wrap: anywhere; }
+.boundary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); }
+.boundary-grid div { min-width: 0; padding: 13px 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.boundary-grid div:nth-child(3n) { border-right: 0; }
+.boundary-grid div:nth-last-child(-n+3) { border-bottom: 0; }
+.boundary-grid dt { color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.boundary-grid dd { margin: 4px 0 0; font-size: 0.74rem; font-weight: 700; overflow-wrap: anywhere; }
+.detail-section { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); }
+.detail-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 14px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.detail-section-heading h3 { margin: 0; font-size: 0.95rem; }
+.detail-section-heading > p { max-width: 52%; color: var(--muted); font-size: 0.68rem; text-align: right; overflow-wrap: anywhere; }
+.detail-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.predicate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
+.predicate-panel { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.predicate-panel h4 { margin: 0 0 9px; font-size: 0.76rem; }
+.predicate-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.predicate-list li { padding-top: 7px; border-top: 1px solid var(--line); }
+.predicate-list li:first-child { padding-top: 0; border-top: 0; }
+.predicate-list strong { display: block; font-size: 0.7rem; overflow-wrap: anywhere; }
+.predicate-list p { color: var(--muted); font-size: 0.65rem; }
+.predicate-panel dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; margin: 0; font-size: 0.68rem; }
+.predicate-panel dt { color: var(--muted); }
+.predicate-panel dd { margin: 0; font-weight: 800; text-align: right; }
+.evidence-timeline { position: relative; display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.timeline-entry { position: relative; display: grid; grid-template-columns: 34px 150px minmax(0, 1fr); gap: 12px; min-width: 0; padding: 0 0 18px; }
+.timeline-entry:last-child { padding-bottom: 0; }
+.timeline-entry::before { position: absolute; top: 28px; bottom: 0; left: 16px; width: 1px; background: var(--line); content: ""; }
+.timeline-entry:last-child::before { display: none; }
+.timeline-sequence { z-index: 1; display: grid; place-items: center; width: 33px; height: 33px; border: 1px solid var(--green); border-radius: 50%; background: var(--surface-strong); color: var(--green); font-size: 0.68rem; font-weight: 900; }
+.timeline-time { padding-top: 5px; color: var(--muted); font-size: 0.66rem; }
+.timeline-time[data-missing="true"] { color: var(--amber); font-weight: 800; }
+.timeline-body { min-width: 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.timeline-title { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.timeline-title strong { font-size: 0.76rem; }
+.timeline-title code { color: var(--muted); font-size: 0.62rem; overflow-wrap: anywhere; }
+.timeline-metadata { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 7px; color: var(--muted); font-size: 0.66rem; }
+.timeline-findings { margin: 7px 0 0; padding-left: 16px; color: #765013; font-size: 0.65rem; }
+.detail-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.preview-list { display: grid; gap: 8px; }
+.preview-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.preview-card strong { display: block; font-size: 0.72rem; overflow-wrap: anywhere; }
+.preview-card small { color: var(--muted); font-size: 0.65rem; }
+.source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.source-card { min-width: 0; padding: 11px; border-left: 3px solid var(--green); background: var(--surface); }
+.source-card strong { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; font-weight: 400; }
+.source-card span { display: block; color: var(--muted); font-size: 0.64rem; font-weight: 800; text-transform: capitalize; }
+.source-card code { display: block; margin-top: 5px; color: var(--muted); font-size: 0.57rem; overflow-wrap: anywhere; }
+.detail-findings { grid-template-columns: minmax(170px, 0.35fr) minmax(0, 1fr); }
 .future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
 @media (max-width: 1050px) {
@@ -764,7 +918,10 @@ button { cursor: pointer; }
   .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .jobs-filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-columns { grid-template-columns: 1fr; }
+  .predicate-grid,
+  .detail-lower-grid { grid-template-columns: 1fr; }
   .future-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
@@ -797,6 +954,15 @@ button { cursor: pointer; }
   .jobs-table td { display: grid; grid-template-columns: minmax(90px, 0.35fr) minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
   .jobs-table td::before { color: var(--muted); content: attr(data-label); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
   .jobs-table td:last-child { border-bottom: 0; }
+  .boundary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .boundary-grid div,
+  .boundary-grid div:nth-child(3n),
+  .boundary-grid div:nth-last-child(-n+3) { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .boundary-grid div:nth-child(2n) { border-right: 0; }
+  .boundary-grid div:nth-last-child(-n+2) { border-bottom: 0; }
+  .timeline-entry { grid-template-columns: 34px minmax(0, 1fr); }
+  .timeline-time { grid-column: 2; padding-top: 0; }
+  .timeline-body { grid-column: 2; }
   .summary-totals { grid-template-columns: repeat(2, 1fr); }
   .filter-actions { align-items: flex-start; flex-wrap: wrap; }
   .filter-actions p { flex-basis: 100%; margin-left: 0; text-align: left; }
@@ -808,7 +974,21 @@ button { cursor: pointer; }
   .summary-totals,
   .quality-totals { grid-template-columns: repeat(2, 1fr); }
   .overview-panel,
-  .jobs-panel { padding: 16px; }
+  .jobs-panel,
+  .job-detail-panel { padding: 16px; }
+  .detail-heading-actions { justify-items: start; }
+  .detail-identity,
+  .detail-section-heading { display: grid; }
+  .detail-section-heading > p { max-width: none; text-align: left; }
+  .boundary-grid,
+  .detail-metric-grid,
+  .source-grid { grid-template-columns: 1fr; }
+  .boundary-grid div,
+  .boundary-grid div:nth-child(2n),
+  .boundary-grid div:nth-child(3n),
+  .boundary-grid div:nth-last-child(-n+2),
+  .boundary-grid div:nth-last-child(-n+3) { border-right: 0; border-bottom: 1px solid var(--line); }
+  .boundary-grid div:last-child { border-bottom: 0; }
   .profile-body,
   .profile-header { padding: 16px; }
   .distribution,
@@ -827,10 +1007,11 @@ export type ConsoleAppRuntime = {
 export type ConsoleAppController = {
   buildJobsQuery(cursor?: string): URLSearchParams;
   buildQualityQuery(): URLSearchParams;
+  loadJobDetail(jobId?: string): Promise<void>;
   loadJobs(cursor?: string): Promise<void>;
   loadOverview(): Promise<void>;
   ready: Promise<void>;
-  showView(view: "jobs" | "overview"): void;
+  showView(view: "job-detail" | "jobs" | "overview"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
@@ -866,10 +1047,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const rollupList = required<HTMLElement>("[data-rollup-list]");
   const overviewPanel = required<HTMLElement>("[data-console-view='overview']");
   const jobsPanel = required<HTMLElement>("[data-console-view='jobs']");
+  const jobDetailPanel = required<HTMLElement>("[data-console-view='job-detail']");
   const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
   const lifecyclePanel = required<HTMLElement>("[data-overview-context='lifecycle']");
   const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
+  const jobDetailNav = required<HTMLAnchorElement>("[data-nav-job-detail]");
+  const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
   const jobsFilterForm = required<HTMLFormElement>("[data-jobs-filters]");
   const resetJobsButton = required<HTMLButtonElement>("[data-reset-jobs-filters]");
   const jobsWindowFilter = required<HTMLSelectElement>("[data-jobs-filter-window]");
@@ -891,6 +1075,26 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const jobsList = required<HTMLElement>("[data-jobs-list]");
   const jobsPageSummary = required<HTMLElement>("[data-jobs-page-summary]");
   const jobsNextButton = required<HTMLButtonElement>("[data-jobs-next]");
+  const jobDetailMessage = required<HTMLElement>("[data-job-detail-message]");
+  const jobDetailMessageTitle = required<HTMLElement>("[data-job-detail-message-title]");
+  const jobDetailMessageDetail = required<HTMLElement>("[data-job-detail-message-detail]");
+  const jobDetailContent = required<HTMLElement>("[data-job-detail-content]");
+  const jobDetailTitle = required<HTMLElement>("[data-job-detail-title]");
+  const jobDetailSubtitle = required<HTMLElement>("[data-job-detail-subtitle]");
+  const jobDetailStatus = required<HTMLElement>("[data-job-detail-status]");
+  const jobDetailBoundary = required<HTMLElement>("[data-job-detail-boundary]");
+  const jobDetailEvaluationId = required<HTMLElement>("[data-job-detail-evaluation-id]");
+  const jobDetailMetrics = required<HTMLElement>("[data-job-detail-metrics]");
+  const jobDetailOutcomes = required<HTMLElement>("[data-job-detail-outcomes]");
+  const jobDetailConstraints = required<HTMLElement>("[data-job-detail-constraints]");
+  const jobDetailDiscipline = required<HTMLElement>("[data-job-detail-discipline]");
+  const jobDetailTimelineSummary = required<HTMLElement>("[data-job-detail-timeline-summary]");
+  const jobDetailTimeline = required<HTMLElement>("[data-job-detail-timeline]");
+  const jobDetailPreviewSummary = required<HTMLElement>("[data-job-detail-preview-summary]");
+  const jobDetailPreviews = required<HTMLElement>("[data-job-detail-previews]");
+  const jobDetailSources = required<HTMLElement>("[data-job-detail-sources]");
+  const jobDetailFindings = required<HTMLElement>("[data-job-detail-findings]");
+  const jobDetailFindingsList = required<HTMLElement>("[data-job-detail-findings-list]");
   const allowedWindows = new Set(["1", "7", "30", "90"]);
   const allowedVerdicts = new Set(["", "completed", "partial", "failed", "indeterminate"]);
   const allowedConstraints = new Set(["", "pass", "fail", "indeterminate"]);
@@ -905,7 +1109,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     unavailable: ["Console data is unavailable", "The private AgentPass gateway cannot be reached. Try again or contact an operator."],
   };
   let tenantId = "";
-  let activeView: "jobs" | "overview" = runtime.location.hash === "#jobs" ? "jobs" : "overview";
+  let activeView: "job-detail" | "jobs" | "overview" = runtime.location.hash === "#jobs"
+    ? "jobs"
+    : runtime.location.hash === "#job-detail"
+      ? "job-detail"
+      : "overview";
+  let currentJobId = "";
   let currentJobsCursor = "";
   let nextJobsCursor = "";
   let jobsLoaded = false;
@@ -980,6 +1189,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobsMessage.hidden = false;
   }
 
+  function setJobDetailState(state: string, title: string, detail: string): void {
+    jobDetailMessage.dataset.state = state;
+    jobDetailMessageTitle.textContent = title;
+    jobDetailMessageDetail.textContent = detail;
+    jobDetailMessage.hidden = false;
+  }
+
   function failureState(status: number): "unauthorized" | "forbidden" | "unavailable" {
     if (status === 401) return "unauthorized";
     if (status === 403) return "forbidden";
@@ -1034,6 +1250,11 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobsJobFilter.value = (query.get("job_id") || "").slice(0, 160);
     jobsIntentFilter.value = (query.get("intent_id") || "").slice(0, 160);
     currentJobsCursor = (query.get("cursor") || "").slice(0, 1_024);
+  }
+
+  function restoreJobDetail(): void {
+    const query = new URLSearchParams(runtime.location.search || "");
+    currentJobId = (query.get("job_id") || "").trim().slice(0, 160);
   }
 
   function resetFilters(): void {
@@ -1161,6 +1382,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#jobs`);
   }
 
+  function syncJobDetailUrl(jobId = currentJobId): void {
+    const query = new URLSearchParams();
+    if (jobId) query.set("job_id", jobId.slice(0, 160));
+    const suffix = query.toString();
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#job-detail`);
+  }
+
   function copyOverviewFiltersToJobs(): void {
     jobsWindowFilter.value = windowFilter.value;
     jobsProfileKeyFilter.value = profileKeyFilter.value;
@@ -1172,14 +1400,16 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     nextJobsCursor = "";
   }
 
-  function showView(view: "jobs" | "overview"): void {
+  function showView(view: "job-detail" | "jobs" | "overview"): void {
     activeView = view;
     overviewPanel.hidden = view !== "overview";
     jobsPanel.hidden = view !== "jobs";
+    jobDetailPanel.hidden = view !== "job-detail";
     qualityIntro.hidden = view !== "overview";
     lifecyclePanel.hidden = view !== "overview";
     overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
+    jobDetailNav.setAttribute("aria-current", view === "job-detail" ? "page" : "false");
   }
 
   function appendDefinition(list: HTMLElement, term: string, value: string): void {
@@ -1512,6 +1742,323 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && job.preview_count >= 0;
   }
 
+  function validTimestamp(value: unknown, nullable = false): boolean {
+    return (nullable && value === null)
+      || (typeof value === "string" && Number.isFinite(Date.parse(value)));
+  }
+
+  function isRenderablePredicate(value: unknown): value is Record<string, any> {
+    const predicate = record(value);
+    return typeof predicate.predicate_id === "string"
+      && Boolean(predicate.predicate_id)
+      && ["pass", "fail", "indeterminate"].includes(predicate.status)
+      && typeof predicate.observed_count === "number"
+      && Number.isFinite(predicate.observed_count)
+      && predicate.observed_count >= 0
+      && typeof predicate.reason === "string";
+  }
+
+  function isRenderablePreview(value: unknown): value is Record<string, any> {
+    const preview = record(value);
+    return preview.schema_version === "agentpass.intent-quality-job-preview.v1"
+      && typeof preview.evaluation_id === "string"
+      && Boolean(preview.evaluation_id)
+      && validTimestamp(preview.evaluated_at, true)
+      && ["recorded", "missing"].includes(preview.timestamp_status)
+      && ["completed", "partial", "failed", "indeterminate"].includes(preview.verdict)
+      && ["pass", "fail", "indeterminate"].includes(preview.constraint_compliance)
+      && typeof preview.qualified_success === "boolean"
+      && typeof preview.goal_attainment === "number"
+      && preview.goal_attainment >= 0
+      && preview.goal_attainment <= 1
+      && typeof preview.evidence_confidence === "number"
+      && preview.evidence_confidence >= 0
+      && preview.evidence_confidence <= 1
+      && ["low", "medium", "high"].includes(preview.confidence_band)
+      && Array.isArray(preview.evidence_findings);
+  }
+
+  function isRenderableTimelineEntry(value: unknown, index: number): value is Record<string, any> {
+    const entry = record(value);
+    return entry.sequence === index + 1
+      && Number.isInteger(entry.source_index)
+      && Number(entry.source_index) >= 0
+      && [
+        "preview_evaluation",
+        "authorization_decision",
+        "execution_receipt",
+        "verified_observation",
+        "finalization",
+      ].includes(entry.event_type)
+      && (entry.evidence_id === null || typeof entry.evidence_id === "string")
+      && validTimestamp(entry.occurred_at, true)
+      && entry.timestamp_status === (entry.occurred_at === null ? "missing" : "recorded");
+  }
+
+  function isRenderableJobDetail(value: unknown): value is Record<string, any> {
+    const detail = record(value);
+    const boundary = record(detail.immutable_boundary);
+    const evaluation = record(detail.final_evaluation);
+    const previews = record(detail.previews);
+    const sources = record(detail.evidence_sources);
+    const timeline = record(detail.timeline);
+    const ordering = record(timeline.ordering);
+    const quality = record(detail.data_quality);
+    const sourceNames = ["decision_events", "execution_receipts", "observations", "job"];
+    return detail.schema_version === "agentpass.intent-quality-job-detail.v1"
+      && detail.tenant_id === tenantId
+      && isRenderableJob(detail.job)
+      && boundary.status === "finalized"
+      && validTimestamp(boundary.finalized_at)
+      && validTimestamp(boundary.captured_at, true)
+      && typeof boundary.intent_digest === "string"
+      && /^[a-f0-9]{64}$/.test(boundary.intent_digest)
+      && typeof boundary.snapshot_id === "string"
+      && Boolean(boundary.snapshot_id)
+      && typeof boundary.evidence_digest === "string"
+      && /^[a-f0-9]{64}$/.test(boundary.evidence_digest)
+      && evaluation.schema_version === "agentpass.intent-quality-job-final-evaluation.v1"
+      && typeof evaluation.evaluation_id === "string"
+      && Boolean(evaluation.evaluation_id)
+      && validTimestamp(evaluation.evaluated_at, true)
+      && ["completed", "partial", "failed", "indeterminate"].includes(evaluation.verdict)
+      && ["pass", "fail", "indeterminate"].includes(evaluation.constraint_compliance)
+      && typeof evaluation.qualified_success === "boolean"
+      && typeof evaluation.goal_attainment === "number"
+      && evaluation.goal_attainment >= 0
+      && evaluation.goal_attainment <= 1
+      && typeof evaluation.evidence_confidence === "number"
+      && evaluation.evidence_confidence >= 0
+      && evaluation.evidence_confidence <= 1
+      && ["low", "medium", "high"].includes(evaluation.confidence_band)
+      && Array.isArray(evaluation.outcomes)
+      && evaluation.outcomes.every(isRenderablePredicate)
+      && Array.isArray(evaluation.constraints)
+      && evaluation.constraints.every(isRenderablePredicate)
+      && typeof evaluation.execution_discipline === "object"
+      && Array.isArray(evaluation.evidence_findings)
+      && Number.isInteger(previews.count)
+      && Number(previews.count) >= 0
+      && Number.isInteger(previews.invalid_count)
+      && Number(previews.invalid_count) >= 0
+      && Array.isArray(previews.evaluations)
+      && previews.evaluations.length === previews.count
+      && previews.evaluations.every(isRenderablePreview)
+      && sourceNames.every((name) => {
+        const source = record(sources[name]);
+        return Number.isInteger(source.count)
+          && Number(source.count) >= 0
+          && (source.declared_count === null || (Number.isInteger(source.declared_count) && Number(source.declared_count) >= 0))
+          && (source.digest === null || (typeof source.digest === "string" && /^[a-f0-9]{64}$/.test(source.digest)));
+      })
+      && ordering.direction === "ascending"
+      && ordering.primary === "occurred_at with missing timestamps last"
+      && ordering.tie_breaker === "event_type, evidence_id, source_index"
+      && Array.isArray(timeline.entries)
+      && timeline.entries.every(isRenderableTimelineEntry)
+      && Number.isInteger(quality.missing_timestamps_count)
+      && Number(quality.missing_timestamps_count) >= 0
+      && Number.isInteger(quality.invalid_preview_count)
+      && Number(quality.invalid_preview_count) >= 0
+      && Array.isArray(quality.findings);
+  }
+
+  function formatTimestamp(value: unknown): string {
+    if (!validTimestamp(value)) return "Timestamp missing";
+    return new runtime.Date(String(value)).toLocaleString(
+      "en-US",
+      { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" },
+    ) + " UTC";
+  }
+
+  function renderPredicateList(values: Record<string, any>[], emptyLabel: string): HTMLElement {
+    if (values.length === 0) return create("p", "window-note", emptyLabel);
+    const list = create("ul", "predicate-list");
+    for (const predicate of values) {
+      const item = create("li");
+      item.append(
+        statusPill(safeText(predicate.status), safeText(predicate.status, "indeterminate")),
+        create("strong", undefined, safeText(predicate.predicate_id)),
+        create("p", undefined, `${safeText(predicate.reason)} · ${formatCount(predicate.observed_count)} observation(s)`),
+      );
+      list.append(item);
+    }
+    return list;
+  }
+
+  function appendDiscipline(list: HTMLElement, label: string, value: string): void {
+    list.append(create("dt", undefined, label), create("dd", undefined, value));
+  }
+
+  function timelineLabel(eventType: string): string {
+    return {
+      preview_evaluation: "Preview evaluation",
+      authorization_decision: "Authorization decision",
+      execution_receipt: "Execution receipt",
+      verified_observation: "Verified observation",
+      finalization: "Immutable finalization",
+    }[eventType] || "Evidence event";
+  }
+
+  function renderTimelineEntry(entry: Record<string, any>): HTMLElement {
+    const item = create("li", "timeline-entry");
+    const time = create("time", "timeline-time", formatTimestamp(entry.occurred_at));
+    time.dataset.missing = String(entry.occurred_at === null);
+    if (entry.occurred_at) time.setAttribute("datetime", entry.occurred_at);
+    const body = create("div", "timeline-body");
+    const title = create("div", "timeline-title");
+    title.append(create("strong", undefined, timelineLabel(entry.event_type)));
+    if (entry.evidence_id) title.append(create("code", undefined, entry.evidence_id));
+    const metadata = create("div", "timeline-metadata");
+    const addMetadata = (label: string, value: unknown) => {
+      if (typeof value === "string" && value) metadata.append(create("span", undefined, `${label}: ${value}`));
+      if (typeof value === "number" && Number.isFinite(value)) metadata.append(create("span", undefined, `${label}: ${value}`));
+    };
+    if (entry.event_type === "preview_evaluation" || entry.event_type === "finalization") {
+      addMetadata("Verdict", entry.verdict);
+      addMetadata("Constraint", entry.constraint_compliance);
+      if (typeof entry.evidence_confidence === "number") {
+        addMetadata("Confidence", formatPercent(entry.evidence_confidence));
+      }
+    } else if (entry.event_type === "authorization_decision") {
+      addMetadata("Decision", entry.decision);
+      addMetadata("Agent", entry.agent_id);
+      addMetadata("Tool", entry.tool);
+      addMetadata("Action", entry.action);
+      addMetadata("Approval", entry.approval_id);
+      addMetadata("JIT grant", entry.jit_grant_id);
+      if (entry.replayed === true) addMetadata("Replay", "yes");
+    } else if (entry.event_type === "execution_receipt") {
+      addMetadata("Status", entry.status);
+      addMetadata("Tool", entry.tool);
+      addMetadata("Action", entry.action);
+      addMetadata("Replays", entry.replay_count);
+      addMetadata("Outcome", entry.outcome_code);
+      addMetadata("Error", entry.error_code);
+      addMetadata("Completed", entry.completed_at ? formatTimestamp(entry.completed_at) : "");
+    } else if (entry.event_type === "verified_observation") {
+      addMetadata("Issuer", entry.issuer);
+      addMetadata("Predicate", entry.predicate);
+      addMetadata("Verification", entry.verification_method);
+      addMetadata("Signing key", entry.signature_kid);
+      addMetadata("Verified", entry.verified_at ? formatTimestamp(entry.verified_at) : "");
+    }
+    body.append(title, metadata);
+    const findings = Array.isArray(entry.findings)
+      ? entry.findings.filter((value: unknown) => typeof value === "string" && value.trim()).slice(0, 20)
+      : [];
+    if (findings.length > 0) {
+      const list = create("ul", "timeline-findings");
+      for (const finding of findings) list.append(create("li", undefined, finding));
+      body.append(list);
+    }
+    item.append(create("span", "timeline-sequence", entry.sequence), time, body);
+    return item;
+  }
+
+  function renderJobDetail(payloadValue: unknown, response: Response): void {
+    if (!isRenderableJobDetail(payloadValue)) throw new Error("Finalized Job detail response is invalid.");
+    const payload = record(payloadValue);
+    const job = record(payload.job);
+    const boundary = record(payload.immutable_boundary);
+    const evaluation = record(payload.final_evaluation);
+    const discipline = record(evaluation.execution_discipline);
+    const previews = record(payload.previews);
+    const timeline = record(payload.timeline);
+    const entries = timeline.entries as Record<string, any>[];
+    const quality = record(payload.data_quality);
+
+    jobDetailTitle.textContent = safeText(job.job_id);
+    jobDetailSubtitle.textContent = `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
+    jobDetailStatus.replaceChildren(statusPill("Finalized", "completed"));
+    jobDetailBoundary.replaceChildren();
+    appendDefinition(jobDetailBoundary, "Finalized at", formatTimestamp(boundary.finalized_at));
+    appendDefinition(jobDetailBoundary, "Captured at", boundary.captured_at ? formatTimestamp(boundary.captured_at) : "Timestamp missing");
+    appendDefinition(jobDetailBoundary, "Profile", `${safeText(record(job.profile_binding).key)} · ${safeText(record(job.profile_binding).version)}`);
+    appendDefinition(jobDetailBoundary, "Profile digest", safeText(record(job.profile_binding).digest));
+    appendDefinition(jobDetailBoundary, "Intent digest", safeText(boundary.intent_digest));
+    appendDefinition(jobDetailBoundary, "Snapshot", safeText(boundary.snapshot_id));
+    appendDefinition(jobDetailBoundary, "Evidence digest", safeText(boundary.evidence_digest));
+
+    jobDetailEvaluationId.textContent = `Evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
+    jobDetailMetrics.replaceChildren(
+      metricCard("Verdict", safeText(evaluation.verdict), evaluation.qualified_success ? "Qualified success" : "Not qualified"),
+      metricCard("Goal attainment", formatPercent(evaluation.goal_attainment), "Intent-relative"),
+      metricCard("Constraints", safeText(evaluation.constraint_compliance), `${(evaluation.constraints as any[]).length} evaluated`),
+      metricCard("Evidence", formatPercent(evaluation.evidence_confidence), `${safeText(evaluation.confidence_band)} confidence`),
+    );
+    jobDetailOutcomes.replaceChildren(renderPredicateList(evaluation.outcomes, "No outcome predicates were recorded."));
+    jobDetailConstraints.replaceChildren(renderPredicateList(evaluation.constraints, "No constraint predicates were recorded."));
+    jobDetailDiscipline.replaceChildren();
+    appendDiscipline(jobDetailDiscipline, "Tool calls", formatCount(discipline.tool_calls));
+    appendDiscipline(jobDetailDiscipline, "Receipts", formatCount(discipline.execution_receipts));
+    appendDiscipline(jobDetailDiscipline, "Executions", formatCount(discipline.executions));
+    appendDiscipline(jobDetailDiscipline, "Denials", formatCount(discipline.denied_decisions));
+    appendDiscipline(jobDetailDiscipline, "Challenges", formatCount(discipline.challenge_decisions));
+    appendDiscipline(jobDetailDiscipline, "Retries", formatCount(discipline.retries));
+    appendDiscipline(jobDetailDiscipline, "Replays", formatCount(discipline.replays));
+    appendDiscipline(jobDetailDiscipline, "Runtime", formatDuration(discipline.runtime_ms));
+
+    jobDetailTimelineSummary.textContent = `${entries.length.toLocaleString("en-US")} event(s), ascending; missing timestamps last.`;
+    jobDetailTimeline.replaceChildren(...entries.map(renderTimelineEntry));
+    const previewEvaluations = previews.evaluations as Record<string, any>[];
+    jobDetailPreviewSummary.textContent = `${formatCount(previews.count)} valid · ${formatCount(previews.invalid_count)} excluded`;
+    if (previewEvaluations.length === 0) {
+      jobDetailPreviews.replaceChildren(create("p", "window-note", "No preview evaluations preceded this final receipt."));
+    } else {
+      jobDetailPreviews.replaceChildren(...previewEvaluations.map((preview) => {
+        const card = create("article", "preview-card");
+        const copy = create("div");
+        copy.append(
+          create("strong", undefined, safeText(preview.evaluation_id)),
+          create("small", undefined, `${preview.evaluated_at ? formatTimestamp(preview.evaluated_at) : "Timestamp missing"} · Goal ${formatPercent(preview.goal_attainment)}`),
+        );
+        card.append(copy, statusPill(safeText(preview.verdict), safeText(preview.verdict, "indeterminate")));
+        return card;
+      }));
+    }
+
+    const sourceLabels: Record<string, string> = {
+      decision_events: "Decision events",
+      execution_receipts: "Execution receipts",
+      observations: "Observations",
+      job: "Job record",
+    };
+    jobDetailSources.replaceChildren(...Object.entries(sourceLabels).map(([name, label]) => {
+      const source = record(record(payload.evidence_sources)[name]);
+      const card = create("article", "source-card");
+      card.append(
+        create("span", undefined, label),
+        create("strong", undefined, formatCount(source.count)),
+        create("code", undefined, source.digest ? `Digest ${source.digest}` : "Digest unavailable"),
+      );
+      if (source.declared_count !== source.count) {
+        card.append(create("small", undefined, `Declared ${formatCount(source.declared_count)}`));
+      }
+      return card;
+    }));
+
+    const findings = [
+      ...(Array.isArray(quality.findings) ? quality.findings : []),
+      ...(Array.isArray(evaluation.evidence_findings) ? evaluation.evidence_findings : []),
+      ...(Array.isArray(discipline.preference_findings) ? discipline.preference_findings : []),
+    ].filter((value: unknown) => typeof value === "string" && value.trim()).slice(0, 40);
+    jobDetailFindingsList.replaceChildren(...findings.map((finding: string) => create("li", undefined, finding)));
+    jobDetailFindings.hidden = findings.length === 0;
+    jobDetailContent.hidden = false;
+    jobDetailMessage.hidden = true;
+    refreshButton.hidden = false;
+    const freshness = responseFreshness(response);
+    if (freshness.state === "stale") {
+      const age = freshness.ageSeconds === undefined ? "older than the freshness threshold" : describeAge(freshness.ageSeconds);
+      setStatus("stale", `The finalized Job detail response is ${age}.`);
+    } else if (findings.length > 0 || Number(quality.missing_timestamps_count) > 0 || Number(quality.invalid_preview_count) > 0) {
+      setStatus("partial", "The immutable receipt is available; review its explicit evidence and timing findings.");
+    } else {
+      setStatus("ready", "The finalized Job detail and ordered immutable evidence path are current.");
+    }
+  }
+
   function tableCell(label: string, content: HTMLElement): HTMLElement {
     const cell = create("td");
     cell.setAttribute("data-label", label);
@@ -1544,7 +2091,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const jobLink = create("a", "job-link", safeText(job.job_id));
     const detailQuery = new URLSearchParams({ job_id: safeText(job.job_id, "") });
     jobLink.setAttribute("href", `${runtime.location.pathname || "/"}?${detailQuery.toString()}#job-detail`);
-    jobLink.setAttribute("aria-label", `Open planned detail target for job ${safeText(job.job_id)}`);
+    jobLink.setAttribute("aria-label", `Open finalized detail for job ${safeText(job.job_id)}`);
     const idCell = cellStack(jobLink, create("code", undefined, `Intent ${safeText(job.intent_id)}`));
 
     const agentIds = Array.isArray(job.agent_ids)
@@ -1656,6 +2203,60 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
   }
 
+  async function loadJobDetail(jobId = currentJobId): Promise<void> {
+    currentJobId = jobId.trim().slice(0, 160);
+    syncJobDetailUrl(currentJobId);
+    jobDetailContent.hidden = true;
+    refreshButton.hidden = true;
+    if (!currentJobId) {
+      setStatus("ready", "Select a finalized job to inspect its immutable evidence path.");
+      setJobDetailState(
+        "empty",
+        "Select a finalized job",
+        "Open a Job ID from the finalized Jobs explorer to inspect its immutable evidence path.",
+      );
+      return;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(currentJobId)) {
+      setStatus("partial", "The requested Job ID is not valid.");
+      setJobDetailState(
+        "empty",
+        "Job ID is not valid",
+        "Return to Jobs and select a finalized Job ID from the tenant-scoped explorer.",
+      );
+      return;
+    }
+    if (!tenantId) return;
+    setStatus("loading", "Reading the selected finalized receipt and its safe evidence timeline.");
+    setJobDetailState(
+      "loading",
+      "Loading finalized Job detail",
+      "Reading the immutable boundary and allowlisted timeline through the tenant-scoped BFF.",
+    );
+    try {
+      const result = await read(
+        `/api/console/tenants/${encodeURIComponent(tenantId)}/intent-quality/jobs/${encodeURIComponent(currentJobId)}`,
+      );
+      if (!result.response.ok) {
+        if (result.response.status === 404) {
+          const detail = failureMessage(result.body, "The finalized Job receipt was not found in this tenant.");
+          setStatus("ready", detail);
+          setJobDetailState("empty", "Finalized Job not found", detail);
+          return;
+        }
+        const state = failureState(result.response.status);
+        const detail = failureMessage(result.body, statusMessages[state][1]);
+        setStatus(state, detail);
+        setJobDetailState(state, statusMessages[state][0], detail);
+        return;
+      }
+      renderJobDetail(result.body, result.response);
+    } catch {
+      setStatus("unavailable");
+      setJobDetailState("unavailable", "Finalized Job detail is unavailable", statusMessages.unavailable[1]);
+    }
+  }
+
   async function loadJobs(cursor = currentJobsCursor): Promise<void> {
     if (!tenantId) return;
     currentJobsCursor = cursor.slice(0, 1_024);
@@ -1709,6 +2310,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setStatus("loading");
     restoreFilters();
     restoreJobsFilters();
+    restoreJobDetail();
     buildQualityQuery();
     buildJobsQuery();
     showView(activeView);
@@ -1720,6 +2322,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
         setJobsState(state, statusMessages[state][0], detail);
+        setJobDetailState(state, statusMessages[state][0], detail);
         return;
       }
       tenantId = safeText(session.body.tenant_id, "");
@@ -1733,14 +2336,17 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
         setJobsState(state, statusMessages[state][0], detail);
+        setJobDetailState(state, statusMessages[state][0], detail);
         return;
       }
       if (activeView === "jobs") await loadJobs();
+      else if (activeView === "job-detail") await loadJobDetail();
       else await loadOverview();
     } catch {
       setStatus("unavailable");
       setOverviewState("unavailable", statusMessages.unavailable[0], statusMessages.unavailable[1]);
       setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
+      setJobDetailState("unavailable", "Finalized Job detail is unavailable", statusMessages.unavailable[1]);
     }
   }
 
@@ -1754,6 +2360,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   });
   refreshButton.addEventListener("click", () => {
     if (activeView === "jobs") void loadJobs();
+    else if (activeView === "job-detail") void loadJobDetail();
     else void loadOverview();
   });
   jobsFilterForm.addEventListener("submit", (event) => {
@@ -1780,9 +2387,19 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView("jobs");
     void loadJobs();
   });
+  jobDetailNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView("job-detail");
+    void loadJobDetail();
+  });
+  jobDetailBack.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView("jobs");
+    void loadJobs("");
+  });
 
   const ready = start();
-  return { buildJobsQuery, buildQualityQuery, loadJobs, loadOverview, ready, showView };
+  return { buildJobsQuery, buildQualityQuery, loadJobDetail, loadJobs, loadOverview, ready, showView };
 }
 
 const APP_JS = `(${consoleApp.toString()})(window);`;
@@ -2039,6 +2656,8 @@ function parseGatewayRoute(url: URL, identity: ConsoleIdentity): GatewayRoute {
     allowedQuery = QUALITY_QUERY;
   } else if (sameSegments(suffix, ["intent-quality", "jobs"])) {
     allowedQuery = QUALITY_JOBS_QUERY;
+  } else if (suffix[0] === "intent-quality" && suffix[1] === "jobs" && suffix.length === 3) {
+    allowedQuery = NO_QUERY;
   } else if (suffix[0] === "intent-profiles" && (suffix.length === 1 || suffix.length === 2)) {
     allowedQuery = suffix.length === 1 ? PROFILE_QUERY : NO_QUERY;
   } else if (suffix[0] === "intent-contracts" && (suffix.length === 1 || suffix.length === 2)) {

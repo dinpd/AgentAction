@@ -105,6 +105,11 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Exact job ID/);
   assert.match(body, /Exact intent ID/);
   assert.match(body, /<table class="jobs-table">/);
+  assert.match(body, /data-console-view="job-detail"/);
+  assert.match(body, /Finalized execution evidence/);
+  assert.match(body, /Ordered execution timeline/);
+  assert.match(body, /data-job-detail-boundary/);
+  assert.match(body, /data-job-detail-sources/);
   assert.match(body, /Overview/);
   assert.match(body, /Job detail/);
   assert.match(body, /Exceptions/);
@@ -141,6 +146,10 @@ test("serves responsive and focus-visible lifecycle disclosure styles", async ()
   assert.match(body, /\.repo-link:hover, \.repo-link:focus-visible/);
   assert.match(body, /\.jobs-table td::before \{[^}]*content: attr\(data-label\);/);
   assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.jobs-table,[\s\S]*\.jobs-table tbody/);
+  assert.match(body, /\.evidence-timeline/);
+  assert.match(body, /\.timeline-entry \{[^}]*grid-template-columns: 34px 150px minmax\(0, 1fr\);/);
+  assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.timeline-entry \{ grid-template-columns: 34px minmax\(0, 1fr\);/);
+  assert.match(body, /@media \(max-width: 520px\)[\s\S]*\.job-detail-panel \{ padding: 16px;/);
 });
 
 test("derives tenant identity only from the verified Access claim", async () => {
@@ -255,6 +264,39 @@ test("forwards only allowlisted finalized Jobs explorer filters", async () => {
   assert.equal(calls.length, 1);
 });
 
+test("forwards one exact read-only Job detail path without query parameters", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/intent-quality/jobs/job-detail-1"),
+    baseEnv(calls, () => json({ schema_version: "agentpass.intent-quality-job-detail.v1" })),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    "https://agentpass-gateway.internal/tenants/tenant-alpha/intent-quality/jobs/job-detail-1",
+  );
+
+  const query = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/intent-quality/jobs/job-detail-1?debug=true"),
+    baseEnv(calls),
+  );
+  assert.equal(query.status, 400);
+  assert.equal((await query.json() as any).error.code, "query_parameter_not_allowed");
+  const extraPath = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/intent-quality/jobs/job-detail-1/evidence"),
+    baseEnv(calls),
+  );
+  assert.equal(extraPath.status, 404);
+  assert.equal((await extraPath.json() as any).error.code, "gateway_route_not_allowed");
+  const write = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/intent-quality/jobs/job-detail-1", { method: "POST" }),
+    baseEnv(calls),
+  );
+  assert.equal(write.status, 405);
+  assert.equal(calls.length, 1);
+});
+
 test("rejects tenant query overrides and unknown query parameters before forwarding", async () => {
   const calls: GatewayCall[] = [];
   const tenantOverride = await worker.fetch(
@@ -296,6 +338,7 @@ test("exposes only the planned read-side extension routes", async () => {
   const paths = [
     "/api/console/tenants/tenant-alpha/health",
     "/api/console/tenants/tenant-alpha/intent-quality/jobs?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z",
+    "/api/console/tenants/tenant-alpha/intent-quality/jobs/job-1",
     "/api/console/tenants/tenant-alpha/intent-profiles",
     "/api/console/tenants/tenant-alpha/intent-profiles/support_refund.v1%401.0.0",
     "/api/console/tenants/tenant-alpha/intent-contracts?job_id=job-1",
@@ -313,6 +356,7 @@ test("exposes only the planned read-side extension routes", async () => {
   assert.deepEqual(calls.map((call) => new URL(call.url).pathname), [
     "/tenants/tenant-alpha/health",
     "/tenants/tenant-alpha/intent-quality/jobs",
+    "/tenants/tenant-alpha/intent-quality/jobs/job-1",
     "/tenants/tenant-alpha/intent-profiles",
     "/tenants/tenant-alpha/intent-profiles/support_refund.v1%401.0.0",
     "/tenants/tenant-alpha/intent-contracts",

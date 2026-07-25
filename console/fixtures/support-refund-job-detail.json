@@ -1,0 +1,235 @@
+{
+  "schema_version": "agentpass.intent-quality-job-detail.v1",
+  "tenant_id": "acme",
+  "job": {
+    "schema_version": "agentpass.intent-quality-job.v1",
+    "tenant_id": "acme",
+    "finalized_at": "2026-07-25T11:15:00.000Z",
+    "final_status": "finalized",
+    "job_id": "job-refund-partial",
+    "intent_id": "intent-refund-partial",
+    "agent_id": "refund-agent-a",
+    "agent_ids": ["refund-agent-a"],
+    "profile_binding": {
+      "key": "support_refund.v1",
+      "version": "v1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "verdict": "partial",
+    "qualified_success": false,
+    "constraint_compliance": "pass",
+    "goal_attainment": 0.5,
+    "evidence_confidence": 0.82,
+    "confidence_band": "medium",
+    "preview_count": 1,
+    "execution_discipline": {
+      "retries": 1,
+      "replays": 1,
+      "runtime_ms": 1800
+    },
+    "data_quality": {
+      "missing_agent": false,
+      "missing_runtime": false,
+      "low_confidence": false,
+      "indeterminate": false,
+      "findings": []
+    }
+  },
+  "immutable_boundary": {
+    "status": "finalized",
+    "finalized_at": "2026-07-25T11:15:00.000Z",
+    "captured_at": "2026-07-25T11:14:59.000Z",
+    "intent_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "snapshot_id": "snapshot_support_refund_partial",
+    "evidence_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "final_evaluation": {
+    "schema_version": "agentpass.intent-quality-job-final-evaluation.v1",
+    "evaluation_id": "evaluation-refund-partial-final",
+    "evaluated_at": "2026-07-25T11:15:00.000Z",
+    "verdict": "partial",
+    "qualified_success": false,
+    "constraint_compliance": "pass",
+    "goal_attainment": 0.5,
+    "evidence_confidence": 0.82,
+    "confidence_band": "medium",
+    "outcomes": [
+      {
+        "predicate_id": "refund-created",
+        "status": "pass",
+        "observed_count": 1,
+        "reason": "Refund creation was observed."
+      },
+      {
+        "predicate_id": "customer-notified",
+        "status": "fail",
+        "observed_count": 0,
+        "reason": "No notification observation was present at finalization."
+      }
+    ],
+    "constraints": [
+      {
+        "predicate_id": "approval-required",
+        "status": "pass",
+        "observed_count": 1,
+        "reason": "Approval was bound to the authorized write."
+      }
+    ],
+    "execution_discipline": {
+      "tool_calls": 2,
+      "execution_receipts": 1,
+      "executions": 1,
+      "replays": 1,
+      "retries": 1,
+      "denied_decisions": 0,
+      "challenge_decisions": 1,
+      "estimated_cost_usd": 0.03,
+      "runtime_ms": 1800,
+      "preferences_met": false,
+      "preference_findings": ["Customer notification preference was not observed."]
+    },
+    "evidence_findings": ["Notification evidence was absent at finalization."]
+  },
+  "previews": {
+    "count": 1,
+    "invalid_count": 0,
+    "evaluations": [
+      {
+        "schema_version": "agentpass.intent-quality-job-preview.v1",
+        "evaluation_id": "evaluation-refund-partial-preview",
+        "evaluated_at": null,
+        "timestamp_status": "missing",
+        "verdict": "indeterminate",
+        "qualified_success": false,
+        "constraint_compliance": "indeterminate",
+        "goal_attainment": 0,
+        "evidence_confidence": 0.35,
+        "confidence_band": "low",
+        "evidence_findings": ["Execution receipt had not yet been captured."]
+      }
+    ]
+  },
+  "evidence_sources": {
+    "decision_events": {
+      "count": 2,
+      "declared_count": 2,
+      "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "execution_receipts": {
+      "count": 1,
+      "declared_count": 1,
+      "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "observations": {
+      "count": 1,
+      "declared_count": 1,
+      "digest": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "job": {
+      "count": 1,
+      "declared_count": 1,
+      "digest": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "timeline": {
+    "ordering": {
+      "direction": "ascending",
+      "primary": "occurred_at with missing timestamps last",
+      "tie_breaker": "event_type, evidence_id, source_index"
+    },
+    "entries": [
+      {
+        "sequence": 1,
+        "source_index": 0,
+        "event_type": "authorization_decision",
+        "evidence_id": "decision-search",
+        "occurred_at": "2026-07-25T11:12:00.000Z",
+        "timestamp_status": "recorded",
+        "agent_id": "refund-agent-a",
+        "tool": "zendesk.search_tickets",
+        "action": "read",
+        "decision": "allow",
+        "approval_id": null,
+        "jit_grant_id": null,
+        "replayed": false,
+        "findings": []
+      },
+      {
+        "sequence": 2,
+        "source_index": 1,
+        "event_type": "authorization_decision",
+        "evidence_id": "decision-refund",
+        "occurred_at": "2026-07-25T11:13:00.000Z",
+        "timestamp_status": "recorded",
+        "agent_id": "refund-agent-a",
+        "tool": "stripe.create_refund",
+        "action": "write",
+        "decision": "challenge_required",
+        "approval_id": "approval-refund-42",
+        "jit_grant_id": "jit-refund-42",
+        "replayed": false,
+        "findings": ["Human approval was required before the write."]
+      },
+      {
+        "sequence": 3,
+        "source_index": 0,
+        "event_type": "execution_receipt",
+        "evidence_id": "receipt-refund",
+        "occurred_at": "2026-07-25T11:13:30.000Z",
+        "timestamp_status": "recorded",
+        "completed_at": "2026-07-25T11:13:31.800Z",
+        "tool": "stripe.create_refund",
+        "action": "write",
+        "status": "replayed",
+        "replay_count": 1,
+        "replayed_from_decision_id": "decision-refund",
+        "outcome_code": "refund_created",
+        "error_code": null
+      },
+      {
+        "sequence": 4,
+        "source_index": 0,
+        "event_type": "verified_observation",
+        "evidence_id": "observation-refund",
+        "occurred_at": "2026-07-25T11:14:00.000Z",
+        "timestamp_status": "recorded",
+        "issued_at": "2026-07-25T11:14:01.000Z",
+        "issuer": "stripe-adapter",
+        "predicate": "refund.status",
+        "payload_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "verification_method": "jws",
+        "verified_at": "2026-07-25T11:14:02.000Z",
+        "signature_kid": "stripe-2026"
+      },
+      {
+        "sequence": 5,
+        "source_index": 0,
+        "event_type": "finalization",
+        "evidence_id": "evaluation-refund-partial-final",
+        "occurred_at": "2026-07-25T11:15:00.000Z",
+        "timestamp_status": "recorded",
+        "verdict": "partial",
+        "constraint_compliance": "pass",
+        "evidence_confidence": 0.82,
+        "snapshot_id": "snapshot_support_refund_partial"
+      },
+      {
+        "sequence": 6,
+        "source_index": 0,
+        "event_type": "preview_evaluation",
+        "evidence_id": "evaluation-refund-partial-preview",
+        "occurred_at": null,
+        "timestamp_status": "missing",
+        "verdict": "indeterminate",
+        "constraint_compliance": "indeterminate",
+        "evidence_confidence": 0.35,
+        "confidence_band": "low"
+      }
+    ]
+  },
+  "data_quality": {
+    "missing_timestamps_count": 1,
+    "invalid_preview_count": 0,
+    "findings": ["1 timeline event lacks a valid timestamp"]
+  }
+}

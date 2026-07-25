@@ -9,6 +9,9 @@ const fixture = JSON.parse(
 const jobsFixture = JSON.parse(
   await readFile(new URL("../fixtures/support-refund-jobs.json", import.meta.url), "utf8"),
 ) as Record<string, any>;
+const jobDetailFixture = JSON.parse(
+  await readFile(new URL("../fixtures/support-refund-job-detail.json", import.meta.url), "utf8"),
+) as Record<string, any>;
 const configuredPort = Number(process.env.PORT || "8791");
 const port = Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort < 65_536
   ? configuredPort
@@ -109,6 +112,13 @@ const env: Env = {
       }
       if (url.pathname === "/tenants/acme/intent-quality/jobs") {
         return json(jobsFixturePayload(url), 200, freshnessHeaders);
+      }
+      const detailMatch = url.pathname.match(/^\/tenants\/acme\/intent-quality\/jobs\/([^/]+)$/);
+      if (detailMatch) {
+        const jobId = decodeURIComponent(detailMatch[1]);
+        return jobId === jobDetailFixture.job.job_id
+          ? json(structuredClone(jobDetailFixture), 200, freshnessHeaders)
+          : json({ error: { code: "intent_quality_job_not_found", message: "Finalized Job receipt not found." } }, 404);
       }
       return json({ error: { code: "fixture_route_not_found", message: "Fixture route not found." } }, 404);
     },
