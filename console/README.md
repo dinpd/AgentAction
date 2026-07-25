@@ -1,8 +1,8 @@
 # AgentPass Observability Console
 
-This directory contains the Cloudflare-hosted UI/BFF foundation for the
-AgentPass intent observability console. It is intentionally read only. Fleet
-overview, job exploration, evidence inspection, and exception views build on
+This directory contains the Cloudflare-hosted UI/BFF and profile-scoped Fleet
+Overview for the AgentPass intent observability console. It is intentionally
+read only. Job exploration, evidence inspection, and exception views build on
 this boundary in later slices.
 
 ## Security model
@@ -54,7 +54,39 @@ returns a sanitized readiness result rather than the gateway response.
 Responses are `private, no-store`. The BFF marks upstream data as `fresh`,
 `stale`, or `unknown` in `X-AgentPass-Console-Data-State` using the upstream
 `X-AgentPass-Generated-At` or `Date` header and
-`CONSOLE_STALE_AFTER_SECONDS`.
+`CONSOLE_STALE_AFTER_SECONDS`. Valid timestamps are normalized into
+`X-AgentPass-Console-Generated-At` and
+`X-AgentPass-Console-Data-Age-Seconds` so the browser can communicate staleness
+without receiving arbitrary upstream headers.
+
+## Fleet Overview
+
+The Overview is the default functional console view. It queries only immutable
+final receipts through `/api/console/tenants/:tenant/intent-quality/rollups`
+and offers these filters:
+
+- bounded UTC window: 24 hours, 7 days, 30 days, or the API maximum of 90 days;
+- profile key and immutable profile version;
+- agent identity;
+- completed, partial, failed, or indeterminate verdict; and
+- pass, fail, or indeterminate constraint-compliance state.
+
+The browser constructs only the BFF allowlist parameters. Tenant identity still
+comes from the verified Access session and never from the filter form or page
+URL.
+
+Every returned profile key, version, and digest is a separate card. The
+Overview never averages or ranks unlike profile definitions. Each card shows
+finalized sample size, qualified success, goal attainment, outcomes,
+constraint compliance, evidence-confidence distribution, execution-discipline
+totals and per-job averages, metric coverage, and data-quality findings.
+Indeterminate outcomes and low-confidence evidence remain named categories.
+
+The query summary keeps scanned, finalized, matched, and excluded records
+visible so practitioners can review the denominator. Small samples, incomplete
+coverage, and exclusions produce an explicit partial-data state. Empty,
+loading, unauthorized, forbidden, unavailable, and stale states are announced
+through live regions and do not replace missing values with an inferred score.
 
 ## Production configuration
 
@@ -124,6 +156,25 @@ Set a local gateway token with `wrangler secret put --env development` when the
 local gateway requires API-key authentication. Tests use a fake service binding
 and signed Access fixture; they never enable a production mock bypass.
 
+For a self-contained Fleet Overview with two immutable support-refund profile
+versions, run the loopback-only fixture server:
+
+```bash
+cd console
+npm run dev:fixture
+```
+
+Open `http://127.0.0.1:8791`. The fixture contains completed, failed,
+indeterminate, low-confidence, replay, retry, exclusion, small-sample, and
+missing-metric examples. It has no gateway credential and uses the same
+development-only mock identity guard as the Worker.
+
+To verify the stale presentation locally:
+
+```bash
+AGENTPASS_FIXTURE_STALE=true npm run dev:fixture
+```
+
 ## Verification and smoke checks
 
 ```bash
@@ -138,8 +189,14 @@ After deployment:
 2. Confirm `/api/console/session` returns the expected tenant and current
    subject only.
 3. Confirm `/api/console/health` reports both console and gateway as `ready`.
-4. Request another tenant under `/api/console/tenants/<other>/health` and
+4. Confirm Overview loads with an explicit UTC window and renders every
+   profile key/version/digest as a separate card.
+5. Apply profile, agent, verdict, and constraint filters; confirm the page URL
+   and BFF request contain only those filters plus `from`, `to`, and `limit`.
+6. Confirm indeterminate and low-confidence rows, excluded records,
+   data-quality findings, and small-sample status remain visible.
+7. Request another tenant under `/api/console/tenants/<other>/health` and
    confirm a `403` without a gateway call.
-5. Confirm browser network requests contain no reusable AgentPass bearer token.
-6. Confirm missing or invalid Access assertions return an explicit `401`, and
+8. Confirm browser network requests contain no reusable AgentPass bearer token.
+9. Confirm missing or invalid Access assertions return an explicit `401`, and
    gateway outages render the unavailable shell state without upstream detail.

@@ -296,9 +296,10 @@ AgentPass currently includes:
   [`Intent Assurance`](docs/intent-assurance.md)
 - Cloudflare gateway runtime for approvals, JIT grants, tenant manifests, OIDC
   checks, and audit events
-- Cloudflare-hosted intent observability console foundation with verified
-  Access identity, tenant isolation, a server-side gateway service binding, and
-  a read-only same-origin BFF; see [`console/`](console/)
+- Cloudflare-hosted intent observability console with verified Access identity,
+  tenant isolation, a read-only same-origin BFF, and a profile-scoped Fleet
+  Overview for outcomes, constraints, confidence, discipline, exclusions, and
+  data-quality findings; see [`console/`](console/)
 - Hosted idempotency result replay for retry-safe side-effect execution
 - Hosted PII egress controls for email, webhook, browser-form,
   model-provider, and file-export paths with exact field and destination
