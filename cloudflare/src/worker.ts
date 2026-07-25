@@ -292,6 +292,20 @@ type IntentQualityFilters = {
   limit: number;
   cursor?: string;
 };
+type IntentQualityJobsFilters = {
+  from: string;
+  to: string;
+  profile_key?: string;
+  profile_version?: string;
+  agent_id?: string;
+  verdict?: IntentEvaluationReceipt["verdict"];
+  constraint_compliance?: IntentEvaluationReceipt["constraint_compliance"];
+  confidence?: "low" | "medium" | "high";
+  job_id?: string;
+  intent_id?: string;
+  limit: number;
+  cursor?: string;
+};
 type IntentQualityExclusionReason =
   | "not_finalized"
   | "invalid_final_receipt"
@@ -301,6 +315,12 @@ type IntentQualityExclusionReason =
   | "agent_filter"
   | "verdict_filter"
   | "constraint_filter";
+type IntentQualityJobsExclusionReason =
+  | IntentQualityExclusionReason
+  | "tenant_mismatch"
+  | "confidence_filter"
+  | "job_filter"
+  | "intent_filter";
 type IntentBindingResult = {
   status: "unbound" | "bound";
   contract?: IntentContract;
@@ -458,13 +478,13 @@ export default {
       if (
         request.method === "GET" &&
         route.endpoint === "intent-quality" &&
-        route.resourceId === "rollups" &&
+        (route.resourceId === "rollups" || route.resourceId === "jobs") &&
         !route.action
       ) {
         const search = new URLSearchParams(url.searchParams);
         search.set("tenant_id", route.tenantId || "default");
         const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
-          new Request(`https://agentid.local/intent-quality/rollups?${search.toString()}`),
+          new Request(`https://agentid.local/intent-quality/${route.resourceId}?${search.toString()}`),
         );
         const body = await stored.json() as Record<string, unknown>;
         body.auth = auth.context;
@@ -1263,6 +1283,9 @@ export class AgentIdJitGrants {
 
     if (request.method === "GET" && url.pathname === "/intent-quality/rollups") {
       return this.intentQualityRollups(url);
+    }
+    if (request.method === "GET" && url.pathname === "/intent-quality/jobs") {
+      return this.intentQualityJobs(url);
     }
 
     if (request.method === "POST" && url.pathname === "/intent-profiles") {
@@ -2091,6 +2114,178 @@ export class AgentIdJitGrants {
         next_cursor: nextCursor,
       },
     });
+  }
+
+  async intentQualityJobs(url: URL): Promise<Response> {
+    const parsed = parseIntentQualityJobsFilters(url);
+    if (parsed.error || !parsed.filters) {
+      return json({ error: parsed.error, error_code: parsed.errorCode }, 400);
+    }
+    const filters = parsed.filters;
+    const tenantId = url.searchParams.get("tenant_id") || "default";
+    const exclusionReasons: IntentQualityJobsExclusionReason[] = [
+      "not_finalized",
+      "invalid_final_receipt",
+      "unversioned_profile",
+      "tenant_mismatch",
+      "outside_time_window",
+      "profile_filter",
+      "agent_filter",
+      "verdict_filter",
+      "constraint_filter",
+      "confidence_filter",
+      "job_filter",
+      "intent_filter",
+    ];
+    const excluded = Object.fromEntries(exclusionReasons.map((reason) => [reason, 0])) as Record<
+      IntentQualityJobsExclusionReason,
+      number
+    >;
+    const legacyIntentIndex = await this.state.storage.get<string[]>("intent:index") || [];
+    const qualityIntentIndex: string[] = [];
+    for (const date of intentQualityDateBuckets(filters.from, filters.to)) {
+      const ids = await this.state.storage.get<string[]>(`intent-quality:index:${date}`) || [];
+      qualityIntentIndex.push(...ids);
+    }
+    const intentIndex = [...new Set([...qualityIntentIndex, ...legacyIntentIndex])];
+    const records: IntentQualityRecord[] = [];
+    let finalizedRecords = 0;
+
+    for (const intentId of intentIndex) {
+      const finalization = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+      if (!finalization) {
+        const contract = await this.state.storage.get<IntentContractRecord>(`intent:${intentId}:contract`);
+        const registered = recordValue(contract);
+        const registeredAt = Date.parse(
+          optionalString(registered.registered_at) || optionalString(recordValue(registered.contract).issued_at) || "",
+        );
+        if (Number.isFinite(registeredAt) && (registeredAt < Date.parse(filters.from) || registeredAt >= Date.parse(filters.to))) {
+          excluded.outside_time_window += 1;
+        } else {
+          excluded.not_finalized += 1;
+        }
+        continue;
+      }
+      finalizedRecords += 1;
+      const finalizedAt = Date.parse(optionalString(recordValue(finalization).finalized_at) || "");
+      if (!Number.isFinite(finalizedAt) || finalizedAt < Date.parse(filters.from) || finalizedAt >= Date.parse(filters.to)) {
+        excluded.outside_time_window += 1;
+        continue;
+      }
+      const quality = intentQualityRecord(finalization);
+      if (quality.error || !quality.record) {
+        excluded[quality.error || "invalid_final_receipt"] += 1;
+        continue;
+      }
+      const record = quality.record;
+      if (record.tenant_id !== tenantId) {
+        excluded.tenant_mismatch += 1;
+        continue;
+      }
+      if (
+        (filters.profile_key && record.profile_key !== filters.profile_key) ||
+        (filters.profile_version && record.profile_version !== filters.profile_version)
+      ) {
+        excluded.profile_filter += 1;
+        continue;
+      }
+      if (filters.agent_id && !record.agent_ids.includes(filters.agent_id)) {
+        excluded.agent_filter += 1;
+        continue;
+      }
+      if (filters.verdict && record.evaluation.verdict !== filters.verdict) {
+        excluded.verdict_filter += 1;
+        continue;
+      }
+      if (
+        filters.constraint_compliance &&
+        record.evaluation.constraint_compliance !== filters.constraint_compliance
+      ) {
+        excluded.constraint_filter += 1;
+        continue;
+      }
+      if (filters.confidence && intentQualityConfidenceBand(record.evaluation.evidence_confidence) !== filters.confidence) {
+        excluded.confidence_filter += 1;
+        continue;
+      }
+      if (filters.job_id && record.job_id !== filters.job_id) {
+        excluded.job_filter += 1;
+        continue;
+      }
+      if (filters.intent_id && record.intent_id !== filters.intent_id) {
+        excluded.intent_filter += 1;
+        continue;
+      }
+      records.push(record);
+    }
+
+    records.sort((left, right) =>
+      right.finalized_at.localeCompare(left.finalized_at) || right.intent_id.localeCompare(left.intent_id)
+    );
+    let start = 0;
+    if (filters.cursor) {
+      const cursor = decodeIntentQualityJobsCursor(filters.cursor);
+      if (!cursor) {
+        return json({ error: "intent quality jobs cursor is invalid", error_code: "intent_quality_jobs_cursor_invalid" }, 400);
+      }
+      const cursorIndex = records.findIndex((record) =>
+        record.finalized_at === cursor.finalized_at && record.intent_id === cursor.intent_id
+      );
+      if (cursorIndex < 0) {
+        return json({ error: "intent quality jobs cursor is invalid", error_code: "intent_quality_jobs_cursor_invalid" }, 400);
+      }
+      start = cursorIndex + 1;
+    }
+    const pageRecords = records.slice(start, start + filters.limit);
+    const jobs = await Promise.all(pageRecords.map(async (record) => intentQualityJob(
+      record,
+      await this.intentQualityPreviewCount(record.intent_id),
+    )));
+    const nextCursor = start + filters.limit < records.length && pageRecords.length > 0
+      ? encodeIntentQualityJobsCursor(pageRecords[pageRecords.length - 1])
+      : null;
+    const excludedTotal = Object.values(excluded).reduce((total, count) => total + count, 0);
+    const findings: string[] = [];
+    if (excluded.not_finalized > 0) findings.push(`${excluded.not_finalized} registered intent contract(s) are not finalized`);
+    if (excluded.unversioned_profile > 0) {
+      findings.push(`${excluded.unversioned_profile} finalized receipt(s) lack a versioned profile binding`);
+    }
+    if (excluded.invalid_final_receipt > 0) findings.push(`${excluded.invalid_final_receipt} invalid final receipt(s) were excluded`);
+    if (excluded.tenant_mismatch > 0) findings.push(`${excluded.tenant_mismatch} tenant-mismatched final receipt(s) were excluded`);
+    if (records.length === 0) findings.push("no finalized jobs matched the requested filters");
+
+    return json({
+      schema_version: "agentpass.intent-quality-jobs.v1",
+      tenant_id: tenantId,
+      filters: intentQualityJobsResponseFilters(filters),
+      records_scanned: intentIndex.length,
+      finalized_records: finalizedRecords,
+      matched_records: records.length,
+      excluded_records: { total: excludedTotal, by_reason: excluded },
+      data_quality: { findings },
+      jobs,
+      pagination: {
+        limit: filters.limit,
+        returned_jobs: jobs.length,
+        next_cursor: nextCursor,
+      },
+    });
+  }
+
+  async intentQualityPreviewCount(intentId: string): Promise<number> {
+    const evaluationIds = await this.state.storage.get<string[]>(`intent:${intentId}:evaluation:index`) || [];
+    let previewCount = 0;
+    for (const evaluationId of evaluationIds) {
+      const evaluation = await this.state.storage.get<HostedIntentEvaluationReceipt>(
+        `intent:${intentId}:evaluation:${evaluationId}`,
+      );
+      if (evaluation?.evaluation_mode === "preview") previewCount += 1;
+    }
+    if (previewCount > 0) return previewCount;
+    const latestPreview = await this.state.storage.get<HostedIntentEvaluationReceipt>(
+      `intent:${intentId}:evaluation:latest-preview`,
+    );
+    return latestPreview?.evaluation_mode === "preview" ? 1 : 0;
   }
 
   async indexIntentQualityFinalization(intentId: string, finalizedAt: string): Promise<void> {
@@ -3267,6 +3462,97 @@ function parseIntentQualityFilters(url: URL): {
   };
 }
 
+function parseIntentQualityJobsFilters(url: URL): {
+  filters?: IntentQualityJobsFilters;
+  error?: string;
+  errorCode?: string;
+} {
+  const fromInput = optionalString(url.searchParams.get("from"));
+  const toInput = optionalString(url.searchParams.get("to"));
+  if (!fromInput || !toInput) {
+    return {
+      error: "intent quality jobs require from and to date-time parameters",
+      errorCode: "intent_quality_time_window_required",
+    };
+  }
+  const fromMs = Date.parse(fromInput);
+  const toMs = Date.parse(toInput);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
+    return {
+      error: "intent quality time window must contain valid date-times with from before to",
+      errorCode: "intent_quality_time_window_invalid",
+    };
+  }
+  if (toMs - fromMs > INTENT_QUALITY_MAX_WINDOW_MS) {
+    return {
+      error: "intent quality time window cannot exceed 90 days",
+      errorCode: "intent_quality_time_window_too_large",
+    };
+  }
+
+  const verdict = optionalString(url.searchParams.get("verdict"));
+  if (verdict && !["completed", "partial", "failed", "indeterminate"].includes(verdict)) {
+    return { error: `unsupported intent quality verdict: ${verdict}`, errorCode: "intent_quality_filter_invalid" };
+  }
+  const compliance = optionalString(url.searchParams.get("constraint_compliance"));
+  if (compliance && !["pass", "fail", "indeterminate"].includes(compliance)) {
+    return {
+      error: `unsupported intent quality constraint_compliance: ${compliance}`,
+      errorCode: "intent_quality_filter_invalid",
+    };
+  }
+  const confidence = optionalString(url.searchParams.get("confidence"));
+  if (confidence && !["low", "medium", "high"].includes(confidence)) {
+    return {
+      error: `unsupported intent quality confidence: ${confidence}`,
+      errorCode: "intent_quality_filter_invalid",
+    };
+  }
+  const limit = boundedIntegerQuery(url, "limit", 50, 1, 100);
+  if (limit === null) {
+    return { error: "limit must be an integer from 1 to 100", errorCode: "intent_quality_filter_invalid" };
+  }
+  for (const name of ["profile_key", "profile_version", "agent_id", "job_id", "intent_id"]) {
+    const value = optionalString(url.searchParams.get(name));
+    if (value && value.length > 160) {
+      return { error: `${name} cannot exceed 160 characters`, errorCode: "intent_quality_filter_invalid" };
+    }
+  }
+  const cursor = optionalString(url.searchParams.get("cursor"));
+  if (cursor && cursor.length > 1_024) {
+    return { error: "cursor cannot exceed 1024 characters", errorCode: "intent_quality_jobs_cursor_invalid" };
+  }
+
+  return {
+    filters: {
+      from: new Date(fromMs).toISOString(),
+      to: new Date(toMs).toISOString(),
+      ...(optionalString(url.searchParams.get("profile_key"))
+        ? { profile_key: stringValue(url.searchParams.get("profile_key")) }
+        : {}),
+      ...(optionalString(url.searchParams.get("profile_version"))
+        ? { profile_version: stringValue(url.searchParams.get("profile_version")) }
+        : {}),
+      ...(optionalString(url.searchParams.get("agent_id"))
+        ? { agent_id: stringValue(url.searchParams.get("agent_id")) }
+        : {}),
+      ...(verdict ? { verdict: verdict as IntentEvaluationReceipt["verdict"] } : {}),
+      ...(compliance
+        ? { constraint_compliance: compliance as IntentEvaluationReceipt["constraint_compliance"] }
+        : {}),
+      ...(confidence ? { confidence: confidence as IntentQualityJobsFilters["confidence"] } : {}),
+      ...(optionalString(url.searchParams.get("job_id"))
+        ? { job_id: stringValue(url.searchParams.get("job_id")) }
+        : {}),
+      ...(optionalString(url.searchParams.get("intent_id"))
+        ? { intent_id: stringValue(url.searchParams.get("intent_id")) }
+        : {}),
+      limit,
+      ...(cursor ? { cursor } : {}),
+    },
+  };
+}
+
 function boundedIntegerQuery(url: URL, name: string, fallback: number, minimum: number, maximum: number): number | null {
   const input = url.searchParams.get(name);
   if (input === null || input === "") return fallback;
@@ -3370,6 +3656,104 @@ function intentQualityResponseFilters(filters: IntentQualityFilters): Record<str
     ...(filters.verdict ? { verdict: filters.verdict } : {}),
     ...(filters.constraint_compliance ? { constraint_compliance: filters.constraint_compliance } : {}),
     minimum_sample_size: filters.minimum_sample_size,
+  };
+}
+
+function intentQualityJobsResponseFilters(filters: IntentQualityJobsFilters): Record<string, unknown> {
+  return {
+    time_window: { from: filters.from, to: filters.to, boundary: "[from,to)", maximum_days: 90 },
+    ...(filters.profile_key ? { profile_key: filters.profile_key } : {}),
+    ...(filters.profile_version ? { profile_version: filters.profile_version } : {}),
+    ...(filters.agent_id ? { agent_id: filters.agent_id } : {}),
+    ...(filters.verdict ? { verdict: filters.verdict } : {}),
+    ...(filters.constraint_compliance ? { constraint_compliance: filters.constraint_compliance } : {}),
+    ...(filters.confidence ? { confidence: filters.confidence } : {}),
+    ...(filters.job_id ? { job_id: filters.job_id } : {}),
+    ...(filters.intent_id ? { intent_id: filters.intent_id } : {}),
+  };
+}
+
+function intentQualityConfidenceBand(value: number): "low" | "medium" | "high" {
+  if (value >= INTENT_QUALITY_HIGH_CONFIDENCE) return "high";
+  if (value >= INTENT_QUALITY_LOW_CONFIDENCE) return "medium";
+  return "low";
+}
+
+function encodeIntentQualityJobsCursor(record: IntentQualityRecord): string {
+  return base64UrlJson({
+    schema_version: "agentpass.intent-quality-jobs-cursor.v1",
+    finalized_at: record.finalized_at,
+    intent_id: record.intent_id,
+  });
+}
+
+function decodeIntentQualityJobsCursor(value: string): { finalized_at: string; intent_id: string } | null {
+  try {
+    const parsed = JSON.parse(base64UrlDecode(value));
+    const cursor = recordValue(parsed);
+    if (
+      cursor.schema_version !== "agentpass.intent-quality-jobs-cursor.v1" ||
+      typeof cursor.finalized_at !== "string" ||
+      new Date(cursor.finalized_at).toISOString() !== cursor.finalized_at ||
+      typeof cursor.intent_id !== "string" ||
+      !cursor.intent_id ||
+      cursor.intent_id.length > 160
+    ) return null;
+    return { finalized_at: cursor.finalized_at, intent_id: cursor.intent_id };
+  } catch {
+    return null;
+  }
+}
+
+function intentQualityJob(record: IntentQualityRecord, previewCount: number): Record<string, unknown> {
+  const discipline = recordValue(record.evaluation.execution_discipline);
+  const confidenceBand = intentQualityConfidenceBand(record.evaluation.evidence_confidence);
+  const runtime = typeof discipline.runtime_ms === "number" && Number.isFinite(discipline.runtime_ms)
+    ? discipline.runtime_ms
+    : null;
+  const findings: string[] = [];
+  if (record.agent_ids.length === 0) findings.push("agent identity is missing");
+  if (runtime === null) findings.push("runtime metric is missing");
+  if (confidenceBand === "low") findings.push("final receipt has low evidence confidence");
+  if (
+    record.evaluation.verdict === "indeterminate" ||
+    record.evaluation.constraint_compliance === "indeterminate"
+  ) findings.push("final receipt contains an indeterminate outcome");
+  return {
+    schema_version: "agentpass.intent-quality-job.v1",
+    tenant_id: record.tenant_id,
+    finalized_at: record.finalized_at,
+    final_status: "finalized",
+    job_id: record.job_id,
+    intent_id: record.intent_id,
+    agent_id: record.agent_ids[0] || null,
+    agent_ids: record.agent_ids,
+    profile_binding: {
+      key: record.profile_key,
+      version: record.profile_version,
+      digest: record.profile_digest,
+    },
+    verdict: record.evaluation.verdict,
+    qualified_success: record.evaluation.qualified_success,
+    constraint_compliance: record.evaluation.constraint_compliance,
+    goal_attainment: record.evaluation.goal_attainment,
+    evidence_confidence: record.evaluation.evidence_confidence,
+    confidence_band: confidenceBand,
+    preview_count: previewCount,
+    execution_discipline: {
+      retries: qualityNumber(discipline.retries),
+      replays: qualityNumber(discipline.replays),
+      runtime_ms: runtime,
+    },
+    data_quality: {
+      missing_agent: record.agent_ids.length === 0,
+      missing_runtime: runtime === null,
+      low_confidence: confidenceBand === "low",
+      indeterminate:
+        record.evaluation.verdict === "indeterminate" ||
+        record.evaluation.constraint_compliance === "indeterminate",
+      findings,
+    },
   };
 }
 

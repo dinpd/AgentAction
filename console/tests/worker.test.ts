@@ -84,6 +84,9 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
   assert.match(body, /data-overview-filters/);
+  assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
+  assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentPass"/);
+  assert.match(body, />GitHub repository <span aria-hidden="true">↗<\/span><\/a>/);
   assert.match(body, /<h2 id="overview-title">Execution quality<\/h2>/);
   assert.match(body, /aria-label="Fleet quality boundaries"/);
   assert.match(body, /Profile-scoped immutable final receipts/);
@@ -96,8 +99,12 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentPass Gateway[\s\S]*Issue intent contract/);
   assert.match(body, /Authorize calls \/ approvals[\s\S]*Execution receipts \+ signed observations[\s\S]*Finalize immutable receipt/);
   assert.match(body, /Profile-scoped rollups[\s\S]*Observability Console/);
-  assert.match(body, /GitHub issue 32/);
   assert.match(body, /Finalized intent executions/);
+  assert.match(body, /data-jobs-filters/);
+  assert.match(body, /Finalized execution explorer/);
+  assert.match(body, /Exact job ID/);
+  assert.match(body, /Exact intent ID/);
+  assert.match(body, /<table class="jobs-table">/);
   assert.match(body, /Overview/);
   assert.match(body, /Job detail/);
   assert.match(body, /Exceptions/);
@@ -131,6 +138,9 @@ test("serves responsive and focus-visible lifecycle disclosure styles", async ()
   assert.match(body, /\.lifecycle-visible-title \{[^}]*font-size: 1\.02rem;/);
   assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.lifecycle-track \{ grid-template-columns: 1fr;/);
   assert.match(body, /\.lifecycle-track li \{[^}]*min-width: 0;/);
+  assert.match(body, /\.repo-link:hover, \.repo-link:focus-visible/);
+  assert.match(body, /\.jobs-table td::before \{[^}]*content: attr\(data-label\);/);
+  assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.jobs-table,[\s\S]*\.jobs-table tbody/);
 });
 
 test("derives tenant identity only from the verified Access claim", async () => {
@@ -221,6 +231,30 @@ test("reconstructs an allowlisted gateway request and strips browser-controlled 
   assert.equal(call.headers.get("user-agent"), "agentpass-observability-console/0.1");
 });
 
+test("forwards only allowlisted finalized Jobs explorer filters", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest(
+      "/api/console/tenants/tenant-alpha/intent-quality/jobs?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z&profile_key=support_refund.v1&confidence=low&job_id=job-1&intent_id=intent-1&limit=25&cursor=opaque",
+    ),
+    baseEnv(calls, () => json({ schema_version: "agentpass.intent-quality-jobs.v1", jobs: [] })),
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    "https://agentpass-gateway.internal/tenants/tenant-alpha/intent-quality/jobs?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z&profile_key=support_refund.v1&confidence=low&job_id=job-1&intent_id=intent-1&limit=25&cursor=opaque",
+  );
+  const rejected = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/intent-quality/jobs?include_evidence=true"),
+    baseEnv(calls),
+  );
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json() as any).error.code, "query_parameter_not_allowed");
+  assert.equal(calls.length, 1);
+});
+
 test("rejects tenant query overrides and unknown query parameters before forwarding", async () => {
   const calls: GatewayCall[] = [];
   const tenantOverride = await worker.fetch(
@@ -261,6 +295,7 @@ test("exposes only the planned read-side extension routes", async () => {
   const calls: GatewayCall[] = [];
   const paths = [
     "/api/console/tenants/tenant-alpha/health",
+    "/api/console/tenants/tenant-alpha/intent-quality/jobs?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z",
     "/api/console/tenants/tenant-alpha/intent-profiles",
     "/api/console/tenants/tenant-alpha/intent-profiles/support_refund.v1%401.0.0",
     "/api/console/tenants/tenant-alpha/intent-contracts?job_id=job-1",
@@ -277,6 +312,7 @@ test("exposes only the planned read-side extension routes", async () => {
   assert.equal(calls.length, paths.length);
   assert.deepEqual(calls.map((call) => new URL(call.url).pathname), [
     "/tenants/tenant-alpha/health",
+    "/tenants/tenant-alpha/intent-quality/jobs",
     "/tenants/tenant-alpha/intent-profiles",
     "/tenants/tenant-alpha/intent-profiles/support_refund.v1%401.0.0",
     "/tenants/tenant-alpha/intent-contracts",

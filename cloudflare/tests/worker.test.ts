@@ -1134,6 +1134,157 @@ test("profile-scoped quality rollups aggregate only finalized comparable receipt
   assert.equal(oversizedWindow.body.error_code, "intent_quality_time_window_too_large");
 });
 
+test("finalized Jobs explorer is tenant scoped filterable and cursor stable without raw evidence", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const profileDigest = "a".repeat(64);
+  const inputs = [
+    {
+      intentId: "jobs-completed",
+      agentId: "agent-a",
+      verdict: "completed",
+      compliance: "pass",
+      qualifiedSuccess: true,
+      goalAttainment: 1,
+      confidence: 1,
+      finalizedAt: "2026-07-21T10:00:00.000Z",
+      discipline: qualityDiscipline({ runtime_ms: 1_000, preferences_met: true }),
+    },
+    {
+      intentId: "jobs-partial",
+      agentId: "agent-a",
+      verdict: "partial",
+      compliance: "pass",
+      qualifiedSuccess: false,
+      goalAttainment: 0.5,
+      confidence: 0.8,
+      finalizedAt: "2026-07-21T10:01:00.000Z",
+      discipline: qualityDiscipline({ retries: 1, replays: 1, runtime_ms: 2_000, preferences_met: false }),
+    },
+    {
+      intentId: "jobs-failed",
+      agentId: "agent-b",
+      verdict: "failed",
+      compliance: "fail",
+      qualifiedSuccess: false,
+      goalAttainment: 0,
+      confidence: 0.5,
+      finalizedAt: "2026-07-21T10:02:00.000Z",
+      discipline: qualityDiscipline({ retries: 2, runtime_ms: 3_000, preferences_met: false }),
+    },
+    {
+      intentId: "jobs-indeterminate",
+      verdict: "indeterminate",
+      compliance: "indeterminate",
+      qualifiedSuccess: false,
+      goalAttainment: 0,
+      confidence: 0,
+      finalizedAt: "2026-07-21T10:03:00.000Z",
+      discipline: qualityDiscipline({ preferences_met: null }),
+    },
+  ] as const;
+  for (const input of inputs) {
+    seedIntentQualityFinalization(namespace, "acme", {
+      ...input,
+      profileKey: "support_refund.v1",
+      profileVersion: "v1",
+      profileDigest,
+    });
+  }
+  seedIntentQualityPreviewHistory(namespace, "acme", "jobs-partial", 2);
+  seedIntentQualityPreview(namespace, "acme", "jobs-preview-only");
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "jobs-tenant-mismatch",
+    agentId: "agent-a",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T10:04:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 100, preferences_met: true }),
+  });
+  const mismatch = namespace.stores.get("acme")?.get("intent:jobs-tenant-mismatch:finalization") as any;
+  mismatch.snapshot.tenant_id = "other";
+
+  const baseQuery = "from=2026-07-20T00%3A00%3A00.000Z&to=2026-07-22T00%3A00%3A00.000Z";
+  const firstPage = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs?${baseQuery}&profile_key=support_refund.v1&limit=2`,
+  );
+  assert.equal(firstPage.status, 200);
+  assert.equal(firstPage.body.schema_version, "agentpass.intent-quality-jobs.v1");
+  assert.equal(firstPage.body.tenant_id, "acme");
+  assert.equal(firstPage.body.matched_records, 4);
+  assert.equal(firstPage.body.excluded_records.by_reason.not_finalized, 1);
+  assert.equal(firstPage.body.excluded_records.by_reason.tenant_mismatch, 1);
+  assert.deepEqual(firstPage.body.jobs.map((job: any) => job.intent_id), ["jobs-indeterminate", "jobs-failed"]);
+  assert.equal(firstPage.body.jobs[0].final_status, "finalized");
+  assert.equal(firstPage.body.jobs[0].data_quality.indeterminate, true);
+  assert.equal(firstPage.body.jobs[0].data_quality.missing_agent, true);
+  assert.equal(firstPage.body.jobs[0].data_quality.missing_runtime, true);
+  assert.equal(firstPage.body.jobs[1].confidence_band, "low");
+  assert.equal(typeof firstPage.body.pagination.next_cursor, "string");
+  const serialized = JSON.stringify(firstPage.body.jobs);
+  assert.equal(serialized.includes("snapshot_id"), false);
+  assert.equal(serialized.includes("observations"), false);
+  assert.equal(serialized.includes("execution_receipts"), false);
+
+  const secondPage = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs?${baseQuery}&profile_key=support_refund.v1&limit=2&cursor=${encodeURIComponent(firstPage.body.pagination.next_cursor)}`,
+  );
+  assert.equal(secondPage.status, 200);
+  assert.deepEqual(secondPage.body.jobs.map((job: any) => job.intent_id), ["jobs-partial", "jobs-completed"]);
+  assert.equal(secondPage.body.jobs[0].preview_count, 2);
+  assert.equal(secondPage.body.jobs[0].execution_discipline.retries, 1);
+  assert.equal(secondPage.body.jobs[0].execution_discipline.replays, 1);
+  assert.equal(secondPage.body.pagination.next_cursor, null);
+  assert.equal(
+    new Set([...firstPage.body.jobs, ...secondPage.body.jobs].map((job: any) => job.intent_id)).size,
+    4,
+  );
+
+  const filtered = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs?${baseQuery}&agent_id=agent-a&confidence=medium&job_id=job-jobs-partial&intent_id=jobs-partial`,
+  );
+  assert.equal(filtered.status, 200);
+  assert.deepEqual(filtered.body.jobs.map((job: any) => job.intent_id), ["jobs-partial"]);
+  assert.deepEqual(filtered.body.jobs[0].profile_binding, {
+    key: "support_refund.v1",
+    version: "v1",
+    digest: profileDigest,
+  });
+
+  const invalidCursor = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs?${baseQuery}&cursor=not-a-cursor`,
+  );
+  assert.equal(invalidCursor.status, 400);
+  assert.equal(invalidCursor.body.error_code, "intent_quality_jobs_cursor_invalid");
+  const oversizedWindow = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-01-01T00%3A00%3A00Z&to=2026-07-21T00%3A00%3A00Z",
+  );
+  assert.equal(oversizedWindow.status, 400);
+  assert.equal(oversizedWindow.body.error_code, "intent_quality_time_window_too_large");
+});
+
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
   const namespace = new MemoryNamespace();
   const env = trustedUnsignedObservationEnv(namespace);
@@ -2164,6 +2315,28 @@ function seedIntentQualityPreview(namespace: MemoryNamespace, tenantId: string, 
   const index = (store.get("intent:index") as string[] | undefined) || [];
   store.set(`intent:${intentId}:evaluation:latest-preview`, { evaluation_mode: "preview" });
   store.set("intent:index", [intentId, ...index.filter((id) => id !== intentId)]);
+}
+
+function seedIntentQualityPreviewHistory(
+  namespace: MemoryNamespace,
+  tenantId: string,
+  intentId: string,
+  count: number,
+): void {
+  namespace.get(tenantId);
+  const store = namespace.stores.get(tenantId);
+  assert.ok(store);
+  const evaluationIds: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const evaluationId = `eval-preview-${intentId}-${index + 1}`;
+    evaluationIds.push(evaluationId);
+    store.set(`intent:${intentId}:evaluation:${evaluationId}`, {
+      schema_version: "agentpass.intent-evaluation.v1",
+      evaluation_id: evaluationId,
+      evaluation_mode: "preview",
+    });
+  }
+  store.set(`intent:${intentId}:evaluation:index`, evaluationIds);
 }
 
 async function signHs256Jwt(claims: Record<string, unknown>, secret: string): Promise<string> {

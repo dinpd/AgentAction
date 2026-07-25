@@ -7,6 +7,70 @@ import worker, { consoleApp } from "../src/worker.ts";
 const fixture = JSON.parse(
   await readFile(new URL("../fixtures/support-refund-overview.json", import.meta.url), "utf8"),
 ) as Record<string, any>;
+const JOBS_FIXTURE = {
+  schema_version: "agentpass.intent-quality-jobs.v1",
+  tenant_id: "acme",
+  records_scanned: 3,
+  finalized_records: 2,
+  matched_records: 2,
+  excluded_records: { total: 1, by_reason: { not_finalized: 1 } },
+  data_quality: { findings: ["1 registered intent contract is not finalized"] },
+  jobs: [
+    {
+      schema_version: "agentpass.intent-quality-job.v1",
+      tenant_id: "acme",
+      finalized_at: "2026-07-25T11:45:00.000Z",
+      final_status: "finalized",
+      job_id: "job-indeterminate",
+      intent_id: "intent-indeterminate",
+      agent_id: null,
+      agent_ids: [],
+      profile_binding: { key: "support_refund.v1", version: "v1", digest: "a".repeat(64) },
+      verdict: "indeterminate",
+      qualified_success: false,
+      constraint_compliance: "indeterminate",
+      goal_attainment: 0,
+      evidence_confidence: 0.4,
+      confidence_band: "low",
+      preview_count: 1,
+      execution_discipline: { retries: 2, replays: 1, runtime_ms: null },
+      data_quality: {
+        missing_agent: true,
+        missing_runtime: true,
+        low_confidence: true,
+        indeterminate: true,
+        findings: ["agent identity is missing", "runtime metric is missing", "final receipt has low evidence confidence"],
+      },
+    },
+    {
+      schema_version: "agentpass.intent-quality-job.v1",
+      tenant_id: "acme",
+      finalized_at: "2026-07-25T11:30:00.000Z",
+      final_status: "finalized",
+      job_id: "job-completed",
+      intent_id: "intent-completed",
+      agent_id: "refund-agent",
+      agent_ids: ["refund-agent"],
+      profile_binding: { key: "support_refund.v1", version: "v1", digest: "a".repeat(64) },
+      verdict: "completed",
+      qualified_success: true,
+      constraint_compliance: "pass",
+      goal_attainment: 1,
+      evidence_confidence: 1,
+      confidence_band: "high",
+      preview_count: 0,
+      execution_discipline: { retries: 0, replays: 0, runtime_ms: 850 },
+      data_quality: {
+        missing_agent: false,
+        missing_runtime: false,
+        low_confidence: false,
+        indeterminate: false,
+        findings: [],
+      },
+    },
+  ],
+  pagination: { limit: 25, returned_jobs: 2, next_cursor: "opaque-next" },
+};
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
 const SHELL_HTML = await (
   await worker.fetch(new Request("https://console.test/"), {
@@ -95,12 +159,45 @@ class FakeDocument {
       "[data-overview-findings]",
       "[data-overview-findings-list]",
       "[data-rollup-list]",
+      "[data-console-view='overview']",
+      "[data-console-view='jobs']",
+      "[data-overview-context='boundaries']",
+      "[data-overview-context='lifecycle']",
+      "[data-nav-overview]",
+      "[data-nav-jobs]",
+      "[data-jobs-filters]",
+      "[data-reset-jobs-filters]",
+      "[data-jobs-filter-window]",
+      "[data-jobs-filter-profile-key]",
+      "[data-jobs-filter-profile-version]",
+      "[data-jobs-filter-agent]",
+      "[data-jobs-filter-verdict]",
+      "[data-jobs-filter-constraint]",
+      "[data-jobs-filter-confidence]",
+      "[data-jobs-filter-job]",
+      "[data-jobs-filter-intent]",
+      "[data-jobs-window-summary]",
+      "[data-jobs-message]",
+      "[data-jobs-message-title]",
+      "[data-jobs-message-detail]",
+      "[data-jobs-content]",
+      "[data-jobs-summary]",
+      "[data-jobs-findings]",
+      "[data-jobs-list]",
+      "[data-jobs-page-summary]",
+      "[data-jobs-next]",
     ]) {
       this.nodes.set(selector, new FakeElement(selector.includes("filters") ? "form" : "div"));
     }
     this.get("[data-filter-window]").value = "7";
     this.get("[data-filter-verdict]").value = "";
     this.get("[data-filter-constraint]").value = "";
+    this.get("[data-jobs-filter-window]").value = "7";
+    this.get("[data-jobs-filter-verdict]").value = "";
+    this.get("[data-jobs-filter-constraint]").value = "";
+    this.get("[data-jobs-filter-confidence]").value = "";
+    this.get("[data-console-view='jobs']").hidden = true;
+    this.get("[data-jobs-content]").hidden = true;
   }
 
   querySelector(selector: string): FakeElement | null {
@@ -121,6 +218,9 @@ class FakeDocument {
 
 type RuntimeOptions = {
   dataState?: "fresh" | "stale";
+  hash?: string;
+  jobsPayload?: Record<string, any>;
+  jobsStatus?: number;
   payload?: Record<string, any>;
   rollupStatus?: number;
   search?: string;
@@ -132,10 +232,11 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const requests: string[] = [];
   const pageUrls: string[] = [];
   const payload = structuredClone(options.payload || fixture);
+  const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
   const runtime = {
     Date: FixedDate,
     document,
-    location: { pathname: "/", search: options.search || "" },
+    location: { hash: options.hash || "#overview", pathname: "/", search: options.search || "" },
     history: {
       replaceState(_data: unknown, _unused: string, url?: string | URL | null): void {
         pageUrls.push(String(url || ""));
@@ -170,6 +271,20 @@ function makeRuntime(options: RuntimeOptions = {}) {
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
         });
       }
+      if (path.startsWith("/api/console/tenants/acme/intent-quality/jobs?")) {
+        const status = options.jobsStatus || 200;
+        if (status !== 200) {
+          return response(
+            { error: { code: "console_test_failure", message: status === 403 ? "Tenant access denied." : "Gateway unavailable." } },
+            status,
+          );
+        }
+        return response(jobsPayload, 200, {
+          "x-agentpass-console-data-state": options.dataState || "fresh",
+          "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
+          "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
+        });
+      }
       throw new Error(`Unexpected console request: ${path}`);
     },
   };
@@ -195,6 +310,13 @@ function textOf(node: FakeElement): string {
 function countTag(node: FakeElement, tagName: string): number {
   return (node.tagName === tagName ? 1 : 0)
     + node.children.reduce((total, child) => total + countTag(child, tagName), 0);
+}
+
+function elementsByTag(node: FakeElement, tagName: string): FakeElement[] {
+  return [
+    ...(node.tagName === tagName ? [node] : []),
+    ...node.children.flatMap((child) => elementsByTag(child, tagName)),
+  ];
 }
 
 test("builds a bounded allowlisted query and synchronizes practitioner filters", async () => {
@@ -305,4 +427,119 @@ test("treats API strings as text and preserves accessible shell controls", async
   assert.match(SHELL_HTML, /<button class="primary-button" type="submit">Apply filters<\/button>/);
   assert.match(SHELL_HTML, /aria-live="polite"/);
   assert.doesNotMatch(SHELL_HTML, /gateway-secret|AGENTID_GATEWAY_TOKEN/);
+});
+
+test("loads Jobs as a functional second view with URL-persisted allowlisted filters", async () => {
+  const { controller, document, pageUrls, requests } = makeRuntime({
+    hash: "#jobs",
+    search: "?window=30&profile_key=support_refund.v1&agent_id=refund-agent&confidence=low&job_id=job-indeterminate&intent_id=intent-indeterminate",
+  });
+  await controller.ready;
+
+  assert.equal(document.get("[data-console-view='overview']").hidden, true);
+  assert.equal(document.get("[data-console-view='jobs']").hidden, false);
+  assert.equal(document.get("[data-overview-context='boundaries']").hidden, true);
+  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, true);
+  assert.equal(document.get("[data-nav-jobs]").attributes.get("aria-current"), "page");
+  const latestRequest = requests.at(-1) || "";
+  assert.match(latestRequest, /^\/api\/console\/tenants\/acme\/intent-quality\/jobs\?/);
+  assert.match(latestRequest, /confidence=low/);
+  assert.match(latestRequest, /job_id=job-indeterminate/);
+  assert.equal(requests.some((request) => request.includes("/intent-quality/rollups?")), false);
+
+  const query = controller.buildJobsQuery();
+  assert.equal(query.get("from"), "2026-06-25T12:00:00.000Z");
+  assert.equal(query.get("to"), "2026-07-25T12:00:00.000Z");
+  assert.equal(query.get("limit"), "25");
+  assert.equal(query.get("profile_key"), "support_refund.v1");
+  assert.equal(query.get("agent_id"), "refund-agent");
+  assert.equal(query.get("confidence"), "low");
+  assert.equal(query.get("job_id"), "job-indeterminate");
+  assert.equal(query.get("intent_id"), "intent-indeterminate");
+  assert.deepEqual([...query.keys()].sort(), [
+    "agent_id",
+    "confidence",
+    "from",
+    "intent_id",
+    "job_id",
+    "limit",
+    "profile_key",
+    "to",
+  ]);
+  assert.match(pageUrls.at(-1) || "", /#jobs$/);
+  assert.match(pageUrls.at(-1) || "", /confidence=low/);
+  controller.showView("overview");
+  assert.equal(document.get("[data-overview-context='boundaries']").hidden, false);
+  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, false);
+});
+
+test("renders finalized Jobs rows with explicit boundaries findings and stable detail targets", async () => {
+  const { controller, document, pageUrls, requests } = makeRuntime({ hash: "#jobs" });
+  await controller.ready;
+
+  const list = document.get("[data-jobs-list]");
+  assert.equal(list.children.length, 2);
+  const rendered = textOf(list);
+  assert.match(rendered, /job-indeterminate/);
+  assert.match(rendered, /intent-indeterminate/);
+  assert.match(rendered, /Missing identity/);
+  assert.match(rendered, /low 40%/);
+  assert.match(rendered, /Constraint indeterminate/);
+  assert.match(rendered, /1 preview/);
+  assert.match(rendered, /2 retries · 1 replays/);
+  assert.match(rendered, /Finalized/);
+  assert.match(rendered, /support_refund\.v1/);
+  assert.equal(document.get("[data-jobs-message]").hidden, true);
+  assert.equal(document.get("[data-jobs-next]").hidden, false);
+  const links = elementsByTag(list, "a");
+  assert.equal(links.length, 2);
+  assert.equal(links[0].attributes.get("href"), "/?job_id=job-indeterminate#job-detail");
+  assert.equal(links[0].attributes.get("href")?.includes("evidence"), false);
+
+  await controller.loadJobs("opaque-next");
+  assert.match(requests.at(-1) || "", /cursor=opaque-next/);
+  assert.match(pageUrls.at(-1) || "", /cursor=opaque-next/);
+  assert.match(document.get("[data-jobs-page-summary]").textContent, /cursor-stable subsequent page/);
+});
+
+test("renders explicit empty forbidden and unavailable Jobs states", async (context) => {
+  const emptyPayload = structuredClone(JOBS_FIXTURE);
+  emptyPayload.jobs = [];
+  emptyPayload.matched_records = 0;
+  emptyPayload.pagination.next_cursor = null;
+
+  await context.test("empty", async () => {
+    const { controller, document } = makeRuntime({ hash: "#jobs", jobsPayload: emptyPayload });
+    await controller.ready;
+    assert.equal(document.get("[data-jobs-message]").dataset.state, "empty");
+    assert.match(document.get("[data-jobs-message-title]").textContent, /No finalized jobs matched/);
+  });
+  await context.test("forbidden", async () => {
+    const { controller, document } = makeRuntime({ hash: "#jobs", jobsStatus: 403 });
+    await controller.ready;
+    assert.equal(document.get("[data-jobs-message]").dataset.state, "forbidden");
+  });
+  await context.test("unavailable", async () => {
+    const { controller, document } = makeRuntime({ hash: "#jobs", jobsStatus: 503 });
+    await controller.ready;
+    assert.equal(document.get("[data-jobs-message]").dataset.state, "unavailable");
+  });
+  await context.test("unauthorized", async () => {
+    const { controller, document } = makeRuntime({ hash: "#jobs", sessionStatus: 401 });
+    await controller.ready;
+    assert.equal(document.get("[data-jobs-message]").dataset.state, "unauthorized");
+  });
+  await context.test("stale", async () => {
+    const { controller, document } = makeRuntime({ dataState: "stale", hash: "#jobs" });
+    await controller.ready;
+    assert.equal(document.get("[data-status-card]").dataset.state, "stale");
+    assert.match(document.get("[data-status-detail]").textContent, /12 minutes old/);
+  });
+  await context.test("malformed", async () => {
+    const malformed = structuredClone(JOBS_FIXTURE);
+    malformed.jobs = malformed.jobs.map((job: Record<string, any>) => ({ ...job, profile_binding: {} }));
+    const { controller, document } = makeRuntime({ hash: "#jobs", jobsPayload: malformed });
+    await controller.ready;
+    assert.equal(document.get("[data-jobs-message]").dataset.state, "unavailable");
+  });
 });

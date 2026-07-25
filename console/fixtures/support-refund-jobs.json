@@ -1,0 +1,186 @@
+{
+  "schema_version": "agentpass.intent-quality-jobs.v1",
+  "tenant_id": "acme",
+  "filters": {
+    "time_window": {
+      "from": "2026-07-18T00:00:00.000Z",
+      "to": "2026-07-25T00:00:00.000Z",
+      "boundary": "[from,to)",
+      "maximum_days": 90
+    }
+  },
+  "records_scanned": 6,
+  "finalized_records": 5,
+  "matched_records": 4,
+  "excluded_records": {
+    "total": 2,
+    "by_reason": {
+      "not_finalized": 1,
+      "invalid_final_receipt": 0,
+      "unversioned_profile": 1,
+      "tenant_mismatch": 0,
+      "outside_time_window": 0,
+      "profile_filter": 0,
+      "agent_filter": 0,
+      "verdict_filter": 0,
+      "constraint_filter": 0,
+      "confidence_filter": 0,
+      "job_filter": 0,
+      "intent_filter": 0
+    }
+  },
+  "data_quality": {
+    "findings": [
+      "1 registered intent contract is not finalized",
+      "1 finalized receipt lacks a versioned profile binding"
+    ]
+  },
+  "jobs": [
+    {
+      "schema_version": "agentpass.intent-quality-job.v1",
+      "tenant_id": "acme",
+      "finalized_at": "2026-07-25T11:45:00.000Z",
+      "final_status": "finalized",
+      "job_id": "job-refund-indeterminate",
+      "intent_id": "intent-refund-indeterminate",
+      "agent_id": null,
+      "agent_ids": [],
+      "profile_binding": {
+        "key": "support_refund.v1",
+        "version": "v1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verdict": "indeterminate",
+      "qualified_success": false,
+      "constraint_compliance": "indeterminate",
+      "goal_attainment": 0,
+      "evidence_confidence": 0.4,
+      "confidence_band": "low",
+      "preview_count": 1,
+      "execution_discipline": {
+        "retries": 2,
+        "replays": 1,
+        "runtime_ms": null
+      },
+      "data_quality": {
+        "missing_agent": true,
+        "missing_runtime": true,
+        "low_confidence": true,
+        "indeterminate": true,
+        "findings": [
+          "agent identity is missing",
+          "runtime metric is missing",
+          "final receipt has low evidence confidence",
+          "final receipt contains an indeterminate outcome"
+        ]
+      }
+    },
+    {
+      "schema_version": "agentpass.intent-quality-job.v1",
+      "tenant_id": "acme",
+      "finalized_at": "2026-07-25T11:30:00.000Z",
+      "final_status": "finalized",
+      "job_id": "job-refund-failed",
+      "intent_id": "intent-refund-failed",
+      "agent_id": "refund-agent-b",
+      "agent_ids": ["refund-agent-b"],
+      "profile_binding": {
+        "key": "support_refund.v1",
+        "version": "v1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verdict": "failed",
+      "qualified_success": false,
+      "constraint_compliance": "fail",
+      "goal_attainment": 0,
+      "evidence_confidence": 0.55,
+      "confidence_band": "low",
+      "preview_count": 2,
+      "execution_discipline": {
+        "retries": 2,
+        "replays": 0,
+        "runtime_ms": 3200
+      },
+      "data_quality": {
+        "missing_agent": false,
+        "missing_runtime": false,
+        "low_confidence": true,
+        "indeterminate": false,
+        "findings": ["final receipt has low evidence confidence"]
+      }
+    },
+    {
+      "schema_version": "agentpass.intent-quality-job.v1",
+      "tenant_id": "acme",
+      "finalized_at": "2026-07-25T11:15:00.000Z",
+      "final_status": "finalized",
+      "job_id": "job-refund-partial",
+      "intent_id": "intent-refund-partial",
+      "agent_id": "refund-agent-a",
+      "agent_ids": ["refund-agent-a"],
+      "profile_binding": {
+        "key": "support_refund.v1",
+        "version": "v1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verdict": "partial",
+      "qualified_success": false,
+      "constraint_compliance": "pass",
+      "goal_attainment": 0.5,
+      "evidence_confidence": 0.82,
+      "confidence_band": "medium",
+      "preview_count": 1,
+      "execution_discipline": {
+        "retries": 1,
+        "replays": 1,
+        "runtime_ms": 1800
+      },
+      "data_quality": {
+        "missing_agent": false,
+        "missing_runtime": false,
+        "low_confidence": false,
+        "indeterminate": false,
+        "findings": []
+      }
+    },
+    {
+      "schema_version": "agentpass.intent-quality-job.v1",
+      "tenant_id": "acme",
+      "finalized_at": "2026-07-25T11:00:00.000Z",
+      "final_status": "finalized",
+      "job_id": "job-refund-completed",
+      "intent_id": "intent-refund-completed",
+      "agent_id": "refund-agent-a",
+      "agent_ids": ["refund-agent-a"],
+      "profile_binding": {
+        "key": "support_refund.v2",
+        "version": "v2",
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "verdict": "completed",
+      "qualified_success": true,
+      "constraint_compliance": "pass",
+      "goal_attainment": 1,
+      "evidence_confidence": 0.98,
+      "confidence_band": "high",
+      "preview_count": 0,
+      "execution_discipline": {
+        "retries": 0,
+        "replays": 0,
+        "runtime_ms": 850
+      },
+      "data_quality": {
+        "missing_agent": false,
+        "missing_runtime": false,
+        "low_confidence": false,
+        "indeterminate": false,
+        "findings": []
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 25,
+    "returned_jobs": 4,
+    "next_cursor": null
+  }
+}

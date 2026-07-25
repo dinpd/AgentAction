@@ -75,6 +75,12 @@ const QUALITY_QUERY = new Set([
   "limit",
   "cursor",
 ]);
+const QUALITY_JOBS_QUERY = new Set([
+  ...QUALITY_QUERY,
+  "confidence",
+  "job_id",
+  "intent_id",
+]);
 const PROFILE_QUERY = new Set(["limit", "cursor"]);
 const CONTRACT_QUERY = new Set(["job_id", "intent_id", "profile_key", "profile_version", "limit", "cursor"]);
 const AUDIT_QUERY = new Set([
@@ -103,19 +109,23 @@ const SHELL_HTML = `<!doctype html>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <header class="topbar">
-    <div>
+    <div class="brand-lockup">
       <p class="eyebrow">AgentPass</p>
       <h1>Intent observability</h1>
+      <p class="brand-description">Open-source intent contracts, execution controls, and immutable evidence for accountable agents.</p>
     </div>
-    <div class="identity" aria-label="Authenticated context">
-      <span data-tenant>Tenant loading…</span>
-      <span data-subject>Identity loading…</span>
+    <div class="topbar-context">
+      <a class="repo-link" href="https://github.com/dinpd/AgentPass" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
+      <div class="identity" aria-label="Authenticated context">
+        <span data-tenant>Tenant loading…</span>
+        <span data-subject>Identity loading…</span>
+      </div>
     </div>
   </header>
   <div class="layout">
     <nav class="section-nav" aria-label="Console sections">
-      <a href="#overview" aria-current="page">Overview</a>
-      <a href="#jobs">Jobs</a>
+      <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
+      <a href="#jobs" data-nav-jobs>Jobs</a>
       <a href="#job-detail">Job detail</a>
       <a href="#exceptions">Exceptions</a>
     </nav>
@@ -129,7 +139,7 @@ const SHELL_HTML = `<!doctype html>
         </div>
         <button class="text-button" type="button" data-refresh hidden>Refresh data</button>
       </section>
-      <section class="intro" aria-labelledby="overview-title">
+      <section class="intro" data-overview-context="boundaries" aria-labelledby="overview-title">
         <div class="intro-copy">
           <p class="eyebrow">Fleet quality</p>
           <h2 id="overview-title">Execution quality</h2>
@@ -141,7 +151,7 @@ const SHELL_HTML = `<!doctype html>
           <div><dt>Evidence</dt><dd>Final receipts only</dd></div>
         </dl>
       </section>
-      <section id="lifecycle" class="lifecycle-panel" aria-labelledby="lifecycle-title">
+      <section id="lifecycle" class="lifecycle-panel" data-overview-context="lifecycle" aria-labelledby="lifecycle-title">
         <h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle</h2>
         <details class="lifecycle-disclosure">
           <summary>
@@ -204,7 +214,7 @@ const SHELL_HTML = `<!doctype html>
           </ol>
         </details>
       </section>
-      <section id="overview" class="overview-panel" aria-labelledby="overview-heading" tabindex="-1">
+      <section id="overview" class="overview-panel" data-console-view="overview" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
           <div>
             <p class="eyebrow">Overview</p>
@@ -290,12 +300,124 @@ const SHELL_HTML = `<!doctype html>
           <div class="rollup-list" data-rollup-list aria-live="polite"></div>
         </section>
       </section>
-      <div class="section-grid future-grid" aria-label="Planned observability views">
-        <section id="jobs" class="placeholder-card" tabindex="-1">
-          <span class="card-index">02</span>
-          <div><h2>Jobs</h2><p>Finalized executions with preview history and an explicit freeze boundary.</p></div>
-          <span class="phase" title="GitHub issue 32">Issue #32</span>
+      <section id="jobs" class="jobs-panel" data-console-view="jobs" aria-labelledby="jobs-heading" tabindex="-1" hidden>
+        <header class="section-heading">
+          <div>
+            <p class="eyebrow">Jobs</p>
+            <h2 id="jobs-heading">Finalized execution explorer</h2>
+            <p>Inspect immutable job outcomes inside one tenant and profile boundary. Preview history is summarized; raw evidence stays server-side.</p>
+          </div>
+          <span class="read-only-badge">Read only</span>
+        </header>
+        <form class="filter-form" data-jobs-filters>
+          <fieldset>
+            <legend>Filter finalized jobs</legend>
+            <div class="filter-grid jobs-filter-grid">
+              <label>
+                <span>Time window</span>
+                <select data-jobs-filter-window>
+                  <option value="1">Last 24 hours</option>
+                  <option value="7" selected>Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+              </label>
+              <label>
+                <span>Profile key</span>
+                <input data-jobs-filter-profile-key name="profile_key" type="text" maxlength="160" autocomplete="off" placeholder="support_refund.v1">
+              </label>
+              <label>
+                <span>Profile version</span>
+                <input data-jobs-filter-profile-version name="profile_version" type="text" maxlength="160" autocomplete="off" placeholder="v1">
+              </label>
+              <label>
+                <span>Agent</span>
+                <input data-jobs-filter-agent name="agent_id" type="text" maxlength="160" autocomplete="off" placeholder="refund-agent">
+              </label>
+              <label>
+                <span>Verdict</span>
+                <select data-jobs-filter-verdict name="verdict">
+                  <option value="">All verdicts</option>
+                  <option value="completed">Completed</option>
+                  <option value="partial">Partial</option>
+                  <option value="failed">Failed</option>
+                  <option value="indeterminate">Indeterminate</option>
+                </select>
+              </label>
+              <label>
+                <span>Constraint state</span>
+                <select data-jobs-filter-constraint name="constraint_compliance">
+                  <option value="">All states</option>
+                  <option value="pass">Pass</option>
+                  <option value="fail">Fail</option>
+                  <option value="indeterminate">Indeterminate</option>
+                </select>
+              </label>
+              <label>
+                <span>Confidence</span>
+                <select data-jobs-filter-confidence name="confidence">
+                  <option value="">All bands</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+              <label>
+                <span>Exact job ID</span>
+                <input data-jobs-filter-job name="job_id" type="text" maxlength="160" autocomplete="off" placeholder="job-…">
+              </label>
+              <label>
+                <span>Exact intent ID</span>
+                <input data-jobs-filter-intent name="intent_id" type="text" maxlength="160" autocomplete="off" placeholder="intent-…">
+              </label>
+            </div>
+            <div class="filter-actions">
+              <button class="primary-button" type="submit">Apply filters</button>
+              <button class="text-button" type="button" data-reset-jobs-filters>Reset</button>
+              <p data-jobs-window-summary>Preparing the bounded UTC window…</p>
+            </div>
+          </fieldset>
+        </form>
+        <section class="overview-state" data-jobs-message data-state="loading" role="status" aria-live="polite" aria-atomic="true">
+          <div class="state-mark" aria-hidden="true">↻</div>
+          <div>
+            <h3 data-jobs-message-title>Loading finalized jobs</h3>
+            <p data-jobs-message-detail>Reading the tenant-scoped finalized-receipt index.</p>
+          </div>
         </section>
+        <section class="jobs-content" data-jobs-content hidden>
+          <div class="jobs-summary">
+            <div>
+              <p class="eyebrow">Query coverage</p>
+              <h3 data-jobs-summary>Waiting for finalized jobs.</h3>
+            </div>
+            <p class="window-note" data-jobs-findings>No read-model findings.</p>
+          </div>
+          <div class="jobs-table-wrap">
+            <table class="jobs-table">
+              <caption>Finalized intent execution jobs</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Finalized</th>
+                  <th scope="col">Job / intent</th>
+                  <th scope="col">Agent</th>
+                  <th scope="col">Profile binding</th>
+                  <th scope="col">Outcome</th>
+                  <th scope="col">Evidence</th>
+                  <th scope="col">Discipline</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody data-jobs-list></tbody>
+            </table>
+          </div>
+          <div class="jobs-pagination">
+            <p data-jobs-page-summary>Showing the first page.</p>
+            <button class="text-button" type="button" data-jobs-next hidden>Show next page</button>
+          </div>
+        </section>
+      </section>
+      <div class="section-grid future-grid" aria-label="Planned observability views">
         <section id="job-detail" class="placeholder-card" tabindex="-1">
           <span class="card-index">03</span>
           <div><h2>Job detail</h2><p>Aligned decisions, execution receipts, observations, and immutable job evidence.</p></div>
@@ -340,6 +462,11 @@ h1, h2, p { margin: 0; }
 h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2.5vw, 2rem); font-weight: 500; letter-spacing: -0.025em; }
 h2 { font-size: 1rem; line-height: 1.3; }
 .eyebrow { margin-bottom: 3px; color: var(--muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+.brand-lockup { min-width: 0; }
+.brand-description { max-width: 660px; color: var(--muted); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-context { display: flex; align-items: center; gap: 20px; }
+.repo-link { padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--green); font-size: 0.7rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.repo-link:hover, .repo-link:focus-visible { background: var(--green-soft); outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .identity { display: grid; gap: 2px; text-align: right; color: var(--muted); font-size: 0.75rem; }
 .identity [data-tenant] { color: var(--ink); font-weight: 800; }
 .layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
@@ -396,6 +523,8 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
 footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 0.72rem; }
 @media (max-width: 820px) {
   .topbar { align-items: flex-start; padding: 15px 18px; }
+  .topbar-context { gap: 10px; }
+  .brand-description { max-width: 52vw; }
   .layout { display: block; }
   .section-nav { position: static; grid-template-columns: repeat(4, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .section-nav a { border-left: 0; border-bottom: 2px solid transparent; }
@@ -405,7 +534,10 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
   .section-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
-  .identity { max-width: 45%; }
+  .topbar { display: grid; }
+  .topbar-context { justify-content: space-between; }
+  .identity { max-width: none; }
+  .brand-description { max-width: none; white-space: normal; }
   .placeholder-card { grid-template-columns: auto minmax(0, 1fr); }
   .phase { grid-column: 2; justify-self: start; }
 }
@@ -434,7 +566,8 @@ button { cursor: pointer; }
 .primary-button:focus-visible { background: #0f3f30; outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .text-button:hover,
 .text-button:focus-visible { background: var(--green-soft); outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
-.overview-panel {
+.overview-panel,
+.jobs-panel {
   margin-top: 12px;
   padding: clamp(20px, 3vw, 34px);
   border: 1px solid var(--line);
@@ -442,7 +575,9 @@ button { cursor: pointer; }
   background: var(--surface-strong);
 }
 .overview-panel:target,
-.overview-panel:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
+.overview-panel:focus-visible,
+.jobs-panel:target,
+.jobs-panel:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -585,7 +720,41 @@ button { cursor: pointer; }
 .quality-totals strong { display: block; font-size: 1rem; }
 .quality-totals span { color: var(--muted); font-size: 0.6rem; text-transform: uppercase; }
 .window-note { color: var(--muted); font-size: 0.7rem; }
-.future-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.jobs-filter-grid { grid-template-columns: repeat(3, minmax(170px, 1fr)); }
+.jobs-content { display: grid; gap: 14px; }
+.jobs-summary {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+.jobs-summary h3 { font-family: Georgia, "Times New Roman", serif; font-size: 1.2rem; font-weight: 400; }
+.jobs-summary > p { max-width: 52%; text-align: right; }
+.jobs-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; }
+.jobs-table { width: 100%; min-width: 1060px; border-collapse: collapse; background: var(--surface-strong); font-size: 0.72rem; }
+.jobs-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.jobs-table th,
+.jobs-table td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.jobs-table thead th { background: #f7f5ef; color: var(--muted); font-size: 0.62rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.jobs-table tbody tr:last-child th,
+.jobs-table tbody tr:last-child td { border-bottom: 0; }
+.jobs-table code { display: block; max-width: 200px; color: var(--muted); font-size: 0.65rem; overflow-wrap: anywhere; }
+.job-link { color: var(--green); font-weight: 800; text-decoration-thickness: 1px; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.cell-stack { display: grid; gap: 3px; }
+.cell-stack small { color: var(--muted); font-size: 0.65rem; }
+.status-pill { display: inline-flex; width: max-content; padding: 3px 6px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 0.62rem; font-weight: 800; text-transform: capitalize; }
+.status-pill[data-state="partial"],
+.status-pill[data-state="failed"],
+.status-pill[data-state="indeterminate"],
+.status-pill[data-state="low"] { background: #f8e7c5; color: #765013; }
+.job-findings { margin: 2px 0 0; padding-left: 14px; color: #765013; font-size: 0.62rem; }
+.jobs-pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.jobs-pagination p { color: var(--muted); font-size: 0.72rem; }
+.future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
 @media (max-width: 1050px) {
   .intro { grid-template-columns: 1fr; gap: 12px; }
@@ -593,6 +762,7 @@ button { cursor: pointer; }
   .lifecycle-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .lifecycle-track li:nth-child(3n)::after { top: auto; right: 50%; bottom: -12px; transform: translateX(50%) rotate(45deg); }
   .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .jobs-filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-columns { grid-template-columns: 1fr; }
   .future-grid { grid-template-columns: 1fr; }
@@ -614,16 +784,31 @@ button { cursor: pointer; }
   .overview-summary,
   .finding-panel,
   .discipline-and-quality { grid-template-columns: 1fr; }
+  .jobs-summary { display: grid; }
+  .jobs-summary > p { max-width: none; text-align: left; }
+  .jobs-table-wrap { overflow: visible; border: 0; }
+  .jobs-table { min-width: 0; background: transparent; }
+  .jobs-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .jobs-table,
+  .jobs-table tbody,
+  .jobs-table tr,
+  .jobs-table td { display: block; width: 100%; }
+  .jobs-table tr { margin-bottom: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); }
+  .jobs-table td { display: grid; grid-template-columns: minmax(90px, 0.35fr) minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .jobs-table td::before { color: var(--muted); content: attr(data-label); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+  .jobs-table td:last-child { border-bottom: 0; }
   .summary-totals { grid-template-columns: repeat(2, 1fr); }
   .filter-actions { align-items: flex-start; flex-wrap: wrap; }
   .filter-actions p { flex-basis: 100%; margin-left: 0; text-align: left; }
 }
 @media (max-width: 520px) {
   .filter-grid,
-  .metric-grid { grid-template-columns: 1fr; }
+  .metric-grid,
+  .jobs-filter-grid { grid-template-columns: 1fr; }
   .summary-totals,
   .quality-totals { grid-template-columns: repeat(2, 1fr); }
-  .overview-panel { padding: 16px; }
+  .overview-panel,
+  .jobs-panel { padding: 16px; }
   .profile-body,
   .profile-header { padding: 16px; }
   .distribution,
@@ -636,13 +821,16 @@ export type ConsoleAppRuntime = {
   document: Document;
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
   history: Pick<History, "replaceState">;
-  location: Pick<Location, "pathname" | "search">;
+  location: Pick<Location, "hash" | "pathname" | "search">;
 };
 
 export type ConsoleAppController = {
+  buildJobsQuery(cursor?: string): URLSearchParams;
   buildQualityQuery(): URLSearchParams;
+  loadJobs(cursor?: string): Promise<void>;
   loadOverview(): Promise<void>;
   ready: Promise<void>;
+  showView(view: "jobs" | "overview"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
@@ -676,9 +864,37 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const overviewFindings = required<HTMLElement>("[data-overview-findings]");
   const overviewFindingsList = required<HTMLElement>("[data-overview-findings-list]");
   const rollupList = required<HTMLElement>("[data-rollup-list]");
+  const overviewPanel = required<HTMLElement>("[data-console-view='overview']");
+  const jobsPanel = required<HTMLElement>("[data-console-view='jobs']");
+  const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
+  const lifecyclePanel = required<HTMLElement>("[data-overview-context='lifecycle']");
+  const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
+  const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
+  const jobsFilterForm = required<HTMLFormElement>("[data-jobs-filters]");
+  const resetJobsButton = required<HTMLButtonElement>("[data-reset-jobs-filters]");
+  const jobsWindowFilter = required<HTMLSelectElement>("[data-jobs-filter-window]");
+  const jobsProfileKeyFilter = required<HTMLInputElement>("[data-jobs-filter-profile-key]");
+  const jobsProfileVersionFilter = required<HTMLInputElement>("[data-jobs-filter-profile-version]");
+  const jobsAgentFilter = required<HTMLInputElement>("[data-jobs-filter-agent]");
+  const jobsVerdictFilter = required<HTMLSelectElement>("[data-jobs-filter-verdict]");
+  const jobsConstraintFilter = required<HTMLSelectElement>("[data-jobs-filter-constraint]");
+  const jobsConfidenceFilter = required<HTMLSelectElement>("[data-jobs-filter-confidence]");
+  const jobsJobFilter = required<HTMLInputElement>("[data-jobs-filter-job]");
+  const jobsIntentFilter = required<HTMLInputElement>("[data-jobs-filter-intent]");
+  const jobsWindowSummary = required<HTMLElement>("[data-jobs-window-summary]");
+  const jobsMessage = required<HTMLElement>("[data-jobs-message]");
+  const jobsMessageTitle = required<HTMLElement>("[data-jobs-message-title]");
+  const jobsMessageDetail = required<HTMLElement>("[data-jobs-message-detail]");
+  const jobsContent = required<HTMLElement>("[data-jobs-content]");
+  const jobsSummary = required<HTMLElement>("[data-jobs-summary]");
+  const jobsFindings = required<HTMLElement>("[data-jobs-findings]");
+  const jobsList = required<HTMLElement>("[data-jobs-list]");
+  const jobsPageSummary = required<HTMLElement>("[data-jobs-page-summary]");
+  const jobsNextButton = required<HTMLButtonElement>("[data-jobs-next]");
   const allowedWindows = new Set(["1", "7", "30", "90"]);
   const allowedVerdicts = new Set(["", "completed", "partial", "failed", "indeterminate"]);
   const allowedConstraints = new Set(["", "pass", "fail", "indeterminate"]);
+  const allowedConfidence = new Set(["", "low", "medium", "high"]);
   const statusMessages: Record<string, [string, string]> = {
     loading: ["Loading fleet quality", "Reading immutable final receipts through the tenant-scoped BFF."],
     ready: ["Fleet quality is current", "Finalized execution quality is grouped by immutable profile binding."],
@@ -689,6 +905,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     unavailable: ["Console data is unavailable", "The private AgentPass gateway cannot be reached. Try again or contact an operator."],
   };
   let tenantId = "";
+  let activeView: "jobs" | "overview" = runtime.location.hash === "#jobs" ? "jobs" : "overview";
+  let currentJobsCursor = "";
+  let nextJobsCursor = "";
+  let jobsLoaded = false;
 
   function record(value: unknown): Record<string, any> {
     return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -753,6 +973,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     overviewMessage.hidden = false;
   }
 
+  function setJobsState(state: string, title: string, detail: string): void {
+    jobsMessage.dataset.state = state;
+    jobsMessageTitle.textContent = title;
+    jobsMessageDetail.textContent = detail;
+    jobsMessage.hidden = false;
+  }
+
   function failureState(status: number): "unauthorized" | "forbidden" | "unavailable" {
     if (status === 401) return "unauthorized";
     if (status === 403) return "forbidden";
@@ -791,6 +1018,24 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     constraintFilter.value = allowedConstraints.has(constraint) ? constraint : "";
   }
 
+  function restoreJobsFilters(): void {
+    const query = new URLSearchParams(runtime.location.search || "");
+    const windowValue = query.get("window") || "";
+    if (allowedWindows.has(windowValue)) jobsWindowFilter.value = windowValue;
+    jobsProfileKeyFilter.value = (query.get("profile_key") || "").slice(0, 160);
+    jobsProfileVersionFilter.value = (query.get("profile_version") || "").slice(0, 160);
+    jobsAgentFilter.value = (query.get("agent_id") || "").slice(0, 160);
+    const verdict = query.get("verdict") || "";
+    jobsVerdictFilter.value = allowedVerdicts.has(verdict) ? verdict : "";
+    const constraint = query.get("constraint_compliance") || "";
+    jobsConstraintFilter.value = allowedConstraints.has(constraint) ? constraint : "";
+    const confidence = query.get("confidence") || "";
+    jobsConfidenceFilter.value = allowedConfidence.has(confidence) ? confidence : "";
+    jobsJobFilter.value = (query.get("job_id") || "").slice(0, 160);
+    jobsIntentFilter.value = (query.get("intent_id") || "").slice(0, 160);
+    currentJobsCursor = (query.get("cursor") || "").slice(0, 1_024);
+  }
+
   function resetFilters(): void {
     windowFilter.value = "7";
     profileKeyFilter.value = "";
@@ -800,18 +1045,36 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     constraintFilter.value = "";
   }
 
+  function resetJobsFilters(): void {
+    jobsWindowFilter.value = "7";
+    jobsProfileKeyFilter.value = "";
+    jobsProfileVersionFilter.value = "";
+    jobsAgentFilter.value = "";
+    jobsVerdictFilter.value = "";
+    jobsConstraintFilter.value = "";
+    jobsConfidenceFilter.value = "";
+    jobsJobFilter.value = "";
+    jobsIntentFilter.value = "";
+    currentJobsCursor = "";
+    nextJobsCursor = "";
+  }
+
   function appendTextFilter(query: URLSearchParams, name: string, value: string): void {
     const normalized = value.trim().slice(0, 160);
     if (normalized) query.set(name, normalized);
   }
 
-  function queryWindow(): { days: number; from: Date; to: Date } {
-    const selected = allowedWindows.has(windowFilter.value) ? windowFilter.value : "7";
+  function queryWindowFor(filter: HTMLSelectElement): { days: number; from: Date; to: Date } {
+    const selected = allowedWindows.has(filter.value) ? filter.value : "7";
     const days = Number(selected);
     const to = new runtime.Date(runtime.Date.now());
     to.setMilliseconds(0);
     const from = new runtime.Date(to.getTime() - days * 86_400_000);
     return { days, from, to };
+  }
+
+  function queryWindow(): { days: number; from: Date; to: Date } {
+    return queryWindowFor(windowFilter);
   }
 
   function buildQualityQuery(): URLSearchParams {
@@ -834,7 +1097,33 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     return query;
   }
 
-  function syncPageUrl(): void {
+  function buildJobsQuery(cursor = currentJobsCursor): URLSearchParams {
+    const window = queryWindowFor(jobsWindowFilter);
+    const query = new URLSearchParams({
+      from: window.from.toISOString(),
+      to: window.to.toISOString(),
+      limit: "25",
+    });
+    appendTextFilter(query, "profile_key", jobsProfileKeyFilter.value);
+    appendTextFilter(query, "profile_version", jobsProfileVersionFilter.value);
+    appendTextFilter(query, "agent_id", jobsAgentFilter.value);
+    if (allowedVerdicts.has(jobsVerdictFilter.value) && jobsVerdictFilter.value) {
+      query.set("verdict", jobsVerdictFilter.value);
+    }
+    if (allowedConstraints.has(jobsConstraintFilter.value) && jobsConstraintFilter.value) {
+      query.set("constraint_compliance", jobsConstraintFilter.value);
+    }
+    if (allowedConfidence.has(jobsConfidenceFilter.value) && jobsConfidenceFilter.value) {
+      query.set("confidence", jobsConfidenceFilter.value);
+    }
+    appendTextFilter(query, "job_id", jobsJobFilter.value);
+    appendTextFilter(query, "intent_id", jobsIntentFilter.value);
+    if (cursor) query.set("cursor", cursor.slice(0, 1_024));
+    jobsWindowSummary.textContent = `${window.days}-day UTC window · ${window.from.toISOString()} to ${window.to.toISOString()}`;
+    return query;
+  }
+
+  function syncOverviewPageUrl(): void {
     const pageQuery = new URLSearchParams();
     pageQuery.set("window", allowedWindows.has(windowFilter.value) ? windowFilter.value : "7");
     appendTextFilter(pageQuery, "profile_key", profileKeyFilter.value);
@@ -848,6 +1137,49 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
     const suffix = pageQuery.toString();
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#overview`);
+  }
+
+  function syncJobsPageUrl(cursor = currentJobsCursor): void {
+    const pageQuery = new URLSearchParams();
+    pageQuery.set("window", allowedWindows.has(jobsWindowFilter.value) ? jobsWindowFilter.value : "7");
+    appendTextFilter(pageQuery, "profile_key", jobsProfileKeyFilter.value);
+    appendTextFilter(pageQuery, "profile_version", jobsProfileVersionFilter.value);
+    appendTextFilter(pageQuery, "agent_id", jobsAgentFilter.value);
+    if (allowedVerdicts.has(jobsVerdictFilter.value) && jobsVerdictFilter.value) {
+      pageQuery.set("verdict", jobsVerdictFilter.value);
+    }
+    if (allowedConstraints.has(jobsConstraintFilter.value) && jobsConstraintFilter.value) {
+      pageQuery.set("constraint_compliance", jobsConstraintFilter.value);
+    }
+    if (allowedConfidence.has(jobsConfidenceFilter.value) && jobsConfidenceFilter.value) {
+      pageQuery.set("confidence", jobsConfidenceFilter.value);
+    }
+    appendTextFilter(pageQuery, "job_id", jobsJobFilter.value);
+    appendTextFilter(pageQuery, "intent_id", jobsIntentFilter.value);
+    if (cursor) pageQuery.set("cursor", cursor.slice(0, 1_024));
+    const suffix = pageQuery.toString();
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#jobs`);
+  }
+
+  function copyOverviewFiltersToJobs(): void {
+    jobsWindowFilter.value = windowFilter.value;
+    jobsProfileKeyFilter.value = profileKeyFilter.value;
+    jobsProfileVersionFilter.value = profileVersionFilter.value;
+    jobsAgentFilter.value = agentFilter.value;
+    jobsVerdictFilter.value = verdictFilter.value;
+    jobsConstraintFilter.value = constraintFilter.value;
+    currentJobsCursor = "";
+    nextJobsCursor = "";
+  }
+
+  function showView(view: "jobs" | "overview"): void {
+    activeView = view;
+    overviewPanel.hidden = view !== "overview";
+    jobsPanel.hidden = view !== "jobs";
+    qualityIntro.hidden = view !== "overview";
+    lifecyclePanel.hidden = view !== "overview";
+    overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
+    jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
   }
 
   function appendDefinition(list: HTMLElement, term: string, value: string): void {
@@ -1150,6 +1482,205 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
   }
 
+  function isRenderableJob(value: unknown): value is Record<string, any> {
+    const job = record(value);
+    const binding = record(job.profile_binding);
+    return job.schema_version === "agentpass.intent-quality-job.v1"
+      && job.tenant_id === tenantId
+      && job.final_status === "finalized"
+      && typeof job.finalized_at === "string"
+      && Number.isFinite(Date.parse(job.finalized_at))
+      && typeof job.job_id === "string"
+      && Boolean(job.job_id)
+      && typeof job.intent_id === "string"
+      && Boolean(job.intent_id)
+      && typeof binding.key === "string"
+      && typeof binding.version === "string"
+      && typeof binding.digest === "string"
+      && /^[a-f0-9]{64}$/.test(binding.digest)
+      && ["completed", "partial", "failed", "indeterminate"].includes(job.verdict)
+      && ["pass", "fail", "indeterminate"].includes(job.constraint_compliance)
+      && typeof job.qualified_success === "boolean"
+      && typeof job.goal_attainment === "number"
+      && job.goal_attainment >= 0
+      && job.goal_attainment <= 1
+      && typeof job.evidence_confidence === "number"
+      && job.evidence_confidence >= 0
+      && job.evidence_confidence <= 1
+      && ["low", "medium", "high"].includes(job.confidence_band)
+      && Number.isInteger(job.preview_count)
+      && job.preview_count >= 0;
+  }
+
+  function tableCell(label: string, content: HTMLElement): HTMLElement {
+    const cell = create("td");
+    cell.setAttribute("data-label", label);
+    cell.append(content);
+    return cell;
+  }
+
+  function cellStack(...nodes: HTMLElement[]): HTMLElement {
+    const stack = create("div", "cell-stack");
+    stack.append(...nodes);
+    return stack;
+  }
+
+  function statusPill(label: string, state: string): HTMLElement {
+    const pill = create("span", "status-pill", label);
+    pill.dataset.state = state;
+    return pill;
+  }
+
+  function renderJob(job: Record<string, any>): HTMLElement {
+    const row = create("tr");
+    const binding = record(job.profile_binding);
+    const quality = record(job.data_quality);
+    const discipline = record(job.execution_discipline);
+    const finalized = new runtime.Date(job.finalized_at);
+    const finalizedLabel = Number.isFinite(finalized.getTime())
+      ? finalized.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC"
+      : safeText(job.finalized_at);
+
+    const jobLink = create("a", "job-link", safeText(job.job_id));
+    const detailQuery = new URLSearchParams({ job_id: safeText(job.job_id, "") });
+    jobLink.setAttribute("href", `${runtime.location.pathname || "/"}?${detailQuery.toString()}#job-detail`);
+    jobLink.setAttribute("aria-label", `Open planned detail target for job ${safeText(job.job_id)}`);
+    const idCell = cellStack(jobLink, create("code", undefined, `Intent ${safeText(job.intent_id)}`));
+
+    const agentIds = Array.isArray(job.agent_ids)
+      ? job.agent_ids.filter((value: unknown) => typeof value === "string" && value.trim()).slice(0, 20)
+      : [];
+    const agentCell = cellStack(
+      create("strong", undefined, agentIds.length > 0 ? agentIds.join(", ") : "Missing"),
+      ...(agentIds.length === 0 ? [statusPill("Missing identity", "indeterminate")] : []),
+    );
+
+    const profileCell = cellStack(
+      create("strong", undefined, safeText(binding.key)),
+      create("small", undefined, `Version ${safeText(binding.version)}`),
+      create("code", undefined, safeText(binding.digest)),
+    );
+    const outcomeCell = cellStack(
+      statusPill(safeText(job.verdict), safeText(job.verdict, "indeterminate")),
+      create("small", undefined, `Constraint ${safeText(job.constraint_compliance)}`),
+      create("small", undefined, `Goal ${formatPercent(job.goal_attainment)} · Qualified ${job.qualified_success ? "yes" : "no"}`),
+    );
+
+    const evidenceCell = cellStack(
+      statusPill(`${safeText(job.confidence_band)} ${formatPercent(job.evidence_confidence)}`, safeText(job.confidence_band, "low")),
+    );
+    const rowFindings = Array.isArray(quality.findings)
+      ? quality.findings.filter((value: unknown) => typeof value === "string" && value.trim()).slice(0, 10)
+      : [];
+    if (rowFindings.length > 0) {
+      const list = create("ul", "job-findings");
+      for (const finding of rowFindings) list.append(create("li", undefined, finding));
+      evidenceCell.append(list);
+    }
+
+    const disciplineCell = cellStack(
+      create("strong", undefined, `${formatCount(job.preview_count)} preview(s)`),
+      create("small", undefined, `${formatCount(discipline.retries)} retries · ${formatCount(discipline.replays)} replays`),
+      create("small", undefined, `Runtime ${formatDuration(discipline.runtime_ms)}`),
+    );
+    const statusCell = cellStack(
+      statusPill("Finalized", "completed"),
+      create("small", undefined, "Immutable receipt"),
+    );
+
+    row.append(
+      tableCell("Finalized", cellStack(create("time", undefined, finalizedLabel))),
+      tableCell("Job / intent", idCell),
+      tableCell("Agent", agentCell),
+      tableCell("Profile binding", profileCell),
+      tableCell("Outcome", outcomeCell),
+      tableCell("Evidence", evidenceCell),
+      tableCell("Discipline", disciplineCell),
+      tableCell("Status", statusCell),
+    );
+    return row;
+  }
+
+  function renderJobs(payloadValue: unknown, response: Response): void {
+    const payload = record(payloadValue);
+    if (
+      payload.schema_version !== "agentpass.intent-quality-jobs.v1"
+      || payload.tenant_id !== tenantId
+      || !Array.isArray(payload.jobs)
+    ) throw new Error("Intent quality jobs response is invalid.");
+    const candidates = payload.jobs;
+    const jobs = candidates.filter(isRenderableJob);
+    if (candidates.length > 0 && jobs.length === 0) throw new Error("Finalized jobs are invalid.");
+    const invalidCount = candidates.length - jobs.length;
+    const overallQuality = record(payload.data_quality);
+    const findings = Array.isArray(overallQuality.findings)
+      ? overallQuality.findings.filter((value: unknown) => typeof value === "string" && value.trim()).slice(0, 30)
+      : [];
+    if (invalidCount > 0) findings.push(`${invalidCount} malformed finalized job(s) were not rendered.`);
+    nextJobsCursor = typeof record(payload.pagination).next_cursor === "string"
+      ? record(payload.pagination).next_cursor.slice(0, 1_024)
+      : "";
+    jobsNextButton.hidden = !nextJobsCursor;
+    jobsList.replaceChildren(...jobs.map(renderJob));
+    jobsSummary.textContent = `${formatCount(payload.matched_records)} matched finalized job(s); ${jobs.length.toLocaleString("en-US")} on this page.`;
+    jobsFindings.textContent = findings.length > 0 ? findings.join(" · ") : "No read-model findings.";
+    jobsPageSummary.textContent = currentJobsCursor
+      ? `Showing a cursor-stable subsequent page of ${jobs.length.toLocaleString("en-US")} job(s).`
+      : `Showing the first ${jobs.length.toLocaleString("en-US")} job(s), newest finalized first.`;
+    jobsContent.hidden = false;
+    jobsLoaded = true;
+    if (jobs.length === 0) {
+      jobsContent.hidden = true;
+      setJobsState(
+        "empty",
+        "No finalized jobs matched",
+        "Broaden the bounded window or remove an exact filter. Preview-only work is intentionally excluded.",
+      );
+      setStatus("ready", "The Jobs query completed with no finalized matches.");
+      return;
+    }
+    jobsMessage.hidden = true;
+    const freshness = responseFreshness(response);
+    const excluded = count(record(payload.excluded_records).total);
+    const jobHasFindings = jobs.some((job) => {
+      const rowQuality = record(job.data_quality);
+      return Array.isArray(rowQuality.findings) && rowQuality.findings.length > 0;
+    });
+    if (freshness.state === "stale") {
+      const age = freshness.ageSeconds === undefined ? "older than the freshness threshold" : describeAge(freshness.ageSeconds);
+      setStatus("stale", `The finalized Jobs response is ${age}.`);
+    } else if (findings.length > 0 || excluded > 0 || jobHasFindings || invalidCount > 0) {
+      setStatus("partial", "Finalized jobs are current; review explicit evidence-confidence and data-quality findings.");
+    } else {
+      setStatus("ready", "Finalized jobs are current and ordered by immutable finalization time.");
+    }
+  }
+
+  async function loadJobs(cursor = currentJobsCursor): Promise<void> {
+    if (!tenantId) return;
+    currentJobsCursor = cursor.slice(0, 1_024);
+    setStatus("loading", "Querying the tenant-scoped finalized Jobs read model.");
+    setJobsState("loading", "Loading finalized jobs", "Reading immutable final receipts through the tenant-scoped BFF.");
+    jobsContent.hidden = true;
+    jobsNextButton.hidden = true;
+    const query = buildJobsQuery(currentJobsCursor);
+    syncJobsPageUrl(currentJobsCursor);
+    try {
+      const result = await read(`/api/console/tenants/${encodeURIComponent(tenantId)}/intent-quality/jobs?${query.toString()}`);
+      if (!result.response.ok) {
+        const state = failureState(result.response.status);
+        const detail = failureMessage(result.body, statusMessages[state][1]);
+        setStatus(state, detail);
+        setJobsState(state, statusMessages[state][0], detail);
+        return;
+      }
+      renderJobs(result.body, result.response);
+    } catch {
+      setStatus("unavailable");
+      setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
+    }
+  }
+
   async function loadOverview(): Promise<void> {
     if (!tenantId) return;
     setStatus("loading", "Querying immutable final receipts for the selected profile boundary.");
@@ -1157,7 +1688,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     overviewContent.hidden = true;
     refreshButton.hidden = true;
     const query = buildQualityQuery();
-    syncPageUrl();
+    syncOverviewPageUrl();
     try {
       const result = await read(`/api/console/tenants/${encodeURIComponent(tenantId)}/intent-quality/rollups?${query.toString()}`);
       if (!result.response.ok) {
@@ -1177,7 +1708,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   async function start(): Promise<void> {
     setStatus("loading");
     restoreFilters();
+    restoreJobsFilters();
     buildQualityQuery();
+    buildJobsQuery();
+    showView(activeView);
     try {
       const session = await read("/api/console/session");
       if (!session.response.ok) {
@@ -1185,6 +1719,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         const detail = failureMessage(session.body, statusMessages[state][1]);
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
+        setJobsState(state, statusMessages[state][0], detail);
         return;
       }
       tenantId = safeText(session.body.tenant_id, "");
@@ -1197,12 +1732,15 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         const detail = failureMessage(health.body, statusMessages[state][1]);
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
+        setJobsState(state, statusMessages[state][0], detail);
         return;
       }
-      await loadOverview();
+      if (activeView === "jobs") await loadJobs();
+      else await loadOverview();
     } catch {
       setStatus("unavailable");
       setOverviewState("unavailable", statusMessages.unavailable[0], statusMessages.unavailable[1]);
+      setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
     }
   }
 
@@ -1215,11 +1753,36 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     void loadOverview();
   });
   refreshButton.addEventListener("click", () => {
+    if (activeView === "jobs") void loadJobs();
+    else void loadOverview();
+  });
+  jobsFilterForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    currentJobsCursor = "";
+    nextJobsCursor = "";
+    void loadJobs("");
+  });
+  resetJobsButton.addEventListener("click", () => {
+    resetJobsFilters();
+    void loadJobs("");
+  });
+  jobsNextButton.addEventListener("click", () => {
+    if (nextJobsCursor) void loadJobs(nextJobsCursor);
+  });
+  overviewNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView("overview");
     void loadOverview();
+  });
+  jobsNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (!jobsLoaded) copyOverviewFiltersToJobs();
+    showView("jobs");
+    void loadJobs();
   });
 
   const ready = start();
-  return { buildQualityQuery, loadOverview, ready };
+  return { buildJobsQuery, buildQualityQuery, loadJobs, loadOverview, ready, showView };
 }
 
 const APP_JS = `(${consoleApp.toString()})(window);`;
@@ -1474,6 +2037,8 @@ function parseGatewayRoute(url: URL, identity: ConsoleIdentity): GatewayRoute {
     allowedQuery = NO_QUERY;
   } else if (sameSegments(suffix, ["intent-quality", "rollups"])) {
     allowedQuery = QUALITY_QUERY;
+  } else if (sameSegments(suffix, ["intent-quality", "jobs"])) {
+    allowedQuery = QUALITY_JOBS_QUERY;
   } else if (suffix[0] === "intent-profiles" && (suffix.length === 1 || suffix.length === 2)) {
     allowedQuery = suffix.length === 1 ? PROFILE_QUERY : NO_QUERY;
   } else if (suffix[0] === "intent-contracts" && (suffix.length === 1 || suffix.length === 2)) {
