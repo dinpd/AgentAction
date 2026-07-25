@@ -147,55 +147,61 @@ const SHELL_HTML = `<!doctype html>
             <p class="eyebrow">Execution path</p>
             <h2 id="lifecycle-title">What each synthetic run actually does</h2>
           </div>
-          <p>The scheduled runner uses the production gateway path with deterministic synthetic identifiers and no external provider side effects.</p>
+          <p>See how scheduled synthetic runs become immutable, profile-scoped quality data without external provider side effects.</p>
         </header>
-        <ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">
-          <li>
-            <span class="stage-number" aria-hidden="true">01</span>
-            <h3>Cloudflare Cron</h3>
-            <p>Starts a bounded UTC schedule bucket.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">02</span>
-            <h3>Synthetic Agent Worker</h3>
-            <p>Selects deterministic profile and quality scenarios.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">03</span>
-            <h3>AgentPass Gateway</h3>
-            <p>Calls the real service through a private binding.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">04</span>
-            <h3>Issue intent contract</h3>
-            <p>Freezes the objective, controls, and profile version.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">05</span>
-            <h3>Authorize calls / approvals</h3>
-            <p>Exercises policy, human-approval, and JIT boundaries.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">06</span>
-            <h3>Execution receipts + signed observations</h3>
-            <p>Captures execution receipts; trusted adapters can add signed observations.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">07</span>
-            <h3>Finalize immutable receipt</h3>
-            <p>Freezes one canonical evidence snapshot and verdict.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">08</span>
-            <h3>Profile-scoped rollups</h3>
-            <p>Aggregates only comparable profile versions.</p>
-          </li>
-          <li>
-            <span class="stage-number" aria-hidden="true">09</span>
-            <h3>Observability Console</h3>
-            <p>Shows outcomes, confidence, discipline, and exceptions.</p>
-          </li>
-        </ol>
+        <details class="lifecycle-disclosure">
+          <summary>
+            <span class="disclosure-closed">Show 9-stage flow</span>
+            <span class="disclosure-open">Hide 9-stage flow</span>
+          </summary>
+          <ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">
+            <li>
+              <span class="stage-number" aria-hidden="true">01</span>
+              <h3>Cloudflare Cron</h3>
+              <p>Starts a bounded UTC schedule bucket.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">02</span>
+              <h3>Synthetic Agent Worker</h3>
+              <p>Selects deterministic profile and quality scenarios.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">03</span>
+              <h3>AgentPass Gateway</h3>
+              <p>Calls the real service through a private binding.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">04</span>
+              <h3>Issue intent contract</h3>
+              <p>Freezes the objective, controls, and profile version.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">05</span>
+              <h3>Authorize calls / approvals</h3>
+              <p>Exercises policy, human-approval, and JIT boundaries.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">06</span>
+              <h3>Execution receipts + signed observations</h3>
+              <p>Captures execution receipts; trusted adapters can add signed observations.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">07</span>
+              <h3>Finalize immutable receipt</h3>
+              <p>Freezes one canonical evidence snapshot and verdict.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">08</span>
+              <h3>Profile-scoped rollups</h3>
+              <p>Aggregates only comparable profile versions.</p>
+            </li>
+            <li>
+              <span class="stage-number" aria-hidden="true">09</span>
+              <h3>Observability Console</h3>
+              <p>Shows outcomes, confidence, discipline, and exceptions.</p>
+            </li>
+          </ol>
+        </details>
       </section>
       <section id="overview" class="overview-panel" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
@@ -352,10 +358,21 @@ dl { display: grid; align-content: end; margin: 0; border-top: 1px solid var(--l
 dl div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.78rem; }
 dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
 .lifecycle-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: #111a16; color: #f6f8f5; }
-.lifecycle-heading { display: grid; grid-template-columns: minmax(240px, 0.7fr) minmax(280px, 1fr); gap: 24px; align-items: end; padding-bottom: 18px; }
+.lifecycle-heading { display: grid; grid-template-columns: minmax(240px, 0.7fr) minmax(280px, 1fr); gap: 24px; align-items: end; }
 .lifecycle-heading h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2.5vw, 2.2rem); font-weight: 400; letter-spacing: -0.025em; }
 .lifecycle-heading > p { color: #b9c7bf; font-size: 0.82rem; }
 .lifecycle-panel .eyebrow { color: #98b5a4; }
+.lifecycle-disclosure { margin-top: 16px; border-top: 1px solid #34443b; }
+.lifecycle-disclosure summary { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding-top: 13px; color: #c8d7cf; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; list-style: none; }
+.lifecycle-disclosure summary::-webkit-details-marker { display: none; }
+.lifecycle-disclosure summary::after { width: 8px; height: 8px; border-right: 1px solid #9fc6ad; border-bottom: 1px solid #9fc6ad; content: ""; transform: translateY(-2px) rotate(45deg); transition: transform 160ms ease; }
+.lifecycle-disclosure summary:hover { color: #f6f8f5; }
+.lifecycle-disclosure summary:focus-visible { border-radius: 3px; outline: 2px solid #9fc6ad; outline-offset: 5px; }
+.lifecycle-disclosure[open] summary { margin-bottom: 18px; }
+.lifecycle-disclosure[open] summary::after { transform: translateY(2px) rotate(225deg); }
+.disclosure-open { display: none; }
+.lifecycle-disclosure[open] .disclosure-closed { display: none; }
+.lifecycle-disclosure[open] .disclosure-open { display: inline; }
 .lifecycle-track { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
 .lifecycle-track li { position: relative; min-width: 0; min-height: 134px; padding: 13px 11px; border: 1px solid #34443b; border-radius: 5px; background: #1b2621; }
 .lifecycle-track li:not(:last-child)::after { position: absolute; z-index: 1; top: 50%; right: -10px; width: 7px; height: 7px; border-right: 1px solid #8ba397; border-bottom: 1px solid #8ba397; content: ""; transform: translateY(-50%) rotate(-45deg); }
