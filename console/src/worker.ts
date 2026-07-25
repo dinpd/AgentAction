@@ -130,29 +130,30 @@ const SHELL_HTML = `<!doctype html>
         <button class="text-button" type="button" data-refresh hidden>Refresh data</button>
       </section>
       <section class="intro" aria-labelledby="overview-title">
-        <div>
+        <div class="intro-copy">
           <p class="eyebrow">Fleet quality</p>
-          <h2 id="overview-title">Execution quality, without the universal score.</h2>
-          <p>Read immutable final receipts as separate profile-version groups. Low-confidence and indeterminate work stays visible.</p>
+          <h2 id="overview-title">Execution quality</h2>
+          <p>Profile-scoped immutable final receipts, with low-confidence and indeterminate work kept visible.</p>
         </div>
-        <dl>
+        <dl aria-label="Fleet quality boundaries">
           <div><dt>Auth</dt><dd>Cloudflare Access</dd></div>
           <div><dt>Comparison</dt><dd>Profile scoped</dd></div>
           <div><dt>Evidence</dt><dd>Final receipts only</dd></div>
         </dl>
       </section>
       <section id="lifecycle" class="lifecycle-panel" aria-labelledby="lifecycle-title">
-        <header class="lifecycle-heading">
-          <div>
-            <p class="eyebrow">Execution path</p>
-            <h2 id="lifecycle-title">What each synthetic run actually does</h2>
-          </div>
-          <p>See how scheduled synthetic runs become immutable, profile-scoped quality data without external provider side effects.</p>
-        </header>
+        <h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle</h2>
         <details class="lifecycle-disclosure">
           <summary>
-            <span class="disclosure-closed">Show 9-stage flow</span>
-            <span class="disclosure-open">Hide 9-stage flow</span>
+            <span class="lifecycle-summary-copy">
+              <span class="eyebrow">Execution path</span>
+              <span class="lifecycle-visible-title">Synthetic run lifecycle</span>
+              <span class="lifecycle-purpose">How scheduled runs become immutable, profile-scoped quality data.</span>
+            </span>
+            <span class="lifecycle-toggle">
+              <span class="disclosure-closed">Show 9-stage flow</span>
+              <span class="disclosure-open">Hide 9-stage flow</span>
+            </span>
           </summary>
           <ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">
             <li>
@@ -333,6 +334,7 @@ body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); l
 a { color: inherit; }
 .skip-link { position: fixed; left: 12px; top: -80px; z-index: 100; padding: 10px 14px; background: var(--ink); color: white; border-radius: 4px; }
 .skip-link:focus { top: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 84px; padding: 16px 28px; border-bottom: 1px solid var(--line); background: rgba(251, 250, 246, 0.96); }
 h1, h2, p { margin: 0; }
 h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2.5vw, 2rem); font-weight: 500; letter-spacing: -0.025em; }
@@ -351,25 +353,30 @@ main { min-width: 0; padding: 28px 28px 48px 0; }
 .status-card[data-state="ready"] .status-dot { background: var(--green); box-shadow: 0 0 0 5px color-mix(in srgb, var(--green) 14%, transparent); }
 .status-card[data-state="stale"] .status-dot { background: var(--amber); box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 14%, transparent); }
 .status-card[data-state="unauthorized"] .status-dot, .status-card[data-state="forbidden"] .status-dot, .status-card[data-state="unavailable"] .status-dot { background: var(--red); box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 14%, transparent); }
-.intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr); gap: 28px; padding: clamp(24px, 5vw, 56px); border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
-.intro h2 { max-width: 620px; margin-bottom: 12px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 5vw, 4.2rem); font-weight: 400; letter-spacing: -0.045em; }
-.intro > div > p:last-child { max-width: 650px; color: var(--muted); font-size: 0.95rem; }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(410px, auto); gap: 24px; align-items: center; padding: 18px 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
+.intro h2 { margin-bottom: 2px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.4rem, 2.4vw, 2rem); font-weight: 400; letter-spacing: -0.035em; }
+.intro-copy > p:last-child { max-width: 650px; color: var(--muted); font-size: 0.8rem; }
+.intro dl { grid-template-columns: repeat(3, minmax(120px, 1fr)); align-self: stretch; min-width: 410px; border-top: 0; }
+.intro dl div { display: block; padding: 7px 12px; border-bottom: 0; border-left: 1px solid var(--line); }
+.intro dt { font-size: 0.61rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.intro dd { margin-top: 2px; font-size: 0.74rem; overflow-wrap: anywhere; }
 dl { display: grid; align-content: end; margin: 0; border-top: 1px solid var(--line); }
 dl div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.78rem; }
 dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
-.lifecycle-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: #111a16; color: #f6f8f5; }
-.lifecycle-heading { display: grid; grid-template-columns: minmax(240px, 0.7fr) minmax(280px, 1fr); gap: 24px; align-items: end; }
-.lifecycle-heading h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2.5vw, 2.2rem); font-weight: 400; letter-spacing: -0.025em; }
-.lifecycle-heading > p { color: #b9c7bf; font-size: 0.82rem; }
+.lifecycle-panel { margin-top: 10px; padding: 0 18px; border: 1px solid var(--line); border-radius: 6px; background: #111a16; color: #f6f8f5; }
 .lifecycle-panel .eyebrow { color: #98b5a4; }
-.lifecycle-disclosure { margin-top: 16px; border-top: 1px solid #34443b; }
-.lifecycle-disclosure summary { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding-top: 13px; color: #c8d7cf; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; list-style: none; }
+.lifecycle-disclosure summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 13px 0; color: #c8d7cf; cursor: pointer; list-style: none; }
 .lifecycle-disclosure summary::-webkit-details-marker { display: none; }
 .lifecycle-disclosure summary::after { width: 8px; height: 8px; border-right: 1px solid #9fc6ad; border-bottom: 1px solid #9fc6ad; content: ""; transform: translateY(-2px) rotate(45deg); transition: transform 160ms ease; }
 .lifecycle-disclosure summary:hover { color: #f6f8f5; }
 .lifecycle-disclosure summary:focus-visible { border-radius: 3px; outline: 2px solid #9fc6ad; outline-offset: 5px; }
-.lifecycle-disclosure[open] summary { margin-bottom: 18px; }
+.lifecycle-disclosure[open] summary { margin-bottom: 14px; border-bottom: 1px solid #34443b; }
 .lifecycle-disclosure[open] summary::after { transform: translateY(2px) rotate(225deg); }
+.lifecycle-summary-copy { display: flex; gap: 14px; align-items: baseline; min-width: 0; }
+.lifecycle-summary-copy .eyebrow { flex: 0 0 auto; margin: 0; }
+.lifecycle-visible-title { flex: 0 0 auto; color: #f6f8f5; font-family: Georgia, "Times New Roman", serif; font-size: 1.02rem; line-height: 1.2; }
+.lifecycle-purpose { min-width: 0; overflow: hidden; color: #aebdb5; font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+.lifecycle-toggle { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .disclosure-open { display: none; }
 .lifecycle-disclosure[open] .disclosure-closed { display: none; }
 .lifecycle-disclosure[open] .disclosure-open { display: inline; }
@@ -393,7 +400,8 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
   .section-nav { position: static; grid-template-columns: repeat(4, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .section-nav a { border-left: 0; border-bottom: 2px solid transparent; }
   main { padding: 16px; }
-  .intro { grid-template-columns: 1fr; padding: 28px 22px; }
+  .intro { grid-template-columns: 1fr; gap: 12px; padding: 16px 18px; }
+  .intro dl { min-width: 0; }
   .section-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
@@ -580,6 +588,8 @@ button { cursor: pointer; }
 .future-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
 @media (max-width: 1050px) {
+  .intro { grid-template-columns: 1fr; gap: 12px; }
+  .intro dl { min-width: 0; }
   .lifecycle-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .lifecycle-track li:nth-child(3n)::after { top: auto; right: 50%; bottom: -12px; transform: translateX(50%) rotate(45deg); }
   .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
@@ -588,7 +598,9 @@ button { cursor: pointer; }
   .future-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
-  .lifecycle-heading { grid-template-columns: 1fr; gap: 8px; }
+  .lifecycle-disclosure summary { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  .lifecycle-summary-copy { display: grid; gap: 1px; }
+  .lifecycle-purpose { white-space: normal; }
   .lifecycle-track { grid-template-columns: 1fr; gap: 18px; }
   .lifecycle-track li { min-height: 0; }
   .lifecycle-track li:not(:last-child)::after,
