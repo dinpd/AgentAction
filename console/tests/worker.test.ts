@@ -84,6 +84,10 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
   assert.match(body, /data-overview-filters/);
+  assert.match(body, /<h2 id="overview-title">Execution quality<\/h2>/);
+  assert.match(body, /aria-label="Fleet quality boundaries"/);
+  assert.match(body, /Profile-scoped immutable final receipts/);
+  assert.match(body, /<h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle<\/h2>/);
   assert.match(body, /<details class="lifecycle-disclosure">/);
   assert.doesNotMatch(body, /<details class="lifecycle-disclosure"[^>]*\sopen(?:\s|>)/);
   assert.match(body, /<summary>[\s\S]*Show 9-stage flow[\s\S]*Hide 9-stage flow[\s\S]*<\/summary>/);
@@ -121,6 +125,10 @@ test("serves responsive and focus-visible lifecycle disclosure styles", async ()
   assert.match(body, /\.lifecycle-disclosure summary:focus-visible/);
   assert.match(body, /\.lifecycle-disclosure\[open\] \.disclosure-closed/);
   assert.match(body, /\.lifecycle-disclosure\[open\] \.disclosure-open/);
+  assert.match(body, /\.intro \{[^}]*padding: 18px 22px;/);
+  assert.match(body, /\.intro h2 \{[^}]*font-size: clamp\(1\.4rem, 2\.4vw, 2rem\);/);
+  assert.match(body, /\.lifecycle-disclosure summary \{[^}]*padding: 13px 0;/);
+  assert.match(body, /\.lifecycle-visible-title \{[^}]*font-size: 1\.02rem;/);
   assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.lifecycle-track \{ grid-template-columns: 1fr;/);
   assert.match(body, /\.lifecycle-track li \{[^}]*min-width: 0;/);
 });
