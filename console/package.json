@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env development --local --port 8791",
+    "dev:fixture": "node --experimental-strip-types dev/fixture-server.ts",
     "deploy": "wrangler deploy --env=\"\"",
     "dry-run": "WRANGLER_LOG_PATH=/tmp/agentpass-console-wrangler.log wrangler deploy --env=\"\" --dry-run --outdir /tmp/agentpass-console-worker-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts"

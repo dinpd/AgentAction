@@ -11,6 +11,13 @@
 - Added an accessible responsive console shell, production and fail-closed
   local-development configuration, security-boundary tests, conditional
   Cloudflare deployment workflow, and operator setup and smoke-check guidance.
+- Added the profile-scoped Fleet Overview with bounded UTC and
+  profile/agent/verdict/constraint filters, separate immutable profile groups,
+  outcomes, constraints, evidence confidence, execution discipline, query
+  coverage, exclusions, and explicit small-sample and data-quality findings.
+- Added normalized freshness age metadata, loading/empty/partial/stale/error
+  presentation, a two-version support-refund fixture server, safe-rendering and
+  interaction tests, and desktop/narrow-width runtime verification.
 
 ### Intent assurance
 

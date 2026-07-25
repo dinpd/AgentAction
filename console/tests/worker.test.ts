@@ -83,10 +83,24 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(response.headers.get("content-security-policy") || "", /default-src 'self'/);
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
+  assert.match(body, /data-overview-filters/);
+  assert.match(body, /Finalized intent executions/);
   assert.match(body, /Overview/);
   assert.match(body, /Job detail/);
   assert.match(body, /Exceptions/);
   assert.doesNotMatch(body, /gateway-secret/);
+});
+
+test("serves a standalone overview client asset without credentials", async () => {
+  const response = await worker.fetch(accessRequest("/assets/app.js"), baseEnv([]));
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") || "", /text\/javascript/);
+  assert.match(body, /intent-quality/);
+  assert.match(body, /profile_digest/);
+  assert.doesNotMatch(body, /gateway-secret|AGENTID_GATEWAY_TOKEN/);
+  assert.doesNotThrow(() => new Function(body));
 });
 
 test("derives tenant identity only from the verified Access claim", async () => {
@@ -139,6 +153,8 @@ test("reconstructs an allowlisted gateway request and strips browser-controlled 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0");
   assert.equal(response.headers.get("x-agentpass-console-data-state"), "fresh");
+  assert.match(response.headers.get("x-agentpass-console-generated-at") || "", /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(Number.isFinite(Number(response.headers.get("x-agentpass-console-data-age-seconds"))), true);
   assert.deepEqual(await response.json(), { groups: [], sample_size: 0 });
   assert.equal(calls.length, 1);
   const call = calls[0];
@@ -249,7 +265,11 @@ test("marks old gateway responses stale and sanitizes health output", async () =
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("x-agentpass-console-data-state"), "stale");
+  assert.match(response.headers.get("x-agentpass-console-generated-at") || "", /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(Number(response.headers.get("x-agentpass-console-data-age-seconds")) >= 59, true);
   assert.equal(body.data_state, "stale");
+  assert.match(body.generated_at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(body.age_seconds >= 59, true);
   assert.equal(body.gateway, "ready");
   assert.equal(body.tenant_id, "tenant-alpha");
   assert.equal(JSON.stringify(body).includes("should-not-leak"), false);

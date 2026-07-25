@@ -1,0 +1,277 @@
+{
+  "schema_version": "agentpass.intent-quality-rollups.v1",
+  "tenant_id": "acme",
+  "filters": {
+    "time_window": {
+      "from": "2026-07-18T00:00:00.000Z",
+      "to": "2026-07-25T00:00:00.000Z",
+      "boundary": "[from,to)",
+      "maximum_days": 90
+    },
+    "minimum_sample_size": 4
+  },
+  "records_scanned": 11,
+  "finalized_records": 9,
+  "matched_records": 7,
+  "excluded_records": {
+    "total": 4,
+    "by_reason": {
+      "not_finalized": 2,
+      "invalid_final_receipt": 0,
+      "unversioned_profile": 1,
+      "outside_time_window": 1,
+      "profile_filter": 0,
+      "agent_filter": 0,
+      "verdict_filter": 0,
+      "constraint_filter": 0
+    }
+  },
+  "data_quality": {
+    "findings": [
+      "2 registered intent contract(s) are not finalized",
+      "1 finalized receipt lacks a versioned profile binding",
+      "1 finalized receipt falls outside the selected UTC window"
+    ]
+  },
+  "rollups": [
+    {
+      "schema_version": "agentpass.intent-quality-rollup.v1",
+      "tenant_id": "acme",
+      "profile_key": "support_refund",
+      "profile_version": "v1",
+      "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "time_window": {
+        "from": "2026-07-18T00:00:00.000Z",
+        "to": "2026-07-25T00:00:00.000Z",
+        "boundary": "[from,to)"
+      },
+      "sample": {
+        "finalized_jobs": 4,
+        "minimum_sample_size": 4,
+        "meets_minimum_sample_size": true
+      },
+      "outcomes": {
+        "counts": {
+          "completed": 1,
+          "partial": 1,
+          "failed": 1,
+          "indeterminate": 1
+        },
+        "rates": {
+          "completed": 0.25,
+          "partial": 0.25,
+          "failed": 0.25,
+          "indeterminate": 0.25
+        },
+        "qualified_success": {
+          "count": 1,
+          "rate": 0.25
+        },
+        "goal_attainment_average": 0.375
+      },
+      "constraint_compliance": {
+        "counts": {
+          "pass": 2,
+          "fail": 1,
+          "indeterminate": 1
+        },
+        "rates": {
+          "pass": 0.5,
+          "fail": 0.25,
+          "indeterminate": 0.25
+        }
+      },
+      "evidence_confidence": {
+        "average": 0.575,
+        "minimum": 0,
+        "maximum": 1,
+        "thresholds": {
+          "low_below": 0.75,
+          "high_at_or_above": 0.9
+        },
+        "distribution": {
+          "high": {
+            "count": 1,
+            "rate": 0.25
+          },
+          "medium": {
+            "count": 1,
+            "rate": 0.25
+          },
+          "low": {
+            "count": 2,
+            "rate": 0.5
+          }
+        }
+      },
+      "execution_discipline": {
+        "totals": {
+          "tool_calls": 6,
+          "execution_receipts": 2,
+          "executions": 2,
+          "replays": 1,
+          "retries": 3,
+          "denied_decisions": 1,
+          "challenge_decisions": 1,
+          "estimated_cost_usd": 0.06,
+          "runtime_ms": 6000
+        },
+        "averages": {
+          "tool_calls": 1.5,
+          "execution_receipts": 0.5,
+          "executions": 0.5,
+          "replays": 0.25,
+          "retries": 0.75,
+          "denied_decisions": 0.25,
+          "challenge_decisions": 0.25,
+          "estimated_cost_usd": 0.015,
+          "runtime_ms": 2000
+        },
+        "preference_compliance": {
+          "met": 1,
+          "not_met": 2,
+          "not_applicable": 1,
+          "rate": 0.3333
+        },
+        "coverage": {
+          "runtime_ms_records": 3,
+          "preference_records": 3
+        }
+      },
+      "data_quality": {
+        "low_confidence_count": 2,
+        "indeterminate_count": 1,
+        "missing_agent_count": 1,
+        "missing_runtime_count": 1,
+        "findings": [
+          "2 low-confidence finalized job(s)",
+          "1 indeterminate finalized job",
+          "1 finalized job lacks agent identity",
+          "1 finalized job lacks runtime metrics"
+        ]
+      }
+    },
+    {
+      "schema_version": "agentpass.intent-quality-rollup.v1",
+      "tenant_id": "acme",
+      "profile_key": "support_refund",
+      "profile_version": "v2",
+      "profile_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "time_window": {
+        "from": "2026-07-18T00:00:00.000Z",
+        "to": "2026-07-25T00:00:00.000Z",
+        "boundary": "[from,to)"
+      },
+      "sample": {
+        "finalized_jobs": 3,
+        "minimum_sample_size": 4,
+        "meets_minimum_sample_size": false
+      },
+      "outcomes": {
+        "counts": {
+          "completed": 2,
+          "partial": 0,
+          "failed": 0,
+          "indeterminate": 1
+        },
+        "rates": {
+          "completed": 0.6667,
+          "partial": 0,
+          "failed": 0,
+          "indeterminate": 0.3333
+        },
+        "qualified_success": {
+          "count": 2,
+          "rate": 0.6667
+        },
+        "goal_attainment_average": 0.8
+      },
+      "constraint_compliance": {
+        "counts": {
+          "pass": 2,
+          "fail": 0,
+          "indeterminate": 1
+        },
+        "rates": {
+          "pass": 0.6667,
+          "fail": 0,
+          "indeterminate": 0.3333
+        }
+      },
+      "evidence_confidence": {
+        "average": 0.82,
+        "minimum": 0.65,
+        "maximum": 0.98,
+        "thresholds": {
+          "low_below": 0.75,
+          "high_at_or_above": 0.9
+        },
+        "distribution": {
+          "high": {
+            "count": 1,
+            "rate": 0.3333
+          },
+          "medium": {
+            "count": 1,
+            "rate": 0.3333
+          },
+          "low": {
+            "count": 1,
+            "rate": 0.3333
+          }
+        }
+      },
+      "execution_discipline": {
+        "totals": {
+          "tool_calls": 5,
+          "execution_receipts": 3,
+          "executions": 3,
+          "replays": 0,
+          "retries": 1,
+          "denied_decisions": 0,
+          "challenge_decisions": 2,
+          "estimated_cost_usd": 0.04,
+          "runtime_ms": 5100
+        },
+        "averages": {
+          "tool_calls": 1.6667,
+          "execution_receipts": 1,
+          "executions": 1,
+          "replays": 0,
+          "retries": 0.3333,
+          "denied_decisions": 0,
+          "challenge_decisions": 0.6667,
+          "estimated_cost_usd": 0.0133,
+          "runtime_ms": 1700
+        },
+        "preference_compliance": {
+          "met": 2,
+          "not_met": 0,
+          "not_applicable": 1,
+          "rate": 1
+        },
+        "coverage": {
+          "runtime_ms_records": 3,
+          "preference_records": 2
+        }
+      },
+      "data_quality": {
+        "low_confidence_count": 1,
+        "indeterminate_count": 1,
+        "missing_agent_count": 0,
+        "missing_runtime_count": 0,
+        "findings": [
+          "1 low-confidence finalized job",
+          "1 indeterminate finalized job",
+          "Minimum sample size is not yet met"
+        ]
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "total_groups": 2,
+    "returned_groups": 2,
+    "next_cursor": null
+  }
+}
