@@ -20,6 +20,7 @@ import {
 
 type Env = {
   AGENTID_API_KEY?: string;
+  AGENTID_INTERNAL_SERVICE_TOKEN?: string;
   AGENTID_AUDIT_WEBHOOK_TOKEN?: string;
   AGENTID_AUDIT_WEBHOOK_URL?: string;
   AGENTID_DEMO_OIDC_SECRET?: string;
@@ -3819,6 +3820,12 @@ async function authenticate(
   endpoint: string,
 ): Promise<{ ok: true; context: AuthContext } | { ok: false; status: number; error: string }> {
   const authorization = request.headers.get("authorization") || "";
+  if (
+    env.AGENTID_INTERNAL_SERVICE_TOKEN &&
+    authorization === `Bearer ${env.AGENTID_INTERNAL_SERVICE_TOKEN}`
+  ) {
+    return { ok: true, context: { method: "internal_service" } };
+  }
   if (env.AGENTID_API_KEY && authorization === `Bearer ${env.AGENTID_API_KEY}`) {
     return { ok: true, context: { method: "api_key" } };
   }

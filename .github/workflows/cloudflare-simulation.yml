@@ -1,0 +1,62 @@
+name: Cloudflare Synthetic Intent Runs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "simulation/**"
+      - "packages/guard/**"
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare-simulation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "simulation/**"
+      - "packages/guard/**"
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare-simulation.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: simulation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: simulation/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test bounded synthetic lifecycle
+        run: npm test
+
+      - name: Verify Worker bundle
+        run: npm run dry-run
+
+      - name: Check Cloudflare deploy secrets
+        if: github.event_name != 'pull_request'
+        id: cloudflare-secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping synthetic runner deploy because CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy synthetic runner
+        if: github.event_name != 'pull_request' && steps.cloudflare-secrets.outputs.configured == 'true'
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

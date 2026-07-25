@@ -1,0 +1,13 @@
+{
+  "name": "agentpass-synthetic-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dry-run": "WRANGLER_LOG_PATH=/tmp/agentpass-simulation-wrangler.log wrangler deploy --dry-run --outdir /tmp/agentpass-simulation-worker-dist",
+    "test": "node --test --experimental-strip-types tests/*.test.ts"
+  },
+  "devDependencies": {
+    "wrangler": "^4.94.0"
+  }
+}

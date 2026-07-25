@@ -5,6 +5,9 @@ compatibility_date = "2026-05-24"
 # Set AGENTID_API_KEY as a secret in production:
 #   npx wrangler secret put AGENTID_API_KEY
 #
+# Set a separate bearer secret for service-bound Workers:
+#   npx wrangler secret put AGENTID_INTERNAL_SERVICE_TOKEN
+#
 # For the self-contained demo OIDC mode:
 #   npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
 #

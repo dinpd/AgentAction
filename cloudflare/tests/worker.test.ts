@@ -47,6 +47,47 @@ class TestContext {
   }
 }
 
+test("accepts a separate internal service token without weakening the public API key", async () => {
+  const namespace = new MemoryNamespace();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "public-api-key",
+    AGENTID_INTERNAL_SERVICE_TOKEN: "internal-service-token",
+  };
+  const ctx = new TestContext();
+
+  const internal = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/synthetic/health",
+    undefined,
+    { authorization: "Bearer internal-service-token" },
+  );
+  const publicApi = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/synthetic/health",
+    undefined,
+    { authorization: "Bearer public-api-key" },
+  );
+  const rejected = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/synthetic/health",
+    undefined,
+    { authorization: "Bearer different-token" },
+  );
+
+  assert.equal(internal.status, 200);
+  assert.equal(internal.body.auth.method, "internal_service");
+  assert.equal(publicApi.status, 200);
+  assert.equal(publicApi.body.auth.method, "api_key");
+  assert.equal(rejected.status, 401);
+});
+
 test("hosted approval runs once and records a correlated audit timeline", async () => {
   const namespace = new MemoryNamespace();
   const env = { JIT_GRANTS: namespace };

@@ -14,6 +14,7 @@ export type Env = {
   CONSOLE_MOCK_EMAIL?: string;
   CONSOLE_MOCK_SUBJECT?: string;
   CONSOLE_MOCK_TENANT_ID?: string;
+  CONSOLE_STATIC_TENANT_ID?: string;
   CONSOLE_STALE_AFTER_SECONDS?: string;
 };
 
@@ -89,7 +90,7 @@ const AUDIT_QUERY = new Set([
 const APPROVAL_QUERY = new Set(["status", "agent_id", "limit", "cursor"]);
 const NO_QUERY = new Set<string>();
 
-export const SHELL_HTML = `<!doctype html>
+const SHELL_HTML = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -139,6 +140,62 @@ export const SHELL_HTML = `<!doctype html>
           <div><dt>Comparison</dt><dd>Profile scoped</dd></div>
           <div><dt>Evidence</dt><dd>Final receipts only</dd></div>
         </dl>
+      </section>
+      <section id="lifecycle" class="lifecycle-panel" aria-labelledby="lifecycle-title">
+        <header class="lifecycle-heading">
+          <div>
+            <p class="eyebrow">Execution path</p>
+            <h2 id="lifecycle-title">What each synthetic run actually does</h2>
+          </div>
+          <p>The scheduled runner uses the production gateway path with deterministic synthetic identifiers and no external provider side effects.</p>
+        </header>
+        <ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">
+          <li>
+            <span class="stage-number" aria-hidden="true">01</span>
+            <h3>Cloudflare Cron</h3>
+            <p>Starts a bounded UTC schedule bucket.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">02</span>
+            <h3>Synthetic Agent Worker</h3>
+            <p>Selects deterministic profile and quality scenarios.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">03</span>
+            <h3>AgentPass Gateway</h3>
+            <p>Calls the real service through a private binding.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">04</span>
+            <h3>Issue intent contract</h3>
+            <p>Freezes the objective, controls, and profile version.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">05</span>
+            <h3>Authorize calls / approvals</h3>
+            <p>Exercises policy, human-approval, and JIT boundaries.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">06</span>
+            <h3>Execution receipts + signed observations</h3>
+            <p>Captures execution receipts; trusted adapters can add signed observations.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">07</span>
+            <h3>Finalize immutable receipt</h3>
+            <p>Freezes one canonical evidence snapshot and verdict.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">08</span>
+            <h3>Profile-scoped rollups</h3>
+            <p>Aggregates only comparable profile versions.</p>
+          </li>
+          <li>
+            <span class="stage-number" aria-hidden="true">09</span>
+            <h3>Observability Console</h3>
+            <p>Shows outcomes, confidence, discipline, and exceptions.</p>
+          </li>
+        </ol>
       </section>
       <section id="overview" class="overview-panel" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
@@ -230,7 +287,7 @@ export const SHELL_HTML = `<!doctype html>
         <section id="jobs" class="placeholder-card" tabindex="-1">
           <span class="card-index">02</span>
           <div><h2>Jobs</h2><p>Finalized executions with preview history and an explicit freeze boundary.</p></div>
-          <span class="phase">Next</span>
+          <span class="phase" title="GitHub issue 32">Issue #32</span>
         </section>
         <section id="job-detail" class="placeholder-card" tabindex="-1">
           <span class="card-index">03</span>
@@ -249,7 +306,7 @@ export const SHELL_HTML = `<!doctype html>
 </body>
 </html>`;
 
-export const APP_CSS = `:root {
+const APP_CSS = `:root {
   color-scheme: light;
   --bg: #f2f0ea;
   --surface: #fbfaf6;
@@ -294,6 +351,17 @@ main { min-width: 0; padding: 28px 28px 48px 0; }
 dl { display: grid; align-content: end; margin: 0; border-top: 1px solid var(--line); }
 dl div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 0.78rem; }
 dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
+.lifecycle-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: #111a16; color: #f6f8f5; }
+.lifecycle-heading { display: grid; grid-template-columns: minmax(240px, 0.7fr) minmax(280px, 1fr); gap: 24px; align-items: end; padding-bottom: 18px; }
+.lifecycle-heading h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2.5vw, 2.2rem); font-weight: 400; letter-spacing: -0.025em; }
+.lifecycle-heading > p { color: #b9c7bf; font-size: 0.82rem; }
+.lifecycle-panel .eyebrow { color: #98b5a4; }
+.lifecycle-track { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.lifecycle-track li { position: relative; min-width: 0; min-height: 134px; padding: 13px 11px; border: 1px solid #34443b; border-radius: 5px; background: #1b2621; }
+.lifecycle-track li:not(:last-child)::after { position: absolute; z-index: 1; top: 50%; right: -10px; width: 7px; height: 7px; border-right: 1px solid #8ba397; border-bottom: 1px solid #8ba397; content: ""; transform: translateY(-50%) rotate(-45deg); }
+.lifecycle-track h3 { margin: 10px 0 6px; font-size: 0.77rem; line-height: 1.25; }
+.lifecycle-track p { color: #aebdb5; font-size: 0.68rem; line-height: 1.4; }
+.stage-number { display: inline-block; color: #9fc6ad; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.63rem; font-weight: 800; letter-spacing: 0.08em; }
 .section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .placeholder-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: start; min-height: 145px; padding: 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .placeholder-card:target, .placeholder-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 2px; }
@@ -495,12 +563,19 @@ button { cursor: pointer; }
 .future-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
 @media (max-width: 1050px) {
+  .lifecycle-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lifecycle-track li:nth-child(3n)::after { top: auto; right: 50%; bottom: -12px; transform: translateX(50%) rotate(45deg); }
   .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-columns { grid-template-columns: 1fr; }
   .future-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
+  .lifecycle-heading { grid-template-columns: 1fr; gap: 8px; }
+  .lifecycle-track { grid-template-columns: 1fr; gap: 18px; }
+  .lifecycle-track li { min-height: 0; }
+  .lifecycle-track li:not(:last-child)::after,
+  .lifecycle-track li:nth-child(3n)::after { top: auto; right: 50%; bottom: -12px; transform: translateX(50%) rotate(45deg); }
   .status-card { grid-template-columns: auto minmax(0, 1fr); }
   .status-card .text-button { grid-column: 2; justify-self: start; }
   .section-heading,
@@ -1118,7 +1193,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   return { buildQualityQuery, loadOverview, ready };
 }
 
-export const APP_JS = `(${consoleApp.toString()})(window);`;
+const APP_JS = `(${consoleApp.toString()})(window);`;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -1213,7 +1288,25 @@ async function authenticateConsoleRequest(request: Request, env: Env): Promise<C
     throw new ConsoleError(401, "access_subject_missing", "Cloudflare Access token subject is missing.", "unauthorized");
   }
   const tenantClaim = env.ACCESS_TENANT_CLAIM?.trim() || "custom.tenant_id";
-  const tenantId = validateTenantId(readClaim(claims, tenantClaim), `Access claim ${tenantClaim}`);
+  const configuredTenant = env.CONSOLE_STATIC_TENANT_ID?.trim();
+  let tenantId: string;
+  if (configuredTenant) {
+    tenantId = validateTenantId(configuredTenant, "configured console tenant");
+    const tenantClaimValue = readClaim(claims, tenantClaim);
+    if (tenantClaimValue !== undefined && tenantClaimValue !== null && tenantClaimValue !== "") {
+      const claimedTenant = validateTenantId(tenantClaimValue, `Access claim ${tenantClaim}`);
+      if (claimedTenant !== tenantId) {
+        throw new ConsoleError(
+          403,
+          "static_tenant_mismatch",
+          "Access tenant claim does not match the configured console tenant.",
+          "forbidden",
+        );
+      }
+    }
+  } else {
+    tenantId = validateTenantId(readClaim(claims, tenantClaim), `Access claim ${tenantClaim}`);
+  }
   return {
     tenantId,
     subject,

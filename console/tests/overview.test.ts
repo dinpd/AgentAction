@@ -2,12 +2,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { consoleApp, SHELL_HTML } from "../src/worker.ts";
+import worker, { consoleApp } from "../src/worker.ts";
 
 const fixture = JSON.parse(
   await readFile(new URL("../fixtures/support-refund-overview.json", import.meta.url), "utf8"),
 ) as Record<string, any>;
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
+const SHELL_HTML = await (
+  await worker.fetch(new Request("https://console.test/"), {
+    CONSOLE_ENABLE_MOCK_IDENTITY: "true",
+    CONSOLE_ENVIRONMENT: "development",
+    CONSOLE_MOCK_SUBJECT: "test-operator",
+    CONSOLE_MOCK_TENANT_ID: "tenant-test",
+  })
+).text();
 
 class FixedDate extends Date {
   static override now(): number {

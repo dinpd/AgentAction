@@ -145,6 +145,24 @@ test("completed refund evidence produces a qualified success receipt", () => {
   });
 });
 
+test("execution discipline treats prior attempt count as retry evidence", () => {
+  const contract = refundContract();
+  const evidence = completedEvidence(contract);
+  evidence.decision_events = [
+    {
+      ...evidence.decision_events?.[0] as Record<string, unknown>,
+      retryCount: undefined,
+      prior_attempt_count: 2,
+    },
+  ];
+
+  const receipt = evaluateIntent(contract, evidence, evaluatorOptions());
+
+  assert.equal(receipt.execution_discipline.retries, 2);
+  assert.equal(receipt.execution_discipline.preferences_met, false);
+  assert.ok(receipt.execution_discipline.preference_findings.includes("retries 2 exceeds preference 1"));
+});
+
 test("mixed refund outcomes produce a partial verdict", () => {
   const contract = refundContract();
   const evidence = completedEvidence(contract);
