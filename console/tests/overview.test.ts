@@ -7,6 +7,9 @@ import worker, { consoleApp } from "../src/worker.ts";
 const fixture = JSON.parse(
   await readFile(new URL("../fixtures/support-refund-overview.json", import.meta.url), "utf8"),
 ) as Record<string, any>;
+const JOB_DETAIL_FIXTURE = JSON.parse(
+  await readFile(new URL("../fixtures/support-refund-job-detail.json", import.meta.url), "utf8"),
+) as Record<string, any>;
 const JOBS_FIXTURE = {
   schema_version: "agentpass.intent-quality-jobs.v1",
   tenant_id: "acme",
@@ -161,10 +164,13 @@ class FakeDocument {
       "[data-rollup-list]",
       "[data-console-view='overview']",
       "[data-console-view='jobs']",
+      "[data-console-view='job-detail']",
       "[data-overview-context='boundaries']",
       "[data-overview-context='lifecycle']",
       "[data-nav-overview]",
       "[data-nav-jobs]",
+      "[data-nav-job-detail]",
+      "[data-job-detail-back]",
       "[data-jobs-filters]",
       "[data-reset-jobs-filters]",
       "[data-jobs-filter-window]",
@@ -186,6 +192,26 @@ class FakeDocument {
       "[data-jobs-list]",
       "[data-jobs-page-summary]",
       "[data-jobs-next]",
+      "[data-job-detail-message]",
+      "[data-job-detail-message-title]",
+      "[data-job-detail-message-detail]",
+      "[data-job-detail-content]",
+      "[data-job-detail-title]",
+      "[data-job-detail-subtitle]",
+      "[data-job-detail-status]",
+      "[data-job-detail-boundary]",
+      "[data-job-detail-evaluation-id]",
+      "[data-job-detail-metrics]",
+      "[data-job-detail-outcomes]",
+      "[data-job-detail-constraints]",
+      "[data-job-detail-discipline]",
+      "[data-job-detail-timeline-summary]",
+      "[data-job-detail-timeline]",
+      "[data-job-detail-preview-summary]",
+      "[data-job-detail-previews]",
+      "[data-job-detail-sources]",
+      "[data-job-detail-findings]",
+      "[data-job-detail-findings-list]",
     ]) {
       this.nodes.set(selector, new FakeElement(selector.includes("filters") ? "form" : "div"));
     }
@@ -197,7 +223,9 @@ class FakeDocument {
     this.get("[data-jobs-filter-constraint]").value = "";
     this.get("[data-jobs-filter-confidence]").value = "";
     this.get("[data-console-view='jobs']").hidden = true;
+    this.get("[data-console-view='job-detail']").hidden = true;
     this.get("[data-jobs-content]").hidden = true;
+    this.get("[data-job-detail-content]").hidden = true;
   }
 
   querySelector(selector: string): FakeElement | null {
@@ -219,6 +247,8 @@ class FakeDocument {
 type RuntimeOptions = {
   dataState?: "fresh" | "stale";
   hash?: string;
+  detailPayload?: Record<string, any>;
+  detailStatus?: number;
   jobsPayload?: Record<string, any>;
   jobsStatus?: number;
   payload?: Record<string, any>;
@@ -233,6 +263,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const pageUrls: string[] = [];
   const payload = structuredClone(options.payload || fixture);
   const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
+  const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
   const runtime = {
     Date: FixedDate,
     document,
@@ -266,6 +297,29 @@ function makeRuntime(options: RuntimeOptions = {}) {
           );
         }
         return response(payload, 200, {
+          "x-agentpass-console-data-state": options.dataState || "fresh",
+          "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
+          "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
+        });
+      }
+      if (path.startsWith("/api/console/tenants/acme/intent-quality/jobs/")) {
+        const status = options.detailStatus || 200;
+        if (status !== 200) {
+          return response(
+            {
+              error: {
+                code: status === 404 ? "intent_quality_job_not_found" : "console_test_failure",
+                message: status === 404
+                  ? "Finalized Job receipt not found."
+                  : status === 403
+                    ? "Tenant access denied."
+                    : "Gateway unavailable.",
+              },
+            },
+            status,
+          );
+        }
+        return response(detailPayload, 200, {
           "x-agentpass-console-data-state": options.dataState || "fresh",
           "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
@@ -541,5 +595,143 @@ test("renders explicit empty forbidden and unavailable Jobs states", async (cont
     const { controller, document } = makeRuntime({ hash: "#jobs", jobsPayload: malformed });
     await controller.ready;
     assert.equal(document.get("[data-jobs-message]").dataset.state, "unavailable");
+  });
+});
+
+test("loads one finalized Job detail from a stable identifier-only URL", async () => {
+  const { controller, document, pageUrls, requests } = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial",
+  });
+  await controller.ready;
+
+  assert.equal(document.get("[data-console-view='overview']").hidden, true);
+  assert.equal(document.get("[data-console-view='jobs']").hidden, true);
+  assert.equal(document.get("[data-console-view='job-detail']").hidden, false);
+  assert.equal(document.get("[data-overview-context='boundaries']").hidden, true);
+  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, true);
+  assert.equal(document.get("[data-nav-job-detail]").attributes.get("aria-current"), "page");
+  assert.equal(
+    requests.at(-1),
+    "/api/console/tenants/acme/intent-quality/jobs/job-refund-partial",
+  );
+  assert.equal(requests.some((request) => request.includes("/intent-quality/rollups?")), false);
+  assert.equal(requests.some((request) => request.includes("/intent-quality/jobs?")), false);
+  assert.equal(pageUrls.at(-1), "/?job_id=job-refund-partial#job-detail");
+  assert.equal(pageUrls.at(-1)?.includes("tenant"), false);
+  assert.equal(pageUrls.at(-1)?.includes("evidence"), false);
+
+  assert.equal(document.get("[data-job-detail-message]").hidden, true);
+  assert.equal(document.get("[data-job-detail-content]").hidden, false);
+  assert.equal(document.get("[data-job-detail-title]").textContent, "job-refund-partial");
+  assert.match(document.get("[data-job-detail-subtitle]").textContent, /intent-refund-partial/);
+  assert.match(textOf(document.get("[data-job-detail-boundary]")), /snapshot_support_refund_partial/);
+  assert.match(textOf(document.get("[data-job-detail-metrics]")), /Goal attainment 50%/);
+  assert.match(textOf(document.get("[data-job-detail-outcomes]")), /customer-notified/);
+  assert.match(textOf(document.get("[data-job-detail-constraints]")), /approval-required/);
+  assert.match(textOf(document.get("[data-job-detail-discipline]")), /Replays 1/);
+  assert.match(textOf(document.get("[data-job-detail-sources]")), /Decision events 2/);
+  const timeline = document.get("[data-job-detail-timeline]");
+  assert.equal(timeline.children.length, 6);
+  assert.match(textOf(timeline), /Authorization decision/);
+  assert.match(textOf(timeline), /Execution receipt/);
+  assert.match(textOf(timeline), /Verified observation/);
+  assert.match(textOf(timeline), /Immutable finalization/);
+  assert.match(textOf(timeline), /Timestamp missing/);
+  assert.match(textOf(document.get("[data-job-detail-findings-list]")), /timeline event lacks a valid timestamp/);
+  assert.equal(document.get("[data-status-card]").dataset.state, "partial");
+});
+
+test("renders Job detail API strings as text and rejects malformed detail contracts", async (context) => {
+  await context.test("text-only rendering", async () => {
+    const unsafe = structuredClone(JOB_DETAIL_FIXTURE);
+    unsafe.timeline.entries[0].tool = "<img src=x onerror=alert(1)>";
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      detailPayload: unsafe,
+    });
+    await controller.ready;
+    assert.match(textOf(document.get("[data-job-detail-timeline]")), /<img src=x onerror=alert\(1\)>/);
+    assert.equal(document.createdTags.includes("img"), false);
+  });
+
+  await context.test("malformed response", async () => {
+    const malformed = structuredClone(JOB_DETAIL_FIXTURE);
+    malformed.immutable_boundary.evidence_digest = "not-a-digest";
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      detailPayload: malformed,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "unavailable");
+    assert.equal(document.get("[data-job-detail-content]").hidden, true);
+  });
+});
+
+test("renders explicit unselected not-found forbidden unavailable unauthorized and stale Job detail states", async (context) => {
+  await context.test("unselected", async () => {
+    const { controller, document, requests } = makeRuntime({ hash: "#job-detail" });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "empty");
+    assert.match(document.get("[data-job-detail-message-title]").textContent, /Select a finalized job/);
+    assert.equal(requests.some((request) => request.includes("/intent-quality/jobs/")), false);
+  });
+  await context.test("invalid identifier", async () => {
+    const { controller, document, requests } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=not%20safe",
+    });
+    await controller.ready;
+    assert.match(document.get("[data-job-detail-message-title]").textContent, /not valid/);
+    assert.equal(requests.some((request) => request.includes("/intent-quality/jobs/")), false);
+  });
+  await context.test("not found", async () => {
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-missing",
+      detailStatus: 404,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "empty");
+    assert.match(document.get("[data-job-detail-message-title]").textContent, /not found/);
+  });
+  await context.test("forbidden", async () => {
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      detailStatus: 403,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "forbidden");
+  });
+  await context.test("unavailable", async () => {
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      detailStatus: 503,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "unavailable");
+  });
+  await context.test("unauthorized", async () => {
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      sessionStatus: 401,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "unauthorized");
+  });
+  await context.test("stale", async () => {
+    const { controller, document } = makeRuntime({
+      dataState: "stale",
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-status-card]").dataset.state, "stale");
+    assert.match(document.get("[data-status-detail]").textContent, /12 minutes old/);
   });
 });

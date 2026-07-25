@@ -1,9 +1,9 @@
 # AgentPass Observability Console
 
 This directory contains the Cloudflare-hosted UI/BFF, profile-scoped Fleet
-Overview, and finalized Jobs explorer for the AgentPass intent observability
-console. It is intentionally read only. Evidence inspection and exception
-views build on this boundary in later slices.
+Overview, finalized Jobs explorer, and finalized Job detail for the AgentPass
+intent observability console. It is intentionally read only. Exception views
+build on this boundary in later slices.
 
 ## Security model
 
@@ -43,6 +43,7 @@ All gateway routes are `GET` only and tenant-prefixed:
 | `/api/console/tenants/:tenant/health` | `/tenants/:tenant/health` | none |
 | `/api/console/tenants/:tenant/intent-quality/rollups` | same tenant path | rollup filters, limit, cursor |
 | `/api/console/tenants/:tenant/intent-quality/jobs` | same tenant path | bounded time, profile, agent, verdict, constraint, confidence, exact job/intent IDs, limit, cursor |
+| `/api/console/tenants/:tenant/intent-quality/jobs/:job_id` | same tenant path | none |
 | `/api/console/tenants/:tenant/intent-profiles[/:id]` | same tenant path | list pagination only |
 | `/api/console/tenants/:tenant/intent-contracts[/:id]` | same tenant path | job/profile filters and pagination on lists |
 | `/api/console/tenants/:tenant/audit/events` | same tenant path | audit filters and pagination |
@@ -102,12 +103,34 @@ key/version/digest, verdict, qualified success, constraint state, goal
 attainment, evidence confidence, preview count, retry/replay counts, runtime,
 and final status. It does not return raw decisions, execution receipts,
 observations, snapshots, or evidence payloads. Selecting a job creates a stable
-job-ID-only detail target for the later Job detail slice.
+job-ID-only detail URL.
 
 Rows keep missing agent/runtime data, indeterminate outcomes, and low confidence
 explicit. Desktop uses an accessible table; narrow viewports transform the same
 cells into labeled cards. Loading, empty, forbidden, unavailable, stale, and
 partial-data states remain visible rather than being interpreted as success.
+
+## Finalized Job detail
+
+Job detail is the third functional console view. It resolves one server-derived
+Job ID through the exact, query-free BFF route and renders only finalized
+evidence. The direct browser URL contains the Job ID and view hash; it never
+contains tenant identity, evidence, claims, or gateway credentials.
+
+The view keeps the immutable profile, intent, snapshot, and evidence digests
+visible alongside the final verdict, intent-relative goal attainment,
+constraint result, evidence confidence, predicate summaries, and execution
+discipline. Preview evaluations remain clearly separate from the final receipt.
+Frozen source cards expose only counts and digests.
+
+The evidence timeline is deterministic and ascending across authorization
+decisions, execution receipts, verified observations, finalization, and valid
+preview evaluations. Missing timestamps remain visible and sort last. Each
+timeline event uses an explicit display allowlist; raw provider results,
+arbitrary job payloads, observation values and claims, resources, approval
+evidence, and reusable credentials stay server-side. Unselected, not-found,
+malformed, unauthorized, forbidden, unavailable, stale, and data-finding states
+are explicit and accessible.
 
 ## Production configuration
 
@@ -177,8 +200,9 @@ Set a local gateway token with `wrangler secret put --env development` when the
 local gateway requires API-key authentication. Tests use a fake service binding
 and signed Access fixture; they never enable a production mock bypass.
 
-For a self-contained Fleet Overview and finalized Jobs explorer with two
-immutable support-refund profile versions, run the loopback-only fixture server:
+For a self-contained Fleet Overview, finalized Jobs explorer, and Job detail
+with two immutable support-refund profile versions, run the loopback-only
+fixture server:
 
 ```bash
 cd console
@@ -187,8 +211,11 @@ npm run dev:fixture
 
 Open `http://127.0.0.1:8791`. The fixture contains completed, failed,
 indeterminate, low-confidence, replay, retry, exclusion, small-sample, and
-missing-metric examples in both functional views. It has no gateway credential
-and uses the same development-only mock identity guard as the Worker.
+missing-metric examples across the functional views. Select
+`job-refund-partial` to inspect the authorization, replayed execution,
+verified-observation, finalization, and missing-timestamp preview sequence. The
+fixture has no gateway credential and uses the same development-only mock
+identity guard as the Worker.
 
 To verify the stale presentation locally:
 
@@ -218,8 +245,11 @@ After deployment:
    data-quality findings, and small-sample status remain visible.
 7. Open Jobs, apply confidence and exact job/intent filters, and confirm only
    finalized rows appear with URL-persisted filter state.
-8. Request another tenant under `/api/console/tenants/<other>/health` and
+8. Select a Job ID and confirm its direct URL contains only `job_id`; verify the
+   immutable boundary, predicate summaries, evidence counts, and ordered
+   timeline render without raw evidence payloads.
+9. Request another tenant under `/api/console/tenants/<other>/health` and
    confirm a `403` without a gateway call.
-8. Confirm browser network requests contain no reusable AgentPass bearer token.
-9. Confirm missing or invalid Access assertions return an explicit `401`, and
+10. Confirm browser network requests contain no reusable AgentPass bearer token.
+11. Confirm missing or invalid Access assertions return an explicit `401`, and
    gateway outages render the unavailable shell state without upstream detail.

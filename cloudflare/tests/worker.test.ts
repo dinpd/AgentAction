@@ -675,6 +675,7 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
     store?.get(`intent-quality:index:${String(finalized.body.evaluation.evaluated_at).slice(0, 10)}`),
     [intentId],
   );
+  assert.deepEqual(store?.get(`intent-quality:job:${jobId}`), [intentId]);
 
   await ctx.flush();
   const audit = await call(env, ctx, "GET", `/audit/events?intent_id=${intentId}&limit=50`);
@@ -1283,6 +1284,245 @@ test("finalized Jobs explorer is tenant scoped filterable and cursor stable with
   );
   assert.equal(oversizedWindow.status, 400);
   assert.equal(oversizedWindow.body.error_code, "intent_quality_time_window_too_large");
+});
+
+test("finalized Job detail exposes an allowlisted deterministic frozen timeline", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const profileDigest = "a".repeat(64);
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "detail-safe",
+    jobId: "job-detail-safe",
+    agentId: "agent-detail",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "partial",
+    compliance: "fail",
+    qualifiedSuccess: false,
+    goalAttainment: 0.5,
+    confidence: 0.6,
+    finalizedAt: "2026-07-21T10:05:00.000Z",
+    discipline: qualityDiscipline({
+      tool_calls: 2,
+      execution_receipts: 1,
+      executions: 1,
+      replays: 1,
+      retries: 2,
+      denied_decisions: 1,
+      runtime_ms: 2_000,
+      preferences_met: false,
+      preference_findings: ["preference finding"],
+    }),
+    decisionEvents: [
+      {
+        schema_version: "agentpass.intent-decision-evidence.v1",
+        decision_id: "decision-allow",
+        agent_id: "agent-detail",
+        tool: "zendesk.search_tickets",
+        action: "read",
+        decision: "allow",
+        allow: true,
+        decided_at: "2026-07-21T10:01:00.000Z",
+        resource: "secret-resource",
+        approval_evidence: { token: "secret-approval-token" },
+        findings: [],
+      },
+      {
+        schema_version: "agentpass.intent-decision-evidence.v1",
+        decision_id: "decision-deny",
+        agent_id: "agent-detail",
+        tool: "stripe.create_refund",
+        action: "write",
+        decision: "deny",
+        allow: false,
+        findings: ["approval required"],
+      },
+    ],
+    executionReceipts: [{
+      schema_version: "agentpass.provider-execution-receipt.v1",
+      decision_id: "receipt-replay",
+      tool: "stripe.create_refund",
+      action: "write",
+      status: "replayed",
+      executed_at: "2026-07-21T10:03:00.000Z",
+      completed_at: "2026-07-21T10:03:01.000Z",
+      replay_count: 1,
+      replayed_from_decision_id: "receipt-original",
+      request_digest: "secret-request-digest",
+      result_body: "secret-provider-body",
+    }],
+    observations: [{
+      schema_version: "agentpass.intent-observation.v1",
+      observation_id: "observation-safe",
+      issuer: "stripe-adapter",
+      predicate: "refund.status",
+      value: "secret-observation-value",
+      observed_at: "2026-07-21T10:04:00.000Z",
+      issued_at: "2026-07-21T10:04:01.000Z",
+      payload_digest: "5".repeat(64),
+      resource: "secret-observation-resource",
+      claims: { access_token: "secret-observation-token" },
+      provenance: {
+        verification_method: "jws",
+        verified_at: "2026-07-21T10:04:02.000Z",
+        signature_kid: "stripe-2026",
+        verified_subject: "secret-subject",
+      },
+    }],
+    jobEvidence: {
+      private_payload: "secret-job-payload",
+      started_at: "2026-07-21T10:00:00.000Z",
+      completed_at: "2026-07-21T10:05:00.000Z",
+    },
+    outcomes: [{
+      predicate_id: "refund-created",
+      status: "pass",
+      observed_count: 1,
+      reason: "refund creation observed",
+      expected: "expected-secret",
+      actual: "actual-secret",
+    }],
+    constraints: [{
+      predicate_id: "approval-required",
+      status: "fail",
+      observed_count: 0,
+      reason: "approval evidence missing",
+    }],
+    evidenceFindings: ["low confidence evidence"],
+  });
+  seedIntentQualityPreviewDetail(namespace, "acme", {
+    intentId: "detail-safe",
+    jobId: "job-detail-safe",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    evaluationId: "preview-valid",
+    evaluatedAt: "not-a-time",
+  });
+  seedIntentQualityPreviewDetail(namespace, "acme", {
+    intentId: "detail-safe",
+    jobId: "job-detail-safe",
+    profileKey: "support_refund.v2",
+    profileVersion: "v2",
+    profileDigest: "b".repeat(64),
+    evaluationId: "preview-invalid",
+    evaluatedAt: "2026-07-21T10:02:00.000Z",
+  });
+  seedIntentQualityPreview(namespace, "acme", "detail-preview-only");
+
+  const detail = await call(env, ctx, "GET", "/tenants/acme/intent-quality/jobs/job-detail-safe");
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.schema_version, "agentpass.intent-quality-job-detail.v1");
+  assert.equal(detail.body.tenant_id, "acme");
+  assert.equal(detail.body.job.job_id, "job-detail-safe");
+  assert.equal(detail.body.job.intent_id, "detail-safe");
+  assert.deepEqual(detail.body.job.profile_binding, {
+    key: "support_refund.v1",
+    version: "v1",
+    digest: profileDigest,
+  });
+  assert.equal(detail.body.immutable_boundary.status, "finalized");
+  assert.equal(detail.body.immutable_boundary.snapshot_id.startsWith("snapshot_"), true);
+  assert.equal(detail.body.final_evaluation.verdict, "partial");
+  assert.equal(detail.body.final_evaluation.constraints[0].status, "fail");
+  assert.deepEqual(detail.body.final_evaluation.execution_discipline, {
+    tool_calls: 2,
+    execution_receipts: 1,
+    executions: 1,
+    replays: 1,
+    retries: 2,
+    denied_decisions: 1,
+    challenge_decisions: 0,
+    estimated_cost_usd: 0,
+    runtime_ms: 2_000,
+    preferences_met: false,
+    preference_findings: ["preference finding"],
+  });
+  assert.equal(detail.body.previews.count, 1);
+  assert.equal(detail.body.previews.invalid_count, 1);
+  assert.equal(detail.body.previews.evaluations[0].evaluation_id, "preview-valid");
+  assert.equal(detail.body.previews.evaluations[0].evaluated_at, null);
+  assert.equal(detail.body.evidence_sources.decision_events.count, 2);
+  assert.equal(detail.body.evidence_sources.execution_receipts.count, 1);
+  assert.equal(detail.body.evidence_sources.observations.count, 1);
+  assert.equal(detail.body.timeline.ordering.tie_breaker, "event_type, evidence_id, source_index");
+  assert.deepEqual(
+    detail.body.timeline.entries.map((entry: any) => entry.event_type),
+    ["authorization_decision", "execution_receipt", "verified_observation", "finalization", "authorization_decision", "preview_evaluation"],
+  );
+  assert.equal(detail.body.timeline.entries[0].decision, "allow");
+  assert.equal(detail.body.timeline.entries[1].status, "replayed");
+  assert.equal(detail.body.timeline.entries[2].verification_method, "jws");
+  assert.equal(detail.body.timeline.entries[4].timestamp_status, "missing");
+  assert.equal(detail.body.timeline.entries[5].timestamp_status, "missing");
+  assert.equal(detail.body.data_quality.missing_timestamps_count, 2);
+  assert.equal(detail.body.data_quality.invalid_preview_count, 1);
+  const serialized = JSON.stringify(detail.body);
+  for (const forbidden of [
+    "secret-resource",
+    "secret-approval-token",
+    "secret-request-digest",
+    "secret-provider-body",
+    "secret-observation-value",
+    "secret-observation-resource",
+    "secret-observation-token",
+    "secret-subject",
+    "secret-job-payload",
+    "expected-secret",
+    "actual-secret",
+    "result_body",
+    "approval_evidence",
+  ]) {
+    assert.equal(serialized.includes(forbidden), false, forbidden);
+  }
+
+  const otherTenant = await call(env, ctx, "GET", "/tenants/other/intent-quality/jobs/job-detail-safe");
+  assert.equal(otherTenant.status, 404);
+  assert.equal(otherTenant.body.error_code, "intent_quality_job_not_found");
+  const previewOnly = await call(env, ctx, "GET", "/tenants/acme/intent-quality/jobs/detail-preview-only");
+  assert.equal(previewOnly.status, 404);
+  const invalidId = await call(env, ctx, "GET", "/tenants/acme/intent-quality/jobs/not%20safe");
+  assert.equal(invalidId.status, 400);
+  assert.equal(invalidId.body.error_code, "intent_quality_job_id_invalid");
+  const queryRejected = await call(env, ctx, "GET", "/tenants/acme/intent-quality/jobs/job-detail-safe?debug=true");
+  assert.equal(queryRejected.status, 400);
+  assert.equal(queryRejected.body.error_code, "intent_quality_job_detail_query_not_allowed");
+
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "ambiguous-one",
+    jobId: "job-ambiguous",
+    agentId: "agent-detail",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T11:00:00.000Z",
+    discipline: qualityDiscipline({ preferences_met: true }),
+  });
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "ambiguous-two",
+    jobId: "job-ambiguous",
+    agentId: "agent-detail",
+    profileKey: "support_refund.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T11:01:00.000Z",
+    discipline: qualityDiscipline({ preferences_met: true }),
+  });
+  const ambiguous = await call(env, ctx, "GET", "/tenants/acme/intent-quality/jobs/job-ambiguous");
+  assert.equal(ambiguous.status, 409);
+  assert.equal(ambiguous.body.error_code, "intent_quality_job_ambiguous");
 });
 
 test("hosted intent runtime rejects incomplete unknown altered and expired bindings", async () => {
@@ -2237,6 +2477,7 @@ function seedIntentQualityFinalization(
   tenantId: string,
   input: {
     intentId: string;
+    jobId?: string;
     agentId?: string;
     profileKey: string;
     profileVersion?: string;
@@ -2248,6 +2489,13 @@ function seedIntentQualityFinalization(
     confidence: number;
     finalizedAt: string;
     discipline: Record<string, unknown>;
+    decisionEvents?: Record<string, unknown>[];
+    executionReceipts?: Record<string, unknown>[];
+    observations?: Record<string, unknown>[];
+    jobEvidence?: Record<string, unknown>;
+    outcomes?: Record<string, unknown>[];
+    constraints?: Record<string, unknown>[];
+    evidenceFindings?: string[];
   },
 ): void {
   namespace.get(tenantId);
@@ -2258,7 +2506,14 @@ function seedIntentQualityFinalization(
   const intentDigest = sequence.toString(16).padStart(64, "c").slice(-64);
   const evidenceDigest = sequence.toString(16).padStart(64, "d").slice(-64);
   const snapshotId = `snapshot_${sequence.toString(16).padStart(24, "0")}`;
-  const jobId = `job-${input.intentId}`;
+  const jobId = input.jobId || `job-${input.intentId}`;
+  const decisionEvents = input.decisionEvents || [];
+  const executionReceipts = input.executionReceipts || [];
+  const observations = input.observations || [];
+  const jobEvidence = {
+    ...(input.agentId ? { agent_id: input.agentId } : {}),
+    ...(input.jobEvidence || {}),
+  };
   const evaluation = {
     schema_version: "agentpass.intent-evaluation.v1",
     evaluation_id: `eval-final-${input.intentId}`,
@@ -2274,10 +2529,10 @@ function seedIntentQualityFinalization(
     qualified_success: input.qualifiedSuccess,
     goal_attainment: input.goalAttainment,
     evidence_confidence: input.confidence,
-    outcomes: [],
-    constraints: [],
+    outcomes: input.outcomes || [],
+    constraints: input.constraints || [],
     execution_discipline: input.discipline,
-    evidence_findings: [],
+    evidence_findings: input.evidenceFindings || [],
     evaluation_mode: "final",
     snapshot_id: snapshotId,
     evidence_digest: evidenceDigest,
@@ -2291,12 +2546,33 @@ function seedIntentQualityFinalization(
     job_id: jobId,
     captured_at: input.finalizedAt,
     evidence_digest: evidenceDigest,
-    sources: {},
+    sources: {
+      decision_events: {
+        count: decisionEvents.length,
+        evidence_ids: decisionEvents.map((event, index) => String(event.decision_id || `decision-${index + 1}`)),
+        digest: "1".repeat(64),
+      },
+      execution_receipts: {
+        count: executionReceipts.length,
+        evidence_ids: executionReceipts.map((receipt, index) => String(receipt.decision_id || `receipt-${index + 1}`)),
+        digest: "2".repeat(64),
+      },
+      observations: {
+        count: observations.length,
+        evidence_ids: observations.map((observation, index) => String(observation.observation_id || `observation-${index + 1}`)),
+        digest: "3".repeat(64),
+      },
+      job: {
+        count: Object.keys(jobEvidence).length > 0 ? 1 : 0,
+        evidence_ids: Object.keys(jobEvidence).length > 0 ? [jobId] : [],
+        digest: "4".repeat(64),
+      },
+    },
     evidence: {
-      decision_events: [],
-      execution_receipts: [],
-      observations: [],
-      job: input.agentId ? { agent_id: input.agentId } : {},
+      decision_events: decisionEvents,
+      execution_receipts: executionReceipts,
+      observations,
+      job: jobEvidence,
     },
   };
   store.set(`intent:${input.intentId}:finalization`, {
@@ -2337,6 +2613,51 @@ function seedIntentQualityPreviewHistory(
     });
   }
   store.set(`intent:${intentId}:evaluation:index`, evaluationIds);
+}
+
+function seedIntentQualityPreviewDetail(
+  namespace: MemoryNamespace,
+  tenantId: string,
+  input: {
+    intentId: string;
+    jobId: string;
+    profileKey: string;
+    profileVersion: string;
+    profileDigest: string;
+    evaluationId: string;
+    evaluatedAt: string;
+  },
+): void {
+  namespace.get(tenantId);
+  const store = namespace.stores.get(tenantId);
+  assert.ok(store);
+  const evaluation = {
+    schema_version: "agentpass.intent-evaluation.v1",
+    evaluation_id: input.evaluationId,
+    intent_id: input.intentId,
+    intent_digest: String(
+      (store.get(`intent:${input.intentId}:finalization`) as any)?.evaluation?.intent_digest || "",
+    ),
+    profile: input.profileKey,
+    profile_version: input.profileVersion,
+    profile_digest: input.profileDigest,
+    job_id: input.jobId,
+    evaluated_at: input.evaluatedAt,
+    verdict: "partial",
+    constraint_compliance: "indeterminate",
+    qualified_success: false,
+    goal_attainment: 0.5,
+    evidence_confidence: 0.6,
+    outcomes: [],
+    constraints: [],
+    execution_discipline: qualityDiscipline({ preferences_met: null }),
+    evidence_findings: ["preview evidence incomplete"],
+    evaluation_mode: "preview",
+  };
+  store.set(`intent:${input.intentId}:evaluation:${input.evaluationId}`, evaluation);
+  const indexKey = `intent:${input.intentId}:evaluation:index`;
+  const index = (store.get(indexKey) as string[] | undefined) || [];
+  store.set(indexKey, [input.evaluationId, ...index.filter((id) => id !== input.evaluationId)]);
 }
 
 async function signHs256Jwt(claims: Record<string, unknown>, secret: string): Promise<string> {

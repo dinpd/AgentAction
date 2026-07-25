@@ -490,6 +490,27 @@ export default {
         body.auth = auth.context;
         return json(body, stored.status);
       }
+      if (
+        request.method === "GET" &&
+        route.endpoint === "intent-quality" &&
+        route.resourceId === "jobs" &&
+        route.action
+      ) {
+        if ([...url.searchParams.keys()].length > 0) {
+          return json({
+            error: "intent quality job detail does not accept query parameters",
+            error_code: "intent_quality_job_detail_query_not_allowed",
+          }, 400);
+        }
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(
+            `https://agentid.local/intent-quality/jobs/${encodeURIComponent(route.action)}?tenant_id=${encodeURIComponent(route.tenantId || "default")}`,
+          ),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
 
       if (request.method === "POST" && route.endpoint === "intent-profiles" && !route.resourceId) {
         const submitted = await readJson(request) as IntentProfile;
@@ -1287,6 +1308,17 @@ export class AgentIdJitGrants {
     if (request.method === "GET" && url.pathname === "/intent-quality/jobs") {
       return this.intentQualityJobs(url);
     }
+    if (request.method === "GET" && url.pathname.startsWith("/intent-quality/jobs/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length !== 3) return json({ error: "not found" }, 404);
+      let jobId = "";
+      try {
+        jobId = decodeURIComponent(parts[2]);
+      } catch {
+        return json({ error: "intent quality job ID is invalid", error_code: "intent_quality_job_id_invalid" }, 400);
+      }
+      return this.intentQualityJobDetail(jobId, url);
+    }
 
     if (request.method === "POST" && url.pathname === "/intent-profiles") {
       try {
@@ -1837,7 +1869,7 @@ export class AgentIdJitGrants {
         started_at: existing.snapshot.captured_at,
         finalized_at: existing.finalized_at,
       } satisfies IntentFinalizationState);
-      await this.indexIntentQualityFinalization(intentId, existing.finalized_at);
+      await this.indexIntentQualityFinalization(intentId, existing.finalized_at, existing.snapshot.job_id);
       return json({ evaluation: existing.evaluation, snapshot: existing.snapshot, replayed: true });
     }
 
@@ -1884,7 +1916,7 @@ export class AgentIdJitGrants {
       finalized_at: finalizedAt,
     } satisfies IntentFinalizationState);
     await this.state.storage.put(finalizationKey, record);
-    await this.indexIntentQualityFinalization(intentId, finalizedAt);
+    await this.indexIntentQualityFinalization(intentId, finalizedAt, snapshot.job_id);
     return json({ evaluation, snapshot, replayed: false }, 201);
   }
 
@@ -2272,6 +2304,72 @@ export class AgentIdJitGrants {
     });
   }
 
+  async intentQualityJobDetail(jobId: string, url: URL): Promise<Response> {
+    for (const key of url.searchParams.keys()) {
+      if (key !== "tenant_id") {
+        return json({
+          error: "intent quality job detail does not accept query parameters",
+          error_code: "intent_quality_job_detail_query_not_allowed",
+        }, 400);
+      }
+    }
+    if (!intentQualityJobIdValid(jobId)) {
+      return json({ error: "intent quality job ID is invalid", error_code: "intent_quality_job_id_invalid" }, 400);
+    }
+    const tenantId = url.searchParams.get("tenant_id") || "default";
+    const indexed = await this.state.storage.get<string[] | string>(`intent-quality:job:${jobId}`);
+    const indexedIntentIds = Array.isArray(indexed) ? indexed : typeof indexed === "string" ? [indexed] : [];
+    const legacyIntentIds = await this.state.storage.get<string[]>("intent:index") || [];
+    const intentIds = [...new Set([...indexedIntentIds, ...legacyIntentIds])];
+    const matches: Array<{ finalization: IntentFinalizationRecord; record: IntentQualityRecord }> = [];
+
+    for (const intentId of intentIds) {
+      const finalization = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+      if (!finalization || optionalString(recordValue(finalization.snapshot).job_id) !== jobId) continue;
+      const quality = intentQualityRecord(finalization);
+      if (!quality.record || quality.record.tenant_id !== tenantId || quality.record.job_id !== jobId) continue;
+      matches.push({ finalization, record: quality.record });
+    }
+    if (matches.length === 0) {
+      return json({
+        error: `finalized intent quality job not found: ${jobId}`,
+        error_code: "intent_quality_job_not_found",
+      }, 404);
+    }
+    if (matches.length > 1) {
+      return json({
+        error: `finalized intent quality job ID is ambiguous: ${jobId}`,
+        error_code: "intent_quality_job_ambiguous",
+      }, 409);
+    }
+
+    const match = matches[0];
+    const evaluationIds = await this.state.storage.get<string[]>(
+      `intent:${match.record.intent_id}:evaluation:index`,
+    ) || [];
+    const previews: Record<string, unknown>[] = [];
+    let invalidPreviewCount = 0;
+    for (const evaluationId of evaluationIds.slice(0, 1_000)) {
+      const evaluation = await this.state.storage.get<HostedIntentEvaluationReceipt>(
+        `intent:${match.record.intent_id}:evaluation:${evaluationId}`,
+      );
+      if (evaluation?.evaluation_mode !== "preview") continue;
+      const summary = intentQualityPreviewSummary(evaluation, match.record);
+      if (summary) previews.push(summary);
+      else invalidPreviewCount += 1;
+    }
+    previews.sort((left, right) =>
+      intentQualityNullableTimestamp(left.evaluated_at).localeCompare(intentQualityNullableTimestamp(right.evaluated_at)) ||
+      stringValue(left.evaluation_id).localeCompare(stringValue(right.evaluation_id))
+    );
+    return json(intentQualityJobDetailPayload(
+      match.record,
+      match.finalization,
+      previews,
+      invalidPreviewCount,
+    ));
+  }
+
   async intentQualityPreviewCount(intentId: string): Promise<number> {
     const evaluationIds = await this.state.storage.get<string[]>(`intent:${intentId}:evaluation:index`) || [];
     let previewCount = 0;
@@ -2288,11 +2386,17 @@ export class AgentIdJitGrants {
     return latestPreview?.evaluation_mode === "preview" ? 1 : 0;
   }
 
-  async indexIntentQualityFinalization(intentId: string, finalizedAt: string): Promise<void> {
+  async indexIntentQualityFinalization(intentId: string, finalizedAt: string, jobId?: string): Promise<void> {
     const date = new Date(finalizedAt).toISOString().slice(0, 10);
     const key = `intent-quality:index:${date}`;
     const index = await this.state.storage.get<string[]>(key) || [];
     if (!index.includes(intentId)) await this.state.storage.put(key, [...index, intentId].sort());
+    if (jobId && intentQualityJobIdValid(jobId)) {
+      const jobKey = `intent-quality:job:${jobId}`;
+      const existing = await this.state.storage.get<string[] | string>(jobKey);
+      const intentIds = Array.isArray(existing) ? existing : typeof existing === "string" ? [existing] : [];
+      if (!intentIds.includes(intentId)) await this.state.storage.put(jobKey, [...intentIds, intentId].sort());
+    }
   }
 
   async persistIntentEvaluation(intentId: string, evaluation: HostedIntentEvaluationReceipt): Promise<void> {
@@ -3753,6 +3857,358 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
         record.evaluation.verdict === "indeterminate" ||
         record.evaluation.constraint_compliance === "indeterminate",
       findings,
+    },
+  };
+}
+
+function intentQualityJobIdValid(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(value);
+}
+
+function intentQualityTimestamp(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+function intentQualityNullableTimestamp(value: unknown): string {
+  return intentQualityTimestamp(value) || "\uffff";
+}
+
+function intentQualityStringList(value: unknown, limit = 20): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      .map((item) => item.trim().slice(0, 500))
+      .slice(0, limit)
+    : [];
+}
+
+function intentQualityPreviewSummary(
+  evaluation: HostedIntentEvaluationReceipt,
+  record: IntentQualityRecord,
+): Record<string, unknown> | null {
+  if (
+    evaluation.schema_version !== "agentpass.intent-evaluation.v1" ||
+    evaluation.evaluation_mode !== "preview" ||
+    !evaluation.evaluation_id ||
+    evaluation.intent_id !== record.intent_id ||
+    evaluation.intent_digest !== record.intent_digest ||
+    evaluation.job_id !== record.job_id ||
+    evaluation.profile !== record.profile_key ||
+    evaluation.profile_version !== record.profile_version ||
+    evaluation.profile_digest !== record.profile_digest ||
+    !["completed", "partial", "failed", "indeterminate"].includes(evaluation.verdict) ||
+    !["pass", "fail", "indeterminate"].includes(evaluation.constraint_compliance) ||
+    typeof evaluation.qualified_success !== "boolean" ||
+    !qualityMetricInRange(evaluation.goal_attainment, 0, 1) ||
+    !qualityMetricInRange(evaluation.evidence_confidence, 0, 1)
+  ) return null;
+  return {
+    schema_version: "agentpass.intent-quality-job-preview.v1",
+    evaluation_id: evaluation.evaluation_id,
+    evaluated_at: intentQualityTimestamp(evaluation.evaluated_at),
+    timestamp_status: intentQualityTimestamp(evaluation.evaluated_at) ? "recorded" : "missing",
+    verdict: evaluation.verdict,
+    qualified_success: evaluation.qualified_success,
+    constraint_compliance: evaluation.constraint_compliance,
+    goal_attainment: evaluation.goal_attainment,
+    evidence_confidence: evaluation.evidence_confidence,
+    confidence_band: intentQualityConfidenceBand(evaluation.evidence_confidence),
+    evidence_findings: intentQualityStringList(evaluation.evidence_findings),
+  };
+}
+
+function intentQualityPredicateSummaries(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  const summaries: Record<string, unknown>[] = [];
+  for (const item of value) {
+    const predicate = recordValue(item);
+    if (
+      !optionalString(predicate.predicate_id) ||
+      !["pass", "fail", "indeterminate"].includes(stringValue(predicate.status)) ||
+      !qualityMetricInRange(predicate.observed_count, 0) ||
+      !optionalString(predicate.reason)
+    ) continue;
+    summaries.push({
+      predicate_id: stringValue(predicate.predicate_id),
+      status: stringValue(predicate.status),
+      observed_count: qualityNumber(predicate.observed_count),
+      reason: stringValue(predicate.reason).slice(0, 500),
+    });
+  }
+  return summaries;
+}
+
+function intentQualityFinalEvaluation(record: IntentQualityRecord): Record<string, unknown> {
+  const evaluation = record.evaluation;
+  const discipline = recordValue(evaluation.execution_discipline);
+  return {
+    schema_version: "agentpass.intent-quality-job-final-evaluation.v1",
+    evaluation_id: evaluation.evaluation_id,
+    evaluated_at: intentQualityTimestamp(evaluation.evaluated_at),
+    verdict: evaluation.verdict,
+    qualified_success: evaluation.qualified_success,
+    constraint_compliance: evaluation.constraint_compliance,
+    goal_attainment: evaluation.goal_attainment,
+    evidence_confidence: evaluation.evidence_confidence,
+    confidence_band: intentQualityConfidenceBand(evaluation.evidence_confidence),
+    outcomes: intentQualityPredicateSummaries(evaluation.outcomes),
+    constraints: intentQualityPredicateSummaries(evaluation.constraints),
+    execution_discipline: {
+      tool_calls: qualityNumber(discipline.tool_calls),
+      execution_receipts: qualityNumber(discipline.execution_receipts),
+      executions: qualityNumber(discipline.executions),
+      replays: qualityNumber(discipline.replays),
+      retries: qualityNumber(discipline.retries),
+      denied_decisions: qualityNumber(discipline.denied_decisions),
+      challenge_decisions: qualityNumber(discipline.challenge_decisions),
+      estimated_cost_usd: qualityNumber(discipline.estimated_cost_usd),
+      runtime_ms: typeof discipline.runtime_ms === "number" && Number.isFinite(discipline.runtime_ms)
+        ? discipline.runtime_ms
+        : null,
+      preferences_met: discipline.preferences_met,
+      preference_findings: intentQualityStringList(discipline.preference_findings),
+    },
+    evidence_findings: intentQualityStringList(evaluation.evidence_findings),
+  };
+}
+
+function intentQualityEvidenceSources(snapshot: IntentEvidenceSnapshot): {
+  findings: string[];
+  sources: Record<string, unknown>;
+} {
+  const findings: string[] = [];
+  const manifest = recordValue(snapshot.sources);
+  const evidence = recordValue(snapshot.evidence);
+  const sourceRecords: Record<string, unknown[]> = {
+    decision_events: Array.isArray(evidence.decision_events) ? evidence.decision_events : [],
+    execution_receipts: Array.isArray(evidence.execution_receipts) ? evidence.execution_receipts : [],
+    observations: Array.isArray(evidence.observations) ? evidence.observations : [],
+    job: evidence.job ? [evidence.job] : [],
+  };
+  const sources: Record<string, unknown> = {};
+  for (const source of ["decision_events", "execution_receipts", "observations", "job"]) {
+    const declared = recordValue(manifest[source]);
+    const digest = optionalString(declared.digest);
+    const declaredCount = Number.isInteger(declared.count) && Number(declared.count) >= 0
+      ? Number(declared.count)
+      : null;
+    const count = sourceRecords[source].length;
+    if (declaredCount !== count) findings.push(`${source} manifest count does not match frozen evidence`);
+    if (!digest || !/^[a-f0-9]{64}$/.test(digest)) findings.push(`${source} manifest digest is missing or invalid`);
+    sources[source] = {
+      count,
+      declared_count: declaredCount,
+      digest: digest && /^[a-f0-9]{64}$/.test(digest) ? digest : null,
+    };
+  }
+  return { sources, findings };
+}
+
+function intentQualityJobTimeline(
+  record: IntentQualityRecord,
+  finalization: IntentFinalizationRecord,
+  previews: Record<string, unknown>[],
+): { entries: Record<string, unknown>[]; missingTimestampCount: number } {
+  type TimelineEntry = Record<string, unknown> & {
+    _source_index: number;
+    event_type: string;
+    evidence_id: string | null;
+    occurred_at: string | null;
+  };
+  const entries: TimelineEntry[] = [];
+  const add = (
+    eventType: string,
+    evidenceId: string | null,
+    timestamp: unknown,
+    sourceIndex: number,
+    fields: Record<string, unknown>,
+  ) => {
+    const occurredAt = intentQualityTimestamp(timestamp);
+    entries.push({
+      event_type: eventType,
+      evidence_id: evidenceId,
+      occurred_at: occurredAt,
+      timestamp_status: occurredAt ? "recorded" : "missing",
+      _source_index: sourceIndex,
+      ...fields,
+    });
+  };
+
+  previews.forEach((preview, index) => add(
+    "preview_evaluation",
+    optionalString(preview.evaluation_id) || null,
+    preview.evaluated_at,
+    index,
+    {
+      verdict: preview.verdict,
+      constraint_compliance: preview.constraint_compliance,
+      evidence_confidence: preview.evidence_confidence,
+      confidence_band: preview.confidence_band,
+    },
+  ));
+  finalization.snapshot.evidence.decision_events.forEach((value, index) => {
+    const event = recordValue(value);
+    const decision = ["allow", "deny", "challenge_required"].includes(stringValue(event.decision))
+      ? stringValue(event.decision)
+      : event.allow === true
+        ? "allow"
+        : event.allow === false
+          ? "deny"
+          : "indeterminate";
+    add(
+      "authorization_decision",
+      optionalString(event.decision_id) || null,
+      event.decided_at,
+      index,
+      {
+        agent_id: optionalString(event.agent_id) || null,
+        tool: optionalString(event.tool) || null,
+        action: optionalString(event.action) || null,
+        decision,
+        approval_id: optionalString(event.approval_id) || null,
+        jit_grant_id: optionalString(event.jit_grant_id) || null,
+        replayed: event.replayed === true,
+        findings: intentQualityStringList(event.findings),
+      },
+    );
+  });
+  finalization.snapshot.evidence.execution_receipts.forEach((value, index) => {
+    const receipt = recordValue(value);
+    add(
+      "execution_receipt",
+      optionalString(receipt.decision_id) || null,
+      receipt.executed_at,
+      index,
+      {
+        completed_at: intentQualityTimestamp(receipt.completed_at),
+        tool: optionalString(receipt.tool) || null,
+        action: optionalString(receipt.action) || null,
+        status: ["executed", "replayed"].includes(stringValue(receipt.status))
+          ? stringValue(receipt.status)
+          : "indeterminate",
+        replay_count: Number.isInteger(receipt.replay_count) && Number(receipt.replay_count) >= 0
+          ? Number(receipt.replay_count)
+          : 0,
+        replayed_from_decision_id: optionalString(receipt.replayed_from_decision_id) || null,
+        outcome_code: optionalString(receipt.outcome_code) || null,
+        error_code: optionalString(receipt.error_code) || null,
+      },
+    );
+  });
+  finalization.snapshot.evidence.observations.forEach((value, index) => {
+    const observation = recordValue(value);
+    const provenance = recordValue(observation.provenance);
+    add(
+      "verified_observation",
+      optionalString(observation.observation_id) || null,
+      observation.observed_at,
+      index,
+      {
+        issued_at: intentQualityTimestamp(observation.issued_at),
+        issuer: optionalString(observation.issuer) || null,
+        predicate: optionalString(observation.predicate) || null,
+        payload_digest: /^[a-f0-9]{64}$/.test(stringValue(observation.payload_digest))
+          ? stringValue(observation.payload_digest)
+          : null,
+        verification_method: ["oidc", "jws", "unsigned_dev"].includes(stringValue(provenance.verification_method))
+          ? stringValue(provenance.verification_method)
+          : null,
+        verified_at: intentQualityTimestamp(provenance.verified_at),
+        signature_kid: optionalString(provenance.signature_kid) || null,
+      },
+    );
+  });
+  add(
+    "finalization",
+    optionalString(record.evaluation.evaluation_id) || null,
+    finalization.finalized_at,
+    0,
+    {
+      verdict: record.evaluation.verdict,
+      constraint_compliance: record.evaluation.constraint_compliance,
+      evidence_confidence: record.evaluation.evidence_confidence,
+      snapshot_id: finalization.snapshot.snapshot_id,
+    },
+  );
+
+  entries.sort((left, right) => {
+    const leftTime = left.occurred_at || "\uffff";
+    const rightTime = right.occurred_at || "\uffff";
+    return leftTime.localeCompare(rightTime) ||
+      left.event_type.localeCompare(right.event_type) ||
+      (left.evidence_id || "").localeCompare(right.evidence_id || "") ||
+      left._source_index - right._source_index;
+  });
+  const missingTimestampCount = entries.filter((entry) => entry.occurred_at === null).length;
+  return {
+    missingTimestampCount,
+    entries: entries.map(({ _source_index: sourceIndex, ...entry }, index) => ({
+      sequence: index + 1,
+      source_index: sourceIndex,
+      ...entry,
+    })),
+  };
+}
+
+function intentQualityJobDetailPayload(
+  record: IntentQualityRecord,
+  finalization: IntentFinalizationRecord,
+  previews: Record<string, unknown>[],
+  invalidPreviewCount: number,
+): Record<string, unknown> {
+  const job = intentQualityJob(record, previews.length);
+  const jobQuality = recordValue(recordValue(job).data_quality);
+  const evidenceSources = intentQualityEvidenceSources(finalization.snapshot);
+  const timeline = intentQualityJobTimeline(record, finalization, previews);
+  const findings = [
+    ...intentQualityStringList(jobQuality.findings),
+    ...evidenceSources.findings,
+  ];
+  if (invalidPreviewCount > 0) findings.push(`${invalidPreviewCount} invalid preview evaluation(s) were excluded`);
+  if (timeline.missingTimestampCount > 0) {
+    findings.push(`${timeline.missingTimestampCount} timeline event(s) lack a valid timestamp`);
+  }
+  const outcomeSummaries = intentQualityPredicateSummaries(record.evaluation.outcomes);
+  const constraintSummaries = intentQualityPredicateSummaries(record.evaluation.constraints);
+  if (outcomeSummaries.length !== (Array.isArray(record.evaluation.outcomes) ? record.evaluation.outcomes.length : 0)) {
+    findings.push("one or more malformed outcome evaluations were excluded");
+  }
+  if (constraintSummaries.length !== (Array.isArray(record.evaluation.constraints) ? record.evaluation.constraints.length : 0)) {
+    findings.push("one or more malformed constraint evaluations were excluded");
+  }
+
+  return {
+    schema_version: "agentpass.intent-quality-job-detail.v1",
+    tenant_id: record.tenant_id,
+    job,
+    immutable_boundary: {
+      status: "finalized",
+      finalized_at: record.finalized_at,
+      captured_at: intentQualityTimestamp(finalization.snapshot.captured_at),
+      intent_digest: record.intent_digest,
+      snapshot_id: finalization.snapshot.snapshot_id,
+      evidence_digest: finalization.snapshot.evidence_digest,
+    },
+    final_evaluation: intentQualityFinalEvaluation(record),
+    previews: {
+      count: previews.length,
+      invalid_count: invalidPreviewCount,
+      evaluations: previews,
+    },
+    evidence_sources: evidenceSources.sources,
+    timeline: {
+      ordering: {
+        direction: "ascending",
+        primary: "occurred_at with missing timestamps last",
+        tie_breaker: "event_type, evidence_id, source_index",
+      },
+      entries: timeline.entries,
+    },
+    data_quality: {
+      missing_timestamps_count: timeline.missingTimestampCount,
+      invalid_preview_count: invalidPreviewCount,
+      findings: [...new Set(findings)],
     },
   };
 }

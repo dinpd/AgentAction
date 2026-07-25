@@ -25,6 +25,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /intent-contracts/<intent-id>/evaluations` | Read evaluation history, latest preview, final receipt, and evidence snapshot |
 | `GET /intent-quality/rollups` | Aggregate finalized receipts into profile-scoped quality groups for a bounded time window |
 | `GET /intent-quality/jobs` | List tenant-scoped finalized jobs with bounded filters and opaque cursor pagination |
+| `GET /intent-quality/jobs/:job_id` | Read one finalized job's immutable boundary, evaluation summaries, evidence counts, and allowlisted timeline |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -272,6 +273,28 @@ agent identities, immutable profile binding, outcome, confidence, preview
 count, retry/replay/runtime summary, data-quality findings, and `finalized`
 status. Raw snapshots, decisions, execution receipts, observations, and
 evidence payloads are deliberately absent.
+
+Read one finalized Job receipt by its server-derived identifier:
+
+```bash
+curl -s 'http://127.0.0.1:8787/tenants/acme/intent-quality/jobs/job-refund-partial'
+```
+
+`GET /intent-quality/jobs/:job_id` accepts no query parameters and returns only
+a tenant-local, finalized receipt. Historical receipts remain resolvable
+through the tenant intent index; a duplicate Job ID fails explicitly rather
+than selecting an arbitrary intent. Preview-only and cross-tenant matches
+return not found.
+
+The `agentpass.intent-quality-job-detail.v1` response contains the same safe Job
+row, immutable profile/intent/snapshot boundary, final predicate and execution
+discipline summaries, valid preview summaries, frozen evidence source
+counts/digests, and a deterministic ascending timeline. The timeline includes
+only allowlisted authorization, execution, observation-verification,
+preview-evaluation, and finalization fields. Missing timestamps are nullable
+and sort last with a stable event/identifier/source-index tie breaker. Raw
+provider results, arbitrary job payloads, observation values and claims,
+approval evidence, resources, and credentials are never projected.
 
 ## Local development
 
