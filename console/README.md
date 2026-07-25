@@ -1,9 +1,9 @@
 # AgentPass Observability Console
 
-This directory contains the Cloudflare-hosted UI/BFF and profile-scoped Fleet
-Overview for the AgentPass intent observability console. It is intentionally
-read only. Job exploration, evidence inspection, and exception views build on
-this boundary in later slices.
+This directory contains the Cloudflare-hosted UI/BFF, profile-scoped Fleet
+Overview, and finalized Jobs explorer for the AgentPass intent observability
+console. It is intentionally read only. Evidence inspection and exception
+views build on this boundary in later slices.
 
 ## Security model
 
@@ -42,6 +42,7 @@ All gateway routes are `GET` only and tenant-prefixed:
 | --- | --- | --- |
 | `/api/console/tenants/:tenant/health` | `/tenants/:tenant/health` | none |
 | `/api/console/tenants/:tenant/intent-quality/rollups` | same tenant path | rollup filters, limit, cursor |
+| `/api/console/tenants/:tenant/intent-quality/jobs` | same tenant path | bounded time, profile, agent, verdict, constraint, confidence, exact job/intent IDs, limit, cursor |
 | `/api/console/tenants/:tenant/intent-profiles[/:id]` | same tenant path | list pagination only |
 | `/api/console/tenants/:tenant/intent-contracts[/:id]` | same tenant path | job/profile filters and pagination on lists |
 | `/api/console/tenants/:tenant/audit/events` | same tenant path | audit filters and pagination |
@@ -87,6 +88,26 @@ visible so practitioners can review the denominator. Small samples, incomplete
 coverage, and exclusions produce an explicit partial-data state. Empty,
 loading, unauthorized, forbidden, unavailable, and stale states are announced
 through live regions and do not replace missing values with an inferred score.
+
+## Finalized Jobs explorer
+
+Jobs is the second functional console view. It reads only immutable final
+receipts through `/api/console/tenants/:tenant/intent-quality/jobs`, ordered by
+finalization time and intent ID. It supports the Overview boundaries plus
+confidence band and exact job/intent IDs. Filter and cursor state is persisted
+in the URL with only the BFF allowlist parameters.
+
+The read model exposes identifiers, agent identities, immutable profile
+key/version/digest, verdict, qualified success, constraint state, goal
+attainment, evidence confidence, preview count, retry/replay counts, runtime,
+and final status. It does not return raw decisions, execution receipts,
+observations, snapshots, or evidence payloads. Selecting a job creates a stable
+job-ID-only detail target for the later Job detail slice.
+
+Rows keep missing agent/runtime data, indeterminate outcomes, and low confidence
+explicit. Desktop uses an accessible table; narrow viewports transform the same
+cells into labeled cards. Loading, empty, forbidden, unavailable, stale, and
+partial-data states remain visible rather than being interpreted as success.
 
 ## Production configuration
 
@@ -156,8 +177,8 @@ Set a local gateway token with `wrangler secret put --env development` when the
 local gateway requires API-key authentication. Tests use a fake service binding
 and signed Access fixture; they never enable a production mock bypass.
 
-For a self-contained Fleet Overview with two immutable support-refund profile
-versions, run the loopback-only fixture server:
+For a self-contained Fleet Overview and finalized Jobs explorer with two
+immutable support-refund profile versions, run the loopback-only fixture server:
 
 ```bash
 cd console
@@ -166,8 +187,8 @@ npm run dev:fixture
 
 Open `http://127.0.0.1:8791`. The fixture contains completed, failed,
 indeterminate, low-confidence, replay, retry, exclusion, small-sample, and
-missing-metric examples. It has no gateway credential and uses the same
-development-only mock identity guard as the Worker.
+missing-metric examples in both functional views. It has no gateway credential
+and uses the same development-only mock identity guard as the Worker.
 
 To verify the stale presentation locally:
 
@@ -195,7 +216,9 @@ After deployment:
    and BFF request contain only those filters plus `from`, `to`, and `limit`.
 6. Confirm indeterminate and low-confidence rows, excluded records,
    data-quality findings, and small-sample status remain visible.
-7. Request another tenant under `/api/console/tenants/<other>/health` and
+7. Open Jobs, apply confidence and exact job/intent filters, and confirm only
+   finalized rows appear with URL-persisted filter state.
+8. Request another tenant under `/api/console/tenants/<other>/health` and
    confirm a `403` without a gateway call.
 8. Confirm browser network requests contain no reusable AgentPass bearer token.
 9. Confirm missing or invalid Access assertions return an explicit `401`, and

@@ -24,6 +24,7 @@ allow/deny/JIT decisions before tool execution:
 | `POST /intent-contracts/<intent-id>/finalize` | Atomically freeze evidence and emit the one final snapshot-bound receipt |
 | `GET /intent-contracts/<intent-id>/evaluations` | Read evaluation history, latest preview, final receipt, and evidence snapshot |
 | `GET /intent-quality/rollups` | Aggregate finalized receipts into profile-scoped quality groups for a bounded time window |
+| `GET /intent-quality/jobs` | List tenant-scoped finalized jobs with bounded filters and opaque cursor pagination |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -251,6 +252,26 @@ The complete response shape is defined by
 [`intent-quality-rollup.schema.json`](../schema/intent-quality-rollup.schema.json),
 with a realistic refund fixture at
 [`support-refund-quality-rollup.json`](../packages/guard/examples/support-refund-quality-rollup.json).
+
+## Finalized intent quality jobs
+
+List receipt-derived job rows over the same bounded time window:
+
+```bash
+curl -s 'http://127.0.0.1:8787/tenants/acme/intent-quality/jobs?from=2026-07-20T00%3A00%3A00Z&to=2026-07-22T00%3A00%3A00Z&profile_key=support_refund.v1&confidence=low&limit=25'
+```
+
+Optional filters are `profile_key`, `profile_version`, `agent_id`, `verdict`,
+`constraint_compliance`, `confidence`, `job_id`, and `intent_id`. Rows are
+ordered newest-first by immutable `finalized_at` and intent ID. The opaque
+`next_cursor` resumes after that tuple without offset-based duplicates or
+skips.
+
+Each `agentpass.intent-quality-job.v1` includes the tenant, job/intent IDs,
+agent identities, immutable profile binding, outcome, confidence, preview
+count, retry/replay/runtime summary, data-quality findings, and `finalized`
+status. Raw snapshots, decisions, execution receipts, observations, and
+evidence payloads are deliberately absent.
 
 ## Local development
 

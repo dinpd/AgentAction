@@ -6,6 +6,9 @@ import worker, { type Env } from "../src/worker.ts";
 const fixture = JSON.parse(
   await readFile(new URL("../fixtures/support-refund-overview.json", import.meta.url), "utf8"),
 ) as Record<string, any>;
+const jobsFixture = JSON.parse(
+  await readFile(new URL("../fixtures/support-refund-jobs.json", import.meta.url), "utf8"),
+) as Record<string, any>;
 const configuredPort = Number(process.env.PORT || "8791");
 const port = Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort < 65_536
   ? configuredPort
@@ -54,6 +57,36 @@ function fixturePayload(url: URL): Record<string, any> {
   return payload;
 }
 
+function jobsFixturePayload(url: URL): Record<string, any> {
+  const payload = structuredClone(jobsFixture);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  if (from && to) {
+    payload.filters.time_window.from = from;
+    payload.filters.time_window.to = to;
+  }
+  const filters = {
+    profile_key: (job: Record<string, any>, value: string) => job.profile_binding?.key === value,
+    profile_version: (job: Record<string, any>, value: string) => job.profile_binding?.version === value,
+    agent_id: (job: Record<string, any>, value: string) => Array.isArray(job.agent_ids) && job.agent_ids.includes(value),
+    verdict: (job: Record<string, any>, value: string) => job.verdict === value,
+    constraint_compliance: (job: Record<string, any>, value: string) => job.constraint_compliance === value,
+    confidence: (job: Record<string, any>, value: string) => job.confidence_band === value,
+    job_id: (job: Record<string, any>, value: string) => job.job_id === value,
+    intent_id: (job: Record<string, any>, value: string) => job.intent_id === value,
+  };
+  payload.jobs = payload.jobs.filter((job: Record<string, any>) =>
+    Object.entries(filters).every(([name, matches]) => {
+      const value = url.searchParams.get(name);
+      return !value || matches(job, value);
+    })
+  );
+  payload.matched_records = payload.jobs.length;
+  payload.pagination.returned_jobs = payload.jobs.length;
+  payload.pagination.next_cursor = null;
+  return payload;
+}
+
 const env: Env = {
   CONSOLE_ENVIRONMENT: "development",
   CONSOLE_ENABLE_MOCK_IDENTITY: "true",
@@ -73,6 +106,9 @@ const env: Env = {
       }
       if (url.pathname === "/tenants/acme/intent-quality/rollups") {
         return json(fixturePayload(url), 200, freshnessHeaders);
+      }
+      if (url.pathname === "/tenants/acme/intent-quality/jobs") {
+        return json(jobsFixturePayload(url), 200, freshnessHeaders);
       }
       return json({ error: { code: "fixture_route_not_found", message: "Fixture route not found." } }, 404);
     },
