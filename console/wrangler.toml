@@ -7,7 +7,10 @@ keep_vars = true
 
 [vars]
 CONSOLE_ENVIRONMENT = "production"
+ACCESS_TEAM_DOMAIN = "https://upperhandteam.cloudflareaccess.com"
+ACCESS_AUD = "5290e8fbe89e673417d9d8a317ccb28f86c7bfb125d50f03c969dd351f6033c5"
 ACCESS_TENANT_CLAIM = "custom.tenant_id"
+CONSOLE_STATIC_TENANT_ID = "refund-demo-agent"
 CONSOLE_STALE_AFTER_SECONDS = "300"
 
 [[services]]
@@ -24,6 +27,7 @@ CONSOLE_MOCK_TENANT_ID = "refund-demo-agent"
 CONSOLE_MOCK_SUBJECT = "local-operator"
 CONSOLE_MOCK_EMAIL = "local-operator@agentpass.test"
 ACCESS_TENANT_CLAIM = "custom.tenant_id"
+CONSOLE_STATIC_TENANT_ID = "refund-demo-agent"
 CONSOLE_STALE_AFTER_SECONDS = "300"
 
 [[env.development.services]]

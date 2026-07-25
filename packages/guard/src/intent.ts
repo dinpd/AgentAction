@@ -1018,7 +1018,7 @@ function evaluateExecutionDiscipline(
   const job = evidence.job?.[0];
   const replays = receipts.filter((receipt) => getPath(receipt, "status").value === "replayed").length;
   const executions = receipts.filter((receipt) => getPath(receipt, "status").value === "executed").length;
-  const retries = maxNumericField(decisions, ["retryCount", "retry_count"]);
+  const retries = maxNumericField(decisions, ["retryCount", "retry_count", "prior_attempt_count"]);
   const deniedDecisions = decisions.filter((event) => getPath(event, "decision").value === "deny").length;
   const challengeDecisions = decisions.filter(
     (event) => getPath(event, "decision").value === "challenge_required",

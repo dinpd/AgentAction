@@ -84,6 +84,11 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
   assert.match(body, /data-overview-filters/);
+  assert.match(body, /aria-label="Synthetic execution lifecycle"/);
+  assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentPass Gateway[\s\S]*Issue intent contract/);
+  assert.match(body, /Authorize calls \/ approvals[\s\S]*Execution receipts \+ signed observations[\s\S]*Finalize immutable receipt/);
+  assert.match(body, /Profile-scoped rollups[\s\S]*Observability Console/);
+  assert.match(body, /GitHub issue 32/);
   assert.match(body, /Finalized intent executions/);
   assert.match(body, /Overview/);
   assert.match(body, /Job detail/);
@@ -119,6 +124,27 @@ test("derives tenant identity only from the verified Access claim", async () => 
   assert.equal(body.subject, "operator-123");
   assert.equal(body.email, "operator@example.com");
   assert.equal(JSON.stringify(body).includes("tenant-evil"), false);
+});
+
+test("supports a fail-closed single-tenant console without requiring a custom Access claim", async () => {
+  const calls: GatewayCall[] = [];
+  const env = { ...baseEnv(calls), CONSOLE_STATIC_TENANT_ID: "refund-demo-agent" };
+  const response = await worker.fetch(
+    accessRequest("/api/console/session", {}, { custom: {} }),
+    env,
+  );
+  const body = await response.json() as any;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.tenant_id, "refund-demo-agent");
+
+  const mismatch = await worker.fetch(
+    accessRequest("/api/console/session", {}, { custom: { tenant_id: "another-tenant" } }),
+    env,
+  );
+  assert.equal(mismatch.status, 403);
+  assert.equal((await mismatch.json() as any).error.code, "static_tenant_mismatch");
+  assert.equal(calls.length, 0);
 });
 
 test("rejects a route tenant mismatch before calling the gateway", async () => {

@@ -1,0 +1,30 @@
+name = "agentpass-synthetic-runner"
+main = "src/worker.ts"
+compatibility_date = "2026-07-25"
+workers_dev = true
+preview_urls = false
+keep_vars = true
+
+[vars]
+SIMULATION_ENABLED = "true"
+SIMULATION_TENANT_ID = "refund-demo-agent"
+SIMULATION_CADENCE_MINUTES = "15"
+SIMULATION_JOB_CAP = "2"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[services]]
+binding = "AGENTID_GATEWAY"
+service = "agentid-gateway"
+
+[[durable_objects.bindings]]
+name = "SYNTHETIC_RUN_STATE"
+class_name = "SyntheticRunState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyntheticRunState"]
+
+# Set the same internal service token on this Worker and the gateway:
+#   npx wrangler secret put AGENTID_GATEWAY_TOKEN
