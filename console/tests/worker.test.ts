@@ -84,6 +84,10 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
   assert.match(body, /data-overview-filters/);
+  assert.match(body, /<details class="lifecycle-disclosure">/);
+  assert.doesNotMatch(body, /<details class="lifecycle-disclosure"[^>]*\sopen(?:\s|>)/);
+  assert.match(body, /<summary>[\s\S]*Show 9-stage flow[\s\S]*Hide 9-stage flow[\s\S]*<\/summary>/);
+  assert.match(body, /<details class="lifecycle-disclosure">[\s\S]*<ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">/);
   assert.match(body, /aria-label="Synthetic execution lifecycle"/);
   assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentPass Gateway[\s\S]*Issue intent contract/);
   assert.match(body, /Authorize calls \/ approvals[\s\S]*Execution receipts \+ signed observations[\s\S]*Finalize immutable receipt/);
@@ -106,6 +110,19 @@ test("serves a standalone overview client asset without credentials", async () =
   assert.match(body, /profile_digest/);
   assert.doesNotMatch(body, /gateway-secret|AGENTID_GATEWAY_TOKEN/);
   assert.doesNotThrow(() => new Function(body));
+});
+
+test("serves responsive and focus-visible lifecycle disclosure styles", async () => {
+  const response = await worker.fetch(accessRequest("/assets/app.css"), baseEnv([]));
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") || "", /text\/css/);
+  assert.match(body, /\.lifecycle-disclosure summary:focus-visible/);
+  assert.match(body, /\.lifecycle-disclosure\[open\] \.disclosure-closed/);
+  assert.match(body, /\.lifecycle-disclosure\[open\] \.disclosure-open/);
+  assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.lifecycle-track \{ grid-template-columns: 1fr;/);
+  assert.match(body, /\.lifecycle-track li \{[^}]*min-width: 0;/);
 });
 
 test("derives tenant identity only from the verified Access claim", async () => {
