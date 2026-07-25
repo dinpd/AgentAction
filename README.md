@@ -138,6 +138,19 @@ The local guard implements tool and flow checks first. Larger deployments can
 apply the same policy model through manifests, signed receipts, hosted gateways,
 and provider-side verification.
 
+## Community Proposal: Agent Action Boundary Evidence
+
+AgentPass is publishing an experimental, vendor-neutral
+[Agent Action Boundary Evidence community draft](docs/proposals/agent-action-boundary-evidence-v0.1.md).
+It separates an agent's proposed action from boundary authorization, provider
+execution, independently observed outcomes, and later assessment. AgentPass is
+included only as a non-normative reference implementation.
+
+The draft is not an adopted standard. Feedback on scope, record types,
+OpenTelemetry and MCP alignment, event envelopes, signing, and independent
+implementation experience is welcome in
+[proposal issue #43](https://github.com/dinpd/AgentPass/issues/43).
+
 ## Entry Points By Audience
 
 - **Platform engineering and SRE teams** letting agents inspect systems while
