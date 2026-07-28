@@ -1,13 +1,29 @@
 # AgentPass
 
-**Stateful guardrails around AI agent tool calls.**
+**Runtime control, durable assurance, and observability for AI agent actions.**
 
-AgentPass is a runtime gate that sits outside the agent loop and checks tool
-calls before execution.
+AgentPass is an action-control boundary and evidence layer that sits outside
+the agent loop. It checks tool calls before execution and preserves durable
+records of what was proposed, authorized, executed, observed, and assessed.
 
 ```text
 Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
 ```
+
+The runtime decision remains the core enforcement point. The current
+implementation also includes versioned intent contracts, execution evidence,
+verified outcome observations, immutable evidence snapshots and final
+evaluations, profile-scoped quality rollups, and an operator console. The
+public observability roadmap evolves that foundation into a two-plane design:
+
+- **Causal observability:** OpenTelemetry/OTLP traces for runs, model and tool
+  calls, boundary evaluation, execution, retries, latency, and failures.
+- **Intent assurance:** durable AgentPass contracts, authorization decisions,
+  execution receipts, verified observations, immutable evidence snapshots, and
+  versioned assessments.
+
+Trace data supplies correlation and operational context; it does not replace
+the durable evidence used for authorization, replay protection, or assessment.
 
 RBAC can say which identity may access a tool. Prompts can suggest how an agent
 should behave. AgentPass answers the runtime execution question:
@@ -138,18 +154,30 @@ The local guard implements tool and flow checks first. Larger deployments can
 apply the same policy model through manifests, signed receipts, hosted gateways,
 and provider-side verification.
 
-## Community Proposal: Agent Action Boundary Evidence
+## Community RFCs: Action Evidence and Outcome Observability
 
-AgentPass is publishing an experimental, vendor-neutral
-[Agent Action Boundary Evidence community draft](docs/proposals/agent-action-boundary-evidence-v0.1.md).
-It separates an agent's proposed action from boundary authorization, provider
-execution, independently observed outcomes, and later assessment. AgentPass is
-included only as a non-normative reference implementation.
+AgentPass publishes two experimental, vendor-neutral community drafts:
 
-The draft is not an adopted standard. Feedback on scope, record types,
-OpenTelemetry and MCP alignment, event envelopes, signing, and independent
-implementation experience is welcome in
-[proposal issue #43](https://github.com/dinpd/AgentPass/issues/43).
+- [Agent Action Boundary Evidence, draft 0.1](docs/proposals/agent-action-boundary-evidence-v0.1.md)
+  separates an agent's proposed action from boundary authorization, provider
+  execution, independently observed outcomes, and later assessment. Feedback
+  belongs in [proposal issue #43](https://github.com/dinpd/AgentPass/issues/43).
+- [Agent Outcome Observability and Assurance Metrics, draft 0.1](docs/proposals/agent-outcome-observability-assurance-metrics-v0.1.md)
+  defines a companion measurement model for intent fulfillment, constraint
+  compliance, control effectiveness, execution discipline, evidence quality,
+  and comparable aggregation. Feedback belongs in
+  [proposal issue #58](https://github.com/dinpd/AgentPass/issues/58).
+
+Together, the drafts describe portable evidence at the action boundary and how
+to measure positive outcomes, negative outcomes, control effectiveness,
+friction, and uncertainty without treating an authorization decision as its
+own ground truth. They are discussion documents, not adopted standards, and
+AgentPass is only a non-normative reference implementation.
+
+Implementation work and identified gaps are tracked in the public
+[Intent Observability & Assurance project](https://github.com/users/dinpd/projects/2).
+See the [community proposals index](docs/proposals/) for the drafts and their
+status.
 
 ## Entry Points By Audience
 
@@ -160,6 +188,8 @@ implementation experience is welcome in
   what conditions.
 - **Security teams** needing approval, audit, and kill-switch evidence for
   high-risk agent actions.
+- **Observability and assurance implementers** defining portable evidence,
+  outcome measurements, control-effectiveness metrics, and causal correlation.
 - **MCP gateway builders** enforcing policy before forwarding `tools/call`.
 - **API and SaaS providers** turning APIs into MCP tools without giving agents
   broad authority.
@@ -200,6 +230,9 @@ contracts, receipts, or standards alignment:
 - MCP interceptor/PDP shape: [`docs/mcp-interceptor-pdp-shape.md`](docs/mcp-interceptor-pdp-shape.md)
 - Provider MCP authorization: [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
 - Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
+- Community RFCs: [`docs/proposals/`](docs/proposals/)
+- Intent observability execution plan:
+  [Intent Observability & Assurance](https://github.com/users/dinpd/projects/2)
 
 ---
 
@@ -331,15 +364,22 @@ AgentPass currently includes:
 
 ## Roadmap Focus
 
-Near-term work is ordered by the next end-to-end behavior a user can see and
-reproduce:
+Near-term work has three public tracks:
 
-1. Provider trust enforcement with production receipts and contract drift
+1. Production-grade intent observability and assurance: canonical evidence
+   contracts, action-boundary lifecycle hardening, OpenTelemetry causal
+   tracing, correlation, measurement profiles, independent control assessment,
+   complete population accounting, immutable assessment revisions, privacy,
+   migration, and conformance.
+2. Provider trust enforcement with production receipts and contract drift
    detection.
-2. Framework and workflow wrappers selected from adopter demand.
+3. Framework and workflow wrappers selected from adopter demand.
 
-The [Action Gate Roadmap](docs/action-gate-roadmap.md) is the source of truth
-for priority and maps each demonstration to its GitHub implementation issues.
+The [Action Gate Roadmap](docs/action-gate-roadmap.md) tracks adopter-facing
+product demonstrations. The public
+[Intent Observability & Assurance project](https://github.com/users/dinpd/projects/2)
+tracks the RFC-aligned observability execution plan and its milestone-scoped
+implementation issues.
 
 ## Broader Governance Scope
 
