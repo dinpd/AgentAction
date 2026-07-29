@@ -80,12 +80,22 @@ OAuth can prove access to a server. MCP tool schemas describe inputs. Agent
 frameworks can decide which tools are visible to a model. AgentPass focuses on
 the runtime decision immediately before a tool executes.
 
-For enterprise-managed MCP authorization, AgentPass fits after the identity
-provider and before tool execution: the IdP establishes who is connected, then
-AgentPass decides whether this exact agent action is allowed for the current
-job, resource, approval, and policy context.
+## Enterprise Deployment Topology
 
-![Enterprise-managed MCP authorization with AgentPass runtime authorization](docs/enterprise-managed-auth-runtime-authorization.svg)
+At enterprise scale, AgentPass uses a shared governance plane with repeatable
+regional or business-domain execution cells. Every consequential agent action
+crosses an enterprise-controlled gateway before reaching internal, SaaS, cloud,
+or provider-hosted tools.
+
+![Enterprise AgentPass deployment topology showing centralized governance, repeatable execution cells, the trusted action boundary, and the evidence plane](docs/enterprise-agent-action-control-topology.png)
+
+The enterprise gateway is the policy enforcement point. AgentPass is the
+decision service, using durable state for approvals, budgets, idempotency, and
+replay protection. Provider-hosted tools can additionally verify scoped
+authorization receipts before applying their own business authorization.
+
+For the detailed identity-to-provider sequence and receipt-enforcement path, see
+[Enterprise-managed MCP authorization](docs/enterprise-managed-auth-runtime-authorization.svg).
 
 ## Why A Stateful Gate
 
