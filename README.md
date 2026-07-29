@@ -25,6 +25,8 @@ public observability roadmap evolves that foundation into a two-plane design:
 Trace data supplies correlation and operational context; it does not replace
 the durable evidence used for authorization, replay protection, or assessment.
 
+![AgentPass action boundary showing the current stateful runtime-control and intent-assurance planes plus the causal-observability roadmap](docs/agentpass-action-boundary-overview.png)
+
 RBAC can say which identity may access a tool. Prompts can suggest how an agent
 should behave. AgentPass answers the runtime execution question:
 
