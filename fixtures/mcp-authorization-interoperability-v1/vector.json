@@ -1,0 +1,128 @@
+{
+  "schema_version": "agentpass.mcp-authorization-interoperability-vector.v1",
+  "vector_id": "mcp-update-customer-2026-08-03",
+  "status": "experimental-non-normative",
+  "protocol_version": "2025-11-25",
+  "now": "2026-08-03T18:00:30Z",
+  "mcp_call": {
+    "jsonrpc": "2.0",
+    "id": "call-1042",
+    "method": "tools/call",
+    "params": {
+      "name": "provider.crm.update_customer",
+      "arguments": {
+        "customer_id": "cus_example_123",
+        "email_opt_in": false
+      }
+    }
+  },
+  "authorization_evidence": {
+    "schema_version": "agentpass.action-authorization-evidence.v1",
+    "profile": "https://profiles.agentpass.example.test/mcp-action-authorization/v1",
+    "issuer": "https://authz.example.test",
+    "decision_id": "decision-example-1042",
+    "outcome": "ALLOW",
+    "tenant_id": "tenant-example",
+    "principal_id": "user:support-representative-example",
+    "user_id": "support-representative-example",
+    "agent_id": "support-agent",
+    "agent_app_id": "https://agents.example.test/support-agent/1.4.0",
+    "runtime_id": "spiffe://example.test/ns/agents/sa/support-agent",
+    "delegation_id": "delegation-example-1042",
+    "delegation_attenuation": "verified",
+    "task_id": "support-case-resolution",
+    "job_id": "support_case_resolution",
+    "case_id": "case-example-1042",
+    "customer_id": "cus_example_123",
+    "audience": "https://provider.example.test/mcp",
+    "tool": "provider.crm.update_customer",
+    "action": "write",
+    "resource": "provider/customer/cus_example_123",
+    "action_digest": "computed-by-runner",
+    "canonicalization": "agentid_canonical_json_v1",
+    "policy_id": "support-customer-update",
+    "policy_hash": "sha256:2fd75c9ca973981c62d82dd83f223ddf2fbe14cbf3f6f31ce99d70b6741c8f4e",
+    "approval_id": "approval-example-1042",
+    "approval_evidence_ref": "urn:example:approval:1042",
+    "jit_grant_id": "grant-example-1042",
+    "risk_state_ref": "urn:example:risk:low:1042",
+    "idempotency_key": "customer-update-example-1042",
+    "issued_at": "2026-08-03T18:00:00Z",
+    "expires_at": "2026-08-03T18:02:00Z"
+  },
+  "provider": {
+    "id": "provider-crm-example",
+    "audience": "https://provider.example.test/mcp",
+    "closure_id": "closure-example-1042",
+    "executed_at": "2026-08-03T18:00:31Z",
+    "expected_bindings": {
+      "tenant_id": "tenant-example",
+      "principal_id": "user:support-representative-example",
+      "user_id": "support-representative-example",
+      "agent_id": "support-agent",
+      "agent_app_id": "https://agents.example.test/support-agent/1.4.0",
+      "runtime_id": "spiffe://example.test/ns/agents/sa/support-agent",
+      "delegation_id": "delegation-example-1042",
+      "delegation_attenuation": "verified",
+      "task_id": "support-case-resolution",
+      "job_id": "support_case_resolution",
+      "case_id": "case-example-1042",
+      "customer_id": "cus_example_123",
+      "tool": "provider.crm.update_customer",
+      "action": "write",
+      "resource": "provider/customer/cus_example_123",
+      "policy_id": "support-customer-update",
+      "policy_hash": "sha256:2fd75c9ca973981c62d82dd83f223ddf2fbe14cbf3f6f31ce99d70b6741c8f4e",
+      "approval_id": "approval-example-1042",
+      "approval_evidence_ref": "urn:example:approval:1042",
+      "jit_grant_id": "grant-example-1042",
+      "risk_state_ref": "urn:example:risk:low:1042"
+    },
+    "result": {
+      "customer_id": "cus_example_123",
+      "updated": true
+    }
+  },
+  "cases": [
+    {
+      "id": "valid_single_use_execution",
+      "expect": {
+        "ok": true,
+        "codes": [],
+        "closure_status": "executed"
+      }
+    },
+    {
+      "id": "mutated_action_rejected",
+      "call_overrides": [
+        {
+          "path": "params.arguments.email_opt_in",
+          "value": true
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["out_of_scope"],
+        "closure_status": null
+      }
+    },
+    {
+      "id": "wrong_audience_rejected",
+      "provider_audience": "https://other-provider.example.test/mcp",
+      "expect": {
+        "ok": false,
+        "codes": ["wrong_audience"],
+        "closure_status": null
+      }
+    },
+    {
+      "id": "replay_rejected",
+      "preconsume": true,
+      "expect": {
+        "ok": false,
+        "codes": ["already_consumed"],
+        "closure_status": null
+      }
+    }
+  ]
+}

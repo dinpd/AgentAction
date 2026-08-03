@@ -3,6 +3,13 @@
 AgentPass should align with distributed identity standards without becoming a
 replacement for them.
 
+For the current field-level mapping across AuthZEN, OAuth, WIMSE, SPIFFE, MCP,
+authorization-evidence proposals, and execution provenance, see the
+[Agentic Identity Standards Crosswalk](agentic-identity-standards-crosswalk.md).
+Its companion
+[MCP authorization interoperability vector](../fixtures/mcp-authorization-interoperability-v1/)
+provides deterministic positive, mutation, audience, and replay cases.
+
 The core distinction is:
 
 ```text
