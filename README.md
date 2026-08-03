@@ -242,6 +242,8 @@ contracts, receipts, or standards alignment:
 - MCP interceptor/PDP shape: [`docs/mcp-interceptor-pdp-shape.md`](docs/mcp-interceptor-pdp-shape.md)
 - Provider MCP authorization: [`docs/provider-mcp-authorization.md`](docs/provider-mcp-authorization.md)
 - Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
+- Agentic identity standards crosswalk and executable MCP vector:
+  [`docs/agentic-identity-standards-crosswalk.md`](docs/agentic-identity-standards-crosswalk.md)
 - Community RFCs: [`docs/proposals/`](docs/proposals/)
 - Intent observability execution plan:
   [Intent Observability & Assurance](https://github.com/users/dinpd/projects/2)
