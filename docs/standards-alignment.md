@@ -1,10 +1,11 @@
 # Standards Alignment
 
-AgentPass aligns with distributed identity and authorization standards as an
-open reference implementation and conformance project for action-bound
-authorization. It does not create a general agent identity or replace those
-standards. The detailed project boundary is in
-[Interoperability Positioning](interoperability-positioning.md).
+AgentPass's product category is action authorization and execution assurance,
+as defined in [Project Positioning](positioning.md). Within its standards work,
+AgentPass acts as an open reference implementation and conformance project for
+action-bound authorization. It does not create a general agent identity or
+replace existing identity and authorization standards. The detailed standards
+boundary is in [Interoperability Positioning](interoperability-positioning.md).
 
 For the current field-level mapping across AuthZEN, OAuth, WIMSE, SPIFFE, MCP,
 authorization-evidence proposals, and execution provenance, see the

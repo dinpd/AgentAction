@@ -4,9 +4,12 @@ This roadmap documents the near-term product direction for AgentPass.
 
 The positioning target is:
 
-> AgentPass is the runtime action gate for AI agents before they call tools,
-> send messages, move money, update records, deploy code, or touch sensitive
-> data.
+> AgentPass controls consequential AI agent actions and produces independently
+> verifiable evidence of what was authorized and executed.
+
+The action gate is the core product boundary inside the broader category of
+action authorization and execution assurance. The canonical message hierarchy
+is in [Project Positioning](positioning.md).
 
 The developer problem is not only agent identity. Builders already have agents,
 tools, API keys, MCP servers, workflow engines, and model calls. What they lack
@@ -67,7 +70,25 @@ agent loop. The stronger product story is:
 
 Recommended public line:
 
-> AgentPass is a runtime guard for AI agent tool calls.
+> AgentPass is an action authorization guard for AI agent tool calls.
+
+## Three-Layer Product Roadmap
+
+The roadmap uses the same three product layers as the README and canonical
+positioning:
+
+1. **Runtime authorization and control:** stop unsafe, unauthorized, duplicate,
+   or unapproved actions at the execution boundary.
+2. **Portable provider trust and interoperability:** let downstream providers
+   independently verify action-bound authorization evidence across trust
+   boundaries.
+3. **Execution and outcome assurance:** link authorization to execution,
+   independently observed outcomes, and durable assessment evidence.
+
+Framework wrappers distribute the runtime boundary. Conformance suites test
+portable provider trust. Observability supplies operational context for
+assurance. They advance these layers rather than forming separate product
+categories.
 
 ## Roadmap
 
