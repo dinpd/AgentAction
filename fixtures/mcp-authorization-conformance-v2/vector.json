@@ -1,0 +1,241 @@
+{
+  "schema_version": "agentpass.mcp-authorization-conformance-vector.v2",
+  "suite_id": "mcp-authorization-conformance-v2",
+  "status": "experimental-non-normative",
+  "protocol_version": "2025-11-25",
+  "now": "2026-08-04T00:50:00Z",
+  "mcp_call": {
+    "jsonrpc": "2.0",
+    "id": "call-v2-2048",
+    "method": "tools/call",
+    "params": {
+      "name": "provider.crm.update_customer",
+      "arguments": {
+        "customer_id": "cus_example_2048",
+        "email_opt_in": false
+      }
+    }
+  },
+  "authorization_evidence": {
+    "schema_version": "agentpass.action-authorization-evidence.v2",
+    "profile": "https://profiles.agentpass.example.test/mcp-action-authorization/v2",
+    "issuer": "https://authz.example.test",
+    "decision_id": "decision-example-2048",
+    "outcome": "ALLOW",
+    "tenant_id": "tenant-example",
+    "principal_id": "user:support-representative-example",
+    "user_id": "support-representative-example",
+    "agent_id": "support-agent",
+    "agent_app_id": "https://agents.example.test/support-agent/2.0.0",
+    "runtime_id": "spiffe://example.test/ns/agents/sa/support-agent-v2",
+    "delegation_id": "delegation-example-2048",
+    "delegation_attenuation": "downscoped",
+    "delegation_chain": [
+      {
+        "actor": "user:support-representative-example",
+        "subject": "https://agents.example.test/support-agent/2.0.0",
+        "scope": "customer-support"
+      },
+      {
+        "actor": "https://agents.example.test/support-agent/2.0.0",
+        "subject": "spiffe://example.test/ns/agents/sa/support-agent-v2",
+        "scope": "customer-email-preferences-write"
+      }
+    ],
+    "task_id": "support-case-resolution",
+    "job_id": "support_case_resolution_v2",
+    "case_id": "case-example-2048",
+    "customer_id": "cus_example_2048",
+    "audience": "https://provider.example.test/mcp",
+    "tool": "provider.crm.update_customer",
+    "action": "write",
+    "resource": "provider/customer/cus_example_2048",
+    "action_digest": "computed-by-runner",
+    "canonicalization": "agentid_canonical_json_v1",
+    "policy_id": "support-customer-update",
+    "policy_hash": "sha256:9b8c86ed2600634e78b32d67e594be07d02561725bc18f4fba70bde103d57c1e",
+    "approval_id": "approval-example-2048",
+    "approval_evidence_ref": "urn:example:approval:2048",
+    "approval_expires_at": "2026-08-04T00:52:00Z",
+    "jit_grant_id": "grant-example-2048",
+    "risk_state_ref": "urn:example:risk:low:2048",
+    "idempotency_key": "customer-update-example-2048",
+    "issued_at": "2026-08-04T00:49:00Z",
+    "expires_at": "2026-08-04T00:55:00Z"
+  },
+  "provider": {
+    "id": "provider-crm-example",
+    "trusted_issuer": "https://authz.example.test",
+    "audience": "https://provider.example.test/mcp",
+    "key_id": "agentpass-conformance-v2",
+    "closure_id_prefix": "closure-example-2048",
+    "attempt_times": [
+      "2026-08-04T00:50:01Z",
+      "2026-08-04T00:50:02Z"
+    ],
+    "expected_bindings": {
+      "tenant_id": "tenant-example",
+      "principal_id": "user:support-representative-example",
+      "user_id": "support-representative-example",
+      "agent_id": "support-agent",
+      "agent_app_id": "https://agents.example.test/support-agent/2.0.0",
+      "runtime_id": "spiffe://example.test/ns/agents/sa/support-agent-v2",
+      "delegation_id": "delegation-example-2048",
+      "delegation_attenuation": "downscoped",
+      "delegation_chain": [
+        {
+          "actor": "user:support-representative-example",
+          "subject": "https://agents.example.test/support-agent/2.0.0",
+          "scope": "customer-support"
+        },
+        {
+          "actor": "https://agents.example.test/support-agent/2.0.0",
+          "subject": "spiffe://example.test/ns/agents/sa/support-agent-v2",
+          "scope": "customer-email-preferences-write"
+        }
+      ],
+      "task_id": "support-case-resolution",
+      "job_id": "support_case_resolution_v2",
+      "case_id": "case-example-2048",
+      "customer_id": "cus_example_2048",
+      "tool": "provider.crm.update_customer",
+      "action": "write",
+      "resource": "provider/customer/cus_example_2048",
+      "policy_id": "support-customer-update",
+      "policy_hash": "sha256:9b8c86ed2600634e78b32d67e594be07d02561725bc18f4fba70bde103d57c1e",
+      "approval_id": "approval-example-2048",
+      "approval_evidence_ref": "urn:example:approval:2048",
+      "jit_grant_id": "grant-example-2048",
+      "risk_state_ref": "urn:example:risk:low:2048"
+    },
+    "partial_result": {
+      "customer_id": "cus_example_2048",
+      "stage": "validated-not-committed"
+    },
+    "result": {
+      "customer_id": "cus_example_2048",
+      "updated": true
+    }
+  },
+  "cases": [
+    {
+      "id": "valid_execution",
+      "expect": {
+        "ok": true,
+        "closure_statuses": ["executed"],
+        "dispositions": ["executed"],
+        "completed_mutations": 1
+      }
+    },
+    {
+      "id": "retry_returns_prior_closure",
+      "execution_plan": ["execute", "retry"],
+      "expect": {
+        "ok": true,
+        "closure_statuses": ["executed", "executed"],
+        "dispositions": ["executed", "replayed"],
+        "completed_mutations": 1
+      }
+    },
+    {
+      "id": "partial_then_completed_retry",
+      "execution_plan": ["partial", "execute"],
+      "expect": {
+        "ok": true,
+        "closure_statuses": ["partial", "executed"],
+        "dispositions": ["partial", "executed"],
+        "completed_mutations": 1,
+        "partial_attempts": 1
+      }
+    },
+    {
+      "id": "mutated_action_rejected",
+      "call_overrides": [
+        {
+          "path": "params.arguments.email_opt_in",
+          "value": true
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["out_of_scope"]
+      }
+    },
+    {
+      "id": "runtime_identity_mismatch_rejected",
+      "receipt_overrides": [
+        {
+          "path": "runtime_id",
+          "value": "spiffe://attacker.example.test/ns/agents/sa/other-runtime"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["out_of_scope"]
+      }
+    },
+    {
+      "id": "delegation_escalation_rejected",
+      "receipt_overrides": [
+        {
+          "path": "delegation_attenuation",
+          "value": "expanded"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["out_of_scope"]
+      }
+    },
+    {
+      "id": "expired_approval_rejected",
+      "receipt_overrides": [
+        {
+          "path": "approval_expires_at",
+          "value": "2026-08-04T00:49:59Z"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["expired"]
+      }
+    },
+    {
+      "id": "revoked_risk_state_rejected",
+      "revoked_risk_state_refs": ["urn:example:risk:low:2048"],
+      "expect": {
+        "ok": false,
+        "codes": ["revoked"]
+      }
+    },
+    {
+      "id": "policy_drift_rejected",
+      "receipt_overrides": [
+        {
+          "path": "policy_hash",
+          "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "expect": {
+        "ok": false,
+        "codes": ["out_of_scope"]
+      }
+    },
+    {
+      "id": "wrong_audience_rejected",
+      "provider_audience": "https://other-provider.example.test/mcp",
+      "expect": {
+        "ok": false,
+        "codes": ["wrong_audience"]
+      }
+    },
+    {
+      "id": "unknown_signing_key_rejected",
+      "signing_key": "untrusted",
+      "expect": {
+        "ok": false,
+        "codes": ["unknown_key"]
+      }
+    }
+  ]
+}
