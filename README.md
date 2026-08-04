@@ -1,10 +1,18 @@
 # AgentPass
 
-**Runtime control, durable assurance, and observability for AI agent actions.**
+**Open interoperability and conformance for action-bound AI agent authorization.**
 
-AgentPass is an action-control boundary and evidence layer that sits outside
-the agent loop. It checks tool calls before execution and preserves durable
-records of what was proposed, authorized, executed, observed, and assessed.
+AgentPass is an open reference implementation, action-control boundary, and
+conformance project that sits outside the agent loop. It checks tool calls
+before execution and preserves durable records of what was proposed,
+authorized, executed, observed, and assessed.
+
+Its standards role is deliberately narrow: compose existing identity,
+delegation, workload, policy, and signing standards into independently
+verifiable evidence for a specific agent action. AgentPass does not define a
+general agent identity or replace IAM, OAuth, MCP authorization, AuthZEN,
+SPIFFE, WIMSE, OPA, Cedar, or provider business authorization. See
+[Interoperability Positioning](docs/interoperability-positioning.md).
 
 ```text
 Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
@@ -244,6 +252,10 @@ contracts, receipts, or standards alignment:
 - Receipt profiles: [`docs/receipt-profiles.md`](docs/receipt-profiles.md)
 - Agentic identity standards crosswalk and executable MCP vector:
   [`docs/agentic-identity-standards-crosswalk.md`](docs/agentic-identity-standards-crosswalk.md)
+- MCP authorization conformance suite v2:
+  [`fixtures/mcp-authorization-conformance-v2/`](fixtures/mcp-authorization-conformance-v2/)
+- Interoperability positioning and contribution boundary:
+  [`docs/interoperability-positioning.md`](docs/interoperability-positioning.md)
 - Community RFCs: [`docs/proposals/`](docs/proposals/)
 - Intent observability execution plan:
   [Intent Observability & Assurance](https://github.com/users/dinpd/projects/2)
@@ -378,16 +390,19 @@ AgentPass currently includes:
 
 ## Roadmap Focus
 
-Near-term work has three public tracks:
+Near-term work has four public tracks:
 
-1. Production-grade intent observability and assurance: canonical evidence
+1. Action-bound authorization interoperability: executable MCP conformance
+   cases, provider-verifier behavior, negative fixtures, implementation
+   profiles, and demonstrations with independent implementations.
+2. Production-grade intent observability and assurance: canonical evidence
    contracts, action-boundary lifecycle hardening, OpenTelemetry causal
    tracing, correlation, measurement profiles, independent control assessment,
    complete population accounting, immutable assessment revisions, privacy,
    migration, and conformance.
-2. Provider trust enforcement with production receipts and contract drift
+3. Provider trust enforcement with production receipts and contract drift
    detection.
-3. Framework and workflow wrappers selected from adopter demand.
+4. Framework and workflow wrappers selected from adopter demand.
 
 The [Action Gate Roadmap](docs/action-gate-roadmap.md) tracks adopter-facing
 product demonstrations. The public

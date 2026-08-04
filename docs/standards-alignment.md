@@ -1,7 +1,10 @@
 # Standards Alignment
 
-AgentPass should align with distributed identity standards without becoming a
-replacement for them.
+AgentPass aligns with distributed identity and authorization standards as an
+open reference implementation and conformance project for action-bound
+authorization. It does not create a general agent identity or replace those
+standards. The detailed project boundary is in
+[Interoperability Positioning](interoperability-positioning.md).
 
 For the current field-level mapping across AuthZEN, OAuth, WIMSE, SPIFFE, MCP,
 authorization-evidence proposals, and execution provenance, see the
@@ -9,6 +12,10 @@ authorization-evidence proposals, and execution provenance, see the
 Its companion
 [MCP authorization interoperability vector](../fixtures/mcp-authorization-interoperability-v1/)
 provides deterministic positive, mutation, audience, and replay cases.
+The broader
+[MCP Authorization Conformance Suite v2](../fixtures/mcp-authorization-conformance-v2/)
+adds JWS/JWKS trust, delegation, runtime, policy, approval, revocation, retry,
+and partial-execution cases.
 
 The core distinction is:
 

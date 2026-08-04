@@ -117,6 +117,12 @@ particular, the AgentPass evidence model should be compared with both active
 individual IETF drafts that already address authorization evidence and
 high-risk action receipts.
 
+The project's positioning and testable success criteria are defined in
+[Interoperability Positioning](interoperability-positioning.md). The
+[MCP Authorization Conformance Suite v2](../fixtures/mcp-authorization-conformance-v2/)
+turns this boundary into executable positive, trust-failure, lifecycle, and
+closure cases.
+
 The desired implementation seam is:
 
 ```text
