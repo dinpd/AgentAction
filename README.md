@@ -1,22 +1,23 @@
 # AgentPass
 
-**Open interoperability and conformance for action-bound AI agent authorization.**
+**Action authorization and execution assurance for AI agents.**
 
-AgentPass is an open reference implementation, action-control boundary, and
-conformance project that sits outside the agent loop. It checks tool calls
-before execution and preserves durable records of what was proposed,
-authorized, executed, observed, and assessed.
+AgentPass is an action-control and evidence layer that sits outside the agent
+loop. It decides whether a specific tool call may execute and preserves durable
+records of what was proposed, authorized, executed, observed, and assessed.
 
-Its standards role is deliberately narrow: compose existing identity,
-delegation, workload, policy, and signing standards into independently
-verifiable evidence for a specific agent action. AgentPass does not define a
-general agent identity or replace IAM, OAuth, MCP authorization, AuthZEN,
-SPIFFE, WIMSE, OPA, Cedar, or provider business authorization. See
-[Interoperability Positioning](docs/interoperability-positioning.md).
+> AgentPass controls consequential AI agent actions and produces independently
+> verifiable evidence of what was authorized and executed.
 
 ```text
 Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
 ```
+
+Identity, workload, and policy systems provide inputs to that decision.
+AgentPass composes them at the action boundary and adds stateful enforcement,
+provider-verifiable authorization evidence, and execution assurance. Its open
+conformance work demonstrates interoperability; it is not the product category.
+See [Project Positioning](docs/positioning.md).
 
 The runtime decision remains the core enforcement point. The current
 implementation also includes versioned intent contracts, execution evidence,
@@ -390,19 +391,20 @@ AgentPass currently includes:
 
 ## Roadmap Focus
 
-Near-term work has four public tracks:
+Near-term work follows three product layers:
 
-1. Action-bound authorization interoperability: executable MCP conformance
-   cases, provider-verifier behavior, negative fixtures, implementation
-   profiles, and demonstrations with independent implementations.
-2. Production-grade intent observability and assurance: canonical evidence
-   contracts, action-boundary lifecycle hardening, OpenTelemetry causal
-   tracing, correlation, measurement profiles, independent control assessment,
-   complete population accounting, immutable assessment revisions, privacy,
-   migration, and conformance.
-3. Provider trust enforcement with production receipts and contract drift
-   detection.
-4. Framework and workflow wrappers selected from adopter demand.
+1. **Runtime authorization and control:** policy enforcement, approvals,
+   budgets, data-flow controls, idempotency, replay protection, and integrations
+   at agent, workflow, gateway, and provider boundaries.
+2. **Portable provider trust and interoperability:** signed action-bound
+   evidence, independent provider verification, contract drift detection,
+   conformance cases, profiles, and multi-implementation demonstrations.
+3. **Execution and outcome assurance:** linked execution receipts, immutable
+   evidence, verified observations, causal traces, intent evaluation, and
+   comparable assurance metrics.
+
+Framework wrappers and conformance suites are delivery mechanisms within these
+layers, not separate product categories.
 
 The [Action Gate Roadmap](docs/action-gate-roadmap.md) tracks adopter-facing
 product demonstrations. The public

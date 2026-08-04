@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentpass"
 version = "0.2.0"
-description = "Authorization contracts, policy checks, and receipts for AI agent tool calls across MCP gateways, SaaS APIs, and enterprise systems."
+description = "Action authorization, runtime controls, and independently verifiable execution evidence for AI agent tool calls."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

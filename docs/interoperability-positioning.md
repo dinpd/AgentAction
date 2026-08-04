@@ -1,7 +1,9 @@
 # AgentPass Interoperability Positioning
 
-AgentPass is an open reference implementation and conformance project for
-action-bound authorization of AI agent operations.
+Interoperability and conformance are the open ecosystem strategy for
+AgentPass's broader product category: action authorization and execution
+assurance for AI agents. The canonical product hierarchy is defined in
+[Project Positioning](positioning.md).
 
 Its focus is the provider trust boundary:
 
