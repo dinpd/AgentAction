@@ -24,6 +24,7 @@ LAYERS = [
     "Portable provider trust and interoperability",
     "Execution and outcome assurance",
 ]
+AAM_URL = "https://blog.cloudflare.com/the-agent-access-model/"
 
 
 def test_readme_leads_with_product_category_and_canonical_positioning():
@@ -69,6 +70,33 @@ def test_readme_and_roadmap_share_the_three_product_layers():
         assert layer.title() in POSITIONING
     assert "Framework wrappers and conformance suites are delivery mechanisms" in README
     assert "They advance these layers rather than forming separate product" in ROADMAP
+
+
+def test_aam_reference_is_visible_and_preserves_agentpass_boundaries():
+    assert AAM_URL in README
+    assert AAM_URL in ROADMAP
+    assert "implements the action-control and evidence layers" in README
+    assert re.search(
+        r"integrating with external identity brokers and network\s+enforcement",
+        README,
+    )
+    assert "does not claim to implement the complete AAM architecture" in ROADMAP
+    assert "network enforcement remains an independent enforcement point" in ROADMAP
+
+
+def test_roadmap_prioritizes_monotonic_capability_state_before_distribution():
+    headings = [
+        "#### P4: Provider Trust Gate",
+        "#### P5: Monotonic Task Capability State And Protected-Result Release",
+        "#### P6: Framework And Workflow Distribution",
+        "#### P7: Downstream Agent Attribution",
+    ]
+    positions = [ROADMAP.index(heading) for heading in headings]
+    assert positions == sorted(positions)
+    for issue_number in [78, 79, 80, 81, 82, 83]:
+        assert f"https://github.com/dinpd/AgentPass/issues/{issue_number}" in ROADMAP
+    assert "Ordinary approval cannot restore a" in ROADMAP
+    assert "A parallel call under the prior state version is denied" in ROADMAP
 
 
 def test_interoperability_and_package_metadata_support_product_positioning():
