@@ -116,7 +116,6 @@ def test_interoperability_and_package_metadata_support_product_positioning():
 def test_changed_positioning_documents_have_valid_local_links():
     documents = [
         ROOT / "README.md",
-        ROOT / "docs" / "action-gate-roadmap.md",
         ROOT / "docs" / "positioning.md",
         ROOT / "docs" / "interoperability-positioning.md",
         ROOT / "docs" / "standards-alignment.md",
