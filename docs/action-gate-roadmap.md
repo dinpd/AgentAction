@@ -90,6 +90,22 @@ portable provider trust. Observability supplies operational context for
 assurance. They advance these layers rather than forming separate product
 categories.
 
+### Relationship To The Agent Access Model
+
+Cloudflare's [Agent Access Model (AAM)](https://blog.cloudflare.com/the-agent-access-model/)
+is a useful external reference architecture for task-scoped agent security. Its
+emphasis on action-level authorization, enforcement outside the model,
+short-lived and bounded authority, monotonic capability reduction after
+protected events, and directly captured evidence aligns with AgentPass's action
+gate and evidence model.
+
+AgentPass does not claim to implement the complete AAM architecture. Identity
+brokering and sender-constrained task credentials remain inputs or integrations,
+and network enforcement remains an independent enforcement point. AgentPass
+focuses on the task and action boundary: the capability ceiling, exact tool and
+data-flow decision, stateful enforcement, provider-verifiable evidence, and
+execution and outcome assurance.
+
 ## Roadmap
 
 ### Current Status Snapshot
@@ -108,6 +124,13 @@ the standards-facing demo path for the MCP/interceptor audience: it enforces
 policy at `tools/call` time, preserves process-local job state, blocks duplicate
 side effects, stops tool thrashing, and denies PII egress before forwarding to a
 downstream MCP server.
+
+As of 2026-08-10, the next enforcement milestone after the active provider
+trust gate is monotonic task capability state and protected-result release. The
+tracking program is [#78](https://github.com/dinpd/AgentPass/issues/78). This
+work makes the task's capability ceiling explicit, lets declared protected
+events remove incompatible tools and destinations, and fences stale work before
+protected results reach model context.
 
 The remaining near-term work is less about proving the basic guard pattern and
 more about hardening the production boundary:
@@ -148,7 +171,9 @@ Current issue mapping:
 | P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
 | P3 | Production deploy action gate | Complete |
 | P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift, revocation, ledgered consumption, fixtures, and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
-| P5 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
+| P5 | Monotonic task capability state and protected-result release | Planned after P4; [#78 program](https://github.com/dinpd/AgentPass/issues/78), [#79 state contract](https://github.com/dinpd/AgentPass/issues/79), [#80 local enforcement](https://github.com/dinpd/AgentPass/issues/80), [#83 hosted transitions](https://github.com/dinpd/AgentPass/issues/83), [#81 network adapter](https://github.com/dinpd/AgentPass/issues/81), [#82 proof and fixtures](https://github.com/dinpd/AgentPass/issues/82) |
+| P6 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
+| P7 | Downstream agent attribution | Follow the stable enforcement, provider-trust, and distribution foundations; [#75 attribution and provenance](https://github.com/dinpd/AgentPass/issues/75) |
 
 Issues [#6](https://github.com/dinpd/AgentPass/issues/6),
 [#7](https://github.com/dinpd/AgentPass/issues/7), and
@@ -370,7 +395,79 @@ Current status:
   hosted path and expand the corpus with unknown-key, drifted-contract, and
   replayed-prior-outcome cases for MCP fine-grained authorization discussions.
 
-#### P5: Framework And Workflow Distribution
+#### P5: Monotonic Task Capability State And Protected-Result Release
+
+Add a task-scoped capability-state layer after the active provider-trust
+milestone closes. Dispatch establishes an immutable capability ceiling. During
+the task, declared protected events can retain or remove capabilities, but they
+cannot widen the ceiling or restore a removed capability.
+
+The local tool-gate lifecycle evolves from:
+
+```text
+authorize -> execute -> return result
+```
+
+to:
+
+```text
+authorize -> execute and hold result -> classify -> narrow capabilities
+          -> fence stale work -> collect required acknowledgements -> release
+```
+
+Ship together:
+
+- A versioned task execution graph, task template, capability ceiling, state,
+  and state-version contract.
+- Declarative protected-event transitions that name exactly which tools,
+  resources, destinations, or protocols are removed.
+- Trusted result classification and a held-result boundary outside model
+  context.
+- Monotonic local and hosted transitions. Ordinary approval cannot restore a
+  capability removed from the active task.
+- Compare-and-set or single-writer hosted state, stale-version denial, and
+  cancellation or reauthorization of parallel and persistent work.
+- An adapter contract that lets an external network enforcement point apply and
+  acknowledge the same transition without making AgentPass a network gateway.
+- Direct transition evidence containing state and reference metadata, never
+  protected payloads.
+- Portable local/hosted fixtures and a runnable reconciliation/exfiltration
+  demonstration.
+
+Demo gate:
+
+- A reconciliation task begins with processor-report read, two ledger reads,
+  one vendor-support operation, and one narrowly typed finance output.
+- The processor report is held outside model context when classified protected.
+- Before release, the task transitions from `baseline` to `restricted`, removes
+  processor, support, and external paths, and records all required enforcement
+  acknowledgements.
+- A parallel call under the prior state version is denied or safely cancelled.
+- Prompt-injection-style instructions in a ledger cannot send or upload account
+  history, even with a later ordinary approval.
+- A task-bound opaque result reference can still produce the fixed-schema
+  finance summary at its declared recipient.
+- Local and hosted tests reproduce the same state transitions, reason codes,
+  retry behavior, and evidence without logging protected contents.
+
+Implementation program:
+
+- [#78](https://github.com/dinpd/AgentPass/issues/78) tracks the milestone.
+- [#79](https://github.com/dinpd/AgentPass/issues/79) defines the task graph,
+  capability ceiling, state machine, policy, and evidence contracts.
+- [#80](https://github.com/dinpd/AgentPass/issues/80) adds protected-result
+  hold, classify, transition, and release to the local tool gate.
+- [#83](https://github.com/dinpd/AgentPass/issues/83) implements durable hosted
+  transitions and stale-work fencing.
+- [#81](https://github.com/dinpd/AgentPass/issues/81) defines the external
+  network-enforcement acknowledgement adapter.
+- [#82](https://github.com/dinpd/AgentPass/issues/82) delivers the end-to-end
+  proof and conformance fixtures.
+- Existing [#56](https://github.com/dinpd/AgentPass/issues/56) supplies
+  tool-result lineage, and [#7](https://github.com/dinpd/AgentPass/issues/7)
+  supplies related structured degradation semantics.
+
+#### P6: Framework And Workflow Distribution
 
 Add integrations only after the underlying feature being wrapped has a stable
 end-to-end demonstration. Select the next wrapper from real adopter demand;
@@ -384,6 +481,22 @@ Demo gate:
 - Every adapter maps into the same decision, approval evidence, and audit event
   types.
 - Missing required context fails closed.
+
+#### P7: Downstream Agent Attribution
+
+Add destination-aware, human-visible attribution only after the action boundary,
+provider verification, and primary framework integrations are stable. Native
+provider metadata and visible text labels must remain projections of trusted
+AgentPass evidence, never authorization or cryptographic proof by themselves.
+
+Demo gate:
+
+- One provider-native metadata adapter and one visible text-label adapter bind
+  attribution to the same authorized execution and downstream object.
+- Spoofed, stripped, altered, unsupported, and replayed attribution outcomes are
+  distinguishable without exposing credentials, raw receipts, reusable grants,
+  protected payloads, or unnecessary personal data.
+- See [#75](https://github.com/dinpd/AgentPass/issues/75).
 
 Work that does not directly unlock these demonstrations is lower priority:
 
@@ -874,6 +987,11 @@ Tone:
 - DID/VC as the top-level story.
 - Broad enterprise governance dashboard.
 - Multi-agent delegation as the primary wedge.
+- A proprietary identity broker or OAuth replacement.
+- A universal network gateway; AgentPass defines an enforcement adapter and
+  shared state contract instead.
+- Claiming complete AAM or multiplayer access-control coverage before the
+  required identity, mediation, and principal-provenance boundaries exist.
 - Replacing IAM, OAuth, OPA, Cedar, OpenFGA, MCP authorization, or provider
   business rules.
 

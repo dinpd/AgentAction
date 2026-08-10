@@ -19,6 +19,14 @@ provider-verifiable authorization evidence, and execution assurance. Its open
 conformance work demonstrates interoperability; it is not the product category.
 See [Project Positioning](docs/positioning.md).
 
+AgentPass also fits into broader task-scoped security architectures such as
+Cloudflare's [Agent Access Model (AAM)](https://blog.cloudflare.com/the-agent-access-model/).
+AgentPass implements the action-control and evidence layers at the tool and
+provider boundary, while integrating with external identity brokers and network
+enforcement rather than claiming to replace them. The roadmap tracks a planned
+monotonic task capability layer that will remove incompatible authority after
+declared protected events and before protected results reach model context.
+
 The runtime decision remains the core enforcement point. The current
 implementation also includes versioned intent contracts, execution evidence,
 verified outcome observations, immutable evidence snapshots and final
@@ -395,7 +403,8 @@ Near-term work follows three product layers:
 
 1. **Runtime authorization and control:** policy enforcement, approvals,
    budgets, data-flow controls, idempotency, replay protection, and integrations
-   at agent, workflow, gateway, and provider boundaries.
+   at agent, workflow, gateway, and provider boundaries, including planned
+   monotonic task capability state after protected events.
 2. **Portable provider trust and interoperability:** signed action-bound
    evidence, independent provider verification, contract drift detection,
    conformance cases, profiles, and multi-implementation demonstrations.
