@@ -40,3 +40,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# build contains the source plugin that packages Sites metadata; dist is output.
+!/build/
+!/build/sites-vite-plugin.ts
