@@ -101,13 +101,8 @@ pre,
 .brand-mark {
   width: 2.25rem;
   height: 2.25rem;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--lime);
-  font: 700 0.68rem/1 "SFMono-Regular", Consolas, monospace;
-  letter-spacing: -0.08em;
+  display: block;
+  flex: 0 0 auto;
 }
 
 nav {
