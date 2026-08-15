@@ -57,8 +57,12 @@ test("removes starter-only assets and metadata", async () => {
   assert.match(layout, /https:\/\/agentaction\.dev/);
   assert.doesNotMatch(page, /_sites-preview|SkeletonPreview/);
   assert.doesNotMatch(layout, /Starter Project|codex-preview/);
+  assert.match(layout, /favicon\.png/);
+  assert.match(layout, /logo\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(hosting, /credential|token|secret/i);
+  await access(new URL("public/favicon.png", templateRoot));
+  await access(new URL("public/logo.png", templateRoot));
   await assert.rejects(access(new URL("../app/_sites-preview", templateRoot)));
 });
 
@@ -77,6 +81,7 @@ test("keeps navigation and local links accessible", async () => {
   assert.match(html, /aria-labelledby="hero-title"/i);
   assert.match(html, /role="table" aria-label="AgentAction trust model"/i);
   assert.match(html, /<meta name="twitter:image" content="https:\/\/agentaction\.dev\/og\.png"/i);
+  assert.match(html, /rel="icon"[^>]+href="https:\/\/agentaction\.dev\/favicon\.png"/i);
 
   for (const id of localLinks) {
     assert.match(html, new RegExp(`id=["']${id}["']`, "i"));

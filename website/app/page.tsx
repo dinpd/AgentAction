@@ -97,9 +97,7 @@ export default function Home() {
 
       <header className="site-header">
         <a className="brand" href="#top" aria-label="AgentAction home">
-          <span className="brand-mark" aria-hidden="true">
-            AA
-          </span>
+          <img className="brand-mark" src="/logo.png" alt="" width="36" height="36" />
           <span>AgentAction</span>
         </a>
         <nav aria-label="Primary navigation">
