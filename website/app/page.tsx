@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Brand } from "./brand";
 
 const github = "https://github.com/dinpd/AgentPass";
 
@@ -117,10 +118,7 @@ export default function Home() {
       </a>
 
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="AgentAction home">
-          <img className="brand-mark" src="/logo.png" alt="" width="36" height="36" />
-          <span>AgentAction</span>
-        </a>
+        <Brand href="#top" />
         <nav aria-label="Primary navigation">
           <a href="#architecture">Architecture</a>
           <Link href="/gateway">Gateway</Link>
@@ -445,10 +443,7 @@ if (!result.executed) {
       </section>
 
       <footer>
-        <div className="brand footer-brand">
-          <span className="brand-mark" aria-hidden="true">AA</span>
-          <span>AgentAction</span>
-        </div>
+        <Brand href="#top" footer />
         <p>Action authorization and execution assurance for AI agents.</p>
         <div className="footer-links">
           <a href={github}>GitHub</a>
