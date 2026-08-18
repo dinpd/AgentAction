@@ -156,6 +156,10 @@ It gives enterprise adopters one governed ingress for model and tool traffic
 while AgentAction remains the policy, durable-state, and evidence authority for
 consequential actions.
 
+The product requirements, launch boundary, pilot measures, and open commercial
+decisions are maintained in the
+[AgentAction Gateway PRD](agentaction-gateway-prd.md).
+
 The product promise is:
 
 > Route each request to an approved, cost-effective model, apply company policy
