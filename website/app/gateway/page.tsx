@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { Brand } from "../brand";
 
 const github = "https://github.com/dinpd/AgentPass";
 const designPartner = `${github}/issues/new?template=feature_request.yml&title=%5BGateway%20pilot%5D%20`;
@@ -91,10 +91,7 @@ export default function GatewayPage() {
       </a>
 
       <header className="site-header">
-        <Link className="brand" href="/" aria-label="AgentAction home">
-          <Image className="brand-mark" src="/logo.png" alt="" width={36} height={36} />
-          <span>AgentAction</span>
-        </Link>
+        <Brand href="/" />
         <nav aria-label="Primary navigation">
           <Link href="/">Project</Link>
           <a href="#workflow">How it works</a>
@@ -321,10 +318,7 @@ export default function GatewayPage() {
       </section>
 
       <footer>
-        <Link className="brand footer-brand" href="/">
-          <Image className="brand-mark" src="/logo.png" alt="" width={36} height={36} />
-          <span>AgentAction</span>
-        </Link>
+        <Brand href="/" footer />
         <p>Action authorization and execution assurance for AI agents.</p>
         <div className="footer-links">
           <a href={github}>GitHub</a>

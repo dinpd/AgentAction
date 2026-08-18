@@ -26,8 +26,13 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       "AgentAction controls consequential AI agent actions and preserves independently verifiable evidence of what was authorized and executed.",
     icons: {
-      icon: [{ url: "/favicon.png", type: "image/png", sizes: "64x64" }],
-      apple: [{ url: "/logo.png", type: "image/png", sizes: "512x512" }],
+      icon: [
+        { url: "/favicon.png", type: "image/png", sizes: "64x64" },
+        { url: "/logo.png", type: "image/png", sizes: "512x512" },
+      ],
+      apple: [
+        { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
+      ],
     },
     alternates: {
       canonical: "https://agentaction.dev/",

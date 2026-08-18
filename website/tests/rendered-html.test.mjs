@@ -37,6 +37,9 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /AgentAction is the public brand for AgentPass/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Gateway</i);
+  assert.match(html, /class="brand-symbol"/i);
+  assert.match(html, /class="brand-symbol-gate"/i);
+  assert.doesNotMatch(html, /class="brand-mark"/i);
   assert.match(html, /One governed endpoint for enterprise AI/);
   assert.match(html, /Route intelligently/);
   assert.match(html, /Execute once/);
@@ -74,6 +77,9 @@ test("server-renders the AgentAction Gateway product page with route metadata", 
   assert.match(html, /OpenID AuthZEN Authorization API 1\.0/);
   assert.match(html, /A2A 1\.0/);
   assert.match(html, /Discuss a gateway pilot/);
+  assert.match(html, /class="brand-symbol"/i);
+  assert.match(html, /class="brand-symbol-proof"/i);
+  assert.doesNotMatch(html, /class="brand-mark"/i);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
 });
 
@@ -91,10 +97,14 @@ test("removes starter-only assets and metadata", async () => {
   assert.doesNotMatch(layout, /Starter Project|codex-preview/);
   assert.match(layout, /favicon\.png/);
   assert.match(layout, /logo\.png/);
+  assert.match(layout, /apple-touch-icon\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(hosting, /credential|token|secret/i);
   await access(new URL("public/favicon.png", templateRoot));
   await access(new URL("public/logo.png", templateRoot));
+  await access(new URL("public/apple-touch-icon.png", templateRoot));
+  await assert.rejects(access(new URL("public/favicon.svg", templateRoot)));
+  await assert.rejects(access(new URL("public/logo.svg", templateRoot)));
   await assert.rejects(access(new URL("../app/_sites-preview", templateRoot)));
 });
 
@@ -114,6 +124,7 @@ test("keeps navigation and local links accessible", async () => {
   assert.match(html, /role="table" aria-label="AgentAction trust model"/i);
   assert.match(html, /<meta name="twitter:image" content="https:\/\/agentaction\.dev\/og\.png"/i);
   assert.match(html, /rel="icon"[^>]+href="https:\/\/agentaction\.dev\/favicon\.png"/i);
+  assert.match(html, /rel="apple-touch-icon"[^>]+href="https:\/\/agentaction\.dev\/apple-touch-icon\.png"/i);
 
   for (const id of localLinks) {
     assert.match(html, new RegExp(`id=["']${id}["']`, "i"));
