@@ -148,6 +148,80 @@ more about hardening the production boundary:
 - align the gateway adapter with emerging MCP interceptor/PDP shapes without
   requiring AgentPass to become the network gateway.
 
+### Enterprise Gateway Product Path
+
+AgentAction Gateway is the productized deployment surface for the same action
+boundary, not a fourth product layer and not a generic inference-gateway pivot.
+It gives enterprise adopters one governed ingress for model and tool traffic
+while AgentAction remains the policy, durable-state, and evidence authority for
+consequential actions.
+
+The product promise is:
+
+> Route each request to an approved, cost-effective model, apply company policy
+> before data leaves or tools execute, retry without repeating side effects,
+> and preserve evidence from selection through execution.
+
+The gateway must preserve two distinct control paths:
+
+```text
+model request -> company constraints -> qualified-model routing -> model response
+tool action   -> exact-action policy -> allow / deny / challenge -> execute once -> evidence
+```
+
+Inference routing is probabilistic optimization. It may select among an
+enterprise-approved pool using task type, expected quality, tool-use support,
+privacy, region, latency, and cost. It must never replace deterministic action
+authorization. Company system prompts are versioned organizational context,
+not authority, and the gateway must record the applied version without treating
+model compliance as proof of enforcement.
+
+Likewise, model-response caching and action-result replay are different
+features. Model caching reduces repeated inference. AgentAction result replay
+binds an idempotency key to an exact action digest and returns the previously
+recorded provider result without repeating the side effect. The latter remains
+the core safety property.
+
+#### Staged demonstration plan
+
+| Stage | Demonstration | Completion gate |
+| --- | --- | --- |
+| G0 | Public gateway product path | Website and roadmap distinguish available capabilities from product direction and provide a design-partner entry point |
+| G1 | Production MCP action gateway | A current MCP client routes `tools/call` through AgentAction in observe and enforce modes with durable decisions, replay, and evidence |
+| G2 | Enterprise onboarding and policy | A tenant connects identity and existing credentials, observes traffic, applies a versioned baseline, and scopes stricter rules without redeploying agents |
+| G3 | Risk-aware inference routing | The gateway selects only from an approved model pool, records the route reason and actual model, preserves conversation stickiness, and passes workload-specific quality and cost gates |
+| G4 | Customer-controlled deployment | The same policy and evidence behavior is demonstrated in managed and customer-controlled data-plane deployments |
+
+G1 should prefer integration with an established gateway data plane through
+external authorization or MCP policy-processing interfaces before expanding
+the reference adapter into a full transport implementation. G2 and G3 should
+follow real design-partner traffic and evaluations rather than speculative
+feature parity with general-purpose AI gateways.
+
+#### Gateway compatibility targets
+
+Launch compatibility should cover:
+
+- OpenAI Responses and Chat Completions plus Anthropic Messages as de facto
+  model interfaces;
+- MCP `2026-07-28`, including version negotiation, stateless Streamable HTTP,
+  `Mcp-Method` and `Mcp-Name` routing headers, Multi Round-Trip Requests, Client
+  ID Metadata Documents, and the Tasks extension;
+- OAuth, OpenID Connect, and MCP authorization with exact issuer, audience, and
+  protected-resource validation;
+- OpenID AuthZEN Authorization API 1.0 between policy enforcement and decision
+  points;
+- W3C Trace Context and OpenTelemetry GenAI conventions with explicit semantic
+  convention versioning and privacy-safe defaults;
+- JOSE JWS/JWKS, canonical action digests, and stable evidence correlation; and
+- Envoy external authorization and agentgateway ExtMCP-style integration seams.
+
+Design compatibility should preserve extension points for A2A 1.0,
+WIMSE/SPIFFE workload identity, ID-JAG and transaction context, Shared Signals
+revocation, Kubernetes Gateway API Inference Extension, and optional
+SCITT/COSE evidence transparency. Drafts remain labeled as drafts, and project
+integrations do not imply certification by their standards bodies.
+
 ### Demonstrable Feature Priority
 
 Roadmap execution is prioritized by demonstrable behavior, not by the phase

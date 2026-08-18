@@ -4,13 +4,13 @@ import test from "node:test";
 
 const templateRoot = new URL("../", import.meta.url);
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("https://agentaction.dev/", {
+    new Request(new URL(pathname, "https://agentaction.dev"), {
       headers: { accept: "text/html" },
     }),
     {
@@ -36,12 +36,44 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Prove what happened\./);
   assert.match(html, /AgentAction is the public brand for AgentPass/);
   assert.match(html, /Trusted action boundary/);
+  assert.match(html, /href="\/gateway"[^>]*>Gateway</i);
+  assert.match(html, /One governed endpoint for enterprise AI/);
+  assert.match(html, /Route intelligently/);
+  assert.match(html, /Execute once/);
+  assert.match(html, /Product direction/);
   assert.match(html, /The agent never becomes its own authority/);
   assert.match(html, /What exists—and what comes next/);
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
   assert.match(html, /Build interoperability before vocabulary/);
   assert.match(html, /https:\/\/github\.com\/dinpd\/AgentPass/);
+  assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
+});
+
+test("server-renders the AgentAction Gateway product page with route metadata", async () => {
+  const response = await render("/gateway");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, /<title>AgentAction Gateway — Govern model and tool traffic<\/title>/i);
+  assert.match(html, /<meta name="description" content="Route enterprise AI through one governed endpoint for cost-aware model selection, corporate policy, safe action replay, and execution evidence\."/i);
+  assert.match(html, /<link rel="canonical" href="https:\/\/agentaction\.dev\/gateway"/i);
+  assert.match(html, /<meta property="og:title" content="AgentAction Gateway — One governed endpoint for enterprise AI"/i);
+  assert.match(html, /<meta property="og:description" content="Route intelligently, enforce company policy, execute consequential actions once, and prove what happened\."/i);
+  assert.match(html, /<meta name="twitter:title" content="AgentAction Gateway — One governed endpoint for enterprise AI"/i);
+  assert.match(html, /<meta name="twitter:description" content="Route intelligently, enforce company policy, execute consequential actions once, and prove what happened\."/i);
+  assert.match(html, /One governed endpoint for enterprise AI/);
+  assert.match(html, /Inference control is not action authority/);
+  assert.match(html, /Risk-aware routing/);
+  assert.match(html, /Safe action replay/);
+  assert.match(html, /Observe first\. Enforce with evidence/);
+  assert.match(html, /Managed gateway/);
+  assert.match(html, /Available now/);
+  assert.match(html, /MCP 2026-07-28/);
+  assert.match(html, /OpenID AuthZEN Authorization API 1\.0/);
+  assert.match(html, /A2A 1\.0/);
+  assert.match(html, /Discuss a gateway pilot/);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
 });
 
