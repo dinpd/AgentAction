@@ -1,4 +1,25 @@
+import Link from "next/link";
+
 const github = "https://github.com/dinpd/AgentPass";
+
+const gatewayCapabilities = [
+  {
+    title: "Route intelligently",
+    copy: "Select an approved, cost-effective model for the task, risk, privacy boundary, and company policy.",
+  },
+  {
+    title: "Apply corporate policy",
+    copy: "Control models, providers, tools, destinations, sensitive data, budgets, and versioned system context.",
+  },
+  {
+    title: "Execute once",
+    copy: "Deduplicate consequential actions and replay the original provider result for an identical safe retry.",
+  },
+  {
+    title: "Prove what happened",
+    copy: "Correlate routing, authorization, approval, execution, replay, observation, and assessment evidence.",
+  },
+];
 
 const lifecycle = [
   {
@@ -102,6 +123,7 @@ export default function Home() {
         </a>
         <nav aria-label="Primary navigation">
           <a href="#architecture">Architecture</a>
+          <Link href="/gateway">Gateway</Link>
           <a href="#proof">Project status</a>
           <a href="#community">Community</a>
           <a className="nav-cta" href={github}>
@@ -230,10 +252,50 @@ export default function Home() {
         </div>
       </section>
 
+      <section id="gateway" className="gateway-entry section-shell" aria-labelledby="gateway-entry-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-index">03 / Deploy the boundary</p>
+            <h2 id="gateway-entry-title">One governed endpoint for enterprise AI.</h2>
+          </div>
+          <div className="gateway-entry-copy">
+            <p>
+              Route model and tool traffic through company policy. Use the least
+              expensive qualified model, stop unsafe or duplicate actions, and
+              preserve evidence from selection through execution.
+            </p>
+            <Link className="text-link" href="/gateway">
+              Explore the Gateway <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </div>
+
+        <div className="gateway-capability-grid">
+          {gatewayCapabilities.map((capability, index) => (
+            <article key={capability.title}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h3>{capability.title}</h3>
+              <p>{capability.copy}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="gateway-status-strip" aria-label="Gateway capability status">
+          <div>
+            <span className="status-label status-current">Available now</span>
+            <p>Action decisions, approvals, data-flow controls, safe replay, signed receipts, and MCP reference integration.</p>
+          </div>
+          <div>
+            <span className="status-label">Product direction</span>
+            <p>Production gateway packaging, risk-aware inference routing, managed company context, and broader protocol coverage.</p>
+          </div>
+        </div>
+      </section>
+
       <section className="trust section-shell" aria-labelledby="trust-title">
         <div className="section-heading compact">
           <div>
-            <p className="section-index">03 / Trust model</p>
+            <p className="section-index">04 / Trust model</p>
             <h2 id="trust-title">The agent never becomes its own authority.</h2>
           </div>
           <p>
@@ -260,7 +322,7 @@ export default function Home() {
       <section id="proof" className="proof section-shell" aria-labelledby="proof-title">
         <div className="section-heading">
           <div>
-            <p className="section-index">04 / Proof, not promises</p>
+            <p className="section-index">05 / Proof, not promises</p>
             <h2 id="proof-title">What exists—and what comes next.</h2>
           </div>
           <p>
@@ -282,7 +344,7 @@ export default function Home() {
 
       <section className="quickstart section-shell" aria-labelledby="quickstart-title">
         <div className="quickstart-copy">
-          <p className="section-index">05 / Developer entry point</p>
+          <p className="section-index">06 / Developer entry point</p>
           <h2 id="quickstart-title">Put policy around the side effect.</h2>
           <p>
             Start with the published TypeScript guard. The existing AgentPass
@@ -322,7 +384,7 @@ if (!result.executed) {
       <section className="audiences section-shell" aria-labelledby="audiences-title">
         <div className="section-heading compact">
           <div>
-            <p className="section-index">06 / One boundary, four entry points</p>
+            <p className="section-index">07 / One boundary, four entry points</p>
             <h2 id="audiences-title">Meet the project where you build.</h2>
           </div>
         </div>
@@ -339,7 +401,7 @@ if (!result.executed) {
 
       <section id="community" className="community section-shell" aria-labelledby="community-title">
         <div className="community-copy">
-          <p className="section-index">07 / Open standards posture</p>
+          <p className="section-index">08 / Open standards posture</p>
           <h2 id="community-title">Build interoperability before vocabulary.</h2>
           <p>
             AgentAction reuses established identity, policy, transport, signing,

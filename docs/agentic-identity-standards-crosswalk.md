@@ -2,7 +2,7 @@
 
 **Status:** Experimental research and interoperability guidance
 
-**Last reviewed:** 2026-08-03
+**Last reviewed:** 2026-08-18
 
 **Scope:** Agent identity, delegation, runtime authorization, action-bound
 evidence, provider enforcement, and execution closure
@@ -33,9 +33,11 @@ standardized.
 | Runtime identity | SPIFFE; IETF WIMSE architecture, identifiers, credentials, and proof tokens | SPIFFE established; WIMSE adopted drafts | Identify and authenticate the executing workload rather than only the registered application |
 | Policy decision | OpenID AuthZEN Authorization API 1.0 | Established final specification | Interoperate between a policy enforcement point and policy decision point |
 | Approval and MCP mapping | AuthZEN AARP and COAZ | Adopted drafts | Represent prerequisites such as approval and map MCP calls into subject/action/resource/context |
-| MCP connection authorization | MCP Authorization | Protocol specification | OAuth discovery, token acquisition, resource indicators, and audience binding |
+| MCP connection and method authorization | MCP 2026-07-28 and MCP Authorization | Protocol specification | OAuth discovery, token acquisition, resource indicators, audience binding, stateless method routing, and extension-aware tasks |
+| Agent-to-agent interaction | A2A 1.0 | Stable protocol specification | Exchange agent cards, messages, artifacts, and task state while keeping action authority independently enforceable |
 | Request integrity | HTTP Message Signatures (RFC 9421) | Established | Bind method, target, selected headers, and content digest |
 | Signed authorization evidence | WIMSE Authorization Evidence; Authorization Receipts for High-Risk Agent Actions | Exploratory individual drafts | Adjacent proposals for exact-action authorization evidence, approval, consumption, and durable verification |
+| Evidence transparency | COSE Receipts (RFC 9942); SCITT Architecture (RFC 9943) | Established proposed standards | Optionally register signed evidence in an append-only transparency service without changing the underlying action semantics |
 | Dynamic risk and revocation | OpenID Shared Signals Framework, CAEP, and RISC | Established final specifications | Feed current posture or revocation into decisions and lifecycle handling |
 | Portable declarations | W3C Verifiable Credentials 2.0; W3C agent Community Groups | VC established; agent groups exploratory | Carry relatively durable claims about an agent, operator, capability, or assurance |
 | Execution provenance | W3C PROV-O | Established Recommendation | Exchange generic execution lineage; additional cryptographic and replay semantics remain necessary |
@@ -149,8 +151,11 @@ OIDC/OAuth principal and delegation
 - [AuthZEN AARP and COAZ working-group drafts](https://openid.net/openid-foundation-advances-authorization-for-the-agent-era-with-new-authzen-working-group-drafts/)
 - [OpenID Shared Signals Framework 1.0](https://openid.net/specs/openid-sharedsignals-framework-1_0-final.html)
 - [SPIFFE standard](https://spiffe.io/docs/latest/spiffe-specs/)
-- [MCP Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
-- [A2A specification](https://github.com/a2aproject/A2A/blob/main/docs/specification.md)
+- [MCP 2026-07-28 release](https://blog.modelcontextprotocol.io/posts/2026-07-28/)
+- [MCP Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+- [A2A 1.0 specification](https://a2a-protocol.org/latest/specification/)
+- [COSE Receipts, RFC 9942](https://www.rfc-editor.org/info/rfc9942/)
+- [SCITT Architecture, RFC 9943](https://www.rfc-editor.org/info/rfc9943/)
 - [W3C Verifiable Credentials Data Model 2.0](https://www.w3.org/TR/vc-data-model-2.0/)
 - [W3C PROV-O](https://www.w3.org/TR/prov-o/)
 - [W3C AI Agent Protocol Community Group](https://www.w3.org/groups/cg/agentprotocol/)
