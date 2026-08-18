@@ -8,11 +8,7 @@ export function Brand({ href, footer = false }: BrandProps) {
 
   return (
     <a className={className} href={href} aria-label="AgentAction home">
-      <span className="brand-symbol" aria-hidden="true">
-        <span className="brand-symbol-gate" />
-        <span className="brand-symbol-action" />
-        <span className="brand-symbol-proof" />
-      </span>
+      <span className="brand-symbol" aria-hidden="true" />
       <span>AgentAction</span>
     </a>
   );
