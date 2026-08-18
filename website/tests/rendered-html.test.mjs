@@ -38,7 +38,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Gateway</i);
   assert.match(html, /class="brand-symbol"/i);
-  assert.match(html, /class="brand-symbol-gate"/i);
+  assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
   assert.doesNotMatch(html, /class="brand-mark"/i);
   assert.match(html, /One governed endpoint for enterprise AI/);
   assert.match(html, /Route intelligently/);
@@ -78,15 +78,16 @@ test("server-renders the AgentAction Gateway product page with route metadata", 
   assert.match(html, /A2A 1\.0/);
   assert.match(html, /Discuss a gateway pilot/);
   assert.match(html, /class="brand-symbol"/i);
-  assert.match(html, /class="brand-symbol-proof"/i);
+  assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
   assert.doesNotMatch(html, /class="brand-mark"/i);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
 });
 
 test("removes starter-only assets and metadata", async () => {
-  const [page, layout, packageJson, hosting] = await Promise.all([
+  const [page, layout, styles, packageJson, hosting] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
   ]);
@@ -98,6 +99,8 @@ test("removes starter-only assets and metadata", async () => {
   assert.match(layout, /favicon\.png/);
   assert.match(layout, /logo\.png/);
   assert.match(layout, /apple-touch-icon\.png/);
+  assert.match(styles, /background-image:\s*url\("\/logo\.png"\)/);
+  assert.doesNotMatch(styles, /brand-symbol-(?:gate|action|proof)/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(hosting, /credential|token|secret/i);
   await access(new URL("public/favicon.png", templateRoot));

@@ -99,60 +99,16 @@ pre,
 }
 
 .brand-symbol {
-  --mark-field: var(--ink);
-  --mark-accent: var(--lime);
   width: 2.25rem;
   height: 2.25rem;
-  position: relative;
-  display: inline-block;
+  display: block;
   flex: 0 0 auto;
-  overflow: hidden;
   border-radius: 0.58rem;
-  background: var(--mark-field);
-}
-
-.brand-symbol-gate {
-  position: absolute;
-  top: 0.43rem;
-  left: 0.58rem;
-  width: 1.12rem;
-  height: 1.45rem;
-  border: 0.22rem solid var(--mark-accent);
-  border-bottom: 0;
-  border-radius: 0.48rem 0.48rem 0 0;
-}
-
-.brand-symbol-action {
-  position: absolute;
-  top: 1.01rem;
-  left: 0.24rem;
-  width: 1.32rem;
-  height: 0.24rem;
-  border-radius: 999px;
-  background: var(--mark-accent);
-}
-
-.brand-symbol-action::after {
-  content: "";
-  position: absolute;
-  top: -0.25rem;
-  right: -0.03rem;
-  width: 0.54rem;
-  height: 0.54rem;
-  border-top: 0.24rem solid var(--mark-accent);
-  border-right: 0.24rem solid var(--mark-accent);
-  transform: rotate(45deg);
-}
-
-.brand-symbol-proof {
-  position: absolute;
-  top: 0.76rem;
-  right: 0.27rem;
-  width: 0.42rem;
-  height: 0.78rem;
-  border-right: 0.22rem solid var(--mark-accent);
-  border-bottom: 0.22rem solid var(--mark-accent);
-  transform: rotate(45deg);
+  background-color: var(--ink);
+  background-image: url("/logo.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 nav {
@@ -1145,8 +1101,7 @@ footer {
 }
 
 .footer-brand .brand-symbol {
-  --mark-field: var(--lime);
-  --mark-accent: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(201, 255, 70, 0.35);
 }
 
 footer > p {
