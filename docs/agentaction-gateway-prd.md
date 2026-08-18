@@ -19,6 +19,11 @@ model request -> company constraints -> qualified-model routing -> model respons
 tool action   -> exact-action policy -> allow / deny / challenge -> execute once -> evidence
 ```
 
+![AgentAction Gateway illustration: one enterprise request enters a governed gateway, then separates into model routing and exact-action authorization paths that converge into shared evidence.](agentaction-gateway-overview.png)
+
+*One governed ingress, two independently controlled paths, and shared evidence
+closure.*
+
 The gateway is not a generic inference proxy with an audit feature. Its
 differentiator is deterministic control and evidence for consequential actions;
 routing, caching, and cost optimization make that boundary easier to adopt.
