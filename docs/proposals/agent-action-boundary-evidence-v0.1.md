@@ -469,6 +469,23 @@ The snapshot SHOULD include:
 Late evidence MUST NOT silently mutate a finalized assessment. It requires a
 new snapshot and assessment version.
 
+### Optional decision-basis extension
+
+A profile MAY associate a proposal, authorization decision, approval, or
+assessment with a structured decision-basis record. Such a record describes
+the producer-declared conclusion, normalized factors, alternatives,
+assumptions, uncertainty, and evidence or policy references. It is not a raw
+reasoning transcript and MUST NOT be treated as proof that its conclusion is
+correct.
+
+Decision bases SHOULD use stable, non-secret codes and bounded summaries. A
+model-produced basis is self-asserted proposer context. A boundary-produced
+basis can describe the policy evaluation performed by that boundary, subject
+to the same provenance and local trust rules as other evidence records.
+
+AgentPass's non-normative extension is documented in
+[Decision-Basis Evidence](../decision-basis.md).
+
 ### `action.assessed`
 
 Describes a deterministic, model-based, or human assessment.

@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentpass.dev/schema/decision-basis.schema.json",
+  "title": "AgentPass Decision Basis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "basis_id",
+    "subject",
+    "producer",
+    "context",
+    "created_at",
+    "capture_mode",
+    "policy_ref",
+    "conclusion",
+    "factors",
+    "alternatives",
+    "assumptions",
+    "uncertainties",
+    "input_digest",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": { "const": "agentpass.decision-basis.v1" },
+    "basis_id": { "type": "string", "pattern": "^basis_[A-Za-z0-9._:-]{1,200}$" },
+    "subject": { "$ref": "#/$defs/subject" },
+    "producer": { "$ref": "#/$defs/producer" },
+    "context": { "$ref": "#/$defs/context" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "capture_mode": {
+      "enum": ["rule_evaluation", "structured_summary", "human_statement", "derived_summary"]
+    },
+    "policy_ref": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "conclusion": { "$ref": "#/$defs/conclusion" },
+    "factors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/factor" }
+    },
+    "alternatives": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/alternative" }
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/assumption" }
+    },
+    "uncertainties": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/uncertainty" }
+    },
+    "input_digest": { "$ref": "#/$defs/digest" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "handling": { "$ref": "#/$defs/handling" }
+  },
+  "$defs": {
+    "stableCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "maxLength": 128
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "enum": ["action_proposal", "authorization_decision", "approval_decision", "assessment"]
+        },
+        "id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "issuer", "subject"],
+      "properties": {
+        "role": { "enum": ["proposer", "boundary", "approver", "evaluator"] },
+        "issuer": { "$ref": "#/$defs/identifier" },
+        "subject": { "$ref": "#/$defs/identifier" },
+        "model_ref": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id"],
+      "properties": {
+        "tenant_id": { "$ref": "#/$defs/identifier" },
+        "intent_id": { "$ref": "#/$defs/identifier" },
+        "intent_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "job_id": { "$ref": "#/$defs/identifier" },
+        "run_id": { "$ref": "#/$defs/identifier" },
+        "logical_step_id": { "$ref": "#/$defs/identifier" },
+        "attempt_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "conclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "summary"],
+      "properties": {
+        "code": { "$ref": "#/$defs/stableCode" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "factor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factor_id", "kind", "code", "outcome"],
+      "properties": {
+        "factor_id": { "type": "string", "pattern": "^factor_[A-Za-z0-9._:-]{1,120}$" },
+        "kind": {
+          "enum": [
+            "policy_evaluation",
+            "evidence_observation",
+            "approval_match",
+            "grant_validation",
+            "constraint_evaluation",
+            "risk_evaluation",
+            "selection"
+          ]
+        },
+        "code": { "$ref": "#/$defs/stableCode" },
+        "outcome": { "enum": ["supports", "opposes", "neutral"] },
+        "policy_ref": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "depends_on": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^factor_[A-Za-z0-9._:-]{1,120}$" }
+        }
+      }
+    },
+    "alternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "disposition", "reason_codes"],
+      "properties": {
+        "code": { "$ref": "#/$defs/stableCode" },
+        "disposition": { "enum": ["selected", "rejected", "not_evaluated"] },
+        "reason_codes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableCode" }
+        }
+      }
+    },
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "status", "evidence_refs"],
+      "properties": {
+        "code": { "$ref": "#/$defs/stableCode" },
+        "status": { "enum": ["verified", "unverified", "contradicted"] },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "status"],
+      "properties": {
+        "code": { "$ref": "#/$defs/stableCode" },
+        "status": { "enum": ["open", "resolved"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value", "canonicalization_profile"],
+      "properties": {
+        "algorithm": { "const": "sha-256" },
+        "value": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "canonicalization_profile": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verification_method", "verified_issuer", "verified_subject", "verified_at"],
+      "properties": {
+        "verification_method": {
+          "enum": ["self_asserted", "transport_authenticated", "oidc", "jws", "dsse"]
+        },
+        "verified_issuer": { "$ref": "#/$defs/identifier" },
+        "verified_subject": { "$ref": "#/$defs/identifier" },
+        "verified_at": { "type": "string", "format": "date-time" },
+        "key_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "handling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "content_state"],
+      "properties": {
+        "classification": { "enum": ["public", "internal", "confidential", "restricted"] },
+        "content_state": { "enum": ["structured", "redacted", "unavailable"] },
+        "retention_profile": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    }
+  }
+}

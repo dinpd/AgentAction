@@ -150,6 +150,11 @@ challenge, deny, and allow with versioned, reviewable decisions. Company system
 context is separately versioned and recorded; it may guide a model but cannot
 grant authority or override a policy or provider denial.
 
+The gateway deterministically records the normalized basis of its own policy
+decisions. An optional practitioner prompt may request a self-asserted proposal
+basis, but the gateway does not silently inject that prompt or treat the model's
+response as policy, authorization, or outcome evidence.
+
 ### 4. Smart Inference Cache
 
 Exact-cache keys include tenant, request, model parameters, tool schema,

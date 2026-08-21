@@ -1,0 +1,73 @@
+{
+  "schema_version": "agentpass.decision-basis.v1",
+  "basis_id": "basis_proposal-21",
+  "subject": {
+    "type": "action_proposal",
+    "id": "proposal-21"
+  },
+  "producer": {
+    "role": "proposer",
+    "issuer": "support-runtime",
+    "subject": "support-agent",
+    "model_ref": "approved-support-model:v3"
+  },
+  "context": {
+    "tenant_id": "acme",
+    "intent_id": "support-refund-1042",
+    "intent_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "job_id": "case-1042"
+  },
+  "created_at": "2026-08-21T18:41:58Z",
+  "capture_mode": "structured_summary",
+  "policy_ref": "practitioner-prompt:agentpass.decision-basis.v1",
+  "conclusion": {
+    "code": "propose.refund",
+    "summary": "Propose a refund for boundary evaluation."
+  },
+  "factors": [
+    {
+      "factor_id": "factor_001",
+      "kind": "evidence_observation",
+      "code": "case.duplicate_charge_reported",
+      "outcome": "supports",
+      "evidence_refs": ["case-observation-1042"]
+    }
+  ],
+  "alternatives": [
+    {
+      "code": "propose.no_action",
+      "disposition": "rejected",
+      "reason_codes": ["case.duplicate_charge_reported"]
+    }
+  ],
+  "assumptions": [
+    {
+      "code": "payment.reference_current",
+      "status": "unverified",
+      "evidence_refs": []
+    }
+  ],
+  "uncertainties": [
+    {
+      "code": "provider.refund_eligibility",
+      "status": "open",
+      "summary": "The provider must determine current eligibility."
+    }
+  ],
+  "input_digest": {
+    "algorithm": "sha-256",
+    "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "canonicalization_profile": "agentpass.action-request.v1"
+  },
+  "provenance": {
+    "verification_method": "self_asserted",
+    "verified_issuer": "support-runtime",
+    "verified_subject": "support-agent",
+    "verified_at": "2026-08-21T18:41:59Z"
+  },
+  "handling": {
+    "classification": "internal",
+    "content_state": "structured",
+    "retention_profile": "proposal-context-short"
+  }
+}

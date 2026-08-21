@@ -205,10 +205,14 @@ Preview and final evaluation have deliberately different semantics. A preview
 answers “what would the verdict be with the evidence available now?” and may be
 repeated while job evidence is still changing. It does not close the job.
 
-Finalization creates an `agentpass.intent-evidence-snapshot.v1` containing the
-exact bound decision events, provider execution receipts, verified
-observations, and job evidence used by the evaluator. Its source manifest
-records, for each evidence source:
+Finalization creates an `agentpass.intent-evidence-snapshot.v2` containing the
+exact bound decision events, normalized decision bases, provider execution
+receipts, verified observations, and job evidence frozen for audit and
+evaluation. The current deterministic evaluator retains its V1 outcome and
+constraint semantics; a decision basis is explanatory context unless a future
+measurement profile explicitly selects it. The V1 snapshot schema remains
+unchanged for existing records. The V2 source manifest records, for each
+evidence source:
 
 - the evidence count;
 - stable evidence identifiers; and
@@ -219,6 +223,10 @@ snapshot ID. The final `agentpass.intent-evaluation.v1` receipt declares
 `evaluation_mode: final` and carries both `snapshot_id` and `evidence_digest`.
 This makes the result reproducible without treating a mutable query result as a
 final quality record.
+
+Decision bases explain the producer-declared inputs and normalized policy
+factors behind a decision. They never contain raw chain-of-thought and are not
+proof that the conclusion was correct. See [Decision-Basis Evidence](decision-basis.md).
 
 The durable finalization marker is the evidence freeze boundary. Identical
 finalization retries return the stored receipt and snapshot without adding

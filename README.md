@@ -203,6 +203,11 @@ friction, and uncertainty without treating an authorization decision as its
 own ground truth. They are discussion documents, not adopted standards, and
 AgentPass is only a non-normative reference implementation.
 
+AgentPass also defines a privacy-safe
+[decision-basis extension](docs/decision-basis.md) for normalized policy factors,
+alternatives, assumptions, and uncertainty. It explicitly excludes raw
+chain-of-thought and includes an optional, versioned practitioner prompt.
+
 Implementation work and identified gaps are tracked in the public
 [Intent Observability & Assurance project](https://github.com/users/dinpd/projects/2).
 See the [community proposals index](docs/proposals/) for the drafts and their

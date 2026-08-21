@@ -21,6 +21,10 @@
 
 ### Intent assurance
 
+- Added privacy-safe `agentpass.decision-basis.v1` records, deterministic
+  gateway policy bases, opt-in practitioner prompt guidance, and immutable
+  `agentpass.intent-evidence-snapshot.v2` finalizations while retaining the V1
+  snapshot schema for compatibility.
 - Added tenant-scoped `agentpass.intent-quality-rollup.v1` aggregation over
   immutable final receipts, with bounded windows, exact profile-version/digest
   grouping, agent/verdict/compliance filters, group pagination, explicit

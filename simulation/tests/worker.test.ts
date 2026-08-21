@@ -247,8 +247,12 @@ class MemoryGatewayNamespace {
           async get<T>(key: string): Promise<T | undefined> {
             return values.get(key) as T | undefined;
           },
-          async put<T>(key: string, value: T): Promise<void> {
-            values.set(key, value);
+          async put<T>(keyOrEntries: string | Record<string, unknown>, value?: T): Promise<void> {
+            if (typeof keyOrEntries === "string") {
+              values.set(keyOrEntries, value);
+              return;
+            }
+            for (const [key, entry] of Object.entries(keyOrEntries)) values.set(key, entry);
           },
         },
       });
