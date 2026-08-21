@@ -17,6 +17,11 @@ import {
   verifiedIntentObservationFinding,
   verifyIntentObservationRequest,
 } from "./intent-observation.ts";
+import {
+  buildBoundaryDecisionBasis,
+  validateDecisionBasis,
+  type DecisionBasis,
+} from "./decision-basis.ts";
 
 type Env = {
   AGENTID_API_KEY?: string;
@@ -228,14 +233,15 @@ type IntentProfileRecord = {
   registered_by?: string;
   definition: IntentProfile;
 };
-type IntentEvidenceSourceName = "decision_events" | "execution_receipts" | "observations" | "job";
+type IntentStoredEvidenceSourceName = "decision_events" | "decision_bases" | "execution_receipts" | "observations";
+type IntentEvidenceSourceName = IntentStoredEvidenceSourceName | "job";
 type IntentEvidenceManifest = Record<IntentEvidenceSourceName, {
   count: number;
   evidence_ids: string[];
   digest: string;
 }>;
 type IntentEvidenceSnapshot = {
-  schema_version: "agentpass.intent-evidence-snapshot.v1";
+  schema_version: "agentpass.intent-evidence-snapshot.v1" | "agentpass.intent-evidence-snapshot.v2";
   snapshot_id: string;
   tenant_id: string;
   intent_id: string;
@@ -243,9 +249,10 @@ type IntentEvidenceSnapshot = {
   job_id: string;
   captured_at: string;
   evidence_digest: string;
-  sources: IntentEvidenceManifest;
+  sources: Partial<IntentEvidenceManifest>;
   evidence: {
     decision_events: Record<string, unknown>[];
+    decision_bases?: Record<string, unknown>[];
     execution_receipts: Record<string, unknown>[];
     observations: Record<string, unknown>[];
     job?: Record<string, unknown>;
@@ -1252,6 +1259,7 @@ export class AgentIdJitGrants {
     storage: {
       get<T = unknown>(key: string): Promise<T | undefined>;
       put<T = unknown>(key: string, value: T): Promise<void>;
+      put(entries: Record<string, unknown>): Promise<void>;
     };
   };
   private intentFinalizationQueues = new Map<string, Promise<void>>();
@@ -1477,9 +1485,12 @@ export class AgentIdJitGrants {
 
     if (request.method === "POST" && url.pathname === "/intent-evidence/decision-events") {
       const event = recordValue(payload.event);
-      const appended = await this.appendIntentEvidence("decision_events", event);
-      if (appended.error) return json({ error: appended.error }, appended.httpStatus);
-      return json(appended.record, 201);
+      const basis = recordValue(payload.basis);
+      const appended = await this.appendIntentDecisionEvidence(event, basis);
+      if (appended.error) {
+        return json({ error: appended.error, error_code: appended.errorCode }, appended.httpStatus);
+      }
+      return json({ event: appended.event, basis: appended.basis, replayed: appended.replayed === true }, appended.httpStatus);
     }
 
     if (request.method === "GET" && url.pathname.startsWith("/intent-contracts/")) {
@@ -1927,6 +1938,7 @@ export class AgentIdJitGrants {
     capturedAt: string,
   ): Promise<IntentEvidenceSnapshot> {
     const decisions = await this.sortedIntentEvidence(intentId, "decision_events");
+    const decisionBases = await this.sortedIntentEvidence(intentId, "decision_bases");
     const receipts = await this.sortedIntentEvidence(intentId, "execution_receipts");
     const observations = (await this.sortedIntentEvidence(intentId, "observations", true));
     const jobDigest = await canonicalDigest(job ?? null);
@@ -1935,6 +1947,11 @@ export class AgentIdJitGrants {
         count: decisions.records.length,
         evidence_ids: decisions.ids,
         digest: decisions.digest,
+      },
+      decision_bases: {
+        count: decisionBases.records.length,
+        evidence_ids: decisionBases.ids,
+        digest: decisionBases.digest,
       },
       execution_receipts: {
         count: receipts.records.length,
@@ -1954,12 +1971,13 @@ export class AgentIdJitGrants {
     };
     const evidence = {
       decision_events: decisions.records,
+      decision_bases: decisionBases.records,
       execution_receipts: receipts.records,
       observations: observations.records,
       job,
     };
     const evidenceDigest = await canonicalDigest({
-      schema_version: "agentpass.intent-evidence-snapshot.v1",
+      schema_version: "agentpass.intent-evidence-snapshot.v2",
       tenant_id: registered.tenant_id || "default",
       intent_id: registered.intent_id,
       intent_digest: registered.intent_digest,
@@ -1967,7 +1985,7 @@ export class AgentIdJitGrants {
       sources,
     });
     return {
-      schema_version: "agentpass.intent-evidence-snapshot.v1",
+      schema_version: "agentpass.intent-evidence-snapshot.v2",
       snapshot_id: `snapshot_${evidenceDigest.slice(0, 24)}`,
       tenant_id: registered.tenant_id || "default",
       intent_id: registered.intent_id,
@@ -1982,7 +2000,7 @@ export class AgentIdJitGrants {
 
   async sortedIntentEvidence(
     intentId: string,
-    source: "decision_events" | "execution_receipts" | "observations",
+    source: IntentStoredEvidenceSourceName,
     verifiedOnly = false,
   ): Promise<{ ids: string[]; records: Record<string, unknown>[]; digest: string }> {
     const records = (await this.intentEvidence(intentId, source))
@@ -2007,6 +2025,96 @@ export class AgentIdJitGrants {
       observations: await this.intentEvidence(intentId, "observations"),
       job,
     };
+  }
+
+  async appendIntentDecisionEvidence(
+    event: Record<string, unknown>,
+    basisInput: Record<string, unknown>,
+  ): Promise<{
+    event?: Record<string, unknown>;
+    basis?: Record<string, unknown>;
+    error?: string;
+    errorCode?: string;
+    replayed?: boolean;
+    httpStatus: number;
+  }> {
+    const resolved = await this.resolveIntentRecord(event, true, true);
+    if (resolved.error) {
+      return { error: resolved.error, errorCode: resolved.errorCode, httpStatus: resolved.httpStatus };
+    }
+    if (!resolved.record) {
+      return { error: "intent decision evidence requires a registered intent binding", httpStatus: 409 };
+    }
+
+    const basisFindings = validateDecisionBasis(basisInput);
+    const decisionId = stringValue(event.decision_id);
+    const expectedTenant = resolved.record.tenant_id || "default";
+    const basisSubject = recordValue(basisInput.subject);
+    const basisContext = recordValue(basisInput.context);
+    if (basisSubject.type !== "authorization_decision" || basisSubject.id !== decisionId) {
+      basisFindings.push("decision basis subject does not match decision_id");
+    }
+    if (basisInput.basis_id !== stringValue(event.decision_basis_id)) {
+      basisFindings.push("decision basis_id does not match decision event reference");
+    }
+    if (
+      basisContext.tenant_id !== expectedTenant ||
+      basisContext.intent_id !== resolved.record.intent_id ||
+      basisContext.intent_digest !== resolved.record.intent_digest ||
+      basisContext.job_id !== resolved.record.job_id
+    ) {
+      basisFindings.push("decision basis context does not match registered intent binding");
+    }
+    if (basisFindings.length > 0) {
+      return {
+        error: `decision basis is invalid: ${basisFindings.join("; ")}`,
+        errorCode: "decision_basis_invalid",
+        httpStatus: 400,
+      };
+    }
+    const basis = basisInput as DecisionBasis;
+
+    const finalization = await this.state.storage.get<IntentFinalizationState>(
+      `intent:${resolved.record.intent_id}:finalization:state`,
+    );
+    if (finalization) {
+      return {
+        error: `intent evidence is ${finalization.status}: ${resolved.record.intent_id}`,
+        errorCode: "intent_evidence_finalized",
+        httpStatus: 409,
+      };
+    }
+
+    const decisionIndexKey = `intent:${resolved.record.intent_id}:evidence:decision_events:index`;
+    const basisIndexKey = `intent:${resolved.record.intent_id}:evidence:decision_bases:index`;
+    const decisionKey = `intent:${resolved.record.intent_id}:evidence:decision_events:${decisionId}`;
+    const basisKey = `intent:${resolved.record.intent_id}:evidence:decision_bases:${basis.basis_id}`;
+    const [decisionIndex, basisIndex, existingDecision, existingBasis] = await Promise.all([
+      this.state.storage.get<string[]>(decisionIndexKey),
+      this.state.storage.get<string[]>(basisIndexKey),
+      this.state.storage.get<Record<string, unknown>>(decisionKey),
+      this.state.storage.get<Record<string, unknown>>(basisKey),
+    ]);
+    if (existingDecision || existingBasis) {
+      if (canonicalJson(existingDecision) === canonicalJson(event) && canonicalJson(existingBasis) === canonicalJson(basis)) {
+        return { event: existingDecision, basis: existingBasis, replayed: true, httpStatus: 200 };
+      }
+      return {
+        error: `decision evidence identifier conflict: ${decisionId}`,
+        errorCode: "decision_evidence_id_conflict",
+        httpStatus: 409,
+      };
+    }
+
+    const nextDecisionIndex = [decisionId, ...(decisionIndex || []).filter((id) => id !== decisionId)].slice(0, 2_000);
+    const nextBasisIndex = [basis.basis_id, ...(basisIndex || []).filter((id) => id !== basis.basis_id)].slice(0, 2_000);
+    await this.state.storage.put({
+      [decisionKey]: event,
+      [decisionIndexKey]: nextDecisionIndex,
+      [basisKey]: basis,
+      [basisIndexKey]: nextBasisIndex,
+    });
+    return { event, basis, replayed: false, httpStatus: 201 };
   }
 
   async intentQualityRollups(url: URL): Promise<Response> {
@@ -2442,7 +2550,7 @@ export class AgentIdJitGrants {
   }
 
   async appendIntentEvidence(
-    source: "decision_events" | "execution_receipts" | "observations",
+    source: IntentStoredEvidenceSourceName,
     record: Record<string, unknown>,
   ): Promise<{
     record?: Record<string, unknown>;
@@ -2454,7 +2562,9 @@ export class AgentIdJitGrants {
     const resolved = await this.resolveIntentRecord(record, source !== "observations", true);
     if (resolved.error) return { error: resolved.error, httpStatus: resolved.httpStatus };
     if (!resolved.record) return { error: "intent evidence requires a registered intent binding", httpStatus: 409 };
-    const evidenceId = stringValue(record.observation_id ?? record.decision_id ?? record.evaluation_id) || crypto.randomUUID();
+    const evidenceId = stringValue(
+      record.observation_id ?? record.basis_id ?? record.decision_id ?? record.evaluation_id,
+    ) || crypto.randomUUID();
     const indexKey = `intent:${resolved.record.intent_id}:evidence:${source}:index`;
     const recordKey = `intent:${resolved.record.intent_id}:evidence:${source}:${evidenceId}`;
     const observationIdKey = `intent:evidence:observations:id:${evidenceId}`;
@@ -2483,15 +2593,18 @@ export class AgentIdJitGrants {
     }
     const index = await this.state.storage.get<string[]>(indexKey) || [];
     const next = [evidenceId, ...index.filter((id) => id !== evidenceId)].slice(0, 2_000);
-    await this.state.storage.put(recordKey, record);
-    if (source === "observations") await this.state.storage.put(observationIdKey, record);
-    await this.state.storage.put(indexKey, next);
+    const entries: Record<string, unknown> = {
+      [recordKey]: record,
+      [indexKey]: next,
+    };
+    if (source === "observations") entries[observationIdKey] = record;
+    await this.state.storage.put(entries);
     return { record, replayed: false, httpStatus: 201 };
   }
 
   async intentEvidence(
     intentId: string,
-    source: "decision_events" | "execution_receipts" | "observations",
+    source: IntentStoredEvidenceSourceName,
   ): Promise<Record<string, unknown>[]> {
     const index = await this.state.storage.get<string[]>(`intent:${intentId}:evidence:${source}:index`) || [];
     const evidence: Record<string, unknown>[] = [];
@@ -3450,26 +3563,75 @@ async function recordIntentDecisionEvidence(
   decision: AuthorizationDecision,
 ): Promise<void> {
   if (decision.event.intent_registry_bound !== true) return;
+  const decidedAt = new Date().toISOString();
+  const basis = await createBoundaryDecisionBasis(
+    manifest,
+    decision,
+    tenantId,
+    env.AGENTID_RECEIPT_ISSUER || "agentpass.gateway",
+    decidedAt,
+  );
+  decision.event.decision_basis_id = basis.basis_id;
+  decision.event.reason_codes = basis.factors.map((factor) => factor.code);
   const record = {
     ...decision.event,
     schema_version: "agentpass.intent-decision-evidence.v1",
     decision: decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny",
     allow: decision.allow,
     findings: decision.findings,
-    decided_at: new Date().toISOString(),
+    reason_codes: decision.event.reason_codes,
+    decided_at: decidedAt,
     replayed: decision.replayed === true,
   };
   const stored = await authorizationStore(env, tenantId, manifest).fetch(
     new Request("https://agentid.local/intent-evidence/decision-events", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ event: record }),
+      body: JSON.stringify({ event: record, basis }),
     }),
   );
   if (!stored.ok) {
     const body = await stored.json() as { error?: string };
     throw new Error(body.error || "intent decision evidence could not be stored");
   }
+}
+
+export async function createBoundaryDecisionBasis(
+  manifest: AgentIdManifest,
+  decision: AuthorizationDecision,
+  tenantId: string | null,
+  issuer = "agentpass.gateway",
+  createdAt = new Date().toISOString(),
+): Promise<DecisionBasis> {
+  const decisionId = stringValue(decision.event.decision_id);
+  const conclusionCode = decision.allow ? "allow" : decision.challengeRequired ? "challenge_required" : "deny";
+  const policyRef = optionalString(decision.event.policy_version ?? recordValue(manifest.runtime).policy_version)
+    || `manifest:sha256:${await canonicalDigest(manifest)}`;
+  const inputDigest = await approvalRequestDigest(decision.event);
+  const producerSubject = optionalString(recordValue(manifest.runtime).boundary_id) || "agentpass-gateway";
+  const resolvedTenantId = tenantId || stringValue(decision.event.tenant_id) || "default";
+  const basisId = `basis_${(await canonicalDigest({
+    tenant_id: resolvedTenantId,
+    intent_id: stringValue(decision.event.intent_id),
+    decision_id: decisionId,
+  })).slice(0, 24)}`;
+  return buildBoundaryDecisionBasis({
+    basis_id: basisId,
+    decision_id: decisionId,
+    decision: conclusionCode,
+    findings: decision.findings,
+    policy_ref: policyRef,
+    approval_id: optionalString(decision.event.approval_id),
+    grant_id: optionalString(decision.event.jit_grant_id),
+    action_digest: inputDigest.replace(/^sha256:/, ""),
+    issuer,
+    producer_subject: producerSubject,
+    tenant_id: resolvedTenantId,
+    intent_id: optionalString(decision.event.intent_id),
+    intent_digest: optionalString(decision.event.intent_digest),
+    job_id: optionalString(decision.event.job_id),
+    created_at: createdAt,
+  });
 }
 
 function auditStore(env: Env) {
@@ -3685,7 +3847,9 @@ function intentQualityRecord(value: unknown): {
   if (
     finalization.schema_version !== "agentpass.intent-finalization.v1" ||
     evaluation?.schema_version !== "agentpass.intent-evaluation.v1" ||
-    snapshot?.schema_version !== "agentpass.intent-evidence-snapshot.v1" ||
+    !["agentpass.intent-evidence-snapshot.v1", "agentpass.intent-evidence-snapshot.v2"].includes(
+      stringValue(snapshot?.schema_version),
+    ) ||
     evaluation?.evaluation_mode !== "final" ||
     !evaluation.snapshot_id ||
     !evaluation.evidence_digest ||
@@ -3697,6 +3861,7 @@ function intentQualityRecord(value: unknown): {
     !snapshot.tenant_id ||
     !snapshot.evidence ||
     !Array.isArray(snapshot.evidence.decision_events) ||
+    (snapshot.schema_version === "agentpass.intent-evidence-snapshot.v2" && !Array.isArray(snapshot.evidence.decision_bases)) ||
     !Array.isArray(snapshot.evidence.execution_receipts) ||
     !Array.isArray(snapshot.evidence.observations) ||
     !Number.isFinite(Date.parse(finalization.finalized_at)) ||
@@ -3982,12 +4147,18 @@ function intentQualityEvidenceSources(snapshot: IntentEvidenceSnapshot): {
   const evidence = recordValue(snapshot.evidence);
   const sourceRecords: Record<string, unknown[]> = {
     decision_events: Array.isArray(evidence.decision_events) ? evidence.decision_events : [],
+    ...(snapshot.schema_version === "agentpass.intent-evidence-snapshot.v2"
+      ? { decision_bases: Array.isArray(evidence.decision_bases) ? evidence.decision_bases : [] }
+      : {}),
     execution_receipts: Array.isArray(evidence.execution_receipts) ? evidence.execution_receipts : [],
     observations: Array.isArray(evidence.observations) ? evidence.observations : [],
     job: evidence.job ? [evidence.job] : [],
   };
   const sources: Record<string, unknown> = {};
-  for (const source of ["decision_events", "execution_receipts", "observations", "job"]) {
+  const sourceNames = snapshot.schema_version === "agentpass.intent-evidence-snapshot.v2"
+    ? ["decision_events", "decision_bases", "execution_receipts", "observations", "job"]
+    : ["decision_events", "execution_receipts", "observations", "job"];
+  for (const source of sourceNames) {
     const declared = recordValue(manifest[source]);
     const digest = optionalString(declared.digest);
     const declaredCount = Number.isInteger(declared.count) && Number(declared.count) >= 0
@@ -4480,10 +4651,11 @@ function snapshotIntentEvidence(snapshot: IntentEvidenceSnapshot): IntentEvidenc
 }
 
 function intentEvidenceIdentifier(
-  source: "decision_events" | "execution_receipts" | "observations",
+  source: IntentStoredEvidenceSourceName,
   record: Record<string, unknown>,
 ): string {
   if (source === "observations") return stringValue(record.observation_id);
+  if (source === "decision_bases") return stringValue(record.basis_id);
   return stringValue(record.decision_id ?? record.event_id ?? record.receipt_id);
 }
 

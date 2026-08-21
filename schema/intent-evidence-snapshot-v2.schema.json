@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentpass.dev/schema/intent-evidence-snapshot-v2.schema.json",
+  "title": "AgentPass Intent Evidence Snapshot V2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "tenant_id",
+    "intent_id",
+    "intent_digest",
+    "job_id",
+    "captured_at",
+    "evidence_digest",
+    "sources",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "agentpass.intent-evidence-snapshot.v2" },
+    "snapshot_id": { "type": "string", "pattern": "^snapshot_[a-f0-9]{24}$" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "intent_id": { "type": "string", "minLength": 1 },
+    "intent_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "job_id": { "type": "string", "minLength": 1 },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "evidence_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_events", "decision_bases", "execution_receipts", "observations", "job"],
+      "properties": {
+        "decision_events": { "$ref": "#/$defs/sourceManifest" },
+        "decision_bases": { "$ref": "#/$defs/sourceManifest" },
+        "execution_receipts": { "$ref": "#/$defs/sourceManifest" },
+        "observations": { "$ref": "#/$defs/sourceManifest" },
+        "job": { "$ref": "#/$defs/sourceManifest" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_events", "decision_bases", "execution_receipts", "observations"],
+      "properties": {
+        "decision_events": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "decision_bases": {
+          "type": "array",
+          "items": { "$ref": "https://agentpass.dev/schema/decision-basis.schema.json" }
+        },
+        "execution_receipts": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "observations": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "job": { "type": "object", "additionalProperties": true }
+      }
+    }
+  },
+  "$defs": {
+    "sourceManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "evidence_ids", "digest"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "evidence_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

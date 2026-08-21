@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { validateDecisionBasis } from "../src/decision-basis.ts";
 import gateway, { AgentIdJitGrants } from "../src/worker.ts";
 import { digestIntentObservation } from "../../packages/guard/src/intent.ts";
 
@@ -24,8 +25,12 @@ class MemoryNamespace {
           async get<T>(key: string): Promise<T | undefined> {
             return values.get(key) as T | undefined;
           },
-          async put<T>(key: string, value: T): Promise<void> {
-            values.set(key, value);
+          async put<T>(keyOrEntries: string | Record<string, unknown>, value?: T): Promise<void> {
+            if (typeof keyOrEntries === "string") {
+              values.set(keyOrEntries, value);
+              return;
+            }
+            for (const [key, entry] of Object.entries(keyOrEntries)) values.set(key, entry);
           },
         },
       });
@@ -602,17 +607,31 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
   assert.equal(finalized.body.evaluation.evaluation_mode, "final");
   assert.equal(finalized.body.evaluation.snapshot_id, finalized.body.snapshot.snapshot_id);
   assert.equal(finalized.body.evaluation.evidence_digest, finalized.body.snapshot.evidence_digest);
+  assert.equal(finalized.body.snapshot.schema_version, "agentpass.intent-evidence-snapshot.v2");
   assert.match(String(finalized.body.snapshot.snapshot_id), /^snapshot_[a-f0-9]{24}$/);
   assert.match(String(finalized.body.snapshot.evidence_digest), /^[a-f0-9]{64}$/);
   assert.ok(finalized.body.snapshot.sources.decision_events.evidence_ids.includes(decision.body.event.decision_id));
   assert.ok(finalized.body.snapshot.sources.decision_events.evidence_ids.includes(executionDecision.body.event.decision_id));
+  assert.ok(finalized.body.snapshot.sources.decision_bases.evidence_ids.includes(decision.body.event.decision_basis_id));
+  assert.ok(finalized.body.snapshot.sources.decision_bases.evidence_ids.includes(executionDecision.body.event.decision_basis_id));
   assert.deepEqual(finalized.body.snapshot.sources.execution_receipts.evidence_ids, [execution.body.receipt.decision_id]);
   assert.deepEqual(finalized.body.snapshot.sources.observations.evidence_ids, ["obs-finalization"]);
   assert.deepEqual(finalized.body.snapshot.sources.job.evidence_ids, [jobId]);
   assert.equal(finalized.body.snapshot.sources.decision_events.count, 2);
+  assert.equal(finalized.body.snapshot.sources.decision_bases.count, 2);
   assert.equal(finalized.body.snapshot.sources.execution_receipts.count, 1);
   assert.equal(finalized.body.snapshot.sources.observations.count, 1);
   assert.equal(finalized.body.snapshot.sources.job.count, 1);
+  assert.deepEqual(
+    finalized.body.snapshot.evidence.decision_events.map((event: Record<string, unknown>) => event.decision_basis_id).sort(),
+    finalized.body.snapshot.evidence.decision_bases.map((basis: Record<string, unknown>) => basis.basis_id).sort(),
+  );
+  for (const basis of finalized.body.snapshot.evidence.decision_bases) {
+    assert.deepEqual(validateDecisionBasis(basis), []);
+    assert.equal(basis.capture_mode, "rule_evaluation");
+    assert.equal(basis.producer.role, "boundary");
+    assert.match(String(basis.input_digest.value), /^[a-f0-9]{64}$/);
+  }
   assert.equal(concurrentReplay.body.replayed, true);
   assert.deepEqual(concurrentReplay.body.evaluation, finalized.body.evaluation);
   assert.deepEqual(concurrentReplay.body.snapshot, finalized.body.snapshot);
@@ -669,6 +688,7 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
   assert.equal(otherTenant.status, 404);
   const store = namespace.stores.get("acme");
   assert.equal((store?.get(`intent:${intentId}:evidence:decision_events:index`) as string[]).length, 2);
+  assert.equal((store?.get(`intent:${intentId}:evidence:decision_bases:index`) as string[]).length, 2);
   assert.equal((store?.get(`intent:${intentId}:evidence:execution_receipts:index`) as string[]).length, 1);
   assert.deepEqual(store?.get(`intent:${intentId}:evidence:observations:index`), ["obs-finalization"]);
   assert.deepEqual(
@@ -684,6 +704,91 @@ test("intent finalization freezes one canonical evidence snapshot and is idempot
   assert.ok(types.includes("agentpass.intent.finalized"));
   assert.ok(types.includes("agentpass.intent.finalization.replayed"));
   assert.ok(types.includes("agentpass.intent.evidence.rejected"));
+});
+
+test("hosted decisions emit privacy-safe normalized decision bases", async () => {
+  const namespace = new MemoryNamespace();
+  const env = trustedUnsignedObservationEnv(namespace);
+  const ctx = new TestContext();
+  const tenant = "/tenants/acme";
+  const intentId = "intent-decision-basis";
+  const jobId = "job-decision-basis";
+  const registered = await call(
+    env,
+    ctx,
+    "POST",
+    `${tenant}/intent-contracts`,
+    hostedLifecycleIntentContract(intentId, jobId),
+  );
+  assert.equal(registered.status, 201);
+
+  const common = {
+    agent_id: "customer-support-refund-agent",
+    intent_id: intentId,
+    intent_digest: registered.body.intent_digest,
+    job_id: jobId,
+    action: "read",
+    resource: "customer/secret-customer-reference",
+    raw_prompt: "secret raw prompt",
+    chain_of_thought: "secret private reasoning",
+    provider_response: { access_token: "secret-provider-token" },
+  };
+  const allowed = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...common,
+    tool: "zendesk.search_tickets",
+  });
+  assert.equal(allowed.status, 200);
+  const denied = await call(env, ctx, "POST", `${tenant}/authorize`, {
+    ...common,
+    tool: "undeclared.tool",
+  });
+  assert.equal(denied.status, 403);
+
+  const store = namespace.stores.get("acme");
+  const basisIds = store?.get(`intent:${intentId}:evidence:decision_bases:index`) as string[];
+  assert.equal(basisIds.length, 2);
+  const bases = basisIds.map((basisId) => store?.get(`intent:${intentId}:evidence:decision_bases:${basisId}`) as any);
+  const allowedBasis = bases.find((basis) => basis.subject.id === allowed.body.event.decision_id);
+  const deniedBasis = bases.find((basis) => basis.subject.id === denied.body.event.decision_id);
+  assert.equal(allowed.body.event.decision_basis_id, allowedBasis.basis_id);
+  assert.equal(allowedBasis.conclusion.code, "allow");
+  assert.deepEqual(allowedBasis.factors.map((factor: any) => factor.code), ["policy.requirements_satisfied"]);
+  assert.equal(denied.body.event.decision_basis_id, deniedBasis.basis_id);
+  assert.equal(deniedBasis.conclusion.code, "deny");
+  assert.deepEqual(deniedBasis.factors.map((factor: any) => factor.code), ["capability.undeclared"]);
+  const serialized = JSON.stringify(bases);
+  for (const forbidden of [
+    "secret-customer-reference",
+    "secret raw prompt",
+    "secret private reasoning",
+    "secret-provider-token",
+    "raw_prompt",
+    "chain_of_thought",
+    "provider_response",
+  ]) assert.equal(serialized.includes(forbidden), false, forbidden);
+
+  const invalidDependency = structuredClone(allowedBasis);
+  invalidDependency.factors[0].depends_on = ["factor_missing"];
+  assert.ok(validateDecisionBasis(invalidDependency).includes("factor dependency is missing: factor_missing"));
+  const selfDependency = structuredClone(allowedBasis);
+  selfDependency.factors[0].depends_on = [selfDependency.factors[0].factor_id];
+  assert.ok(validateDecisionBasis(selfDependency).includes(`factor depends on itself: ${selfDependency.factors[0].factor_id}`));
+  const duplicateFactor = structuredClone(allowedBasis);
+  duplicateFactor.factors.push(structuredClone(duplicateFactor.factors[0]));
+  assert.ok(validateDecisionBasis(duplicateFactor).includes(`factor_id is duplicated: ${duplicateFactor.factors[0].factor_id}`));
+  const invalidReasoningField = structuredClone(allowedBasis);
+  invalidReasoningField.raw_prompt = "private";
+  assert.ok(validateDecisionBasis(invalidReasoningField).includes("unsupported field: raw_prompt"));
+
+  await ctx.flush();
+  const audit = await call(env, ctx, "GET", `/audit/events?intent_id=${intentId}&limit=20`);
+  const decisionAudit = audit.body.events.filter((event: any) => event.type === "agentid.decision");
+  assert.equal(decisionAudit.length, 2);
+  assert.equal(decisionAudit.every((event: any) => typeof event.payload.event.decision_basis_id === "string"), true);
+  assert.deepEqual(
+    decisionAudit.map((event: any) => event.payload.event.reason_codes).sort(),
+    [["capability.undeclared"], ["policy.requirements_satisfied"]],
+  );
 });
 
 test("versioned intent profiles freeze definitions and issue deterministic comparable contracts", async () => {

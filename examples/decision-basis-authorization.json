@@ -1,0 +1,76 @@
+{
+  "schema_version": "agentpass.decision-basis.v1",
+  "basis_id": "basis_decision-84",
+  "subject": {
+    "type": "authorization_decision",
+    "id": "decision-84"
+  },
+  "producer": {
+    "role": "boundary",
+    "issuer": "https://authorization.example",
+    "subject": "gateway-production"
+  },
+  "context": {
+    "tenant_id": "acme",
+    "intent_id": "support-refund-1042",
+    "intent_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "job_id": "case-1042"
+  },
+  "created_at": "2026-08-21T18:42:00Z",
+  "capture_mode": "rule_evaluation",
+  "policy_ref": "refund-policy:v7",
+  "conclusion": {
+    "code": "allow",
+    "summary": "The boundary allowed the action under the selected policy."
+  },
+  "factors": [
+    {
+      "factor_id": "factor_001",
+      "kind": "policy_evaluation",
+      "code": "policy.requirements_satisfied",
+      "outcome": "supports",
+      "policy_ref": "refund-policy:v7",
+      "evidence_refs": ["proposal-21"]
+    },
+    {
+      "factor_id": "factor_002",
+      "kind": "approval_match",
+      "code": "approval.scope_match",
+      "outcome": "supports",
+      "policy_ref": "refund-policy:v7",
+      "evidence_refs": ["approval-12"],
+      "depends_on": ["factor_001"]
+    }
+  ],
+  "alternatives": [
+    {
+      "code": "deny",
+      "disposition": "rejected",
+      "reason_codes": ["policy.requirements_satisfied"]
+    },
+    {
+      "code": "challenge_required",
+      "disposition": "rejected",
+      "reason_codes": ["approval.scope_match"]
+    }
+  ],
+  "assumptions": [],
+  "uncertainties": [],
+  "input_digest": {
+    "algorithm": "sha-256",
+    "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "canonicalization_profile": "agentpass.action-request.v1"
+  },
+  "provenance": {
+    "verification_method": "jws",
+    "verified_issuer": "https://authorization.example",
+    "verified_subject": "gateway-production",
+    "verified_at": "2026-08-21T18:42:01Z",
+    "key_id": "boundary-key-2026-08"
+  },
+  "handling": {
+    "classification": "internal",
+    "content_state": "structured",
+    "retention_profile": "decision-evidence-standard"
+  }
+}
