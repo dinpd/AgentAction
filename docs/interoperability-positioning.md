@@ -1,9 +1,12 @@
 # AgentPass Interoperability Positioning
 
-Interoperability and conformance are the open ecosystem strategy for
-AgentPass's broader product category: action authorization and execution
-assurance for AI agents. The canonical product hierarchy is defined in
-[Project Positioning](positioning.md).
+Interoperability and conformance are the open ecosystem strategy for AgentAction,
+the trust-infrastructure product built through AgentPass-compatible artifacts.
+The canonical platform scope is defined in [Project Positioning](positioning.md).
+
+This document focuses on the Action Authorization control surface and its
+provider trust boundary. It does not reduce the broader project to that one
+surface.
 
 Its focus is the provider trust boundary:
 
