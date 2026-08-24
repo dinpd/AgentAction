@@ -1,14 +1,18 @@
 # Agent Action Gate Roadmap
 
-This roadmap documents the near-term product direction for AgentPass.
+This roadmap documents the near-term Action Authorization direction within the
+broader AgentAction trust lifecycle.
 
 The positioning target is:
 
-> AgentPass controls consequential AI agent actions and produces independently
-> verifiable evidence of what was authorized and executed.
+> AgentAction evaluates decisions, enforces policy, authorizes actions, and
+> preserves verifiable evidence from intent through execution and continuous
+> evaluation.
 
-The action gate is the core product boundary inside the broader category of
-action authorization and execution assurance. The canonical message hierarchy
+The action gate is the current enforcement wedge: it turns trusted context,
+policy, approval, and prior state into an allow, deny, or challenge decision at
+the action boundary. It is one control surface inside the broader category of
+trust infrastructure for autonomous AI agents. The canonical message hierarchy
 is in [Project Positioning](positioning.md).
 
 The developer problem is not only agent identity. Builders already have agents,
@@ -58,24 +62,31 @@ agent loop. The stronger product story is:
 
 ## Positioning Principles
 
-- Lead with runtime protection for agent actions.
-- Treat identity as an input to authorization, not the product category.
+- Lead with the full trust lifecycle at project level and runtime protection
+  when discussing the Action Authorization surface.
+- Treat identity as an input to trust decisions, not the product category.
 - Say "deterministic gate" only for the enforceable control plane. The model
   remains probabilistic.
 - Prefer concrete failure modes over abstract governance language.
 - Keep standards alignment available for deeper review, but do not make DID,
   VC, or broad identity messaging the first developer touchpoint.
-- Keep the AgentPass name for now. Test the action-gate positioning before
-  committing to another rename.
+- Use AgentAction for the public product and AgentPass for compatibility-named
+  packages, commands, schemas, and implementation artifacts.
 
-Recommended public line:
+Recommended project line:
 
-> AgentPass is an action authorization guard for AI agent tool calls.
+> AgentAction is trust infrastructure for autonomous AI agents.
 
-## Three-Layer Product Roadmap
+Recommended module line:
 
-The roadmap uses the same three product layers as the README and canonical
-positioning:
+> AgentPass Action Authorization is a stateful guard for consequential AI agent
+> actions.
+
+## Action-Gate Capability Stack
+
+This roadmap organizes the Action Authorization surface into three delivery
+layers. They support the platform control surfaces in the canonical positioning;
+they are not a competing project-level hierarchy:
 
 1. **Runtime authorization and control:** stop unsafe, unauthorized, duplicate,
    or unapproved actions at the execution boundary.
@@ -87,8 +98,8 @@ positioning:
 
 Framework wrappers distribute the runtime boundary. Conformance suites test
 portable provider trust. Observability supplies operational context for
-assurance. They advance these layers rather than forming separate product
-categories.
+assurance. They advance this capability stack rather than forming separate
+product surfaces.
 
 ### Relationship To The Agent Access Model
 
@@ -131,6 +142,12 @@ tracking program is [#78](https://github.com/dinpd/AgentPass/issues/78). This
 work makes the task's capability ceiling explicit, lets declared protected
 events remove incompatible tools and destinations, and fences stale work before
 protected results reach model context.
+
+As of 2026-08-24, the public README and canonical positioning lead with the
+full AgentAction trust lifecycle: Agent Evaluation, Decision Assurance, and
+Action Authorization connected to execution evidence and continuous outcome
+evaluation. The action gate remains the current enforcement wedge and the focus
+of this roadmap rather than the entire project category.
 
 The remaining near-term work is less about proving the basic guard pattern and
 more about hardening the production boundary:

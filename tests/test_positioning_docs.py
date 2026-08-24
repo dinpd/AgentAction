@@ -12,64 +12,98 @@ INTEROPERABILITY = (ROOT / "docs" / "interoperability-positioning.md").read_text
     encoding="utf-8"
 )
 STANDARDS = (ROOT / "docs" / "standards-alignment.md").read_text(encoding="utf-8")
+WEBSITE_PAGE = (ROOT / "website" / "app" / "page.tsx").read_text(encoding="utf-8")
 PYPROJECT = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-CATEGORY = "Action authorization and execution assurance for AI agents."
+CATEGORY = "Trust infrastructure for autonomous AI agents."
 PROMISE = (
-    "AgentPass controls consequential AI agent actions and produces independently\n"
-    "> verifiable evidence of what was authorized and executed."
+    "AgentAction evaluates decisions, enforces policy, authorizes actions, and\n"
+    "> preserves verifiable evidence from intent through execution and continuous\n"
+    "> evaluation."
 )
-LAYERS = [
-    "Runtime authorization and control",
-    "Portable provider trust and interoperability",
-    "Execution and outcome assurance",
+CONTROL_SURFACES = [
+    "Agent Evaluation",
+    "Decision Assurance",
+    "Action Authorization",
 ]
+LIFECYCLE_FLOW = (
+    "Intent -> decision assurance -> policy enforcement -> action authorization\n"
+    "       -> execution -> evidence -> continuous evaluation"
+)
+ACTION_GATE_FLOW = (
+    "Agent proposes tool call -> AgentPass checks policy + state -> "
+    "allow / deny / challenge"
+)
 AAM_URL = "https://blog.cloudflare.com/the-agent-access-model/"
 
 
-def test_readme_leads_with_product_category_and_canonical_positioning():
+def test_readme_leads_with_trust_lifecycle_and_preserves_action_gate_wedge():
     assert README.startswith(f"# AgentPass\n\n**{CATEGORY}**")
     assert PROMISE in README
+    assert "AgentAction is the public product brand for AgentPass" in README
     assert "[Project Positioning](docs/positioning.md)" in README
-    assert (
-        "conformance work demonstrates interoperability; it is not the product category"
-        in README
-    )
-    assert (ROOT / "docs" / "positioning.md").is_file()
+
+    assert LIFECYCLE_FLOW in README
+    assert README.index(LIFECYCLE_FLOW) < README.index("## Try AgentPass")
+
+    action_heading = README.index("### Action Authorization")
+    assert action_heading < README.index(ACTION_GATE_FLOW)
 
 
-def test_canonical_positioning_contains_required_hierarchy_and_boundaries():
+def test_canonical_positioning_defines_brand_lifecycle_and_control_surfaces():
     assert f"**{CATEGORY}**" in POSITIONING
     assert PROMISE in POSITIONING
+    assert "AgentAction is the public product brand for AgentPass" in POSITIONING
     for heading in [
-        "## Product Hierarchy",
+        "## Brand And Category",
+        "## Trust Lifecycle",
+        "## Platform Control Surfaces",
         "## Capability Story",
         "## Audience Entry Points",
         "## Standards And Open-Source Strategy",
-        "## What AgentPass Is Not",
+        "## What AgentAction Is Not",
         "## Messaging Guardrails",
     ]:
         assert heading in POSITIONING
-    for audience in [
-        "Enterprise and security teams",
-        "Agent and application developers",
-        "MCP gateway and platform builders",
-        "SaaS, API, and MCP providers",
-        "Standards and open-source communities",
+    for surface in CONTROL_SURFACES:
+        assert surface in README
+        assert surface in POSITIONING
+    assert LIFECYCLE_FLOW in POSITIONING
+    assert ACTION_GATE_FLOW in POSITIONING
+    assert re.search(r"not the whole project\s+scope", POSITIONING)
+
+
+def test_repository_positioning_matches_agentaction_website():
+    assert "Trust infrastructure for autonomous AI agents" in WEBSITE_PAGE
+    assert "trust layer between autonomous agents and" in WEBSITE_PAGE
+    for surface in CONTROL_SURFACES:
+        assert surface in WEBSITE_PAGE
+    for label in [
+        "Declare intent",
+        "Assure the decision",
+        "Enforce policy",
+        "Execute",
+        "Preserve evidence",
+        "Evaluate continuously",
     ]:
-        assert audience in POSITIONING
-    assert "Conformance is how AgentPass proves portability" in POSITIONING
-    assert "not certification by an external standards body" in POSITIONING
+        assert label in WEBSITE_PAGE
+    assert "without inspecting hidden chain-of-thought" in README
+    assert "without inspecting hidden chain-of-thought" in WEBSITE_PAGE
 
 
-def test_readme_and_roadmap_share_the_three_product_layers():
+def test_action_gate_roadmap_is_scoped_within_the_platform():
     assert "[Project Positioning](positioning.md)" in ROADMAP
-    for layer in LAYERS:
-        assert layer in README
+    assert PROMISE in ROADMAP
+    assert "current enforcement wedge" in ROADMAP
+    assert "broader category of\ntrust infrastructure for autonomous AI agents" in ROADMAP
+    assert "## Action-Gate Capability Stack" in ROADMAP
+    for layer in [
+        "Runtime authorization and control",
+        "Portable provider trust and interoperability",
+        "Execution and outcome assurance",
+    ]:
         assert layer in ROADMAP
-        assert layer.title() in POSITIONING
-    assert "Framework wrappers and conformance suites are delivery mechanisms" in README
-    assert "They advance these layers rather than forming separate product" in ROADMAP
+    assert "not a competing project-level hierarchy" in ROADMAP
 
 
 def test_aam_reference_is_visible_and_preserves_agentpass_boundaries():
@@ -99,17 +133,17 @@ def test_roadmap_prioritizes_monotonic_capability_state_before_distribution():
     assert "A parallel call under the prior state version is denied" in ROADMAP
 
 
-def test_interoperability_and_package_metadata_support_product_positioning():
-    assert "open ecosystem strategy" in INTEROPERABILITY
+def test_interoperability_standards_and_metadata_preserve_scoped_boundaries():
+    assert "open ecosystem strategy for AgentAction" in INTEROPERABILITY
     assert "[Project Positioning](positioning.md)" in INTEROPERABILITY
+    assert "Action Authorization control surface" in INTEROPERABILITY
+    assert "trust infrastructure for autonomous AI\nagents" in STANDARDS
+    assert "Within that broader\nlifecycle, AgentPass standards work" in STANDARDS
+    assert "Within this standards track, the primary job" in STANDARDS
     assert (
-        "AgentPass's product category is action authorization and execution assurance"
-        in STANDARDS
-    )
-    assert "Within its standards work" in STANDARDS
-    assert (
-        'description = "Action authorization, runtime controls, and independently '
-        'verifiable execution evidence for AI agent tool calls."'
+        'description = "Trust infrastructure for autonomous AI agents: decision '
+        'assurance, action authorization, runtime controls, and verifiable lifecycle '
+        'evidence."'
     ) in PYPROJECT
 
 
@@ -117,6 +151,7 @@ def test_changed_positioning_documents_have_valid_local_links():
     documents = [
         ROOT / "README.md",
         ROOT / "docs" / "positioning.md",
+        ROOT / "docs" / "action-gate-roadmap.md",
         ROOT / "docs" / "interoperability-positioning.md",
         ROOT / "docs" / "standards-alignment.md",
     ]

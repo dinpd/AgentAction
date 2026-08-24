@@ -1,23 +1,26 @@
 # AgentPass
 
-**Action authorization and execution assurance for AI agents.**
+**Trust infrastructure for autonomous AI agents.**
 
-AgentPass is an action-control and evidence layer that sits outside the agent
-loop. It decides whether a specific tool call may execute and preserves durable
-records of what was proposed, authorized, executed, observed, and assessed.
+AgentAction is the public product brand for AgentPass. It is the trust layer
+between autonomous agents and enterprise systems: it evaluates decisions,
+enforces policy, authorizes actions, and preserves verifiable evidence across
+the agent lifecycle.
 
-> AgentPass controls consequential AI agent actions and produces independently
-> verifiable evidence of what was authorized and executed.
+> AgentAction evaluates decisions, enforces policy, authorizes actions, and
+> preserves verifiable evidence from intent through execution and continuous
+> evaluation.
 
 ```text
-Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+Intent -> decision assurance -> policy enforcement -> action authorization
+       -> execution -> evidence -> continuous evaluation
 ```
 
-Identity, workload, and policy systems provide inputs to that decision.
-AgentPass composes them at the action boundary and adds stateful enforcement,
-provider-verifiable authorization evidence, and execution assurance. Its open
-conformance work demonstrates interoperability; it is not the product category.
-See [Project Positioning](docs/positioning.md).
+The action gate is the current enforcement wedge inside that broader trust
+lifecycle. Existing packages, schemas, commands, environment variables, and
+repository links retain AgentPass-compatible names during the brand migration.
+See [Project Positioning](docs/positioning.md) for the canonical scope and
+messaging boundaries.
 
 ## Try AgentPass
 
@@ -83,6 +86,18 @@ The guard package is published as
 See [`packages/guard/`](packages/guard/) for starter policies and more examples.
 
 ## How It Works
+
+AgentAction connects six claims without collapsing them together: the declared
+intent, assessment of the decision, policy authorization, provider execution,
+independent evidence, and continuous outcome evaluation. Authorization is not
+proof of execution, and execution is not proof that the intended outcome was
+achieved within constraints.
+
+### Action Authorization
+
+```text
+Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+```
 
 RBAC can say which identity may access a tool. OAuth can prove access to a
 server. MCP tool schemas describe inputs. Agent frameworks can decide which
@@ -157,27 +172,34 @@ agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
 some package, schema, environment-variable, and receipt identifiers retain the
 earlier name.
 
-## Product Layers
+## Platform Control Surfaces
 
-AgentPass develops as three connected product layers:
+AgentAction exposes three connected control surfaces:
 
-1. **Runtime authorization and control:** policy enforcement, approvals,
-   budgets, data-flow controls, idempotency, replay protection, and integration
-   at agent, workflow, gateway, and provider boundaries.
-2. **Portable provider trust and interoperability:** signed action-bound
-   evidence, independent provider verification, contract drift detection,
-   conformance cases, profiles, and multi-implementation demonstrations.
-3. **Execution and outcome assurance:** linked execution receipts, immutable
-   evidence, verified observations, causal traces, intent evaluation, and
-   comparable assurance metrics.
+1. **Agent Evaluation:** define versioned intent profiles, exercise synthetic
+   scenarios, and compare profile-scoped assurance signals before wider
+   deployment.
+2. **Decision Assurance:** assess the declared basis for a consequential choice,
+   including policy factors, alternatives, assumptions, uncertainty, and
+   supporting evidence—without inspecting hidden chain-of-thought.
+3. **Action Authorization:** gate the exact action against policy and prior
+   state, then issue action-bound authority that providers can independently
+   verify.
 
-Framework wrappers and conformance suites are delivery mechanisms within these
-layers, not separate product categories.
+Provider verification, execution receipts, verified observations, immutable
+assessments, and outcome evaluation connect the three surfaces across the trust
+lifecycle. Framework wrappers, gateway adapters, and conformance suites are
+delivery and interoperability mechanisms, not separate product surfaces.
 
 ## Current Capabilities
 
-- Local TypeScript tool gate with circuit breakers, budgets, approvals,
-  idempotency, PII/data-flow controls, and decision audit events.
+- Versioned intent profiles, synthetic scenarios, immutable assessments, and
+  profile-scoped quality rollups provide the Agent Evaluation foundation.
+- Normalized decision evidence captures policy factors, alternatives,
+  assumptions, uncertainty, and supporting evidence without recording private
+  chain-of-thought.
+- Local TypeScript action authorization with circuit breakers, budgets,
+  approvals, idempotency, PII/data-flow controls, and decision audit events.
 - MCP `tools/call` interception and an MCP gateway adapter.
 - Cloudflare gateway runtime with tenant manifests, OIDC checks, approval
   queues, scoped JIT grants, audit timelines, and provider-result replay.

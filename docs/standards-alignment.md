@@ -1,11 +1,12 @@
 # Standards Alignment
 
-AgentPass's product category is action authorization and execution assurance,
-as defined in [Project Positioning](positioning.md). Within its standards work,
-AgentPass acts as an open reference implementation and conformance project for
-action-bound authorization. It does not create a general agent identity or
-replace existing identity and authorization standards. The detailed standards
-boundary is in [Interoperability Positioning](interoperability-positioning.md).
+AgentAction's product category is trust infrastructure for autonomous AI
+agents, as defined in [Project Positioning](positioning.md). Within that broader
+lifecycle, AgentPass standards work is an open reference implementation and
+conformance project for action-bound authorization, provider verification, and
+execution closure. It does not create a general agent identity or replace
+existing identity and authorization standards. The detailed standards boundary
+is in [Interoperability Positioning](interoperability-positioning.md).
 
 For the current field-level mapping across AuthZEN, OAuth, WIMSE, SPIFFE, MCP,
 authorization-evidence proposals, and execution provenance, see the
@@ -24,14 +25,17 @@ The core distinction is:
 OAuth/OIDC proves access to an enterprise or provider boundary.
 DID proves portable cryptographic identity.
 Verifiable Credentials prove signed claims about an agent.
-AgentPass decides what the verified agent may do at tool-execution time.
+Agent Evaluation measures behavior against versioned intent profiles.
+Decision Assurance assesses the declared basis for a consequential choice.
+AgentPass Action Authorization decides what may execute right now.
+Execution evidence and outcome evaluation establish what happened afterward.
 ```
 
-AgentPass's primary job remains action-level authorization: whether a specific
-agent may call a specific tool action on a specific resource for a specific
-user, job, case, customer, approval, and time window. DID and Verifiable
-Credential support should make that authority portable, independently
-verifiable, and easier to revoke.
+Within this standards track, the primary job remains portable action-level
+authorization: whether a specific agent may call a specific tool action on a
+specific resource for a specific user, job, case, customer, approval, and time
+window. DID and Verifiable Credential support should make that authority
+portable, independently verifiable, and easier to revoke.
 
 ## Priority
 

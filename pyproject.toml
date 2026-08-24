@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentpass"
 version = "0.2.0"
-description = "Action authorization, runtime controls, and independently verifiable execution evidence for AI agent tool calls."
+description = "Trust infrastructure for autonomous AI agents: decision assurance, action authorization, runtime controls, and verifiable lifecycle evidence."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
