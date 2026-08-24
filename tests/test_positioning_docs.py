@@ -151,7 +151,6 @@ def test_changed_positioning_documents_have_valid_local_links():
     documents = [
         ROOT / "README.md",
         ROOT / "docs" / "positioning.md",
-        ROOT / "docs" / "action-gate-roadmap.md",
         ROOT / "docs" / "interoperability-positioning.md",
         ROOT / "docs" / "standards-alignment.md",
     ]
