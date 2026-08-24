@@ -15,16 +15,16 @@ export async function generateMetadata(): Promise<Metadata> {
       ? "http"
       : "https";
   const origin = `${protocol}://${host}`;
-  const socialImage = new URL("/og.png", origin).toString();
+  const socialImage = new URL("/og-trust-layer.png", origin).toString();
 
   return {
     metadataBase: new URL(origin),
     title: {
-      default: "AgentAction — Action authorization for AI agents",
+      default: "AgentAction — Trust infrastructure for autonomous AI agents",
       template: "%s — AgentAction",
     },
     description:
-      "AgentAction controls consequential AI agent actions and preserves independently verifiable evidence of what was authorized and executed.",
+      "AgentAction evaluates agent decisions, enforces policy, authorizes actions, and preserves verifiable evidence from intent through execution.",
     icons: {
       icon: [
         { url: "/favicon.png", type: "image/png", sizes: "64x64" },
@@ -41,23 +41,23 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       url: "https://agentaction.dev",
       siteName: "AgentAction",
-      title: "AgentAction — Control the action. Prove what happened.",
+      title: "AgentAction — The trust layer for autonomous AI agents",
       description:
-        "Open-source action authorization and execution assurance for AI agents.",
+        "Evaluate decisions, enforce policy, authorize actions, and preserve verifiable evidence from intent through execution.",
       images: [
         {
           url: socialImage,
           width: 1200,
           height: 630,
-          alt: "AgentAction — Control the action. Prove what happened.",
+          alt: "AgentAction — The trust layer for autonomous AI agents",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: "AgentAction — Control the action. Prove what happened.",
+      title: "AgentAction — The trust layer for autonomous AI agents",
       description:
-        "Open-source action authorization and execution assurance for AI agents.",
+        "Evaluate decisions, enforce policy, authorize actions, and preserve verifiable evidence from intent through execution.",
       images: [socialImage],
     },
     robots: {

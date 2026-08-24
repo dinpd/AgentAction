@@ -25,18 +25,18 @@ const gatewayCapabilities = [
 const lifecycle = [
   {
     step: "01",
-    title: "Propose",
-    detail: "The agent proposes one concrete tool call and payload.",
+    title: "Declare intent",
+    detail: "The agent declares the goal, proposed action, and relevant context.",
   },
   {
     step: "02",
-    title: "Establish context",
-    detail: "A trusted runtime supplies identity, job, state, and approval facts.",
+    title: "Assure the decision",
+    detail: "Decision evidence is checked for justification, uncertainty, and safer alternatives.",
   },
   {
     step: "03",
-    title: "Authorize",
-    detail: "Policy and durable state return allow, deny, or challenge.",
+    title: "Enforce policy",
+    detail: "Identity, policy, approvals, and durable state return allow, deny, or challenge.",
   },
   {
     step: "04",
@@ -45,9 +45,46 @@ const lifecycle = [
   },
   {
     step: "05",
-    title: "Assure",
-    detail: "Receipts and observations preserve what happened and how it was assessed.",
+    title: "Preserve evidence",
+    detail: "Receipts and verified observations record what was authorized and what occurred.",
   },
+  {
+    step: "06",
+    title: "Evaluate continuously",
+    detail: "Immutable assessments feed assurance signals across runs, profiles, and versions.",
+  },
+];
+
+const assuranceModules = [
+  {
+    state: "Foundation available",
+    title: "Agent Evaluation",
+    copy: "Define versioned intent profiles, run synthetic scenarios, and aggregate profile-scoped assurance signals before wider deployment.",
+    signal: "Profiles · synthetic runs · quality rollups",
+    note: "Packaged certification workflows are a product direction, not an external certification claim.",
+  },
+  {
+    state: "Available now",
+    title: "Decision Assurance",
+    copy: "Assess the declared basis for a consequential choice: policy factors, alternatives, assumptions, uncertainty, and supporting evidence.",
+    signal: "Decision evidence → allow · deny · challenge",
+    note: "Uses normalized decision evidence—not private chain-of-thought or hidden model reasoning.",
+  },
+  {
+    state: "Available now",
+    title: "Action Authorization",
+    copy: "Gate the exact tool call against policy and prior state, then issue action-bound authority that providers can verify.",
+    signal: "Tool call → policy → signed receipt",
+    note: "Deploy locally today or connect the decision and evidence service behind a gateway.",
+  },
+];
+
+const permissionRows = [
+  ["User identity", "Agent identity and workload context"],
+  ["Role permissions", "Contextual, action-specific authorization"],
+  ["API access", "Autonomous decision assurance"],
+  ["Activity logs", "Verifiable receipts and observations"],
+  ["Periodic audits", "Continuous, versioned assurance"],
 ];
 
 const proof = [
@@ -120,10 +157,10 @@ export default function Home() {
       <header className="site-header">
         <Brand href="#top" />
         <nav aria-label="Primary navigation">
-          <a href="#architecture">Architecture</a>
-          <Link href="/gateway">Gateway</Link>
-          <a href="#proof">Project status</a>
-          <a href="#community">Community</a>
+          <a href="#platform">Platform</a>
+          <a href="#architecture">Decision assurance</a>
+          <Link href="/gateway">Action gateway</Link>
+          <a href="#proof">Audit &amp; receipts</a>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>
@@ -141,23 +178,23 @@ export default function Home() {
 
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <p className="eyebrow">Open-source action control for AI agents</p>
+          <p className="eyebrow">Trust infrastructure for autonomous AI agents</p>
           <h1 id="hero-title">
-            Control the action.
-            <span>Prove what happened.</span>
+            Give agents permission to act.
+            <span>Prove the decision was justified.</span>
           </h1>
           <p className="hero-lede">
-            AgentAction is an action-authorization and execution-assurance layer
-            outside the agent loop. It decides whether a specific tool call may
-            execute now—and preserves independently verifiable evidence of what
-            was authorized and executed.
+            AgentAction is the trust layer between autonomous agents and
+            enterprise systems. Evaluate decisions, enforce policies, authorize
+            actions, and preserve verifiable evidence from intent through
+            execution—without inspecting hidden chain-of-thought.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={`${github}#quick-start`}>
               Try the guard <span aria-hidden="true">↗</span>
             </a>
             <a className="button button-secondary" href="#architecture">
-              See the boundary <span aria-hidden="true">↓</span>
+              See the trust lifecycle <span aria-hidden="true">↓</span>
             </a>
           </div>
           <ul className="hero-signals" aria-label="Project properties">
@@ -168,40 +205,40 @@ export default function Home() {
           </ul>
         </div>
 
-        <div className="decision-console" aria-label="Example AgentAction authorization decision">
+        <div className="decision-console" aria-label="Example AgentAction decision assurance challenge">
           <div className="console-header">
-            <span>action.request</span>
-            <span className="live-indicator">boundary active</span>
+            <span>decision.assess</span>
+            <span className="live-indicator">assurance active</span>
           </div>
           <div className="console-body">
             <div className="code-line">
-              <span className="line-key">tool</span>
-              <span>stripe.refund</span>
+              <span className="line-key">intent</span>
+              <span>issue customer refund</span>
             </div>
             <div className="code-line">
-              <span className="line-key">resource</span>
-              <span>payment/pi_123</span>
+              <span className="line-key">decision</span>
+              <span>approve $750 refund</span>
             </div>
             <div className="code-line">
-              <span className="line-key">amount</span>
-              <span>$1,200.00</span>
+              <span className="line-key">evidence</span>
+              <span>order verified · 8y tenure</span>
             </div>
             <div className="code-line">
-              <span className="line-key">job</span>
-              <span>case-1042</span>
+              <span className="line-key">policy</span>
+              <span>&gt;$500 requires approval</span>
             </div>
             <div className="decision-rule" aria-hidden="true" />
             <div className="decision-result">
-              <span className="decision-word">DENY</span>
-              <p>Amount exceeds the $100 policy maximum.</p>
+              <span className="decision-word">CHALLENGE</span>
+              <p>Decision is plausible. Manager approval is still required.</p>
             </div>
             <div className="receipt-row">
-              <span>decision_id</span>
-              <code>dec_01JAA4…A91C</code>
+              <span>decision_trace</span>
+              <code>trace_01JAA4…A91C</code>
             </div>
           </div>
           <div className="console-footer">
-            The model proposes. The boundary decides.
+            The agent proposes. The trust layer assesses and enforces.
           </div>
         </div>
       </section>
@@ -209,26 +246,51 @@ export default function Home() {
       <section className="thesis" aria-labelledby="thesis-title">
         <p className="section-index">01 / The gap</p>
         <div>
-          <h2 id="thesis-title">Identity tells you who. AgentAction decides whether this action should run.</h2>
+          <h2 id="thesis-title">Agents need more than permissions. They need accountable judgment.</h2>
           <p>
-            OAuth can establish access to a server. IAM can assign roles and
-            entitlements. Tool schemas can describe available operations. None
-            of those alone answers whether this exact payload, in this job state,
-            with this approval and prior history, may execute right now.
+            Traditional security asks who can access a system. AgentAction asks
+            whether this agent should make this decision, in this context, right
+            now—and what evidence must exist before and after it acts.
           </p>
+        </div>
+      </section>
+
+      <section className="permissions section-shell" aria-labelledby="permissions-title">
+        <div className="section-heading compact">
+          <div>
+            <p className="section-index">02 / Beyond IAM</p>
+            <h2 id="permissions-title">Access is necessary. It is not assurance.</h2>
+          </div>
+          <p>
+            AgentAction complements identity providers, policy engines, and API
+            gateways. It adds the decision and evidence controls autonomous
+            systems require at the moment of action.
+          </p>
+        </div>
+        <div className="comparison-table" role="table" aria-label="Traditional IAM and agent systems comparison">
+          <div className="comparison-row comparison-head" role="row">
+            <span role="columnheader">Traditional IAM</span>
+            <span role="columnheader">Autonomous agent systems</span>
+          </div>
+          {permissionRows.map(([traditional, agent]) => (
+            <div className="comparison-row" role="row" key={traditional}>
+              <span role="cell">{traditional}</span>
+              <strong role="cell">{agent}</strong>
+            </div>
+          ))}
         </div>
       </section>
 
       <section id="architecture" className="architecture section-shell" aria-labelledby="architecture-title">
         <div className="section-heading">
           <div>
-            <p className="section-index">02 / The action boundary</p>
-            <h2 id="architecture-title">One controlled lifecycle, end to end.</h2>
+            <p className="section-index">03 / The trust lifecycle</p>
+            <h2 id="architecture-title">Assure the decision before authorizing the action.</h2>
           </div>
           <p>
-            Authorization is not the same as execution, and an allow decision is
-            not proof of a successful outcome. AgentAction links the lifecycle
-            without collapsing those claims together.
+            Before an agent acts, assess whether the decision is justified. When
+            it acts, ensure the action is authorized. Afterward, preserve proof
+            of what happened and evaluate the result.
           </p>
         </div>
 
@@ -245,15 +307,45 @@ export default function Home() {
         <div className="boundary-callout">
           <div className="boundary-label">Trusted action boundary</div>
           <code>
-            proposed → authorized → executed → observed → assessed
+            intent → assessed → authorized → executed → evidenced → evaluated
           </code>
+        </div>
+      </section>
+
+      <section id="platform" className="platform section-shell" aria-labelledby="platform-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-index">04 / The platform</p>
+            <h2 id="platform-title">One trust layer. Three control surfaces.</h2>
+          </div>
+          <p>
+            The gateway is the enforcement wedge. Evaluation and decision
+            assurance extend that boundary across the full agent lifecycle—from
+            pre-deployment testing to runtime evidence and continuous review.
+          </p>
+        </div>
+        <div className="module-grid">
+          {assuranceModules.map((module, index) => (
+            <article key={module.title}>
+              <div className="module-topline">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span className={module.state === "Available now" ? "status-label status-current" : "status-label"}>
+                  {module.state}
+                </span>
+              </div>
+              <h3>{module.title}</h3>
+              <p>{module.copy}</p>
+              <code>{module.signal}</code>
+              <p className="module-note">{module.note}</p>
+            </article>
+          ))}
         </div>
       </section>
 
       <section id="gateway" className="gateway-entry section-shell" aria-labelledby="gateway-entry-title">
         <div className="section-heading">
           <div>
-            <p className="section-index">03 / Deploy the boundary</p>
+            <p className="section-index">05 / Deploy the boundary</p>
             <h2 id="gateway-entry-title">One governed endpoint for enterprise AI.</h2>
           </div>
           <div className="gateway-entry-copy">
@@ -293,7 +385,7 @@ export default function Home() {
       <section className="trust section-shell" aria-labelledby="trust-title">
         <div className="section-heading compact">
           <div>
-            <p className="section-index">04 / Trust model</p>
+            <p className="section-index">06 / Trust model</p>
             <h2 id="trust-title">The agent never becomes its own authority.</h2>
           </div>
           <p>
@@ -320,7 +412,7 @@ export default function Home() {
       <section id="proof" className="proof section-shell" aria-labelledby="proof-title">
         <div className="section-heading">
           <div>
-            <p className="section-index">05 / Proof, not promises</p>
+            <p className="section-index">07 / Proof, not promises</p>
             <h2 id="proof-title">What exists—and what comes next.</h2>
           </div>
           <p>
@@ -342,7 +434,7 @@ export default function Home() {
 
       <section className="quickstart section-shell" aria-labelledby="quickstart-title">
         <div className="quickstart-copy">
-          <p className="section-index">06 / Developer entry point</p>
+          <p className="section-index">08 / Developer entry point</p>
           <h2 id="quickstart-title">Put policy around the side effect.</h2>
           <p>
             Start with the published TypeScript guard. The existing AgentPass
@@ -382,7 +474,7 @@ if (!result.executed) {
       <section className="audiences section-shell" aria-labelledby="audiences-title">
         <div className="section-heading compact">
           <div>
-            <p className="section-index">07 / One boundary, four entry points</p>
+            <p className="section-index">09 / One boundary, four entry points</p>
             <h2 id="audiences-title">Meet the project where you build.</h2>
           </div>
         </div>
@@ -399,7 +491,7 @@ if (!result.executed) {
 
       <section id="community" className="community section-shell" aria-labelledby="community-title">
         <div className="community-copy">
-          <p className="section-index">08 / Open standards posture</p>
+          <p className="section-index">10 / Open standards posture</p>
           <h2 id="community-title">Build interoperability before vocabulary.</h2>
           <p>
             AgentAction reuses established identity, policy, transport, signing,
@@ -430,8 +522,8 @@ if (!result.executed) {
       </section>
 
       <section className="closing" aria-labelledby="closing-title">
-        <p className="eyebrow">The action is the unit of control.</p>
-        <h2 id="closing-title">Help define a portable boundary for trusted agent action.</h2>
+        <p className="eyebrow">Trust spans the full agent lifecycle.</p>
+        <h2 id="closing-title">Build agents that can act—and show why they should have.</h2>
         <div className="hero-actions">
           <a className="button button-primary" href={github}>
             Explore AgentAction on GitHub <span aria-hidden="true">↗</span>
@@ -444,7 +536,7 @@ if (!result.executed) {
 
       <footer>
         <Brand href="#top" footer />
-        <p>Action authorization and execution assurance for AI agents.</p>
+        <p>Trust infrastructure for autonomous AI agents.</p>
         <div className="footer-links">
           <a href={github}>GitHub</a>
           <a href={`${github}/blob/main/LICENSE`}>Apache-2.0</a>

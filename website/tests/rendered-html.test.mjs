@@ -31,12 +31,12 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>AgentAction — Action authorization for AI agents<\/title>/i);
-  assert.match(html, /Control the action\./);
-  assert.match(html, /Prove what happened\./);
+  assert.match(html, /<title>AgentAction — Trust infrastructure for autonomous AI agents<\/title>/i);
+  assert.match(html, /Give agents permission to act\./);
+  assert.match(html, /Prove the decision was justified\./);
   assert.match(html, /AgentAction is the public brand for AgentPass/);
   assert.match(html, /Trusted action boundary/);
-  assert.match(html, /href="\/gateway"[^>]*>Gateway</i);
+  assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
   assert.match(html, /class="brand-symbol"/i);
   assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
   assert.doesNotMatch(html, /class="brand-mark"/i);
@@ -51,6 +51,36 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Build interoperability before vocabulary/);
   assert.match(html, /https:\/\/github\.com\/dinpd\/AgentPass/);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
+});
+
+test("positions AgentAction as a privacy-safe trust layer across the agent lifecycle", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /trust layer between autonomous agents and enterprise systems/i);
+  assert.match(html, /Agents need more than permissions/i);
+  assert.match(html, /Traditional IAM and agent systems comparison/i);
+  assert.match(html, /Agent Evaluation/);
+  assert.match(html, /Decision Assurance/);
+  assert.match(html, /Action Authorization/);
+  assert.match(html, /Foundation available/);
+  assert.match(html, /normalized decision evidence—not private chain-of-thought/i);
+  assert.match(html, /intent → assessed → authorized → executed → evidenced → evaluated/i);
+
+  const lifecycleMarkup = html.match(/<ol class="lifecycle">([\s\S]*?)<\/ol>/i)?.[1] ?? "";
+  const lifecycleOrder = [
+    "Declare intent",
+    "Assure the decision",
+    "Enforce policy",
+    "Execute",
+    "Preserve evidence",
+    "Evaluate continuously",
+  ].map((label) => lifecycleMarkup.indexOf(label));
+
+  assert.ok(lifecycleOrder.every((index) => index >= 0));
+  assert.deepEqual(lifecycleOrder, [...lifecycleOrder].sort((left, right) => left - right));
+  assert.match(html, /<meta property="og:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
+  assert.match(html, /<meta name="twitter:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
 });
 
 test("server-renders the AgentAction Gateway product page with route metadata", async () => {
@@ -98,6 +128,7 @@ test("removes starter-only assets and metadata", async () => {
   assert.doesNotMatch(layout, /Starter Project|codex-preview/);
   assert.match(layout, /favicon\.png/);
   assert.match(layout, /logo\.png/);
+  assert.match(layout, /og-trust-layer\.png/);
   assert.match(layout, /apple-touch-icon\.png/);
   assert.match(styles, /background-image:\s*url\("\/logo\.png"\)/);
   assert.doesNotMatch(styles, /brand-symbol-(?:gate|action|proof)/);
@@ -124,8 +155,9 @@ test("keeps navigation and local links accessible", async () => {
   assert.match(html, /class="skip-link" href="#content"/i);
   assert.match(html, /<nav aria-label="Primary navigation">/i);
   assert.match(html, /aria-labelledby="hero-title"/i);
+  assert.match(html, /role="table" aria-label="Traditional IAM and agent systems comparison"/i);
   assert.match(html, /role="table" aria-label="AgentAction trust model"/i);
-  assert.match(html, /<meta name="twitter:image" content="https:\/\/agentaction\.dev\/og\.png"/i);
+  assert.match(html, /<meta name="twitter:image" content="https:\/\/agentaction\.dev\/og-trust-layer\.png"/i);
   assert.match(html, /rel="icon"[^>]+href="https:\/\/agentaction\.dev\/favicon\.png"/i);
   assert.match(html, /rel="apple-touch-icon"[^>]+href="https:\/\/agentaction\.dev\/apple-touch-icon\.png"/i);
 

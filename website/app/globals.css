@@ -197,8 +197,8 @@ nav a:not(.nav-cta):hover,
 .hero h1 {
   max-width: 790px;
   margin-top: 1.25rem;
-  font-size: clamp(4.4rem, 8vw, 7.8rem);
-  line-height: 0.86;
+  font-size: clamp(3.7rem, 6.2vw, 6.25rem);
+  line-height: 0.91;
   font-weight: 850;
 }
 
@@ -431,11 +431,62 @@ nav a:not(.nav-cta):hover,
   line-height: 1.7;
 }
 
+.permissions {
+  border-bottom: 1px solid var(--line);
+}
+
+.comparison-table {
+  border: 1px solid var(--ink);
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 0.82fr 1.18fr;
+  border-bottom: 1px solid var(--line);
+}
+
+.comparison-row:last-child {
+  border-bottom: 0;
+}
+
+.comparison-row > * {
+  padding: 1rem 1.2rem;
+  border-right: 1px solid var(--line);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.comparison-row > *:last-child {
+  border-right: 0;
+}
+
+.comparison-row > span {
+  color: var(--muted);
+}
+
+.comparison-row > strong::before {
+  content: "→";
+  margin-right: 0.75rem;
+  color: var(--lime-dark);
+}
+
+.comparison-head {
+  background: var(--ink);
+  color: white;
+  font: 800 0.65rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.comparison-head > span {
+  color: white;
+}
+
 .lifecycle {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   border-top: 1px solid var(--ink);
   border-bottom: 1px solid var(--ink);
   list-style: none;
@@ -487,6 +538,67 @@ nav a:not(.nav-cta):hover,
 
 .boundary-callout code {
   font-size: clamp(0.65rem, 1.2vw, 0.84rem);
+}
+
+.platform {
+  border-top: 1px solid var(--line);
+}
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--ink);
+}
+
+.module-grid article {
+  min-height: 420px;
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper-strong);
+}
+
+.module-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.module-topline > span:first-child {
+  color: var(--lime-dark);
+  font: 800 0.67rem/1 "SFMono-Regular", Consolas, monospace;
+}
+
+.module-grid h3 {
+  margin-top: 3.5rem;
+  font-size: 1.75rem;
+}
+
+.module-grid article > p {
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.62;
+}
+
+.module-grid article > code {
+  margin-top: auto;
+  padding: 0.9rem;
+  border: 1px solid #343a30;
+  background: var(--terminal);
+  color: var(--lime);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.module-grid article > .module-note {
+  margin-top: 0.9rem;
+  font-size: 0.73rem;
+  line-height: 1.5;
 }
 
 .gateway-entry {
@@ -1143,7 +1255,7 @@ button:focus-visible {
   }
 
   .lifecycle {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .lifecycle li {
@@ -1152,6 +1264,14 @@ button:focus-visible {
 
   .proof-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .module-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-grid article {
+    min-height: 350px;
   }
 
   .audience-grid {
@@ -1200,7 +1320,7 @@ button:focus-visible {
 
   .hero h1,
   .gateway-hero h1 {
-    font-size: clamp(3.5rem, 18vw, 5.4rem);
+    font-size: clamp(3.15rem, 15vw, 5.1rem);
   }
 
   .decision-console,
@@ -1222,6 +1342,7 @@ button:focus-visible {
   }
 
   .lifecycle,
+  .module-grid,
   .proof-grid,
   .audience-grid,
   .gateway-capability-grid,
@@ -1253,8 +1374,31 @@ button:focus-visible {
   }
 
   .trust-row,
+  .comparison-row,
   .trust-head {
     grid-template-columns: 1fr;
+  }
+
+  .comparison-head {
+    display: none;
+  }
+
+  .comparison-row {
+    margin-bottom: 0.8rem;
+    border: 1px solid var(--ink);
+  }
+
+  .comparison-table {
+    border: 0;
+  }
+
+  .comparison-row > * {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .comparison-row > *:last-child {
+    border-bottom: 0;
   }
 
   .trust-head {
