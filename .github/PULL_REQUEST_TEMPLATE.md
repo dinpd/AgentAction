@@ -12,6 +12,14 @@ approval scope, PII/data-flow behavior, gateway forwarding, or audit events?
 Call out public API, schema, package export, policy, receipt, or documentation
 changes.
 
+## Release Impact
+
+Select one and explain the version or no-release rationale.
+
+- [ ] Significant functionality (minor release while below 1.0)
+- [ ] Backward-compatible fix (patch release)
+- [ ] No release
+
 ## Test Plan
 
 List the checks you ran. If a relevant check was not run, say why.
@@ -29,3 +37,4 @@ List the checks you ran. If a relevant check was not run, say why.
 - [ ] No secrets, private data, or production identifiers were added.
 - [ ] New dependencies are justified.
 - [ ] Breaking changes are documented.
+- [ ] Release metadata was updated, or the no-release rationale is stated.

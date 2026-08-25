@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib import request
 
+from . import __version__
+
 
 RISKY_NAME_KEYWORDS: dict[str, tuple[str, int]] = {
     "delete": ("delete/destructive", 24),
@@ -178,7 +180,7 @@ def fetch_tools_list(
                 "params": {
                     "protocolVersion": protocol_version,
                     "capabilities": {},
-                    "clientInfo": {"name": "agentaction", "version": "0.2.0"},
+                    "clientInfo": {"name": "agentaction", "version": __version__},
                 },
             },
             request_headers,

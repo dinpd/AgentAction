@@ -1,5 +1,6 @@
 import json
 
+from agentid import __version__
 from agentid.cli import main
 from agentid.mcp import FetchResult
 from agentid.mcp import analyze_tools, check_tools, diff_tools, fetch_tools_list, parse_json_or_sse, tools_from_payload
@@ -205,6 +206,7 @@ def test_fetch_tools_list_initializes_and_lists_tools():
     assert result.session_id == "session-1"
     assert result.payload["result"]["tools"][0]["name"] == "docs.search"
     assert [call[1]["method"] for call in calls] == ["initialize", "notifications/initialized", "tools/list"]
+    assert calls[0][1]["params"]["clientInfo"]["version"] == __version__
     assert calls[1][2]["Mcp-Session-Id"] == "session-1"
     assert calls[2][2]["MCP-Protocol-Version"] == "2025-11-25"
     assert calls[0][2]["Authorization"] == "Bearer token"
