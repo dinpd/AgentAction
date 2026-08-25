@@ -68,6 +68,13 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: npm ci
 
+      - name: Build workspace guard dependency
+        if: ${{ matrix.package == 'packages/openclaw' || matrix.package == 'mcp-gateway-adapter' }}
+        working-directory: packages/guard
+        run: |
+          npm ci
+          npm run build
+
       - name: Test
         working-directory: ${{ matrix.package }}
         run: npm test
