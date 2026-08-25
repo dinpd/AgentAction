@@ -1,0 +1,114 @@
+name: Release AgentAction
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build and test dependencies
+        run: python -m pip install -e ".[dev]" build
+
+      - name: Validate release metadata and tag
+        run: python scripts/check_release.py --tag "$GITHUB_REF_NAME" --notes-output release-notes.md
+
+      - name: Run Python tests
+        run: python -m pytest
+
+      - name: Build Python artifacts
+        run: python -m build
+
+      - name: Smoke test wheel installation
+        run: |
+          python -m venv release-smoke
+          release-smoke/bin/python -m pip install dist/*.whl
+          release-smoke/bin/agentaction --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-release
+          path: |
+            dist/*
+            release-notes.md
+          if-no-files-found: error
+
+  typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - packages/guard
+          - sdk/typescript
+          - packages/provider-express
+          - packages/openclaw
+          - mcp-gateway-adapter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: npm ci
+
+      - name: Test
+        working-directory: ${{ matrix.package }}
+        run: npm test
+
+      - name: Build
+        working-directory: ${{ matrix.package }}
+        run: npm run build
+
+  publish:
+    needs: [python, typescript]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-release
+          path: release
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease_flag=""
+          case "$GITHUB_REF_NAME" in
+            *-rc.*) prerelease_flag="--prerelease" ;;
+          esac
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "AgentAction ${GITHUB_REF_NAME#v}" \
+              --notes-file release/release-notes.md
+            gh release upload "$GITHUB_REF_NAME" release/dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              release/dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "AgentAction ${GITHUB_REF_NAME#v}" \
+              --notes-file release/release-notes.md \
+              $prerelease_flag
+          fi

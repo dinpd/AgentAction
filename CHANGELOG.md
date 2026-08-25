@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.3.0 - 2026-08-25
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.3.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- Existing `agentpass` and `agentid` CLI aliases, Python import paths,
+  AgentPass-named public API aliases, and versioned `agentpass.*` protocol
+  identifiers remain compatible. No migration is required for existing users.
+- npm packages retain their independent versions and are not republished by
+  this repository release.
+
 ### Project identity
 
 - Renamed the project, repository references, Python distribution metadata, primary CLI,
