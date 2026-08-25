@@ -1,4 +1,4 @@
-$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/provider-mcp-contract.schema.json
 provider_agentid:
   provider: example-crm
   mcp_server: provider-crm-mcp

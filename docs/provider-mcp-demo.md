@@ -7,8 +7,8 @@ The flow is:
 
 ```text
 MCP client
-  -> AgentPass MCP gateway adapter
-  -> AgentPass /authorize
+  -> AgentAction MCP gateway adapter
+  -> AgentAction /authorize
   -> mock provider MCP server
   -> provider receipt verification
   -> provider business authorization
@@ -39,25 +39,25 @@ It declares:
 Validate it before running the demo:
 
 ```bash
-agentpass provider validate examples/provider-mcp-contract.yaml
+agentaction provider validate examples/provider-mcp-contract.yaml
 ```
 
 Emit the JSON Schema for editor or CI validation:
 
 ```bash
-agentpass provider schema > schema/provider-mcp-contract.schema.json
+agentaction provider schema > schema/provider-mcp-contract.schema.json
 ```
 
 Compare reviewed versions before enabling updated provider tools:
 
 ```bash
-agentpass provider diff old-provider-contract.yaml new-provider-contract.yaml
+agentaction provider diff old-provider-contract.yaml new-provider-contract.yaml
 ```
 
-Generate a reviewable enterprise AgentPass manifest starter:
+Generate a reviewable enterprise AgentAction manifest starter:
 
 ```bash
-agentpass provider import examples/provider-mcp-contract.yaml \
+agentaction provider import examples/provider-mcp-contract.yaml \
   --agent enterprise-support-agent \
   --output generated-agent.yaml
 ```
@@ -66,7 +66,7 @@ For providers starting from an existing OpenAPI document, generate a contract
 starter first:
 
 ```bash
-agentpass provider from-openapi examples/provider-openapi.yaml \
+agentaction provider from-openapi examples/provider-openapi.yaml \
   --provider example-crm \
   --output provider-mcp-contract.yaml
 ```
@@ -76,7 +76,7 @@ That gives a concrete migration path:
 ```text
 OpenAPI description
   -> provider MCP authorization contract
-  -> enterprise AgentPass manifest starter
+  -> enterprise AgentAction manifest starter
   -> gateway authorization
   -> provider receipt verification
 ```
@@ -84,7 +84,7 @@ OpenAPI description
 You can also verify a signed receipt fixture directly from the CLI:
 
 ```bash
-agentpass provider verify-receipt examples/provider-signed-receipt.json \
+agentaction provider verify-receipt examples/provider-signed-receipt.json \
   --secret dev-provider-receipt-secret \
   --require-signed \
   --tenant tenant-a \
@@ -98,7 +98,7 @@ For JWS/JWKS receipts, pass the provider's trusted JWKS and expected issuer or
 audience:
 
 ```bash
-agentpass provider verify-receipt receipt.json \
+agentaction provider verify-receipt receipt.json \
   --jwks enterprise-jwks.json \
   --issuer https://enterprise.example.com \
   --audience provider-crm-mcp \
@@ -108,7 +108,7 @@ agentpass provider verify-receipt receipt.json \
 You can also trust a remote key set directly:
 
 ```bash
-agentpass provider verify-receipt receipt.json \
+agentaction provider verify-receipt receipt.json \
   --jwks-uri https://enterprise.example.com/.well-known/jwks.json \
   --issuer https://enterprise.example.com \
   --audience provider-crm-mcp \
@@ -121,7 +121,7 @@ up to 5 more minutes on refresh failures, and force a refresh when a receipt
 expiry.
 
 For a single-command version of the same boundary with enterprise JWT
-validation, AgentPass authorization, signed receipt forwarding, and provider
+validation, AgentAction authorization, signed receipt forwarding, and provider
 receipt verification all in process, run:
 
 ```bash
@@ -129,12 +129,12 @@ cd mcp-gateway-adapter
 npm run demo:enterprise-auth
 ```
 
-## 1. Start AgentPass
+## 1. Start AgentAction
 
 From the repo root in terminal 1:
 
 ```bash
-agentpass gateway examples/provider-mcp-support-agent.yaml \
+agentaction gateway examples/provider-mcp-support-agent.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token
@@ -174,7 +174,7 @@ npm run dev
 
 The adapter listens on `http://127.0.0.1:8788`.
 
-When AgentPass allows a tool call, the adapter forwards the downstream MCP request
+When AgentAction allows a tool call, the adapter forwards the downstream MCP request
 with a receipt in `_agentid_receipt`. The example config signs the receipt with
 `provider_receipts.hmac_secret`:
 
@@ -195,7 +195,7 @@ introspection rather than a static demo secret in config.
 The same receipt semantics are available in two places:
 
 - the TypeScript adapter helper at `mcp-gateway-adapter/src/receipts.ts`
-- the Python CLI verifier via `agentpass provider verify-receipt`
+- the Python CLI verifier via `agentaction provider verify-receipt`
 
 ## 4. Read Call: Enterprise Allows, Provider Executes
 
@@ -216,7 +216,7 @@ curl -s http://127.0.0.1:8788 \
   --data @mcp-gateway-adapter/examples/denied-update-customer.json
 ```
 
-`provider.crm.update_customer` is a high-risk write. AgentPass denies it before
+`provider.crm.update_customer` is a high-risk write. AgentAction denies it before
 the request reaches the provider because no JIT grant is present.
 
 ## 6. Provider Denies Missing Receipt
@@ -314,6 +314,6 @@ the over-limit fixture even if the enterprise receipt is otherwise valid.
 This is the intended split:
 
 ```text
-AgentPass receipt proves enterprise-side agent authorization.
+AgentAction receipt proves enterprise-side agent authorization.
 Provider business authorization decides whether the operation may execute.
 ```

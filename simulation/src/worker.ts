@@ -281,10 +281,10 @@ async function runSyntheticJob(
       currency: "USD",
       idempotency_key: idempotencyKey,
       reason: "duplicate_charge",
-      requested_by: "agentpass-synthetic-runner",
+      requested_by: "agentaction-synthetic-runner",
       resource: `refund/${stem}`,
       tool: "stripe.create_refund",
-      user_id: "agentpass-synthetic-runner",
+      user_id: "agentaction-synthetic-runner",
     };
     await expectGateway(env, "POST", "approval-requests", approvalPayload, [200, 201]);
     await expectGateway(
@@ -292,7 +292,7 @@ async function runSyntheticJob(
       "POST",
       `approval-requests/${encodeURIComponent(approvalId)}/approve`,
       {
-        decided_by: "agentpass-synthetic-runner",
+        decided_by: "agentaction-synthetic-runner",
         decision_reason: "deterministic synthetic approval",
       },
       [200],
@@ -390,7 +390,7 @@ function intentProfile(version: typeof PROFILE_VERSIONS[number]): Record<string,
     schema_version: "agentpass.intent-profile.v1",
     profile: PROFILE_NAME,
     version,
-    issuer: "agentpass-synthetic-runner",
+    issuer: "agentaction-synthetic-runner",
     issued_at: "2026-01-01T00:00:00.000Z",
     objective_template: version === "v1"
       ? "Safely simulate refund {{payment_id}} for {{refund_amount}} {{currency}}"
@@ -478,7 +478,7 @@ async function gatewayJson(
         accept: "application/json",
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
-        "user-agent": "agentpass-synthetic-runner/0.1",
+        "user-agent": "agentaction-synthetic-runner/0.1",
       },
       body: body ? JSON.stringify(body) : undefined,
     },

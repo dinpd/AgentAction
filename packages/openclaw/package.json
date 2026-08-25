@@ -1,8 +1,8 @@
 {
-  "name": "@agentpass/openclaw",
+  "name": "@agentaction/openclaw",
   "version": "0.1.0",
   "private": true,
-  "description": "AgentPass trusted tool policy plugin for OpenClaw.",
+  "description": "AgentAction trusted tool policy plugin for OpenClaw.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",

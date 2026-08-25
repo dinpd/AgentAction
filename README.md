@@ -1,11 +1,11 @@
-# AgentPass
+# AgentAction
 
 **Trust infrastructure for autonomous AI agents.**
 
-AgentAction is the public product brand for AgentPass. It is the trust layer
-between autonomous agents and enterprise systems: it evaluates decisions,
-enforces policy, authorizes actions, and preserves verifiable evidence across
-the agent lifecycle.
+AgentAction is the trust layer between autonomous agents and enterprise
+systems: it evaluates decisions, enforces policy, authorizes actions, and
+preserves verifiable evidence across the agent lifecycle. The canonical project
+site is [AgentAction.dev](https://agentaction.dev/).
 
 > AgentAction evaluates decisions, enforces policy, authorizes actions, and
 > preserves verifiable evidence from intent through execution and continuous
@@ -17,12 +17,12 @@ Intent -> decision assurance -> policy enforcement -> action authorization
 ```
 
 The action gate is the current enforcement wedge inside that broader trust
-lifecycle. Existing packages, schemas, commands, environment variables, and
-repository links retain AgentPass-compatible names during the brand migration.
-See [Project Positioning](docs/positioning.md) for the canonical scope and
-messaging boundaries.
+lifecycle. Versioned `agentpass.*` protocol identifiers and the legacy
+`agentpass` and `agentid` commands remain supported for compatibility. See
+[Project Positioning](docs/positioning.md) for the canonical scope and messaging
+boundaries.
 
-## Try AgentPass
+## Try AgentAction
 
 | Experience | What it demonstrates |
 | --- | --- |
@@ -70,8 +70,8 @@ if (!execution.executed) {
 Run the repository demos:
 
 ```bash
-git clone https://github.com/dinpd/AgentPass.git
-cd AgentPass/packages/guard
+git clone https://github.com/dinpd/AgentAction.git
+cd AgentAction/packages/guard
 npm install
 npm run demo:quickstart
 npm run demo:mcp
@@ -96,12 +96,12 @@ achieved within constraints.
 ### Action Authorization
 
 ```text
-Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+Agent proposes tool call -> AgentAction checks policy + state -> allow / deny / challenge
 ```
 
 RBAC can say which identity may access a tool. OAuth can prove access to a
 server. MCP tool schemas describe inputs. Agent frameworks can decide which
-tools are visible to a model. AgentPass answers the runtime question:
+tools are visible to a model. AgentAction answers the runtime question:
 
 > Should this specific tool call, with this payload, in this job state, execute right now?
 
@@ -120,7 +120,7 @@ job, and expiry. Side-effectful actions bind an idempotency key or call
 fingerprint to the recorded provider result. The gate therefore remembers what
 actually executed rather than relying on what the agent thinks happened.
 
-AgentPass separates three concepts that agent systems often blur:
+AgentAction separates three concepts that agent systems often blur:
 
 ```text
 Skill = workflow package
@@ -132,15 +132,15 @@ The local guard applies tool and flow checks in-process. Larger deployments use
 the same model through manifests, approvals, hosted gateways, signed receipts,
 provider-side verification, and durable evidence.
 
-![AgentPass action boundary showing the current stateful runtime-control and intent-assurance planes plus the causal-observability roadmap](docs/agentpass-action-boundary-overview.png)
+![AgentAction action boundary showing the current stateful runtime-control and intent-assurance planes plus the causal-observability roadmap](docs/agentaction-action-boundary-overview.png)
 
 At enterprise scale, every consequential action crosses an enterprise-controlled
 gateway before reaching internal, SaaS, cloud, or provider-hosted tools.
-AgentPass acts as the decision service; the gateway remains the policy
+AgentAction acts as the decision service; the gateway remains the policy
 enforcement point, and providers can independently verify scoped authorization
 receipts.
 
-AgentPass also fits into broader task-scoped security architectures such as
+AgentAction also fits into broader task-scoped security architectures such as
 Cloudflare's [Agent Access Model (AAM)](https://blog.cloudflare.com/the-agent-access-model/).
 It implements the action-control and evidence layers while
 integrating with external identity brokers and network enforcement rather than
@@ -160,17 +160,17 @@ replacing them.
 For the enterprise CLI and manifest workflow:
 
 ```bash
-git clone https://github.com/dinpd/AgentPass.git
-cd AgentPass
+git clone https://github.com/dinpd/AgentAction.git
+cd AgentAction
 python -m pip install -e ".[dev]"
-agentpass validate examples/provider-mcp-support-agent.yaml
-agentpass risk-score examples/provider-mcp-support-agent.yaml
-agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentaction validate examples/provider-mcp-support-agent.yaml
+agentaction risk-score examples/provider-mcp-support-agent.yaml
+agentaction generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
-`agentpass` is the primary CLI. `agentid` remains as a compatibility alias, and
-some package, schema, environment-variable, and receipt identifiers retain the
-earlier name.
+The Python distribution is `agentaction-dev`. `agentaction` is the primary CLI.
+`agentpass` and `agentid` remain compatibility aliases, and versioned schema,
+environment-variable, and receipt identifiers retain their existing names.
 
 ## Platform Control Surfaces
 
@@ -228,10 +228,10 @@ adopter-facing work.
 
 ## Community Specifications And Roadmap
 
-AgentPass publishes experimental, vendor-neutral drafts for
+AgentAction publishes experimental, vendor-neutral drafts for
 [Agent Action Boundary Evidence](docs/proposals/agent-action-boundary-evidence-v0.1.md)
 and [Agent Outcome Observability and Assurance Metrics](docs/proposals/agent-outcome-observability-assurance-metrics-v0.1.md).
-They are discussion documents, not adopted standards; AgentPass is a
+They are discussion documents, not adopted standards; AgentAction is a
 non-normative reference implementation.
 
 Implementation work and identified gaps are tracked in the public

@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/dinpd/AgentPass/security/advisories/new
+    url: https://github.com/dinpd/AgentAction/security/advisories/new
     about: Report suspected vulnerabilities privately.

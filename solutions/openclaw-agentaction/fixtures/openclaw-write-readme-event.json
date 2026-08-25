@@ -7,7 +7,7 @@
     "toolCallId": "tool-write-readme",
     "params": {
       "path": "README.md",
-      "content": "Add OpenClaw AgentPass setup notes.",
+      "content": "Add OpenClaw AgentAction setup notes.",
       "data_from": "agent_context",
       "data_to": "local_files"
     }

@@ -1,12 +1,12 @@
 # Governance
 
-AgentPass uses a maintainer-led governance model. The goal is to keep the
+AgentAction uses a maintainer-led governance model. The goal is to keep the
 project useful, secure, and predictable for people building AI agent execution
 boundaries.
 
 ## Project Scope
 
-AgentPass focuses on stateful runtime governance for AI agent tool calls:
+AgentAction focuses on stateful runtime governance for AI agent tool calls:
 
 - Tool allow, deny, and challenge decisions
 - Job-scoped budgets and circuit breakers
@@ -99,6 +99,6 @@ Breaking changes should be rare and clearly marked.
 
 ## Standards and External Alignment
 
-AgentPass may track and contribute to related work in MCP, agent identity,
+AgentAction may track and contribute to related work in MCP, agent identity,
 provider authorization, and receipt/profile standards. External standards work
 should be linked from issues or docs so project decisions remain auditable.

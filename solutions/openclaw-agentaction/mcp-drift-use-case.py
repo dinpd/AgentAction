@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = ROOT / "solutions" / "openclaw-agentpass" / "fixtures"
+FIXTURES = ROOT / "solutions" / "openclaw-agentaction" / "fixtures"
 sys.path.insert(0, str(ROOT))
 
 from agentid.mcp import check_tools, diff_to_dict, load_tools_list  # noqa: E402

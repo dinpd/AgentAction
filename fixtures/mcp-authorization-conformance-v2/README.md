@@ -27,9 +27,9 @@ reserved `.test` domains or visibly synthetic values.
 
 ## Interpretation
 
-Passing this suite means an implementation agrees with these AgentPass
+Passing this suite means an implementation agrees with these AgentAction
 experimental cases. It is not certification against an IETF, OpenID, W3C, or
-MCP standard and does not make the AgentPass evidence fields standardized.
+MCP standard and does not make the AgentAction evidence fields standardized.
 
 The partial-execution case demonstrates correlation semantics only. A real
 provider must define whether a partial operation is retryable, compensatable,

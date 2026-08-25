@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 
 import type { AgentAction, GuardCheck } from "@dinpd/ai-agent-guard";
 
-import type { AgentPassOpenClawConfig, OpenClawBeforeToolCallEvent, OpenClawToolContext } from "./types.js";
+import type { AgentActionOpenClawConfig, OpenClawBeforeToolCallEvent, OpenClawToolContext } from "./types.js";
 
-export function mapOpenClawToolCallToAgentPass(
+export function mapOpenClawToolCallToAgentAction(
   event: OpenClawBeforeToolCallEvent,
   ctx: OpenClawToolContext,
-  config: Pick<AgentPassOpenClawConfig, "defaultAction"> = { defaultAction: "read" },
+  config: Pick<AgentActionOpenClawConfig, "defaultAction"> = { defaultAction: "read" },
 ): GuardCheck {
   const action = inferAction(event.toolName, event.params, config.defaultAction);
   const resource = inferResource(event);
@@ -71,10 +71,10 @@ export function inferAction(toolName: string, params: Record<string, unknown>, f
   return fallback;
 }
 
-export function summarizeAgentPassDecision(decision: { reasons?: string[]; type?: string; decision?: string }): string {
+export function summarizeAgentActionDecision(decision: { reasons?: string[]; type?: string; decision?: string }): string {
   const reasons = decision.reasons?.filter(Boolean) || [];
-  if (reasons.length > 0) return `AgentPass ${decision.type || decision.decision || "decision"}: ${reasons.join("; ")}`;
-  return `AgentPass ${decision.type || decision.decision || "decision"} blocked this tool call`;
+  if (reasons.length > 0) return `AgentAction ${decision.type || decision.decision || "decision"}: ${reasons.join("; ")}`;
+  return `AgentAction ${decision.type || decision.decision || "decision"} blocked this tool call`;
 }
 
 export function approvalTitle(check: GuardCheck): string {
@@ -257,3 +257,7 @@ function stableStringify(value: unknown): string {
   const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
   return `{${entries.map(([key, nested]) => `${JSON.stringify(key)}:${stableStringify(nested)}`).join(",")}}`;
 }
+
+// Backward-compatible exports retained for existing AgentPass integrations.
+export const mapOpenClawToolCallToAgentPass = mapOpenClawToolCallToAgentAction;
+export const summarizeAgentPassDecision = summarizeAgentActionDecision;

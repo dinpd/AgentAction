@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the non-normative AgentPass MCP authorization interoperability vector."""
+"""Run the non-normative AgentAction MCP authorization interoperability vector."""
 
 from __future__ import annotations
 

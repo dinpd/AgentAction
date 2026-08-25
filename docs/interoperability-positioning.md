@@ -1,7 +1,8 @@
-# AgentPass Interoperability Positioning
+# AgentAction Interoperability Positioning
 
 Interoperability and conformance are the open ecosystem strategy for AgentAction,
-the trust-infrastructure product built through AgentPass-compatible artifacts.
+the trust-infrastructure product built through portable artifacts and stable
+versioned protocol identifiers.
 The canonical platform scope is defined in [Project Positioning](positioning.md).
 
 This document focuses on the Action Authorization control surface and its
@@ -15,9 +16,9 @@ Its focus is the provider trust boundary:
 > policy, approval, audience, and time window—and handle it without unsafe
 > replay?
 
-## What AgentPass Composes
+## What AgentAction Composes
 
-AgentPass reuses existing work rather than defining a general agent identity:
+AgentAction reuses existing work rather than defining a general agent identity:
 
 - OpenID Connect and OAuth establish principals, clients, delegation,
   resources, and audiences.
@@ -31,13 +32,13 @@ AgentPass reuses existing work rather than defining a general agent identity:
 - Shared Signals can communicate lifecycle, risk, and revocation changes.
 - Provenance and receipt formats can describe what happened after dispatch.
 
-AgentPass experiments at the seam between those layers: canonical action
+AgentAction experiments at the seam between those layers: canonical action
 binding, signed authorization evidence, independent provider verification,
 single-use or retry-safe consumption, and linked execution closure.
 
 ## Contribution Boundary
 
-AgentPass should contribute, in this order:
+AgentAction should contribute, in this order:
 
 1. field mappings and explicit assumptions;
 2. positive and negative interoperability vectors;
@@ -47,7 +48,7 @@ AgentPass should contribute, in this order:
 6. proposed new vocabulary only when multiple implementations demonstrate a
    gap that cannot be addressed by profiling existing standards.
 
-AgentPass should not present itself as an agent identity provider, universal
+AgentAction should not present itself as an agent identity provider, universal
 agent registry, new DID method, OAuth replacement, or complete authorization
 standard.
 
@@ -62,7 +63,7 @@ Documentation alone is not the success criterion. The useful milestones are:
 - implementation feedback is contributed to the relevant standards groups.
 
 The strongest milestone is two independent providers passing the same public
-suite without AgentPass-specific coordination at runtime.
+suite without AgentAction-specific coordination at runtime.
 
 ## Current Public Artifacts
 
@@ -72,5 +73,5 @@ suite without AgentPass-specific coordination at runtime.
 - [Provider receipt profiles](receipt-profiles.md)
 
 These artifacts are experimental unless explicitly identified as an adopted
-external standard. Passing an AgentPass suite is not certification by IETF,
+external standard. Passing an AgentAction suite is not certification by IETF,
 OpenID, W3C, SPIFFE, NIST, ISO, or the MCP project.

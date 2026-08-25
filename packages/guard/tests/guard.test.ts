@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGuard, createMcpToolGate, createToolGate, mcpToolCallToGuardCheck, type GuardPolicy } from "../src/index.ts";
+import {
+  AgentActionGuard,
+  AgentPassGuard,
+  createGuard,
+  createMcpToolGate,
+  createToolGate,
+  mcpToolCallToGuardCheck,
+  type GuardPolicy,
+} from "../src/index.ts";
+
+test("legacy AgentPass guard export remains a compatibility alias", () => {
+  assert.equal(AgentPassGuard, AgentActionGuard);
+});
 
 test("unknown tools are denied by default", () => {
   const guard = createGuard({ policy: policy(), idGenerator: ids() });

@@ -1,14 +1,14 @@
 # agentid-provider-fastapi
 
-FastAPI-compatible helpers for provider-side AgentPass receipt verification.
+FastAPI-compatible helpers for provider-side AgentAction receipt verification.
 
 Use this when an MCP provider wants to verify that a forwarded `tools/call`
-contains a scoped AgentPass authorization receipt before executing high-risk
+contains a scoped AgentAction authorization receipt before executing high-risk
 tools. It complements provider business authorization; it does not replace it.
 
 ## Install
 
-This package is currently part of the AgentPass repository while the provider
+This package is currently part of the AgentAction repository while the provider
 receipt contract settles.
 
 ```bash
@@ -72,7 +72,7 @@ verifier = ProviderReceiptVerifier(
 
 @app.post("/mcp")
 async def mcp_endpoint(body: dict, receipt=Depends(verifier.dependency)):
-    # `receipt` is the verified AgentPass receipt for protected tools, or None for
+    # `receipt` is the verified AgentAction receipt for protected tools, or None for
     # tools that do not have a configured receipt policy.
     # Provider business authorization should still run here.
     return {"ok": True}

@@ -68,7 +68,7 @@ const HTML = String.raw`<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentPass DevOps Control Demo</title>
+  <title>AgentAction DevOps Control Demo</title>
   <style>
     :root {
       color-scheme: light;
@@ -285,7 +285,7 @@ const HTML = String.raw`<!doctype html>
 <body>
   <header>
     <div>
-      <h1>AgentPass DevOps Control Demo</h1>
+      <h1>AgentAction DevOps Control Demo</h1>
       <p class="subtle">Production-change authority without standing production credentials.</p>
     </div>
     <div class="toolbar">
@@ -321,7 +321,7 @@ const HTML = String.raw`<!doctype html>
       <div class="rail">
         <div class="node">Agent<span>Release request</span></div>
         <div class="arrow">→</div>
-        <div class="node">AgentPass<span>Approval + JIT</span></div>
+        <div class="node">AgentAction<span>Approval + JIT</span></div>
         <div class="arrow">→</div>
         <div class="node">Provider<span>GitHub dry-run</span></div>
       </div>
@@ -713,7 +713,7 @@ async function continueAfterApproval(
     dispatch: "would_create_workflow_dispatch",
     status: "accepted",
   };
-  steps.push(step("provider-dry-run", "GitHub Actions dry-run accepted", "The provider wrapper would dispatch the production workflow only after verifying the AgentPass receipt.", "allow", { workflow_dispatch: providerReceipt }, providerReceipt));
+  steps.push(step("provider-dry-run", "GitHub Actions dry-run accepted", "The provider wrapper would dispatch the production workflow only after verifying the AgentAction receipt.", "allow", { workflow_dispatch: providerReceipt }, providerReceipt));
 
   const canary = evaluateCanary(settings, ctx, stringValue(grant.body.jit_grant_id), canaryMetrics);
   steps.push(step("guard-monitor", canary.allow ? "Guard monitor passed" : "Guard monitor would request rollback JIT", canary.allow ? "Canary metrics stayed inside guard thresholds; rollback authority was not requested." : canary.findings.join("; "), canary.allow ? "allow" : "deny", canary.payload, canary.response));

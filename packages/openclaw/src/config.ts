@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { AgentPassOpenClawConfig } from "./types.js";
+import type { AgentActionOpenClawConfig } from "./types.js";
 
 const DEFAULT_CHALLENGE_TIMEOUT_MS = 120_000;
 
-export function normalizeAgentPassOpenClawConfig(raw: Record<string, unknown> = {}): AgentPassOpenClawConfig {
+export function normalizeAgentActionOpenClawConfig(raw: Record<string, unknown> = {}): AgentActionOpenClawConfig {
   const mode = raw.mode === "remote" ? "remote" : "local";
   const policy = isRecord(raw.policy) ? raw.policy : undefined;
   const policyPath = typeof raw.policyPath === "string" && raw.policyPath.trim() ? raw.policyPath.trim() : undefined;
@@ -13,7 +13,7 @@ export function normalizeAgentPassOpenClawConfig(raw: Record<string, unknown> = 
   return {
     enabled: raw.enabled !== false,
     mode,
-    policy: policy as AgentPassOpenClawConfig["policy"],
+    policy: policy as AgentActionOpenClawConfig["policy"],
     policyPath,
     authorizeUrl:
       typeof raw.authorizeUrl === "string" && raw.authorizeUrl.trim() ? raw.authorizeUrl.trim() : undefined,
@@ -24,7 +24,7 @@ export function normalizeAgentPassOpenClawConfig(raw: Record<string, unknown> = 
   };
 }
 
-export function loadLocalPolicy(config: AgentPassOpenClawConfig): NonNullable<AgentPassOpenClawConfig["policy"]> {
+export function loadLocalPolicy(config: AgentActionOpenClawConfig): NonNullable<AgentActionOpenClawConfig["policy"]> {
   if (config.policy) return config.policy;
   if (!config.policyPath) return defaultOpenClawPolicy();
 
@@ -34,12 +34,12 @@ export function loadLocalPolicy(config: AgentPassOpenClawConfig): NonNullable<Ag
   const body = readFileSync(resolve(path), "utf8");
   const parsed = JSON.parse(body) as unknown;
   if (!isRecord(parsed)) {
-    throw new Error("AgentPass OpenClaw policy must be a JSON object");
+    throw new Error("AgentAction OpenClaw policy must be a JSON object");
   }
-  return parsed as NonNullable<AgentPassOpenClawConfig["policy"]>;
+  return parsed as NonNullable<AgentActionOpenClawConfig["policy"]>;
 }
 
-export function defaultOpenClawPolicy(): NonNullable<AgentPassOpenClawConfig["policy"]> {
+export function defaultOpenClawPolicy(): NonNullable<AgentActionOpenClawConfig["policy"]> {
   return {
     tools: {
       read: { action: "read" },
@@ -101,3 +101,6 @@ function readPositiveInteger(value: unknown, fallback: number): number {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
+
+// Backward-compatible export retained for existing AgentPass integrations.
+export const normalizeAgentPassOpenClawConfig = normalizeAgentActionOpenClawConfig;

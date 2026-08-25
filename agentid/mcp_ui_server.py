@@ -12,13 +12,13 @@ from agentid.mcp_ui import MCP_UI_HTML
 
 def serve_mcp_ui(host: str = "127.0.0.1", port: int = 8799) -> None:
     httpd = create_mcp_ui_server(host, port)
-    print(f"AgentPass MCP analyzer UI listening on http://{host}:{port}")
+    print(f"AgentAction MCP analyzer UI listening on http://{host}:{port}")
     httpd.serve_forever()
 
 
 def create_mcp_ui_server(host: str = "127.0.0.1", port: int = 8799) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AgentPassMcpAnalyzer/0.1"
+        server_version = "AgentActionMcpAnalyzer/0.1"
 
         def do_GET(self) -> None:
             parsed = urlparse(self.path)

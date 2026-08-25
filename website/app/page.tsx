@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Brand } from "./brand";
 
-const github = "https://github.com/dinpd/AgentPass";
+const github = "https://github.com/dinpd/AgentAction";
 
 const gatewayCapabilities = [
   {
@@ -168,11 +168,11 @@ export default function Home() {
       </header>
 
       <div id="top" className="transition-note" role="note">
-        <span className="note-label">Project transition</span>
+        <span className="note-label">Compatibility</span>
         <p>
-          AgentAction is the public brand for AgentPass. Existing package names,
-          schemas, commands, and repository links remain compatible while the
-          project migrates.
+          AgentAction is the canonical project brand. Versioned protocol
+          identifiers and the legacy command names remain compatible for existing
+          integrations.
         </p>
       </div>
 
@@ -437,8 +437,8 @@ export default function Home() {
           <p className="section-index">08 / Developer entry point</p>
           <h2 id="quickstart-title">Put policy around the side effect.</h2>
           <p>
-            Start with the published TypeScript guard. The existing AgentPass
-            package name remains during the brand migration.
+            Start with the published TypeScript guard. Its established
+            <code>@dinpd/ai-agent-guard</code> package name remains unchanged.
           </p>
           <a className="text-link" href={`${github}/tree/main/packages/guard`}>
             Open the guard package <span aria-hidden="true">↗</span>

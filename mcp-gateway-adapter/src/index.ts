@@ -36,7 +36,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AgentPass MCP gateway adapter listening on http://${host}:${port}`);
+  console.log(`AgentAction MCP gateway adapter listening on http://${host}:${port}`);
 });
 
 function readBody(request: NodeJS.ReadableStream): Promise<string> {

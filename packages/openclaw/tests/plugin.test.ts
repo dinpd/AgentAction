@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { registerAgentPassOpenClawPlugin, type OpenClawTrustedToolPolicy } from "../src/index.ts";
+import {
+  registerAgentActionOpenClawPlugin,
+  registerAgentPassOpenClawPlugin,
+  type OpenClawTrustedToolPolicy,
+} from "../src/index.ts";
 
-test("registers an AgentPass trusted tool policy", () => {
+test("legacy AgentPass plugin export remains a compatibility alias", () => {
+  assert.equal(registerAgentPassOpenClawPlugin, registerAgentActionOpenClawPlugin);
+});
+
+test("registers an AgentAction trusted tool policy", () => {
   const policies: OpenClawTrustedToolPolicy[] = [];
 
-  registerAgentPassOpenClawPlugin({
+  registerAgentActionOpenClawPlugin({
     pluginConfig: {
       policy: {
         tools: {
@@ -129,7 +137,7 @@ test("trusted policy blocks hard token budget violations", async () => {
 
 function registeredPolicy(pluginConfig: Record<string, unknown>): OpenClawTrustedToolPolicy {
   let captured: OpenClawTrustedToolPolicy | undefined;
-  registerAgentPassOpenClawPlugin({
+  registerAgentActionOpenClawPlugin({
     pluginConfig,
     registerTrustedToolPolicy(policy) {
       captured = policy;

@@ -1,7 +1,7 @@
-# AgentPass Gateway Control Demo
+# AgentAction Gateway Control Demo
 
 This Cloudflare Worker hosts a small gateway-control demo that calls the live
-AgentPass gateway through a Cloudflare Service Binding. It shows AgentPass
+AgentAction gateway through a Cloudflare Service Binding. It shows AgentAction
 authorizing a SaaS refund workflow, a skill-orchestrated tool workflow, and an
 MCP provider-tool workflow before tool execution. The browser never sees the
 gateway bearer token. For the
@@ -21,14 +21,14 @@ The demo illustrates:
 - Three-month refund after customer escalation requiring human notification.
 - JIT grant issuance before Stripe refund execution.
 - Single-use JIT grant consumption by the gateway.
-- Skill-carried AgentPass guardrail review before activation.
+- Skill-carried AgentAction guardrail review before activation.
 - Skill activation through JIT authority.
 - Skill denial when it tries to call a downstream tool outside `may_invoke`.
 - Skill-originated provider credit allow after downstream JIT and approval.
 - MCP gateway tool filtering before provider tool exposure.
 - MCP provider CRM read allow, write denial without JIT, and write allow after a
   scoped JIT grant.
-- Enterprise-managed MCP auth with JWT validation, real AgentPass gateway
+- Enterprise-managed MCP auth with JWT validation, real AgentAction gateway
   approval/JIT/authorization, signed provider receipt forwarding, and
   provider-side receipt verification before execution.
 - Provider denial when a receipt is validly signed but its enterprise client

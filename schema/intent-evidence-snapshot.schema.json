@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentpass.dev/schema/intent-evidence-snapshot.schema.json",
-  "title": "AgentPass Intent Evidence Snapshot",
+  "title": "AgentAction Intent Evidence Snapshot",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -1,6 +1,6 @@
-# AgentPass Cloudflare Gateway
+# AgentAction Cloudflare Gateway
 
-This Worker exposes the AgentPass gateway API on Cloudflare Workers. It can sit
+This Worker exposes the AgentAction gateway API on Cloudflare Workers. It can sit
 behind a SaaS app, internal agent platform, or MCP gateway and return
 allow/deny/JIT decisions before tool execution:
 
@@ -41,7 +41,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /audit` | Open the audit console UI |
 | `GET /approvals` | Open the approval and single-use execution console |
 | `GET /audit/events` | Read recent audit events with optional filters |
-| `POST /audit/webhook/agentid` | Receive AgentPass audit webhook events |
+| `POST /audit/webhook/agentid` | Receive AgentAction audit webhook events |
 
 Approval requests, JIT grants, and idempotent execution results are stored in a
 SQLite-backed Durable Object namespace. This keeps approval state, single-use
@@ -416,7 +416,7 @@ npx wrangler secret put AGENTID_AUDIT_WEBHOOK_TOKEN
 ```
 
 The built-in audit webhook route is also available for external systems that
-need to push AgentPass audit events into the console:
+need to push AgentAction audit events into the console:
 
 ```text
 https://<worker-host>/audit/webhook/agentid

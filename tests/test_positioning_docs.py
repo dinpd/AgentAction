@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -14,6 +15,10 @@ INTEROPERABILITY = (ROOT / "docs" / "interoperability-positioning.md").read_text
 STANDARDS = (ROOT / "docs" / "standards-alignment.md").read_text(encoding="utf-8")
 WEBSITE_PAGE = (ROOT / "website" / "app" / "page.tsx").read_text(encoding="utf-8")
 PYPROJECT = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+ACTION = (ROOT / "action.yml").read_text(encoding="utf-8")
+WORKFLOW = (ROOT / ".github" / "workflows" / "agentaction-check.yml").read_text(
+    encoding="utf-8"
+)
 
 CATEGORY = "Trust infrastructure for autonomous AI agents."
 PROMISE = (
@@ -31,20 +36,20 @@ LIFECYCLE_FLOW = (
     "       -> execution -> evidence -> continuous evaluation"
 )
 ACTION_GATE_FLOW = (
-    "Agent proposes tool call -> AgentPass checks policy + state -> "
+    "Agent proposes tool call -> AgentAction checks policy + state -> "
     "allow / deny / challenge"
 )
 AAM_URL = "https://blog.cloudflare.com/the-agent-access-model/"
 
 
 def test_readme_leads_with_trust_lifecycle_and_preserves_action_gate_wedge():
-    assert README.startswith(f"# AgentPass\n\n**{CATEGORY}**")
+    assert README.startswith(f"# AgentAction\n\n**{CATEGORY}**")
     assert PROMISE in README
-    assert "AgentAction is the public product brand for AgentPass" in README
+    assert "[AgentAction.dev](https://agentaction.dev/)" in README
     assert "[Project Positioning](docs/positioning.md)" in README
 
     assert LIFECYCLE_FLOW in README
-    assert README.index(LIFECYCLE_FLOW) < README.index("## Try AgentPass")
+    assert README.index(LIFECYCLE_FLOW) < README.index("## Try AgentAction")
 
     action_heading = README.index("### Action Authorization")
     assert action_heading < README.index(ACTION_GATE_FLOW)
@@ -53,7 +58,7 @@ def test_readme_leads_with_trust_lifecycle_and_preserves_action_gate_wedge():
 def test_canonical_positioning_defines_brand_lifecycle_and_control_surfaces():
     assert f"**{CATEGORY}**" in POSITIONING
     assert PROMISE in POSITIONING
-    assert "AgentAction is the public product brand for AgentPass" in POSITIONING
+    assert "AgentAction is the canonical project and product brand" in POSITIONING
     for heading in [
         "## Brand And Category",
         "## Trust Lifecycle",
@@ -106,7 +111,7 @@ def test_action_gate_roadmap_is_scoped_within_the_platform():
     assert "not a competing project-level hierarchy" in ROADMAP
 
 
-def test_aam_reference_is_visible_and_preserves_agentpass_boundaries():
+def test_aam_reference_is_visible_and_preserves_agentaction_boundaries():
     assert AAM_URL in README
     assert AAM_URL in ROADMAP
     assert "implements the action-control and evidence layers" in README
@@ -128,7 +133,7 @@ def test_roadmap_prioritizes_monotonic_capability_state_before_distribution():
     positions = [ROADMAP.index(heading) for heading in headings]
     assert positions == sorted(positions)
     for issue_number in [78, 79, 80, 81, 82, 83]:
-        assert f"https://github.com/dinpd/AgentPass/issues/{issue_number}" in ROADMAP
+        assert f"https://github.com/dinpd/AgentAction/issues/{issue_number}" in ROADMAP
     assert "Ordinary approval cannot restore a" in ROADMAP
     assert "A parallel call under the prior state version is denied" in ROADMAP
 
@@ -138,13 +143,48 @@ def test_interoperability_standards_and_metadata_preserve_scoped_boundaries():
     assert "[Project Positioning](positioning.md)" in INTEROPERABILITY
     assert "Action Authorization control surface" in INTEROPERABILITY
     assert "trust infrastructure for autonomous AI\nagents" in STANDARDS
-    assert "Within that broader\nlifecycle, AgentPass standards work" in STANDARDS
+    assert "Within that broader\nlifecycle, AgentAction standards work" in STANDARDS
     assert "Within this standards track, the primary job" in STANDARDS
     assert (
         'description = "Trust infrastructure for autonomous AI agents: decision '
         'assurance, action authorization, runtime controls, and verifiable lifecycle '
         'evidence."'
     ) in PYPROJECT
+
+
+def test_agentaction_is_canonical_and_legacy_cli_aliases_remain_available():
+    assert 'name = "agentaction-dev"' in PYPROJECT
+    assert 'agentaction = "agentid.cli:main"' in PYPROJECT
+    assert 'agentpass = "agentid.cli:main"' in PYPROJECT
+    assert 'agentid = "agentid.cli:main"' in PYPROJECT
+    assert "agentaction validate" in README
+    assert "`agentaction` is the primary CLI" in README
+    assert "# AgentAction" in README
+    assert "# AgentPass" not in README
+
+
+def test_agentaction_brand_is_canonical_in_package_and_action_metadata():
+    assert '\nname = "agentaction-dev"\n' in PYPROJECT
+    assert 'authors = [{ name = "AgentAction contributors" }]' in PYPROJECT
+
+    package_names = {
+        json.loads((ROOT / path).read_text(encoding="utf-8"))["name"]
+        for path in [
+            "packages/openclaw/package.json",
+            "packages/provider-express/package.json",
+            "sdk/typescript/package.json",
+            "mcp-gateway-adapter/package.json",
+        ]
+    }
+    assert package_names == {
+        "@agentaction/openclaw",
+        "@agentaction/provider-express",
+        "@agentaction/client",
+        "@agentaction/mcp-gateway-adapter",
+    }
+    assert ACTION.startswith("name: AgentAction Manifest Check\n")
+    assert WORKFLOW.startswith("name: AgentAction Check\n")
+    assert "https://github.com/dinpd/AgentAction" in README
 
 
 def test_changed_positioning_documents_have_valid_local_links():

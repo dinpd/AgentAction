@@ -1,6 +1,6 @@
 # Maintainers
 
-This file records the people and review areas responsible for AgentPass. Keep it
+This file records the people and review areas responsible for AgentAction. Keep it
 current as maintainership changes.
 
 ## Current Maintainers

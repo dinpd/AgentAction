@@ -453,7 +453,7 @@ def test_config_ui_writer_creates_browser_builder(tmp_path):
 
     html = output.read_text()
 
-    assert "AgentPass Policy Builder" in html
+    assert "AgentAction Policy Builder" in html
     assert "Manifest YAML" in html
     assert "OPA Policy" in html
     assert "Skill Guardrails" in html
@@ -465,7 +465,7 @@ def test_config_ui_writer_creates_browser_builder(tmp_path):
     assert "Build From MCP" in html
     assert "Build policy from MCP" in html
     assert "quickMcpUrl" in html
-    assert "agentpass config-ui --serve" in html
+    assert "agentaction config-ui --serve" in html
     assert "Analyze import" in html
     assert "Apply selected tools" in html
     assert "Accept safe defaults" in html
@@ -488,4 +488,4 @@ def test_config_ui_server_uses_policy_builder_handler(monkeypatch):
     create_config_ui_server("127.0.0.1", 8798)
 
     assert created["server_address"] == ("127.0.0.1", 8798)
-    assert created["handler_class"].server_version == "AgentPassPolicyBuilder/0.1"
+    assert created["handler_class"].server_version == "AgentActionPolicyBuilder/0.1"

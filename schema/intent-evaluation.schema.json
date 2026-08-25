@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentpass.dev/schema/intent-evaluation.schema.json",
-  "title": "AgentPass Intent Evaluation Receipt",
+  "title": "AgentAction Intent Evaluation Receipt",
   "type": "object",
   "additionalProperties": false,
   "required": [

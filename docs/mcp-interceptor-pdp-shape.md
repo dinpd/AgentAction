@@ -1,27 +1,27 @@
 # MCP Interceptor / PDP Shape
 
-This note maps AgentPass to the MCP standards vocabulary that came up in the
+This note maps AgentAction to the MCP standards vocabulary that came up in the
 fine-grained auth, interceptor, gateway, security, and tool-annotation
 discussions.
 
-AgentPass should be framed as a call-time runtime gate, not as generic
+AgentAction should be framed as a call-time runtime gate, not as generic
 client-side authorization preflight.
 
 ```text
-MCP client -> gateway/interceptor -> AgentPass decision -> downstream tools/call
+MCP client -> gateway/interceptor -> AgentAction decision -> downstream tools/call
 ```
 
-The gateway or interceptor owns the enforcement point. AgentPass can run in
+The gateway or interceptor owns the enforcement point. AgentAction can run in
 process as a local guard or behind the gateway as a policy decision service.
 
 ## Where It Sits
 
-In MCP terms, AgentPass belongs at the `tools/call` boundary:
+In MCP terms, AgentAction belongs at the `tools/call` boundary:
 
 - The client or agent proposes a tool call.
 - The gateway/interceptor maps tool name, arguments, identity, job context, and
-  data-flow context into an AgentPass check.
-- AgentPass returns `allow`, `deny`, or `challenge_required`.
+  data-flow context into an AgentAction check.
+- AgentAction returns `allow`, `deny`, or `challenge_required`.
 - The gateway forwards only allowed calls to the downstream MCP server.
 - Denials are returned as MCP errors with structured findings.
 
@@ -29,7 +29,7 @@ This is compatible with PDP-style deployments:
 
 ```text
 Policy Enforcement Point: MCP gateway, interceptor, app runtime, or provider
-Policy Decision Point: AgentPass local guard or hosted /authorize service
+Policy Decision Point: AgentAction local guard or hosted /authorize service
 Policy Information: identity, job state, tool args, approval state, data labels
 Policy State: idempotency keys, job budgets, prior calls, approvals, audit log
 ```
@@ -39,7 +39,7 @@ Policy State: idempotency keys, job budgets, prior calls, approvals, audit log
 Tool scopes and annotations are useful inputs. They can say that a tool is
 read-only, destructive, privacy-sensitive, or requires step-up.
 
-AgentPass decides whether this specific call should execute right now:
+AgentAction decides whether this specific call should execute right now:
 
 - Has this idempotency key already been consumed?
 - Has this job called the same tool too many times?
@@ -58,7 +58,7 @@ The MCP gateway adapter supports two shapes:
 
 - **Local guard:** policy and state live in the gateway process. This is useful
   for demos, tests, single-process runtimes, and embedded agent apps.
-- **Hosted decision service:** the gateway calls AgentPass `/authorize`. This is
+- **Hosted decision service:** the gateway calls AgentAction `/authorize`. This is
   the production shape when approvals, idempotency records, budgets, and audit
   need durable storage.
 
@@ -68,12 +68,12 @@ restarts and scale across workers.
 
 ## Structured Denial Fit
 
-AgentPass denials can map cleanly to MCP structured denial/remediation work:
+AgentAction denials can map cleanly to MCP structured denial/remediation work:
 
 ```json
 {
   "code": -32003,
-  "message": "AgentPass denied MCP tool call",
+  "message": "AgentAction denied MCP tool call",
   "data": {
     "findings": ["idempotencyKey was already used"],
     "event": {

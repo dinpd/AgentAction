@@ -7,9 +7,9 @@
 **Scope:** Agent identity, delegation, runtime authorization, action-bound
 evidence, provider enforcement, and execution closure
 
-This document maps the current AgentPass authorization-evidence fields to
+This document maps the current AgentAction authorization-evidence fields to
 established standards, adopted working-group drafts, and exploratory proposals.
-It is not a specification and does not claim that the AgentPass field names are
+It is not a specification and does not claim that the AgentAction field names are
 standardized.
 
 ## Maturity Labels
@@ -25,7 +25,7 @@ standardized.
 
 ## Layer Map
 
-| Trust layer | Primary sources | Maturity | AgentPass use |
+| Trust layer | Primary sources | Maturity | AgentAction use |
 |---|---|---|---|
 | Responsible principal | OpenID Connect; OAuth 2.x | Established | Establish the human, organization, or system represented by the action |
 | Fine-grained and delegated authority | OAuth Token Exchange (RFC 8693); Rich Authorization Requests (RFC 9396) | Established | Carry actor/delegation context, audience/resource, and structured authorization details |
@@ -50,12 +50,12 @@ The MCP vector in
 [`../fixtures/mcp-authorization-interoperability-v1/`](../fixtures/mcp-authorization-interoperability-v1/)
 uses these fields as a concrete comparison point.
 
-| AgentPass field | Closest source concept | Mapping assessment | Remaining interoperability question |
+| AgentAction field | Closest source concept | Mapping assessment | Remaining interoperability question |
 |---|---|---|---|
 | `profile`, `schema_version` | OAuth/JOSE `typ`; media/profile identifiers; AuthZEN versioning | Profile work | Registry, discovery, and mandatory verifier behavior are not yet agreed |
 | `issuer` | JWT `iss`; authorization server; Permit issuer | Direct concept | Providers still need issuer discovery, trust policy, and rotation rules |
 | `decision_id` | JWT `jti`; WIMSE audit correlation; Permit/receipt identifier | Compatible extension | Decide whether identity, decision, and evidence identifiers are separate values |
-| `outcome` | AuthZEN decision; AgentPass `ALLOW` / `REFER` / `DENY` | Profile work | AuthZEN core decision semantics and prerequisite states need a closed crosswalk |
+| `outcome` | AuthZEN decision; AgentAction `ALLOW` / `REFER` / `DENY` | Profile work | AuthZEN core decision semantics and prerequisite states need a closed crosswalk |
 | `tenant_id` | SSF subject identifiers; deployment/organization context | Extension | Cross-domain tenant naming and privacy rules are deployment-specific |
 | `principal_id`, `user_id` | OIDC/OAuth `sub`; WIMSE delegated subject | Direct concept with privacy profile | Pairwise or pseudonymous identifiers may be required across providers |
 | `agent_id` | OAuth `client_id`; WIMSE Agent Identifier | Ambiguous without profile | A registered agent application and an executing workload must not share one overloaded identifier |
@@ -79,7 +79,7 @@ uses these fields as a concrete comparison point.
 ## Execution Closure Crosswalk
 
 Authorization evidence proves what was allowed before dispatch. It does not
-prove what the provider executed. AgentPass therefore keeps execution closure
+prove what the provider executed. AgentAction therefore keeps execution closure
 as a separate, linked artifact.
 
 | Closure field | Closest source concept | Mapping assessment |
@@ -111,11 +111,11 @@ The included v1 vector automates the first three negative cases and a valid
 linked closure. Later vectors should add delegation attenuation, revocation,
 partial execution, retry, and cross-format JWS/COSE cases.
 
-## AgentPass Contribution Boundary
+## AgentAction Contribution Boundary
 
-AgentPass should contribute interoperability code, mappings, negative fixtures,
+AgentAction should contribute interoperability code, mappings, negative fixtures,
 and provider-verifier behavior before proposing a new receipt vocabulary. In
-particular, the AgentPass evidence model should be compared with both active
+particular, the AgentAction evidence model should be compared with both active
 individual IETF drafts that already address authorization evidence and
 high-risk action receipts.
 

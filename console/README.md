@@ -1,7 +1,7 @@
-# AgentPass Observability Console
+# AgentAction Observability Console
 
 This directory contains the Cloudflare-hosted UI/BFF, profile-scoped Fleet
-Overview, finalized Jobs explorer, and finalized Job detail for the AgentPass
+Overview, finalized Jobs explorer, and finalized Job detail for the AgentAction
 intent observability console. It is intentionally read only. Exception views
 build on this boundary in later slices.
 
@@ -18,7 +18,7 @@ The browser talks only to the console Worker's same-origin
 4. rejects a mismatched route tenant before invoking the gateway;
 5. reconstructs a read-only, allowlisted request with a server-owned gateway
    credential; and
-6. calls the AgentPass gateway through a Worker service binding.
+6. calls the AgentAction gateway through a Worker service binding.
 
 Browser-provided authorization, tenant, Cloudflare, and forwarding headers are
 not copied to the gateway request. Gateway credentials, Access service details,
@@ -54,11 +54,11 @@ and derived tenant. `/api/console/health` checks the private gateway binding but
 returns a sanitized readiness result rather than the gateway response.
 
 Responses are `private, no-store`. The BFF marks upstream data as `fresh`,
-`stale`, or `unknown` in `X-AgentPass-Console-Data-State` using the upstream
-`X-AgentPass-Generated-At` or `Date` header and
+`stale`, or `unknown` in `X-AgentAction-Console-Data-State` using the upstream
+`X-AgentAction-Generated-At` or `Date` header and
 `CONSOLE_STALE_AFTER_SECONDS`. Valid timestamps are normalized into
-`X-AgentPass-Console-Generated-At` and
-`X-AgentPass-Console-Data-Age-Seconds` so the browser can communicate staleness
+`X-AgentAction-Console-Generated-At` and
+`X-AgentAction-Console-Data-Age-Seconds` so the browser can communicate staleness
 without receiving arbitrary upstream headers.
 
 ## Fleet Overview
@@ -250,6 +250,6 @@ After deployment:
    timeline render without raw evidence payloads.
 9. Request another tenant under `/api/console/tenants/<other>/health` and
    confirm a `403` without a gateway call.
-10. Confirm browser network requests contain no reusable AgentPass bearer token.
+10. Confirm browser network requests contain no reusable AgentAction bearer token.
 11. Confirm missing or invalid Access assertions return an explicit `401`, and
    gateway outages render the unavailable shell state without upstream detail.

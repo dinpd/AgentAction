@@ -44,8 +44,8 @@ npm install @dinpd/ai-agent-guard
 Run the local demos:
 
 ```bash
-git clone https://github.com/dinpd/AgentPass.git
-cd AgentPass/packages/guard
+git clone https://github.com/dinpd/AgentAction.git
+cd AgentAction/packages/guard
 npm install
 npm run demo:quickstart
 npm run demo:mcp
@@ -114,7 +114,7 @@ async function runAgentTool(toolCall) {
 
 ## Tool Gate
 
-Use `createToolGate` when you want AgentPass to sit directly in front of tool
+Use `createToolGate` when you want AgentAction to sit directly in front of tool
 execution:
 
 ```ts
@@ -190,7 +190,7 @@ if (!execution.executed) {
 ```
 
 The MCP adapter is dependency-free. It accepts a plain MCP-style `{ params:
-{ name, arguments } }` object, maps arguments into an AgentPass guard check, and
+{ name, arguments } }` object, maps arguments into an AgentAction guard check, and
 uses the same `allow` / `deny` / `challenge_required` result as the local tool
 gate.
 

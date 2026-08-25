@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentpass.dev/schema/decision-basis.schema.json",
-  "title": "AgentPass Decision Basis",
+  "title": "AgentAction Decision Basis",
   "type": "object",
   "additionalProperties": false,
   "required": [

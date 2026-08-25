@@ -17,14 +17,14 @@ try {
 }
 
 const {
-  createAgentPassOpenClawRuntime,
+  createAgentActionOpenClawRuntime,
   decisionReasons,
   decisionType,
-  mapOpenClawToolCallToAgentPass,
+  mapOpenClawToolCallToAgentAction,
 } = adapter;
 
 function createRuntime(budgets) {
-  return createAgentPassOpenClawRuntime({
+  return createAgentActionOpenClawRuntime({
     config: {
       mode: "local",
       policy: {
@@ -55,7 +55,7 @@ async function loadFixture(name) {
 async function authorizeFixture(runtime, name, overrides = {}) {
   const { event, context } = await loadFixture(name);
   const mappedEvent = { ...event, ...overrides };
-  const check = mapOpenClawToolCallToAgentPass(mappedEvent, context);
+  const check = mapOpenClawToolCallToAgentAction(mappedEvent, context);
   const decision = await runtime.authorize(check);
   return {
     check,

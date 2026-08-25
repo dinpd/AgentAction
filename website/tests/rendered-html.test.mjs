@@ -34,7 +34,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /<title>AgentAction — Trust infrastructure for autonomous AI agents<\/title>/i);
   assert.match(html, /Give agents permission to act\./);
   assert.match(html, /Prove the decision was justified\./);
-  assert.match(html, /AgentAction is the public brand for AgentPass/);
+  assert.match(html, /AgentAction is the canonical project brand/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
   assert.match(html, /class="brand-symbol"/i);
@@ -49,7 +49,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
   assert.match(html, /Build interoperability before vocabulary/);
-  assert.match(html, /https:\/\/github\.com\/dinpd\/AgentPass/);
+  assert.match(html, /https:\/\/github\.com\/dinpd\/AgentAction/);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
 });
 

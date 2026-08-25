@@ -12,13 +12,13 @@ from agentid.mcp_ui_server import fetch_tools_response
 
 def serve_config_ui(host: str = "127.0.0.1", port: int = 8798) -> None:
     httpd = create_config_ui_server(host, port)
-    print(f"AgentPass policy builder listening on http://{host}:{port}")
+    print(f"AgentAction policy builder listening on http://{host}:{port}")
     httpd.serve_forever()
 
 
 def create_config_ui_server(host: str = "127.0.0.1", port: int = 8798) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AgentPassPolicyBuilder/0.1"
+        server_version = "AgentActionPolicyBuilder/0.1"
 
         def do_GET(self) -> None:
             parsed = urlparse(self.path)

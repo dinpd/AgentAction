@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json",
-  "title": "AgentPass Manifest",
+  "$id": "https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/agentid.schema.json",
+  "title": "AgentAction Manifest",
   "description": "Authority contract for an AI agent, including identity, OIDC access, capability permissions, tool permissions, skill permissions, data flows, JIT authorization, runtime expectations, audit, and kill switch controls.",
   "type": "object",
   "additionalProperties": true,

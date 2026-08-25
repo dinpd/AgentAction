@@ -34,7 +34,7 @@ test("runs a bounded profile-issued lifecycle only through the service binding",
   assert.equal(calls.filter((call) => call.path.includes("/finalize")).length, 2);
   assert.equal(calls.some((call) => call.path.includes("/observations")), false);
   assert.equal(calls.every((call) => call.headers.get("authorization") === "Bearer internal-test-token"), true);
-  assert.equal(calls.every((call) => call.headers.get("user-agent") === "agentpass-synthetic-runner/0.1"), true);
+  assert.equal(calls.every((call) => call.headers.get("user-agent") === "agentaction-synthetic-runner/0.1"), true);
   assert.equal(calls.every((call) => call.path.startsWith("/tenants/refund-demo-agent/")), true);
 
   const profiles = calls
@@ -279,7 +279,7 @@ function syntheticManifest(): Record<string, unknown> {
     agent: {
       id: "refund-demo-agent",
       name: "Synthetic refund agent",
-      owner: "agentpass",
+      owner: "agentaction",
       environment: "production",
       purpose: "Synthetic observability integration tests",
     },

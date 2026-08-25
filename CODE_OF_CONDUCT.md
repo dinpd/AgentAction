@@ -1,6 +1,6 @@
 # Code of Conduct
 
-AgentPass is an open source project for governing AI agent tool execution. The
+AgentAction is an open source project for governing AI agent tool execution. The
 project works best when discussion is direct, evidence-based, and respectful.
 
 ## Expected Behavior
@@ -26,9 +26,9 @@ project works best when discussion is direct, evidence-based, and respectful.
 
 ## Scope
 
-This code applies in all AgentPass project spaces, including issues, pull
+This code applies in all AgentAction project spaces, including issues, pull
 requests, discussions, community channels, release notes, and project events. It
-also applies when someone represents AgentPass in another public venue.
+also applies when someone represents AgentAction in another public venue.
 
 ## Enforcement
 

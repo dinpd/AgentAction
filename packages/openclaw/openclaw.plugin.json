@@ -1,6 +1,6 @@
 {
   "id": "agentpass",
-  "name": "AgentPass",
+  "name": "AgentAction",
   "description": "Runtime authorization for OpenClaw tool calls.",
   "activation": {
     "onStartup": true
@@ -23,19 +23,19 @@
       },
       "policyPath": {
         "type": "string",
-        "description": "Path to an AgentPass guard policy JSON file for local mode."
+        "description": "Path to an AgentAction guard policy JSON file for local mode."
       },
       "policy": {
         "type": "object",
-        "description": "Inline AgentPass guard policy for local mode."
+        "description": "Inline AgentAction guard policy for local mode."
       },
       "authorizeUrl": {
         "type": "string",
-        "description": "AgentPass authorization endpoint for remote mode."
+        "description": "AgentAction authorization endpoint for remote mode."
       },
       "apiKey": {
         "type": "string",
-        "description": "AgentPass API key for remote mode."
+        "description": "AgentAction API key for remote mode."
       },
       "failClosed": {
         "type": "boolean",

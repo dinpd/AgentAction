@@ -91,7 +91,7 @@ export type ToolReceiptPolicy = {
   amountArg?: string;
 };
 
-export type AgentPassProviderExpressOptions = {
+export type AgentActionProviderExpressOptions = {
   secret?: string | (() => string | Promise<string>);
   jwks?: JsonWebKeySet | (() => JsonWebKeySet | Promise<JsonWebKeySet>);
   jwksUri?: string;
@@ -116,10 +116,11 @@ export type AgentPassProviderExpressOptions = {
   ) => unknown | Promise<unknown>;
 };
 
-export type AgentIdProviderExpressOptions = AgentPassProviderExpressOptions;
+export type AgentIdProviderExpressOptions = AgentActionProviderExpressOptions;
 
 export type RequestLike = {
   body?: unknown;
+  agentactionReceipt?: ProviderAuthorizationReceipt;
   agentpassReceipt?: ProviderAuthorizationReceipt;
   agentidReceipt?: ProviderAuthorizationReceipt;
 };
@@ -222,12 +223,12 @@ export class MemoryReceiptLedger implements ReceiptLedgerStore {
   }
 }
 
-export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpressOptions = {}) {
+export function createAgentActionReceiptMiddleware(options: AgentActionProviderExpressOptions = {}) {
   const receiptArgument = options.receiptArgument || "_agentid_receipt";
   const requireSigned = options.requireSigned !== false;
   const now = options.now || (() => new Date());
 
-  return async function agentPassReceiptMiddleware(req: RequestLike, res: ResponseLike, next: NextFunction) {
+  return async function agentActionReceiptMiddleware(req: RequestLike, res: ResponseLike, next: NextFunction) {
     try {
       const parsed = parseMcpToolCall(req.body);
       if (!parsed) return next();
@@ -264,13 +265,14 @@ export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpre
           return;
         }
         res.status(403).json({
-          error: "AgentPass provider authorization receipt denied",
+          error: "AgentAction provider authorization receipt denied",
           codes: verification.codes,
           findings: verification.findings,
         });
         return;
       }
 
+      req.agentactionReceipt = verification.receipt;
       req.agentpassReceipt = verification.receipt;
       req.agentidReceipt = verification.receipt;
       next();
@@ -280,7 +282,7 @@ export function createAgentPassReceiptMiddleware(options: AgentPassProviderExpre
   };
 }
 
-export const createAgentIdReceiptMiddleware = createAgentPassReceiptMiddleware;
+export const createAgentIdReceiptMiddleware = createAgentActionReceiptMiddleware;
 
 export function signProviderReceipt(
   receipt: ProviderAuthorizationReceipt,
@@ -662,13 +664,13 @@ function parseMcpToolCall(body: unknown): { tool: string; args: Record<string, u
   return { tool, args };
 }
 
-async function resolveSecret(secret: AgentPassProviderExpressOptions["secret"]): Promise<string | undefined> {
+async function resolveSecret(secret: AgentActionProviderExpressOptions["secret"]): Promise<string | undefined> {
   if (!secret) return undefined;
   if (typeof secret === "function") return secret();
   return secret;
 }
 
-async function resolveJwks(jwks: AgentPassProviderExpressOptions["jwks"]): Promise<JsonWebKeySet | undefined> {
+async function resolveJwks(jwks: AgentActionProviderExpressOptions["jwks"]): Promise<JsonWebKeySet | undefined> {
   if (!jwks) return undefined;
   if (typeof jwks === "function") return jwks();
   return jwks;
@@ -812,3 +814,7 @@ function stringValue(value: unknown): string {
   if (value === undefined || value === null) return "";
   return String(value);
 }
+
+// Backward-compatible exports retained for existing AgentPass integrations.
+export type AgentPassProviderExpressOptions = AgentActionProviderExpressOptions;
+export const createAgentPassReceiptMiddleware = createAgentActionReceiptMiddleware;

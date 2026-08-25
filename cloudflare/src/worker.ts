@@ -5283,7 +5283,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentPass Approvals</title>
+  <title>AgentAction Approvals</title>
   <style>
     :root {
       color-scheme: light;
@@ -5479,7 +5479,7 @@ const APPROVALS_UI_HTML = `<!doctype html>
   <div class="shell">
     <header class="top">
       <div class="brand">
-        <h1>AgentPass Approvals</h1>
+        <h1>AgentAction Approvals</h1>
         <div class="subtitle">Review exact agent tool actions before scoped authority is issued.</div>
       </div>
       <div class="top-actions">
@@ -6069,7 +6069,7 @@ const AUDIT_UI_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentPass Audit Console</title>
+  <title>AgentAction Audit Console</title>
   <style>
     :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f6f7f8; color: #182026; }
@@ -6097,7 +6097,7 @@ const AUDIT_UI_HTML = `<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentPass Audit Console</h1>
+    <h1>AgentAction Audit Console</h1>
     <div class="status" id="status">Idle</div>
   </header>
   <main>

@@ -14,7 +14,7 @@ body:
     id: proposed
     attributes:
       label: Proposed behavior
-      description: What should AgentPass do?
+      description: What should AgentAction do?
     validations:
       required: true
   - type: dropdown

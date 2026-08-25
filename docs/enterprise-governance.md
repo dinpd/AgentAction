@@ -1,6 +1,6 @@
 # Enterprise Governance Scope
 
-AgentPass is one runtime authorization model for agent tool calls. This page
+AgentAction is one runtime authorization model for agent tool calls. This page
 describes the broader governance scope for teams that need shared enforcement
 across apps, MCP gateways, provider-hosted tools, and security-controlled policy
 services.
@@ -15,20 +15,20 @@ enforcement.
 ```text
 Enterprise Agent
   -> App Runtime or MCP Gateway
-  -> AgentPass policy check
+  -> AgentAction policy check
   -> Internal Tool, SaaS API, or Provider MCP Server
 ```
 
-AgentPass keeps normal business authorization in the downstream system. It
+AgentAction keeps normal business authorization in the downstream system. It
 answers whether the agent-originated action is eligible for execution under the
 current policy, job, user, approval, and data-flow context.
 
-![Enterprise-managed MCP authorization with AgentPass runtime authorization](enterprise-managed-auth-runtime-authorization.svg)
+![Enterprise-managed MCP authorization with AgentAction runtime authorization](enterprise-managed-auth-runtime-authorization.svg)
 
 MCP's Enterprise-Managed Authorization extension makes the organization's IdP
 the central authority for MCP server access: users authenticate once, and
 servers authorized by policy can connect without per-server OAuth prompts. That
-solves connection setup and identity context. AgentPass sits at the action
+solves connection setup and identity context. AgentAction sits at the action
 boundary after that connection exists, where each `tools/call` can be evaluated
 against job state, resource binding, approval, JIT grants, data-flow policy,
 and audit requirements before execution.
@@ -59,7 +59,7 @@ and audit requirements before execution.
 
 ## Provider Contracts
 
-For providers turning APIs into MCP servers, AgentPass defines an auth-first
+For providers turning APIs into MCP servers, AgentAction defines an auth-first
 pattern:
 
 1. Provider publishes an MCP authorization contract describing tool semantics,
@@ -77,18 +77,18 @@ See [Turn Your API Into MCP, Safely](turn-your-api-into-mcp-safely.md) and
 ## CLI
 
 ```bash
-agentpass validate examples/provider-mcp-support-agent.yaml
-agentpass explain examples/provider-mcp-support-agent.yaml
-agentpass risk-score examples/provider-mcp-support-agent.yaml
-agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
-agentpass provider validate examples/provider-mcp-contract.yaml
-agentpass provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
-agentpass provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
-agentpass gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
+agentaction validate examples/provider-mcp-support-agent.yaml
+agentaction explain examples/provider-mcp-support-agent.yaml
+agentaction risk-score examples/provider-mcp-support-agent.yaml
+agentaction generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentaction provider validate examples/provider-mcp-contract.yaml
+agentaction provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
+agentaction provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
+agentaction gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 The Python CLI and schema filenames still include `agentid` compatibility names
-in some places. The product-facing name is AgentPass.
+in some places. The product-facing name is AgentAction.
 
 ## Demos And Packages
 
@@ -120,7 +120,7 @@ authorization. Start with [`packages/guard/`](../packages/guard/) when you want
 the local runtime guard; use this reference when you need the manifest, gateway,
 provider, and standards architecture.
 
-![AgentPass gives AI agents just-in-time authority](AgentPassMCPAuthorizationContract.png)
+![AgentAction gives AI agents just-in-time authority](AgentActionMCPAuthorizationContract.png)
 
 Hosted demos:
 
@@ -172,7 +172,7 @@ For scoped agent-to-agent delegation, see [`docs/agent-to-agent-delegation.md`](
 Most agent projects define tools and credentials in ad hoc config files. As
 agents move into production, those tools span internal services, SaaS APIs, MCP
 servers, cloud control planes, databases, and provider-hosted capabilities.
-AgentPass gives teams a local policy checkpoint before those calls execute.
+AgentAction gives teams a local policy checkpoint before those calls execute.
 
 What is often missing is a clear answer to:
 
@@ -188,23 +188,23 @@ What is often missing is a clear answer to:
 - What should be logged?
 - How can it be stopped?
 
-AgentPass turns those questions into a small manifest that can be reviewed by developers, security teams, platform teams, and product owners.
+AgentAction turns those questions into a small manifest that can be reviewed by developers, security teams, platform teams, and product owners.
 
-AgentPass can also describe how callers authenticate to a gateway. The `oidc`
-section maps customer identity-provider claims to AgentPass concepts such as
+AgentAction can also describe how callers authenticate to a gateway. The `oidc`
+section maps customer identity-provider claims to AgentAction concepts such as
 tenant, user, and agent, then declares the scopes required to authorize tool
 calls, read policies, or issue JIT grants.
 
-AgentPass can also carry optional distributed identity metadata. A manifest may
+AgentAction can also carry optional distributed identity metadata. A manifest may
 bind an agent to a DID, declare trusted issuers, and include VC-style
 attestations for security review, provider approval, compliance status, or
 operational readiness. These fields are evidence inputs for runtime policy; they
-do not replace AgentPass's action-level authorization decision. See
+do not replace AgentAction's action-level authorization decision. See
 [`docs/standards-alignment.md`](standards-alignment.md).
 
 ## Manifest Positioning In One Minute
 
-AgentPass sits between agent identity and tool execution.
+AgentAction sits between agent identity and tool execution.
 
 It does not replace OAuth, IAM, OPA, Cedar, OpenFGA, MCP authorization, or
 provider business rules. It gives those systems a shared contract for agent
@@ -226,7 +226,7 @@ Identity is necessary, but not sufficient.
 
 A valid agent identity does not imply a valid action. An agent can have the right token and still take the wrong action because the task was ambiguous, the context was poisoned, or a downstream tool interpreted the request differently.
 
-AgentPass treats identity as the foundation, runtime authorization as the control plane, and audit as the accountability layer.
+AgentAction treats identity as the foundation, runtime authorization as the control plane, and audit as the accountability layer.
 
 The manifest should not be treated as a broad permission grant. It should be treated as an **eligibility contract**: what the agent may request, under what conditions, for how long, and with what approval.
 
@@ -236,7 +236,7 @@ For sensitive actions, actual authority should be issued **just in time** and bo
 
 ## Advanced Authority Model
 
-AgentPass models agent authority as a runtime decision, not a static role.
+AgentAction models agent authority as a runtime decision, not a static role.
 
 ```mermaid
 flowchart LR
@@ -251,7 +251,7 @@ flowchart LR
     Identity --> Job --> Tool --> Flow --> Approval --> Delegation --> Decision
 ```
 
-At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentPass
+At runtime, a SaaS app, agent runtime, or enterprise gateway asks an AgentAction
 decision endpoint before tool execution. In MCP deployments, the enterprise MCP
 gateway performs this check before forwarding a `tools/call` request to an
 internal or provider MCP server. The gateway evaluates:
@@ -272,13 +272,13 @@ the tool.
 
 ## Two-Sided MCP Authorization
 
-For provider-hosted MCP tools, AgentPass supports a two-sided authorization
+For provider-hosted MCP tools, AgentAction supports a two-sided authorization
 pattern:
 
 ```text
 Enterprise Agent
   -> Enterprise MCP Gateway
-  -> AgentPass enterprise authorization
+  -> AgentAction enterprise authorization
   -> Provider MCP Server
   -> Provider receipt verification
   -> Provider business authorization
@@ -323,7 +323,7 @@ support agents:
 - `provider.billing.issue_credit` should require stronger approval, amount
   limits, and provider-side business checks.
 
-This keeps the enterprise and provider responsibilities separate: AgentPass
+This keeps the enterprise and provider responsibilities separate: AgentAction
 proves the enterprise authorized the agent-originated request, while the
 provider still decides whether the underlying business operation may execute.
 See [`docs/provider-mcp-authorization.md`](provider-mcp-authorization.md)
@@ -334,30 +334,30 @@ for the receipt contract and execution plan.
 ## Manifest CLI
 
 ```bash
-agentpass validate examples/provider-mcp-support-agent.yaml
-agentpass explain examples/provider-mcp-support-agent.yaml
-agentpass risk-score examples/provider-mcp-support-agent.yaml
-agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
-agentpass audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
-agentpass mcp analyze examples/mcp-tools-list-risky.json
-agentpass mcp analyze examples/mcp-tools-list-risky.json --json
-agentpass mcp fetch https://mcp.example.com/mcp --output tools-list.json
-agentpass mcp check tools-list.json --max-risk high
-agentpass mcp diff old-tools-list.json new-tools-list.json
-agentpass mcp ui --output agentpass-mcp-analyzer.html
-agentpass mcp serve-ui --host 127.0.0.1 --port 8799
-agentpass provider schema > schema/provider-mcp-contract.schema.json
-agentpass provider validate examples/provider-mcp-contract.yaml
-agentpass provider diff old-provider-contract.yaml new-provider-contract.yaml
-agentpass provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
-agentpass provider from-openapi examples/provider-openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
-agentpass provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
-agentpass schema > schema/agentid.schema.json
-agentpass config-ui --output agentpass-policy-builder.html
-agentpass gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
+agentaction validate examples/provider-mcp-support-agent.yaml
+agentaction explain examples/provider-mcp-support-agent.yaml
+agentaction risk-score examples/provider-mcp-support-agent.yaml
+agentaction generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentaction audit examples/sample-tool-log.json --manifest examples/customer-support-refund-agent.yaml
+agentaction mcp analyze examples/mcp-tools-list-risky.json
+agentaction mcp analyze examples/mcp-tools-list-risky.json --json
+agentaction mcp fetch https://mcp.example.com/mcp --output tools-list.json
+agentaction mcp check tools-list.json --max-risk high
+agentaction mcp diff old-tools-list.json new-tools-list.json
+agentaction mcp ui --output agentaction-mcp-analyzer.html
+agentaction mcp serve-ui --host 127.0.0.1 --port 8799
+agentaction provider schema > schema/provider-mcp-contract.schema.json
+agentaction provider validate examples/provider-mcp-contract.yaml
+agentaction provider diff old-provider-contract.yaml new-provider-contract.yaml
+agentaction provider import examples/provider-mcp-contract.yaml --agent enterprise-support-agent --output generated-agent.yaml
+agentaction provider from-openapi examples/provider-openapi.yaml --provider example-crm --output provider-mcp-contract.yaml
+agentaction provider verify-receipt examples/provider-signed-receipt.json --secret dev-provider-receipt-secret --require-signed
+agentaction schema > schema/agentid.schema.json
+agentaction config-ui --output agentaction-policy-builder.html
+agentaction gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
-`config-ui` writes a self-contained browser UI for building an AgentPass manifest and starter OPA policy.
+`config-ui` writes a self-contained browser UI for building an AgentAction manifest and starter OPA policy.
 
 `mcp fetch` connects to an HTTP MCP server, performs the MCP initialize flow,
 calls `tools/list`, and writes the JSON response for analysis. `mcp analyze`
@@ -369,7 +369,7 @@ responses to detect newly exposed tools, schema changes, and increased tool
 risk. `mcp ui` writes a self-contained browser analyzer with paste/upload
 analysis, compare mode, Markdown reports, JSON export, and starter manifest
 exports. `mcp serve-ui` serves the same analyzer on localhost with a local-only
-fetch endpoint, so the UI can ask the AgentPass CLI process to fetch a remote MCP
+fetch endpoint, so the UI can ask the AgentAction CLI process to fetch a remote MCP
 server without sending credentials to a hosted page.
 
 `provider validate` checks provider-published MCP authorization contracts for
@@ -379,7 +379,7 @@ receipt binding fields, JIT and approval expectations, receipt TTL, and
 single-use requirements. `provider diff` compares two provider contracts for
 added, removed, and changed tools, including risk increases, changed protected
 resources, changed receipt bindings, changed TTLs, and input-schema drift.
-`provider import` turns a provider contract into a reviewable AgentPass manifest
+`provider import` turns a provider contract into a reviewable AgentAction manifest
 starter that enterprises can tighten with local agent, job, approval, OIDC, and
 data-flow policy. `provider from-openapi` creates a provider MCP authorization
 contract starter from an OpenAPI document, inferring operation names, resource
@@ -398,33 +398,33 @@ rule, default binding fields, allowed outcomes, and privacy-preserving basis
 handling so verifiers know how to interpret signed receipts.
 
 The JSON Schema is available at [`schema/agentid.schema.json`](../schema/agentid.schema.json)
-and can be emitted with `agentpass schema`. Add this to a manifest for editor
+and can be emitted with `agentaction schema`. Add this to a manifest for editor
 validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/agentid.schema.json
 ```
 
 The provider MCP contract JSON Schema is available at
 [`schema/provider-mcp-contract.schema.json`](../schema/provider-mcp-contract.schema.json)
-and can be emitted with `agentpass provider schema`. Add this to a provider
+and can be emitted with `agentaction provider schema`. Add this to a provider
 contract for editor validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/provider-mcp-contract.schema.json
 ```
 
-AgentPass also ships a GitHub Action for PR checks:
+AgentAction also ships a GitHub Action for PR checks:
 
 ```yaml
-name: AgentPass
+name: AgentAction
 on: [pull_request]
 jobs:
   agentpass:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dinpd/AgentPass@main
+      - uses: dinpd/AgentAction@main
         with:
           manifests: "agents/*.yaml"
           max-risk: "75"
@@ -484,14 +484,14 @@ GitHub Actions deployment workflow.
 ## MCP Gateway Adapter
 
 The reference adapter in [`mcp-gateway-adapter/`](../mcp-gateway-adapter/) shows
-how an enterprise MCP gateway can enforce AgentPass before forwarding tool calls:
+how an enterprise MCP gateway can enforce AgentAction before forwarding tool calls:
 
 ```text
-MCP client -> MCP gateway adapter -> AgentPass /authorize -> downstream MCP server
+MCP client -> MCP gateway adapter -> AgentAction /authorize -> downstream MCP server
 ```
 
 It accepts HTTP JSON-RPC requests, filters `tools/list`, intercepts
-`tools/call`, maps MCP tool arguments to AgentPass fields such as `job_id`,
+`tools/call`, maps MCP tool arguments to AgentAction fields such as `job_id`,
 `case_id`, `customer_id`, `resource`, `data_from`, and `data_to`, then returns
 an MCP error on deny or forwards the call on allow.
 
@@ -513,22 +513,22 @@ for the enterprise gateway and provider-side authorization patterns.
 
 The hosted gateway-control demo is available at
 [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
-It shows the broader AgentPass model in two concrete flows: a SaaS support app
-consulting AgentPass before refund actions, and an MCP gateway checking provider
+It shows the broader AgentAction model in two concrete flows: a SaaS support app
+consulting AgentAction before refund actions, and an MCP gateway checking provider
 CRM tool calls before forwarding them. The MCP flow filters provider tools,
 allows a declared CRM read, denies a CRM write without JIT, and then allows the
 write after a scoped grant. The demo Worker mints a short-lived OIDC-style JWT
 server-side, and the gateway validates its claims against the tenant manifest.
 Demo source lives in [`demo/`](../demo/).
 
-![AgentPass Gateway Control Demo](AgentPassRefundControlDemo.png)
+![AgentAction Gateway Control Demo](AgentActionRefundControlDemo.png)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant App as App / Agent Runtime / MCP Gateway
     participant IdP as Customer IdP
-    participant Gateway as AgentPass Gateway
+    participant Gateway as AgentAction Gateway
     participant KV as Tenant Manifest Store
     participant DO as Approval/JIT Store
     participant Tool as Downstream Tool
@@ -623,7 +623,7 @@ Implemented:
 - CI-friendly MCP risk check for maximum allowed risk and drift findings
 - MCP tool drift diff for newly exposed tools and schema changes
 - Browser/local MCP analyzer UI for pasted or uploaded `tools/list` JSON,
-  Markdown reports, JSON export, and starter AgentPass manifest export
+  Markdown reports, JSON export, and starter AgentAction manifest export
 - Local MCP analyzer UI server with localhost remote-fetch support
 - MCP gateway integration guide and enterprise/provider MCP example manifest
 - Provider-side MCP authorization guide with CRM/billing use case, receipt
@@ -662,7 +662,7 @@ Capability backlog reference:
 - MCP blast-radius analyzer improvements for authorization posture, data-flow
   exposure, manifest snippet generation, and live gateway metadata
 - Browser/local MCP analyzer UI improvements for richer blast-radius summaries,
-  remote fetch options, and generated AgentPass manifest snippets
+  remote fetch options, and generated AgentAction manifest snippets
 - Hosted MCP analyzer demo after the local/browser workflow is useful, with a
   privacy-preserving mode that can analyze pasted tool metadata in the browser
   without uploading internal server details by default

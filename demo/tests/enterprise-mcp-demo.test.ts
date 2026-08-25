@@ -10,7 +10,7 @@ test("enterprise MCP hosted demo allows a verified enterprise-bound provider rec
   assert.equal(body.ok, true);
   assert.equal(body.steps.length, 5);
   assert.equal(body.steps[0].title, "Enterprise JWT validated");
-  assert.equal(body.steps[1].title, "Real AgentPass gateway issued scoped JIT");
+  assert.equal(body.steps[1].title, "Real AgentAction gateway issued scoped JIT");
   assert.equal(body.steps[2].response.allow, true);
   assert.equal(body.steps[3].response.enterprise_client_id, "claude-enterprise");
   assert.equal(body.steps[4].title, "Provider verified receipt and executed");

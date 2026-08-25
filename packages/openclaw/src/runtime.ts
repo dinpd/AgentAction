@@ -1,10 +1,10 @@
 import { createGuard, type GuardCheck } from "@dinpd/ai-agent-guard";
 
-import { loadLocalPolicy, normalizeAgentPassOpenClawConfig } from "./config.js";
-import type { AgentPassOpenClawConfig, AgentPassOpenClawDecision, AgentPassOpenClawRuntime } from "./types.js";
+import { loadLocalPolicy, normalizeAgentActionOpenClawConfig } from "./config.js";
+import type { AgentActionOpenClawConfig, AgentActionOpenClawDecision, AgentActionOpenClawRuntime } from "./types.js";
 
-export type CreateAgentPassOpenClawRuntimeOptions = {
-  config?: AgentPassOpenClawConfig | Record<string, unknown>;
+export type CreateAgentActionOpenClawRuntimeOptions = {
+  config?: AgentActionOpenClawConfig | Record<string, unknown>;
   fetch?: typeof fetch;
   logger?: {
     debug?: (...args: unknown[]) => void;
@@ -12,15 +12,15 @@ export type CreateAgentPassOpenClawRuntimeOptions = {
   };
 };
 
-export function createAgentPassOpenClawRuntime(
-  options: CreateAgentPassOpenClawRuntimeOptions = {},
-): AgentPassOpenClawRuntime {
+export function createAgentActionOpenClawRuntime(
+  options: CreateAgentActionOpenClawRuntimeOptions = {},
+): AgentActionOpenClawRuntime {
   const config = normalizeRuntimeConfig(options.config);
   const fetchImpl = options.fetch || globalThis.fetch;
   const guard = config.mode === "local" ? createGuard({ policy: loadLocalPolicy(config) }) : undefined;
 
   return {
-    async authorize(check: GuardCheck): Promise<AgentPassOpenClawDecision> {
+    async authorize(check: GuardCheck): Promise<AgentActionOpenClawDecision> {
       if (!config.enabled) return allowDecision(check);
 
       try {
@@ -29,15 +29,15 @@ export function createAgentPassOpenClawRuntime(
         }
         return await authorizeRemote(check, config, fetchImpl);
       } catch (error) {
-        options.logger?.warn?.("AgentPass OpenClaw authorization failed", error);
+        options.logger?.warn?.("AgentAction OpenClaw authorization failed", error);
         if (config.failClosed) {
           return denyDecision(check, error instanceof Error ? error.message : String(error));
         }
-        return allowDecision(check, ["AgentPass unavailable; failClosed=false"]);
+        return allowDecision(check, ["AgentAction unavailable; failClosed=false"]);
       }
     },
     recordApprovalResolution(input) {
-      options.logger?.debug?.("AgentPass OpenClaw approval resolved", {
+      options.logger?.debug?.("AgentAction OpenClaw approval resolved", {
         resolution: input.resolution,
         tool: input.check.tool,
         action: input.check.action,
@@ -45,7 +45,7 @@ export function createAgentPassOpenClawRuntime(
       });
     },
     recordAllowedDecision(input) {
-      options.logger?.debug?.("AgentPass OpenClaw allowed", {
+      options.logger?.debug?.("AgentAction OpenClaw allowed", {
         tool: input.check.tool,
         action: input.check.action,
         decision: decisionType(input.decision),
@@ -55,22 +55,22 @@ export function createAgentPassOpenClawRuntime(
 }
 
 function normalizeRuntimeConfig(
-  config: AgentPassOpenClawConfig | Record<string, unknown> | undefined,
-): AgentPassOpenClawConfig {
-  if (!config) return normalizeAgentPassOpenClawConfig();
+  config: AgentActionOpenClawConfig | Record<string, unknown> | undefined,
+): AgentActionOpenClawConfig {
+  if (!config) return normalizeAgentActionOpenClawConfig();
   if ("challengeTimeoutMs" in config && "failClosed" in config && "mode" in config && "enabled" in config) {
-    return config as AgentPassOpenClawConfig;
+    return config as AgentActionOpenClawConfig;
   }
-  return normalizeAgentPassOpenClawConfig(config as Record<string, unknown>);
+  return normalizeAgentActionOpenClawConfig(config as Record<string, unknown>);
 }
 
 async function authorizeRemote(
   check: GuardCheck,
-  config: AgentPassOpenClawConfig,
+  config: AgentActionOpenClawConfig,
   fetchImpl: typeof fetch | undefined,
-): Promise<AgentPassOpenClawDecision> {
-  if (!config.authorizeUrl) throw new Error("AgentPass authorizeUrl is required in remote mode");
-  if (!fetchImpl) throw new Error("fetch is not available for AgentPass remote mode");
+): Promise<AgentActionOpenClawDecision> {
+  if (!config.authorizeUrl) throw new Error("AgentAction authorizeUrl is required in remote mode");
+  if (!fetchImpl) throw new Error("fetch is not available for AgentAction remote mode");
 
   const response = await fetchImpl(config.authorizeUrl, {
     method: "POST",
@@ -81,24 +81,24 @@ async function authorizeRemote(
     body: JSON.stringify(toRemoteAuthorizePayload(check)),
   });
   if (!response.ok && response.status !== 403) {
-    throw new Error(`AgentPass authorization failed with HTTP ${response.status}`);
+    throw new Error(`AgentAction authorization failed with HTTP ${response.status}`);
   }
-  return normalizeRemoteDecision((await response.json()) as AgentPassOpenClawDecision & { findings?: string[] });
+  return normalizeRemoteDecision((await response.json()) as AgentActionOpenClawDecision & { findings?: string[] });
 }
 
-export function decisionType(decision: AgentPassOpenClawDecision): "allow" | "deny" | "challenge_required" {
+export function decisionType(decision: AgentActionOpenClawDecision): "allow" | "deny" | "challenge_required" {
   return decision.type || decision.decision || (decision.allow === false ? "deny" : "allow");
 }
 
-export function isAllowedDecision(decision: AgentPassOpenClawDecision): boolean {
+export function isAllowedDecision(decision: AgentActionOpenClawDecision): boolean {
   return decision.allow !== false && decisionType(decision) === "allow";
 }
 
-export function isChallengeDecision(decision: AgentPassOpenClawDecision): boolean {
+export function isChallengeDecision(decision: AgentActionOpenClawDecision): boolean {
   return decision.challengeRequired === true || decisionType(decision) === "challenge_required";
 }
 
-export function decisionReasons(decision: AgentPassOpenClawDecision): string[] {
+export function decisionReasons(decision: AgentActionOpenClawDecision): string[] {
   return decision.reasons?.filter(Boolean) || [];
 }
 
@@ -125,8 +125,8 @@ function toRemoteAuthorizePayload(check: GuardCheck): GuardCheck & Record<string
 }
 
 function normalizeRemoteDecision(
-  decision: AgentPassOpenClawDecision & { findings?: string[] },
-): AgentPassOpenClawDecision {
+  decision: AgentActionOpenClawDecision & { findings?: string[] },
+): AgentActionOpenClawDecision {
   if (decision.reasons || !decision.findings) return decision;
   return {
     ...decision,
@@ -134,7 +134,7 @@ function normalizeRemoteDecision(
   };
 }
 
-function allowDecision(check: GuardCheck, reasons: string[] = []): AgentPassOpenClawDecision {
+function allowDecision(check: GuardCheck, reasons: string[] = []): AgentActionOpenClawDecision {
   return {
     type: "allow",
     allow: true,
@@ -163,7 +163,7 @@ function allowDecision(check: GuardCheck, reasons: string[] = []): AgentPassOpen
   };
 }
 
-function denyDecision(check: GuardCheck, reason: string): AgentPassOpenClawDecision {
+function denyDecision(check: GuardCheck, reason: string): AgentActionOpenClawDecision {
   return {
     type: "deny",
     allow: false,
@@ -191,3 +191,7 @@ function denyDecision(check: GuardCheck, reason: string): AgentPassOpenClawDecis
     },
   };
 }
+
+// Backward-compatible export retained for existing AgentPass integrations.
+export type CreateAgentPassOpenClawRuntimeOptions = CreateAgentActionOpenClawRuntimeOptions;
+export const createAgentPassOpenClawRuntime = createAgentActionOpenClawRuntime;

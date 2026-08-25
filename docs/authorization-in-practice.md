@@ -1,11 +1,11 @@
 # Authorization in Practice
 
-AgentPass complements RBAC. RBAC answers whether an identity may use a tool.
-AgentPass evaluates a specific proposed action using its arguments, job context,
+AgentAction complements RBAC. RBAC answers whether an identity may use a tool.
+AgentAction evaluates a specific proposed action using its arguments, job context,
 approval state, and prior execution state.
 
 The agent proposes an action. A trusted app runtime or gateway constructs the
-authorization request from verified system data. AgentPass returns an allow,
+authorization request from verified system data. AgentAction returns an allow,
 deny, or approval challenge with findings that the agent can use to choose its
 next action.
 
@@ -33,19 +33,19 @@ each successful refund single-use.
 
 **Response:** "Sorry, I'm unable to provide a refund."
 
-### Good: AgentPass
+### Good: AgentAction
 
 **Customer:** "Refund me $1,200 for the service outage."
 
-**Agent -> AgentPass:** Authorize `stripe.refund` for payment `pi_123`, amount
+**Agent -> AgentAction:** Authorize `stripe.refund` for payment `pi_123`, amount
 `$1,200`, job `case-1042`, and idempotency key `refund-1042-pi_123`.
 
-**AgentPass:** "Denied: amount exceeds the $100 maximum."
+**AgentAction:** "Denied: amount exceeds the $100 maximum."
 
 **Agent:** Proposes a $100 refund with an idempotency key scoped to the revised
 action.
 
-**AgentPass:** "Approval required." After the runtime supplies an approval ID:
+**AgentAction:** "Approval required." After the runtime supplies an approval ID:
 "Allowed once."
 
 **Response:** "I can't refund $1,200, but your approved $100 refund is
@@ -87,20 +87,20 @@ deployment without binding the action to an incident or rollback plan.
 **Response:** "`dep-842` appears responsible, but a human must perform the
 rollback."
 
-### Good: AgentPass
+### Good: AgentAction
 
 **On-call SRE:** "Checkout errors spiked. Roll back production."
 
-**Agent -> AgentPass:** Request logs and deployment status for `checkout-api`
+**Agent -> AgentAction:** Request logs and deployment status for `checkout-api`
 in `production` under job `incident_diagnostics` and incident `INC-2048`.
 
-**AgentPass:** "Allowed: read-only diagnostics."
+**AgentAction:** "Allowed: read-only diagnostics."
 
 **Agent:** Identifies deployment `dep-842`, references existing rollback plan
 `RB-2048`, and proposes `devops.rollback.production` for that exact scope.
 
-**AgentPass:** "Approval and JIT authorization required." After an approver
-confirms the scoped request, AgentPass issues a single-use grant valid for 180
+**AgentAction:** "Approval and JIT authorization required." After an approver
+confirms the scoped request, AgentAction issues a single-use grant valid for 180
 seconds and bound to the agent, user, tool, resource, job, service, environment,
 incident, deployment, and rollback plan.
 
@@ -120,7 +120,7 @@ Implementation references:
 
 ## Trust Boundary
 
-AgentPass does not infer these facts from the conversation. The trusted runtime
+AgentAction does not infer these facts from the conversation. The trusted runtime
 or gateway should derive identity, payment, deployment, incident, and approval
 fields from authenticated systems. Model-supplied values should be treated as a
 proposal until that boundary verifies and maps them into an authorization

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Project identity
+
+- Renamed the project, repository references, Python distribution metadata, primary CLI,
+  GitHub Action, active documentation, and public APIs to AgentAction to align
+  with [AgentAction.dev](https://agentaction.dev/).
+- Retained the `agentpass` and `agentid` CLI aliases, AgentPass-named public API
+  aliases, existing Python import paths, and versioned `agentpass.*` protocol
+  identifiers for compatibility.
+- Chose the collision-free `agentaction-dev` Python distribution name because
+  the bare `agentaction` name is already owned by an unrelated PyPI project.
+
 ### Hosted observability console
 
 - Added a dedicated Cloudflare Worker UI/BFF foundation with verified Access
@@ -168,12 +179,12 @@
   authorization, argument mapping, denial responses, and structured decision
   logs.
 - Added the MCP gateway adapter demo with a mock provider server.
-- Added `agentpass mcp fetch` for fetching `tools/list` from HTTP MCP servers.
-- Added `agentpass mcp analyze` for scoring saved MCP `tools/list` output.
-- Added `agentpass mcp check` for CI-friendly MCP risk gates.
-- Added `agentpass mcp diff` for detecting newly exposed tools and tool schema drift.
-- Added `agentpass mcp ui` for writing a self-contained browser MCP analyzer.
-- Added `agentpass mcp serve-ui` for localhost MCP analysis with local remote-fetch support.
+- Added `agentaction mcp fetch` for fetching `tools/list` from HTTP MCP servers.
+- Added `agentaction mcp analyze` for scoring saved MCP `tools/list` output.
+- Added `agentaction mcp check` for CI-friendly MCP risk gates.
+- Added `agentaction mcp diff` for detecting newly exposed tools and tool schema drift.
+- Added `agentaction mcp ui` for writing a self-contained browser MCP analyzer.
+- Added `agentaction mcp serve-ui` for localhost MCP analysis with local remote-fetch support.
 - Added MCP analyzer UI compare mode and Markdown report export.
 - Added MCP analyzer manifest snippet generation and JSON export support.
 - Added a sample MCP `tools/list` response for analyzer testing.

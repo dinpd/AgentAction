@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AgentIdClient, AgentPassClient, AgentPassDeniedError, AgentPassHttpError } from "../src/index.ts";
+import {
+  AgentActionClient,
+  AgentActionDeniedError,
+  AgentActionHttpError,
+  AgentIdClient,
+  AgentPassClient,
+  AgentPassDeniedError,
+  AgentPassHttpError,
+} from "../src/index.ts";
 
 test("authorizeToolCall posts tenant authorize request with bearer token", async () => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com/",
     token: "token-1",
     fetch: async (url, init) => {
@@ -35,19 +43,19 @@ test("authorizeToolCall posts tenant authorize request with bearer token", async
 });
 
 test("assertAllowed throws on deny decisions", async () => {
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     fetch: async () => jsonResponse(403, { allow: false, decision: "challenge_required", findings: ["approval required"], event: {} }),
   });
 
   await assert.rejects(
     () => client.assertAllowed("tenant-a", { agent_id: "agent-a", tool: "x", action: "write" }),
-    AgentPassDeniedError,
+    AgentActionDeniedError,
   );
 });
 
 test("requestJitGrant posts JIT grant request", async () => {
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     token: async () => "token-2",
     fetch: async (url, init) => {
@@ -77,7 +85,7 @@ test("requestJitGrant posts JIT grant request", async () => {
 });
 
 test("recordExecutionResult posts provider result for hosted replay", async () => {
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     token: "token-3",
     fetch: async (url, init) => {
@@ -123,7 +131,7 @@ test("recordExecutionResult posts provider result for hosted replay", async () =
 
 test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => {
   const calls: Array<{ url: string; method: string; body?: Record<string, unknown> }> = [];
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     fetch: async (url, init) => {
       calls.push({
@@ -226,7 +234,7 @@ test("hosted intent lifecycle methods use tenant-scoped endpoints", async () => 
 });
 
 test("recordIntentObservation accepts a signed JWS envelope and idempotent replay", async () => {
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     fetch: async (_url, init) => {
       assert.deepEqual(JSON.parse(String(init?.body)), { jws: "header.payload.signature" });
@@ -247,7 +255,7 @@ test("recordIntentObservation accepts a signed JWS envelope and idempotent repla
 
 test("approval lifecycle methods use tenant-scoped endpoints", async () => {
   const calls: Array<{ url: string; method: string }> = [];
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     token: "token-3",
     fetch: async (url, init) => {
@@ -283,7 +291,7 @@ test("approval lifecycle methods use tenant-scoped endpoints", async () => {
 });
 
 test("listAuditEvents filters by approval correlation", async () => {
-  const client = new AgentPassClient({
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     fetch: async (url) => {
       assert.equal(String(url), "https://gateway.example.com/audit/events?tenant_id=tenant-a&intent_id=intent-1&approval_id=approval-1&limit=50");
@@ -295,20 +303,26 @@ test("listAuditEvents filters by approval correlation", async () => {
   assert.equal(response.count, 0);
 });
 
-test("unexpected statuses throw AgentPassHttpError", async () => {
-  const client = new AgentPassClient({
+test("unexpected statuses throw AgentActionHttpError", async () => {
+  const client = new AgentActionClient({
     baseUrl: "https://gateway.example.com",
     fetch: async () => jsonResponse(500, { error: "broken" }),
   });
 
   await assert.rejects(
     () => client.authorizeToolCall("tenant-a", { agent_id: "agent-a", tool: "x", action: "read" }),
-    AgentPassHttpError,
+    AgentActionHttpError,
   );
 });
 
 test("legacy AgentIdClient export remains a compatibility alias", () => {
-  assert.equal(AgentIdClient, AgentPassClient);
+  assert.equal(AgentIdClient, AgentActionClient);
+});
+
+test("legacy AgentPass exports remain compatibility aliases", () => {
+  assert.equal(AgentPassClient, AgentActionClient);
+  assert.equal(AgentPassDeniedError, AgentActionDeniedError);
+  assert.equal(AgentPassHttpError, AgentActionHttpError);
 });
 
 function jsonResponse(status: number, body: unknown): Response {

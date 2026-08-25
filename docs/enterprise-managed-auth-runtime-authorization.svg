@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
-  <title id="title">Enterprise-managed MCP authorization with AgentPass runtime authorization</title>
-  <desc id="desc">A three-stage flow showing enterprise-managed MCP authentication, AgentPass runtime authorization, and provider-side receipt enforcement.</desc>
+  <title id="title">Enterprise-managed MCP authorization with AgentAction runtime authorization</title>
+  <desc id="desc">A three-stage flow showing enterprise-managed MCP authentication, AgentAction runtime authorization, and provider-side receipt enforcement.</desc>
   <defs>
     <style>
       .bg { fill: #f8fafc; }
@@ -40,8 +40,8 @@
 
   <rect class="bg" width="1600" height="980"/>
 
-  <text class="title" x="800" y="50" text-anchor="middle">Enterprise-Managed MCP Auth + AgentPass Runtime Authorization</text>
-  <text class="subtitle" x="800" y="86" text-anchor="middle">MCP EMA controls connection setup. AgentPass makes each action auditable, scoped, and enforceable.</text>
+  <text class="title" x="800" y="50" text-anchor="middle">Enterprise-Managed MCP Auth + AgentAction Runtime Authorization</text>
+  <text class="subtitle" x="800" y="86" text-anchor="middle">MCP EMA controls connection setup. AgentAction makes each action auditable, scoped, and enforceable.</text>
 
   <g class="shadow">
     <rect x="34" y="130" width="390" height="640" rx="12" class="blue-panel"/>
@@ -82,12 +82,12 @@
   <g class="shadow">
     <rect x="576" y="130" width="448" height="640" rx="12" class="green-panel"/>
     <rect x="576" y="130" width="448" height="48" rx="12" fill="#dcfce7"/>
-    <text class="panel-title green" x="626" y="160">2. AGENTPASS RUNTIME AUTHORIZATION</text>
+    <text class="panel-title green" x="626" y="160">2. AGENTACTION RUNTIME AUTHORIZATION</text>
     <text class="body" x="800" y="218" text-anchor="middle">Evaluate policy and live context before</text>
     <text class="body" x="800" y="240" text-anchor="middle">the agent-originated action executes.</text>
 
     <rect x="600" y="276" width="400" height="340" rx="10" fill="#ffffff" stroke="#86efac" stroke-width="1.5"/>
-    <text class="label" x="810" y="315" text-anchor="middle" fill="#0f172a">AgentPass Gateway</text>
+    <text class="label" x="810" y="315" text-anchor="middle" fill="#0f172a">AgentAction Gateway</text>
     <path d="M700 293 l20 -9 l20 9 v24 q-20 18 -20 18 q-20 -18 -20 -18 z" fill="none" stroke="#16a34a" stroke-width="3"/>
     <path d="M714 306 l5 7 l11 -16" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 

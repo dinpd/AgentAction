@@ -4,7 +4,7 @@ This use case models a frequent outbound communication risk:
 
 1. OpenClaw reads customer or ticket context.
 2. The agent drafts a Slack message containing customer data.
-3. AgentPass blocks the external send before the message leaves the agent
+3. AgentAction blocks the external send before the message leaves the agent
    boundary.
 
 The policy goal is to let agents inspect customer context while preventing
@@ -33,15 +33,15 @@ The test uses OpenClaw-style tool events:
 - `fixtures/openclaw-send-slack-customer-event.json`
 
 `slack-send-guard-use-case.mjs` maps those events through the actual
-`packages/openclaw` mapper and remote runtime, then calls AgentPass
+`packages/openclaw` mapper and remote runtime, then calls AgentAction
 `/authorize`.
 
 ## Run
 
-Terminal 1: start AgentPass.
+Terminal 1: start AgentAction.
 
 ```bash
-agentpass gateway solutions/openclaw-agentpass/agentpass-openclaw-manifest.yaml \
+agentaction gateway solutions/openclaw-agentaction/agentaction-openclaw-manifest.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token
@@ -53,7 +53,7 @@ Terminal 2: build the OpenClaw adapter and run the use case.
 cd packages/openclaw
 npm run build
 cd ../..
-node solutions/openclaw-agentpass/slack-send-guard-use-case.mjs
+node solutions/openclaw-agentaction/slack-send-guard-use-case.mjs
 ```
 
 Expected result:
@@ -79,8 +79,8 @@ Expected result:
 
 ## What This Proves
 
-- Hosted AgentPass manifests support `send` as a first-class action.
+- Hosted AgentAction manifests support `send` as a first-class action.
 - OpenClaw message-style tools map to `send`.
-- AgentPass can block outbound customer data movement to external channels.
+- AgentAction can block outbound customer data movement to external channels.
 - Slack/email-style sends can be guarded through the same remote gateway path
   as browser and file tools.

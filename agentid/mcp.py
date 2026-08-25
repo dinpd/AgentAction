@@ -178,7 +178,7 @@ def fetch_tools_list(
                 "params": {
                     "protocolVersion": protocol_version,
                     "capabilities": {},
-                    "clientInfo": {"name": "agentpass", "version": "0.2.0"},
+                    "clientInfo": {"name": "agentaction", "version": "0.2.0"},
                 },
             },
             request_headers,
@@ -524,7 +524,7 @@ def remediation_for(score: int, action: str, categories: set[str], sensitive_arg
     if {"secrets", "identity/access", "admin"} & categories:
         remediation.append("add audit logging and a kill-switch for this capability")
     if not remediation:
-        remediation.append("declare this tool in an AgentPass manifest and audit usage")
+        remediation.append("declare this tool in an AgentAction manifest and audit usage")
     return remediation
 
 

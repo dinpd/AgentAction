@@ -1,6 +1,6 @@
-# Contributing to AgentPass
+# Contributing to AgentAction
 
-Thanks for contributing to AgentPass. This project sits on a security-sensitive
+Thanks for contributing to AgentAction. This project sits on a security-sensitive
 execution path for AI agents, so changes should be small, reviewable, and backed
 by tests or examples where behavior changes.
 
@@ -12,7 +12,7 @@ by tests or examples where behavior changes.
 - For security vulnerabilities, do not open a public issue. Follow
   [SECURITY.md](SECURITY.md).
 - By submitting a contribution, you agree that it is licensed under the
-  repository's [Apache-2.0 license](LICENSE). AgentPass does not currently use a
+  repository's [Apache-2.0 license](LICENSE). AgentAction does not currently use a
   separate CLA.
 
 ## Development Setup

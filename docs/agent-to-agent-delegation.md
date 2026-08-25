@@ -1,6 +1,6 @@
 # Agent-to-Agent Delegation
 
-AgentPass should allow agents to involve other agents, but it should not let an
+AgentAction should allow agents to involve other agents, but it should not let an
 agent mint broad privileges for another agent.
 
 The model is scoped delegation:
@@ -125,6 +125,6 @@ a documented non-goal for the current product wedge; the
 [Action Gate Roadmap](action-gate-roadmap.md#near-term-non-goals) remains the
 source of truth for priority.
 
-Until those pieces are implemented, AgentPass can enforce whether a proposed
+Until those pieces are implemented, AgentAction can enforce whether a proposed
 agent-to-agent call is allowed, but it should not be treated as a complete
 subdelegation grant system.

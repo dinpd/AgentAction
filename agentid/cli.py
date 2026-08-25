@@ -51,55 +51,55 @@ from agentid.skill import SkillContractError, load_skill_contract, validate_skil
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="agentpass",
+        prog="agentaction",
         description="Validate, explain, score, generate policy for, and audit AI agent authority manifests.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    validate_parser = subparsers.add_parser("validate", help="Validate an AgentPass manifest.")
+    validate_parser = subparsers.add_parser("validate", help="Validate an AgentAction manifest.")
     validate_parser.add_argument("manifest")
 
-    explain_parser = subparsers.add_parser("explain", help="Explain an AgentPass manifest in plain English.")
+    explain_parser = subparsers.add_parser("explain", help="Explain an AgentAction manifest in plain English.")
     explain_parser.add_argument("manifest")
 
-    risk_parser = subparsers.add_parser("risk-score", help="Generate a rough risk score for an AgentPass manifest.")
+    risk_parser = subparsers.add_parser("risk-score", help="Generate a rough risk score for an AgentAction manifest.")
     risk_parser.add_argument("manifest")
 
-    policy_parser = subparsers.add_parser("generate-policy", help="Generate starter policy from an AgentPass manifest.")
+    policy_parser = subparsers.add_parser("generate-policy", help="Generate starter policy from an AgentAction manifest.")
     policy_parser.add_argument("manifest")
     policy_parser.add_argument("--target", choices=["opa"], default="opa")
 
-    subparsers.add_parser("schema", help="Print the AgentPass JSON Schema.")
+    subparsers.add_parser("schema", help="Print the AgentAction JSON Schema.")
 
     config_ui_parser = subparsers.add_parser("config-ui", help="Write the browser-based policy builder UI.")
-    config_ui_parser.add_argument("--output", default="agentpass-policy-builder.html")
+    config_ui_parser.add_argument("--output", default="agentaction-policy-builder.html")
     config_ui_parser.add_argument("--serve", action="store_true", help="Serve the policy builder with local MCP fetch support.")
     config_ui_parser.add_argument("--host", default="127.0.0.1")
     config_ui_parser.add_argument("--port", type=int, default=8798)
 
-    gateway_parser = subparsers.add_parser("gateway", help="Run the AgentPass authorization gateway.")
+    gateway_parser = subparsers.add_parser("gateway", help="Run the AgentAction authorization gateway.")
     gateway_parser.add_argument("manifest")
     gateway_parser.add_argument("--host", default="127.0.0.1")
     gateway_parser.add_argument("--port", type=int, default=8787)
     gateway_parser.add_argument("--api-key", default=os.environ.get("AGENTID_GATEWAY_API_KEY"))
 
-    openclaw_parser = subparsers.add_parser("openclaw", help="Work with the AgentPass OpenClaw integration.")
+    openclaw_parser = subparsers.add_parser("openclaw", help="Work with the AgentAction OpenClaw integration.")
     openclaw_subparsers = openclaw_parser.add_subparsers(dest="openclaw_command", required=True)
     openclaw_doctor_parser = openclaw_subparsers.add_parser("doctor", help="Run OpenClaw integration checks.")
     openclaw_doctor_parser.add_argument("--demo", choices=["budget"], default="budget")
-    openclaw_doctor_parser.add_argument("--root", default=".", help="AgentPass repository root.")
+    openclaw_doctor_parser.add_argument("--root", default=".", help="AgentAction repository root.")
     openclaw_doctor_parser.add_argument("--build", action="store_true", help="Run `npm run build` for packages/openclaw if needed.")
     openclaw_doctor_parser.add_argument("--node", default="node", help="Node.js executable.")
     openclaw_doctor_parser.add_argument("--npm", default="npm", help="npm executable.")
     openclaw_doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
 
-    audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentPass manifest.")
+    audit_parser = subparsers.add_parser("audit", help="Audit a tool-call log against an AgentAction manifest.")
     audit_parser.add_argument("audit_log")
     audit_parser.add_argument("--manifest", required=True)
 
-    skill_parser = subparsers.add_parser("skill", help="Work with skill-local AgentPass guardrail contracts.")
+    skill_parser = subparsers.add_parser("skill", help="Work with skill-local AgentAction guardrail contracts.")
     skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
-    skill_validate_parser = skill_subparsers.add_parser("validate", help="Validate a skill AgentPass guardrail contract.")
+    skill_validate_parser = skill_subparsers.add_parser("validate", help="Validate a skill AgentAction guardrail contract.")
     skill_validate_parser.add_argument("skill", help="Skill directory, SKILL.md, or agentid skill contract YAML.")
 
     mcp_parser = subparsers.add_parser("mcp", help="Analyze MCP tool surfaces.")
@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     mcp_check_parser.add_argument("--fail-on-drift", action="store_true")
     mcp_check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     mcp_ui_parser = mcp_subparsers.add_parser("ui", help="Write the browser-based MCP analyzer UI.")
-    mcp_ui_parser.add_argument("--output", default="agentpass-mcp-analyzer.html")
+    mcp_ui_parser.add_argument("--output", default="agentaction-mcp-analyzer.html")
     mcp_fetch_parser = mcp_subparsers.add_parser("fetch", help="Fetch tools/list from an HTTP MCP server.")
     mcp_fetch_parser.add_argument("url")
     mcp_fetch_parser.add_argument("--output", default="-", help="Output path, or '-' for stdout.")
@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     provider_diff_parser.add_argument("before")
     provider_diff_parser.add_argument("after")
     provider_diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    provider_import_parser = provider_subparsers.add_parser("import", help="Generate a reviewable AgentPass manifest from a provider contract.")
+    provider_import_parser = provider_subparsers.add_parser("import", help="Generate a reviewable AgentAction manifest from a provider contract.")
     provider_import_parser.add_argument("contract")
     provider_import_parser.add_argument("--agent", required=True, help="Agent ID for the generated manifest.")
     provider_import_parser.add_argument("--name", help="Agent display name for the generated manifest.")
@@ -335,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 with open(args.output, "w", encoding="utf-8") as handle:
                     handle.write(output)
-                print(f"Wrote AgentPass manifest: {args.output}")
+                print(f"Wrote AgentAction manifest: {args.output}")
             return 0
         if args.provider_command == "from-openapi":
             try:
@@ -429,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.skill_command == "validate":
             result = validate_skill_contract(contract)
             if result.ok:
-                print("Skill AgentPass guardrail contract is valid.")
+                print("Skill AgentAction guardrail contract is valid.")
             _print_validation(result, include_success=False)
             return 0 if result.ok else 1
 

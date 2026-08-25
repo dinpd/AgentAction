@@ -1,6 +1,6 @@
 # Decision-Basis Evidence
 
-AgentPass decision-basis records explain the declared inputs and normalized
+AgentAction decision-basis records explain the declared inputs and normalized
 factors behind a consequential proposal, authorization decision, approval, or
 assessment. They do not capture hidden model state or raw chain-of-thought.
 

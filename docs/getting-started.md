@@ -1,12 +1,12 @@
-# Getting Started with AgentPass
+# Getting Started with AgentAction
 
-This walkthrough shows how to use AgentPass as an authorization contract for AI
+This walkthrough shows how to use AgentAction as an authorization contract for AI
 agent tool calls across app runtimes, internal systems, SaaS APIs, and MCP
 gateways.
 
 ## Before You Start
 
-AgentPass works best when the provider publishes tool authorization requirements
+AgentAction works best when the provider publishes tool authorization requirements
 and the enterprise overlays local policy. The provider knows what each tool can
 do; the enterprise knows which agents, users, jobs, customers, and approval
 workflows are allowed.
@@ -18,8 +18,8 @@ For runtime integration patterns, see
 ## 1. Install
 
 ```bash
-git clone https://github.com/dinpd/AgentPass.git
-cd AgentPass
+git clone https://github.com/dinpd/AgentAction.git
+cd AgentAction
 python -m pip install -e ".[dev]"
 ```
 
@@ -28,9 +28,9 @@ python -m pip install -e ".[dev]"
 Start with the included provider MCP support manifest:
 
 ```bash
-agentpass validate examples/provider-mcp-support-agent.yaml
-agentpass explain examples/provider-mcp-support-agent.yaml
-agentpass risk-score examples/provider-mcp-support-agent.yaml
+agentaction validate examples/provider-mcp-support-agent.yaml
+agentaction explain examples/provider-mcp-support-agent.yaml
+agentaction risk-score examples/provider-mcp-support-agent.yaml
 ```
 
 The manifest declares:
@@ -44,16 +44,16 @@ The manifest declares:
 
 ## 3. Use JSON Schema in Your Editor
 
-AgentPass ships a JSON Schema:
+AgentAction ships a JSON Schema:
 
 ```bash
-agentpass schema > schema/agentid.schema.json
+agentaction schema > schema/agentid.schema.json
 ```
 
 Add this to your manifest for editor validation:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/agentid.schema.json
 ```
 
 ## 4. Generate Starter Policy
@@ -61,7 +61,7 @@ $schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.s
 Generate starter OPA/Rego policy from a manifest:
 
 ```bash
-agentpass generate-policy examples/provider-mcp-support-agent.yaml --target opa
+agentaction generate-policy examples/provider-mcp-support-agent.yaml --target opa
 ```
 
 The manifest remains the portable source of truth. OPA is one target runtime
@@ -72,7 +72,7 @@ format for teams that already use Open Policy Agent.
 Generate the browser-based policy builder:
 
 ```bash
-agentpass config-ui --output agentpass-policy-builder.html
+agentaction config-ui --output agentaction-policy-builder.html
 ```
 
 Or use the hosted version:
@@ -85,7 +85,7 @@ requests.
 ## 6. Run the Gateway Locally
 
 ```bash
-agentpass gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
+agentaction gateway examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787
 ```
 
 Then authorize a tool call:
@@ -111,10 +111,10 @@ with OIDC/JWKS validation.
 
 ## 7. Add PR Checks
 
-Use the AgentPass GitHub Action in your own repo:
+Use the AgentAction GitHub Action in your own repo:
 
 ```yaml
-name: AgentPass Check
+name: AgentAction Check
 
 on: [pull_request]
 
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dinpd/AgentPass@main
+      - uses: dinpd/AgentAction@main
         with:
           manifests: "agents/*.yaml"
           max-risk: "75"
@@ -137,14 +137,14 @@ fails if risk exceeds the threshold.
 Use the helper in `sdk/typescript`:
 
 ```ts
-import { AgentPassClient } from "@agentpass/client";
+import { AgentActionClient } from "@agentaction/client";
 
-const agentpass = new AgentPassClient({
-  baseUrl: "https://agentpass-gateway.example.com",
+const agentaction = new AgentActionClient({
+  baseUrl: "https://agentaction-gateway.example.com",
   token: async () => getAccessTokenFromYourIdP(),
 });
 
-await agentpass.assertAllowed("tenant-a", {
+await agentaction.assertAllowed("tenant-a", {
   agent_id: "enterprise-support-agent",
   job_id: "support_case_resolution",
   case_id: "case-1042",
@@ -160,7 +160,7 @@ await agentpass.assertAllowed("tenant-a", {
 For sensitive actions, request a JIT grant before executing the tool:
 
 ```ts
-const grant = await agentpass.requestJitGrant("tenant-a", {
+const grant = await agentaction.requestJitGrant("tenant-a", {
   tool: "provider.crm.update_customer",
   action: "write",
   resource: "provider/customer/cus_123",
@@ -171,7 +171,7 @@ const grant = await agentpass.requestJitGrant("tenant-a", {
   user_id: "support-rep-17",
 });
 
-await agentpass.assertAllowed("tenant-a", {
+await agentaction.assertAllowed("tenant-a", {
   agent_id: "enterprise-support-agent",
   tool: "provider.crm.update_customer",
   action: "write",
@@ -204,7 +204,7 @@ See [`cloudflare/README.md`](../cloudflare/README.md) for details.
 
 ## 10. Try the Hosted Gateway Demo
 
-The hosted demo shows a SaaS support app and MCP gateway consulting AgentPass
+The hosted demo shows a SaaS support app and MCP gateway consulting AgentAction
 before tool execution:
 
 https://agentid-refund-demo.drisw.workers.dev

@@ -1,6 +1,6 @@
 # Support
 
-AgentPass support happens in public project spaces unless the topic involves a
+AgentAction support happens in public project spaces unless the topic involves a
 security vulnerability or private data.
 
 ## Where to Ask

@@ -85,7 +85,7 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /aria-label="Console sections"/);
   assert.match(body, /data-overview-filters/);
   assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
-  assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentPass"/);
+  assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentAction"/);
   assert.match(body, />GitHub repository <span aria-hidden="true">↗<\/span><\/a>/);
   assert.match(body, /<h2 id="overview-title">Execution quality<\/h2>/);
   assert.match(body, /aria-label="Fleet quality boundaries"/);
@@ -96,7 +96,7 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /<summary>[\s\S]*Show 9-stage flow[\s\S]*Hide 9-stage flow[\s\S]*<\/summary>/);
   assert.match(body, /<details class="lifecycle-disclosure">[\s\S]*<ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">/);
   assert.match(body, /aria-label="Synthetic execution lifecycle"/);
-  assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentPass Gateway[\s\S]*Issue intent contract/);
+  assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentAction Gateway[\s\S]*Issue intent contract/);
   assert.match(body, /Authorize calls \/ approvals[\s\S]*Execution receipts \+ signed observations[\s\S]*Finalize immutable receipt/);
   assert.match(body, /Profile-scoped rollups[\s\S]*Observability Console/);
   assert.match(body, /Finalized intent executions/);
@@ -237,7 +237,7 @@ test("reconstructs an allowlisted gateway request and strips browser-controlled 
   assert.equal(call.headers.get("x-agentid-tenant-id"), null);
   assert.equal(call.headers.get("x-forwarded-host"), null);
   assert.equal(call.headers.get("cf-access-jwt-assertion"), null);
-  assert.equal(call.headers.get("user-agent"), "agentpass-observability-console/0.1");
+  assert.equal(call.headers.get("user-agent"), "agentaction-observability-console/0.1");
 });
 
 test("forwards only allowlisted finalized Jobs explorer filters", async () => {
@@ -380,7 +380,7 @@ test("reports a gateway failure without exposing upstream details", async () => 
   const text = await response.text();
 
   assert.equal(response.status, 503);
-  assert.match(text, /AgentPass gateway is unavailable/);
+  assert.match(text, /AgentAction gateway is unavailable/);
   assert.doesNotMatch(text, /internal gateway secret detail/);
   assert.equal(calls.length, 1);
 });

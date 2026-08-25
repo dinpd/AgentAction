@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Brand } from "../brand";
 
-const github = "https://github.com/dinpd/AgentPass";
+const github = "https://github.com/dinpd/AgentAction";
 const designPartner = `${github}/issues/new?template=feature_request.yml&title=%5BGateway%20pilot%5D%20`;
 
 export const metadata: Metadata = {

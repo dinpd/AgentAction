@@ -4,7 +4,7 @@ This use case models an OpenClaw agent reviewing a pull request:
 
 1. Fetch the PR diff.
 2. Analyze the code and draft feedback.
-3. Require AgentPass approval and JIT before submitting the review through the
+3. Require AgentAction approval and JIT before submitting the review through the
    browser.
 
 The policy goal is to let agents inspect public or internal pull request
@@ -13,17 +13,17 @@ or change requests without scoped human approval.
 
 ## Policy Boundary
 
-The AgentPass manifest allows read-only PR inspection:
+The AgentAction manifest allows read-only PR inspection:
 
 ```text
-web_fetch https://github.com/dinpd/AgentPass/pull/123.diff -> allow
+web_fetch https://github.com/dinpd/AgentAction/pull/123.diff -> allow
 ```
 
 The same manifest requires approval and JIT before OpenClaw can submit a review
 through a browser form:
 
 ```text
-browser submit https://github.com/dinpd/AgentPass/pull/123 -> deny without jit_grant_id
+browser submit https://github.com/dinpd/AgentAction/pull/123 -> deny without jit_grant_id
 ```
 
 ## Test Surface
@@ -34,15 +34,15 @@ The test uses OpenClaw-style tool events:
 - `fixtures/openclaw-submit-pr-review-event.json`
 
 `pr-reviewer-use-case.mjs` maps those events through the actual
-`packages/openclaw` mapper and remote runtime, then calls AgentPass
+`packages/openclaw` mapper and remote runtime, then calls AgentAction
 `/authorize`.
 
 ## Run
 
-Terminal 1: start AgentPass.
+Terminal 1: start AgentAction.
 
 ```bash
-agentpass gateway solutions/openclaw-agentpass/agentpass-openclaw-manifest.yaml \
+agentaction gateway solutions/openclaw-agentaction/agentaction-openclaw-manifest.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token
@@ -54,7 +54,7 @@ Terminal 2: build the OpenClaw adapter and run the use case.
 cd packages/openclaw
 npm run build
 cd ../..
-node solutions/openclaw-agentpass/pr-reviewer-use-case.mjs
+node solutions/openclaw-agentaction/pr-reviewer-use-case.mjs
 ```
 
 Expected result:
@@ -66,13 +66,13 @@ Expected result:
   "fetchDiff": {
     "tool": "web_fetch",
     "action": "read",
-    "resource": "https://github.com/dinpd/AgentPass/pull/123.diff",
+    "resource": "https://github.com/dinpd/AgentAction/pull/123.diff",
     "decision": "allow"
   },
   "submitReview": {
     "tool": "browser",
     "action": "write",
-    "resource": "https://github.com/dinpd/AgentPass/pull/123",
+    "resource": "https://github.com/dinpd/AgentAction/pull/123",
     "decision": "deny"
   }
 }
@@ -82,6 +82,6 @@ Expected result:
 
 - OpenClaw can gather PR context without approval friction.
 - Publishing a PR review is treated as a state-changing browser action.
-- AgentPass blocks the publication step until approval/JIT exists.
+- AgentAction blocks the publication step until approval/JIT exists.
 - The same remote gateway path works for web and browser tools, not only local
   filesystem tools.
