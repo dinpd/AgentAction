@@ -4,7 +4,7 @@
 
 **Maturity:** Experimental; not an adopted standard
 
-**Discussion:** [AgentPass issue #58](https://github.com/dinpd/AgentPass/issues/58)
+**Discussion:** [AgentAction issue #58](https://github.com/dinpd/AgentAction/issues/58)
 
 **Companion proposal:** [Agent Action Boundary Evidence](agent-action-boundary-evidence-v0.1.md)
 
@@ -853,11 +853,11 @@ For each case, fixtures SHOULD include the input evidence references,
 measurement profile, evaluator version, expected dimension states, population
 disposition, and expected aggregate contribution.
 
-## Non-normative AgentPass mapping
+## Non-normative AgentAction mapping
 
-AgentPass is one reference implementation; it is not the normative schema.
+AgentAction is one reference implementation; it is not the normative schema.
 
-| Draft concept | AgentPass artifact |
+| Draft concept | AgentAction artifact |
 | --- | --- |
 | Measurement profile | Versioned intent profile plus rollup selection rules |
 | Measurement subject | Intent-bound job or action |

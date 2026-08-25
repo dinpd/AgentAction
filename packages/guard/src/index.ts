@@ -210,7 +210,7 @@ export type GuardDecisionEvent = {
   approvalEvidence: ApprovalEvidence;
 };
 
-export type AgentPassGuardOptions = {
+export type AgentActionGuardOptions = {
   policy: GuardPolicy;
   now?: () => Date;
   idGenerator?: () => string;
@@ -266,7 +266,7 @@ export type GuardedToolExecutionResult<TResult> =
       receipt?: never;
     };
 
-export type AgentPassToolGateOptions = AgentPassGuardOptions | { guard: AgentPassGuard };
+export type AgentActionToolGateOptions = AgentActionGuardOptions | { guard: AgentActionGuard };
 
 export type McpToolCall = {
   name: string;
@@ -315,7 +315,7 @@ export type McpToolCallAdapterOptions = {
   defaultAction?: AgentAction;
 };
 
-export type AgentPassMcpToolGateOptions = AgentPassToolGateOptions & McpToolCallAdapterOptions;
+export type AgentActionMcpToolGateOptions = AgentActionToolGateOptions & McpToolCallAdapterOptions;
 
 export type McpToolExecutionContext = ToolExecutionContext & {
   call: McpToolCall;
@@ -353,14 +353,14 @@ const DEFAULT_SENSITIVE_DESTINATIONS = [
   "browser_form",
 ];
 
-export class AgentPassGuard {
+export class AgentActionGuard {
   private policy: GuardPolicy;
   private now: () => Date;
   private idGenerator: () => string;
   private usedIdempotencyKeys = new Set<string>();
   private usageByJob = new Map<string, JobUsage>();
 
-  constructor(options: AgentPassGuardOptions) {
+  constructor(options: AgentActionGuardOptions) {
     this.policy = options.policy;
     this.now = options.now || (() => new Date());
     this.idGenerator = options.idGenerator || randomDecisionId;
@@ -688,18 +688,18 @@ function decisionEvent(
   };
 }
 
-export function createGuard(options: AgentPassGuardOptions): AgentPassGuard {
-  return new AgentPassGuard(options);
+export function createGuard(options: AgentActionGuardOptions): AgentActionGuard {
+  return new AgentActionGuard(options);
 }
 
-export class AgentPassToolGate {
-  readonly guard: AgentPassGuard;
+export class AgentActionToolGate {
+  readonly guard: AgentActionGuard;
   private idempotencyResults = new Map<string, IdempotencyResultRecord<unknown>>();
   private now: () => Date;
   private idGenerator: () => string;
 
-  constructor(options: AgentPassToolGateOptions) {
-    this.guard = "guard" in options ? options.guard : new AgentPassGuard(options);
+  constructor(options: AgentActionToolGateOptions) {
+    this.guard = "guard" in options ? options.guard : new AgentActionGuard(options);
     this.now = "guard" in options ? () => new Date() : options.now || (() => new Date());
     this.idGenerator = "guard" in options ? randomDecisionId : options.idGenerator || randomDecisionId;
   }
@@ -791,17 +791,17 @@ type IdempotencyResultRecord<TResult> = {
   replayCount: number;
 };
 
-export function createToolGate(options: AgentPassToolGateOptions): AgentPassToolGate {
-  return new AgentPassToolGate(options);
+export function createToolGate(options: AgentActionToolGateOptions): AgentActionToolGate {
+  return new AgentActionToolGate(options);
 }
 
-export class AgentPassMcpToolGate {
-  readonly gate: AgentPassToolGate;
+export class AgentActionMcpToolGate {
+  readonly gate: AgentActionToolGate;
   private mappings: Record<string, McpToolMapping>;
   private defaultAction: AgentAction;
 
-  constructor(options: AgentPassMcpToolGateOptions) {
-    this.gate = "guard" in options ? new AgentPassToolGate({ guard: options.guard }) : new AgentPassToolGate(options);
+  constructor(options: AgentActionMcpToolGateOptions) {
+    this.gate = "guard" in options ? new AgentActionToolGate({ guard: options.guard }) : new AgentActionToolGate(options);
     this.mappings = options.mappings || {};
     this.defaultAction = options.defaultAction || "read";
   }
@@ -839,8 +839,8 @@ export class AgentPassMcpToolGate {
   }
 }
 
-export function createMcpToolGate(options: AgentPassMcpToolGateOptions): AgentPassMcpToolGate {
-  return new AgentPassMcpToolGate(options);
+export function createMcpToolGate(options: AgentActionMcpToolGateOptions): AgentActionMcpToolGate {
+  return new AgentActionMcpToolGate(options);
 }
 
 export function mcpToolCallToGuardCheck(
@@ -1137,3 +1137,13 @@ function stableValue(value: unknown): unknown {
   }
   return output;
 }
+
+// Backward-compatible names retained for existing AgentPass integrations.
+export type AgentPassGuardOptions = AgentActionGuardOptions;
+export type AgentPassToolGateOptions = AgentActionToolGateOptions;
+export type AgentPassMcpToolGateOptions = AgentActionMcpToolGateOptions;
+export {
+  AgentActionGuard as AgentPassGuard,
+  AgentActionMcpToolGate as AgentPassMcpToolGate,
+  AgentActionToolGate as AgentPassToolGate,
+};

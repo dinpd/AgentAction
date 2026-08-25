@@ -1,15 +1,15 @@
-# @agentpass/provider-express
+# @agentaction/provider-express
 
-Express-compatible middleware for provider-side AgentPass receipt verification.
+Express-compatible middleware for provider-side AgentAction receipt verification.
 
 Use this when an MCP provider wants to verify that a forwarded `tools/call`
-contains a scoped AgentPass authorization receipt before executing a guarded
+contains a scoped AgentAction authorization receipt before executing a guarded
 high-risk tool. It is the provider-side verification companion to the runtime
 action gate; it complements provider business authorization, not replace it.
 
 ## Install
 
-This package is currently part of the AgentPass repository and is marked private
+This package is currently part of the AgentAction repository and is marked private
 while the provider receipt contract settles.
 
 ```bash
@@ -27,15 +27,15 @@ import {
   MemoryReceiptLedger,
   MemoryReplayStore,
   MemoryRevocationStore,
-  createAgentPassReceiptMiddleware,
-} from "@agentpass/provider-express";
+  createAgentActionReceiptMiddleware,
+} from "@agentaction/provider-express";
 
 const app = express();
 app.use(express.json());
 
 app.post(
   "/mcp",
-createAgentPassReceiptMiddleware({
+createAgentActionReceiptMiddleware({
     jwksUri: "https://enterprise.example.com/.well-known/jwks.json",
     issuer: "https://enterprise.example.com",
     audience: "provider-crm-mcp",
@@ -76,15 +76,16 @@ createAgentPassReceiptMiddleware({
     },
   }),
   async (req, res) => {
-    // req.agentpassReceipt is available after successful verification.
+    // req.agentactionReceipt is available after successful verification.
     // Provider business authorization should still run here.
     res.json({ ok: true });
   },
 );
 ```
 
-The legacy `createAgentIdReceiptMiddleware` export and `req.agentidReceipt`
-property remain available as compatibility aliases.
+The legacy `createAgentPassReceiptMiddleware` and
+`createAgentIdReceiptMiddleware` exports, plus the `req.agentpassReceipt` and
+`req.agentidReceipt` properties, remain available as compatibility aliases.
 
 ## What It Checks
 

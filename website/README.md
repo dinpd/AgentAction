@@ -1,13 +1,13 @@
 # AgentAction website
 
-The public technical website for AgentAction, the project brand succeeding
-AgentPass. The site explains the trust lifecycle from intent and decision
+The public technical website for AgentAction. The site explains the trust lifecycle
+from intent and decision
 assurance through action authorization, execution evidence, and continuous
 evaluation, together with the current implementation, roadmap, and open-source
 participation paths.
 
 Existing package names, schemas, CLI commands, and repository links continue to
-use AgentPass-compatible identifiers during the migration.
+retain legacy identifiers where compatibility requires them.
 
 ## Local development
 

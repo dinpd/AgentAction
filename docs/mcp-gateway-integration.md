@@ -1,19 +1,19 @@
 # MCP Gateway Integration
 
-AgentPass is a natural fit for enterprise-controlled MCP gateways. The gateway
+AgentAction is a natural fit for enterprise-controlled MCP gateways. The gateway
 already sits between an agent and tools, so it is the right place to ask whether
 a tool call should proceed.
 
 ```text
-Enterprise Agent -> Enterprise MCP Gateway -> AgentPass Check -> Internal or Provider MCP Server
+Enterprise Agent -> Enterprise MCP Gateway -> AgentAction Check -> Internal or Provider MCP Server
 ```
 
-AgentPass is not required to be the network gateway or MCP proxy. In this
-topology, the enterprise MCP gateway or app runtime calls AgentPass as an
+AgentAction is not required to be the network gateway or MCP proxy. In this
+topology, the enterprise MCP gateway or app runtime calls AgentAction as an
 authorization decision service before forwarding tool calls, or embeds the
 local guard when the gateway and policy state live in the same runtime.
 
-The enterprise owns the gateway and the AgentPass manifest. The downstream MCP
+The enterprise owns the gateway and the AgentAction manifest. The downstream MCP
 server may be an internal enterprise server or a provider-hosted server.
 
 ## Why This Matters
@@ -29,7 +29,7 @@ control point for:
 - Which tool changes count as unreviewed drift.
 - Which audit events the enterprise keeps independently of the provider.
 
-AgentPass supplies the reviewable authority contract and runtime check for that
+AgentAction supplies the reviewable authority contract and runtime check for that
 control point.
 
 ## Request Flow
@@ -38,21 +38,21 @@ control point.
 sequenceDiagram
     participant Agent as Enterprise Agent
     participant MCP as Enterprise MCP Gateway
-    participant AgentPass as AgentPass Authorization Service
+    participant AgentAction as AgentAction Authorization Service
     participant Server as MCP Server
     participant Tool as Tool
 
     Agent->>MCP: MCP tools/call
-    MCP->>MCP: Map tool name and arguments to AgentPass event
-    MCP->>AgentPass: POST /authorize
-    AgentPass-->>MCP: allow/deny + findings
+    MCP->>MCP: Map tool name and arguments to AgentAction event
+    MCP->>AgentAction: POST /authorize
+    AgentAction-->>MCP: allow/deny + findings
     alt allowed
         MCP->>Server: Forward MCP tools/call
         Server->>Tool: Execute tool
         Server-->>MCP: Tool result
         MCP-->>Agent: Tool result
     else denied
-        MCP-->>Agent: MCP tool error with AgentPass findings
+        MCP-->>Agent: MCP tool error with AgentAction findings
     end
 ```
 
@@ -60,19 +60,19 @@ For sensitive calls, the gateway should request or require a JIT grant before
 forwarding the MCP call:
 
 ```text
-MCP Gateway -> AgentPass /jit-grants -> AgentPass /authorize with jit_grant_id -> MCP Server
+MCP Gateway -> AgentAction /jit-grants -> AgentAction /authorize with jit_grant_id -> MCP Server
 ```
 
 The important constraint is that enforcement happens at call time, immediately
-before the downstream `tools/call` is forwarded. AgentPass should not be framed
+before the downstream `tools/call` is forwarded. AgentAction should not be framed
 as a generic MCP client-side authorization preflight. It is a runtime admission
 gate that can run inside a gateway, app runtime, provider boundary, or external
 policy decision service.
 
-## Mapping MCP Calls to AgentPass
+## Mapping MCP Calls to AgentAction
 
 An MCP `tools/call` request has a tool name and arguments. The gateway maps
-those into an AgentPass authorization event:
+those into an AgentAction authorization event:
 
 ```json
 {
@@ -100,9 +100,9 @@ The gateway can derive these fields from:
 - A per-tool mapping config.
 
 When the client reached the MCP server through enterprise-managed authorization,
-the gateway should also pass the enterprise auth context into AgentPass. That
+the gateway should also pass the enterprise auth context into AgentAction. That
 context can include the IdP issuer, subject, client ID, scopes, groups, token
-audience, and ID-JAG grant identifier. AgentPass can then enforce global or
+audience, and ID-JAG grant identifier. AgentAction can then enforce global or
 per-tool requirements such as `requiredScopes`, `requiredGroups`,
 `allowedGroups`, `allowedClients`, and `allowedIssuers` before forwarding the
 `tools/call`.
@@ -164,7 +164,7 @@ The reference MCP gateway adapter can derive this context from a bearer JWT when
 
 When configured, `tools/call` requests must include an `Authorization: Bearer
 <token>` header. The adapter verifies the signature, issuer, audience, expiry,
-required scopes, and required groups before calling AgentPass or forwarding the
+required scopes, and required groups before calling AgentAction or forwarding the
 request. Remote JWKS responses are cached by URI, stale keys can be used during
 short IdP outages, and a missing `kid` forces a refresh to support key rotation.
 
@@ -200,7 +200,7 @@ reference MCP gateway adapter should support.
 
 ## Manifest Pattern
 
-The corresponding AgentPass manifest should declare downstream MCP tools explicitly:
+The corresponding AgentAction manifest should declare downstream MCP tools explicitly:
 
 ```yaml
 tools:
@@ -232,7 +232,7 @@ for a complete example.
 
 ## Boundary of Responsibility
 
-AgentPass controls the enterprise-side authorization decision before the gateway
+AgentAction controls the enterprise-side authorization decision before the gateway
 forwards the call:
 
 - Agent identity.
@@ -251,7 +251,7 @@ The downstream MCP server still controls its own behavior:
 - Tool implementation.
 - Server audit and retention.
 
-Use both. AgentPass prevents unapproved outbound calls from the enterprise gateway
+Use both. AgentAction prevents unapproved outbound calls from the enterprise gateway
 or app runtime; internal systems and providers still enforce their own platform
 rules.
 
@@ -275,8 +275,8 @@ The repository includes a minimal reference adapter in
 
 - Proxies `tools/list` from a downstream MCP server.
 - Intercepts `tools/call`.
-- Maps tool name and arguments to an AgentPass authorization event.
-- Calls AgentPass `/authorize` or runs the local guard in-process.
+- Maps tool name and arguments to an AgentAction authorization event.
+- Calls AgentAction `/authorize` or runs the local guard in-process.
 - Returns an MCP tool error on deny.
 - Forwards the call to the downstream MCP server on allow.
 - Preserves process-local job state in local guard mode to demonstrate

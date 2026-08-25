@@ -267,7 +267,7 @@ evidence. Pricing remains an open decision.
 Open decisions are the initial data plane strategy, evaluation thresholds,
 whether exact caching belongs in launch scope, required credential patterns,
 customer-controlled data boundaries, pilot service commitments, pricing, and
-the durable boundary between open-source AgentPass assets and the commercial
+the durable boundary between open-source AgentAction assets and the commercial
 AgentAction Gateway.
 
 ## Release Gates

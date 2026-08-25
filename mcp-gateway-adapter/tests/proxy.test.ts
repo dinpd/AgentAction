@@ -30,7 +30,7 @@ test("filters tools/list to configured tools", async () => {
   });
 });
 
-test("denies tools/call when AgentPass denies", async () => {
+test("denies tools/call when AgentAction denies", async () => {
   const calls: string[] = [];
   const logs: AuthorizationDecisionLog[] = [];
   const response = await handleJsonRpc(
@@ -76,7 +76,7 @@ test("denies tools/call when AgentPass denies", async () => {
     id: 2,
     error: {
       code: -32003,
-      message: "AgentPass denied MCP tool call",
+      message: "AgentAction denied MCP tool call",
       data: {
         findings: ["blocked"],
         event: { tool: "provider.crm.search_customer" },
@@ -85,7 +85,7 @@ test("denies tools/call when AgentPass denies", async () => {
   });
 });
 
-test("forwards tools/call when AgentPass allows", async () => {
+test("forwards tools/call when AgentAction allows", async () => {
   const calls: string[] = [];
   const logs: AuthorizationDecisionLog[] = [];
   let forwardedRequest: any;
@@ -386,7 +386,7 @@ test("denies tools/call before forwarding when enterprise JWT is expired", async
     id: 14,
     error: {
       code: -32003,
-      message: "AgentPass denied enterprise auth",
+      message: "AgentAction denied enterprise auth",
       data: {
         findings: ["enterprise JWT is expired"],
       },

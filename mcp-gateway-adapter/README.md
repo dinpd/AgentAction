@@ -1,10 +1,10 @@
-# AgentPass MCP Gateway Adapter
+# AgentAction MCP Gateway Adapter
 
-This is a reference MCP gateway adapter for enforcing AgentPass checks before MCP
+This is a reference MCP gateway adapter for enforcing AgentAction checks before MCP
 tool calls.
 
 ```text
-MCP client -> AgentPass MCP gateway adapter -> AgentPass check -> downstream MCP server
+MCP client -> AgentAction MCP gateway adapter -> AgentAction check -> downstream MCP server
 ```
 
 The adapter is intentionally small. It demonstrates the enforcement pattern
@@ -16,10 +16,10 @@ without trying to be a production MCP gateway.
 - Proxies non-tool MCP methods to a downstream MCP server.
 - Filters `tools/list` to tools configured in the adapter.
 - Intercepts `tools/call`.
-- Maps MCP tool name and arguments to an AgentPass authorization event.
-- Calls AgentPass `/authorize` or runs the local guard in-process.
-- Logs each AgentPass authorization decision as a structured JSON line.
-- Returns a JSON-RPC error when AgentPass denies the call.
+- Maps MCP tool name and arguments to an AgentAction authorization event.
+- Calls AgentAction `/authorize` or runs the local guard in-process.
+- Logs each AgentAction authorization decision as a structured JSON line.
+- Returns a JSON-RPC error when AgentAction denies the call.
 - Forwards allowed calls to the downstream MCP server.
 - Preserves state across calls in local guard mode for duplicate side effects,
   job budgets, tool thrashing, and PII/data-flow enforcement.
@@ -43,7 +43,7 @@ npm run demo:local-guard
 
 This runs the gateway logic in process and demonstrates `tools/list` filtering,
 safe forwarding, duplicate-side-effect denial, same-tool loop denial, and PII
-egress denial without starting the hosted AgentPass service.
+egress denial without starting the hosted AgentAction service.
 
 Run the self-contained enterprise auth and provider receipt demo:
 
@@ -55,10 +55,10 @@ This generates a sample enterprise JWT and JWKS, has the gateway validate the
 JWT before authorization, attaches a signed provider receipt, and verifies the
 enterprise-bound receipt in a mock provider before execution.
 
-Start the AgentPass authorization service:
+Start the AgentAction authorization service:
 
 ```bash
-agentpass gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
+agentaction gateway ../examples/provider-mcp-support-agent.yaml --host 127.0.0.1 --port 8787 --api-key dev-token
 ```
 
 Start the adapter:
@@ -73,7 +73,7 @@ requests to `http://127.0.0.1:8790/mcp`.
 For a complete local demo with a mock provider MCP server and sample JSON-RPC
 requests, see [`../docs/mcp-gateway-demo.md`](../docs/mcp-gateway-demo.md).
 
-To try the MCP boundary without running the hosted AgentPass authorization
+To try the MCP boundary without running the hosted AgentAction authorization
 service, use local guard mode. Start these in separate terminals:
 
 ```bash
@@ -108,7 +108,7 @@ See [`examples/config.json`](examples/config.json).
 For a self-contained stateful guard demo, see
 [`examples/local-guard-config.json`](examples/local-guard-config.json).
 
-Each tool mapping tells the adapter how to build an AgentPass authorize payload:
+Each tool mapping tells the adapter how to build an AgentAction authorize payload:
 
 ```json
 {
@@ -165,7 +165,7 @@ This adapter is not a full production MCP gateway. It does not yet implement:
 Local guard mode is intentionally process-local. It is useful for demos,
 single-process runtimes, and reference tests. Production gateways should back
 job state, idempotency records, approval grants, and audit events with durable
-storage or call a hosted AgentPass authorization service.
+storage or call a hosted AgentAction authorization service.
 
 Those are the next pieces to add around this reference enforcement path.
 

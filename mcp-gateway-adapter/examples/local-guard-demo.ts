@@ -49,7 +49,7 @@ await run("PII egress is denied before downstream", piiEmail(), async (response)
 console.log("");
 console.log(`Downstream tools/call forwarded: ${downstreamToolCalls}`);
 console.log(`Provider credits issued: ${providerCreditsIssued}`);
-console.log(`AgentPass decision logs: ${logs.length}`);
+console.log(`AgentAction decision logs: ${logs.length}`);
 
 async function run(
   label: string,

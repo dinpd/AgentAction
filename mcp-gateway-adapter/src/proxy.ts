@@ -61,7 +61,7 @@ async function handleSingle(
 
   const enterpriseAuth = await resolveEnterpriseAuth(config, context, fetchImpl);
   if (!enterpriseAuth.ok) {
-    return errorResponse(request.id, DENIED, "AgentPass denied enterprise auth", {
+    return errorResponse(request.id, DENIED, "AgentAction denied enterprise auth", {
       findings: enterpriseAuth.findings,
     });
   }
@@ -78,7 +78,7 @@ async function handleSingle(
     : await new AgentIdClient(config.agentid, fetchImpl).authorize(authorizePayload);
   enterpriseAuth.context.logger?.(authorizationLog(authorizePayload, decision));
   if (!decision.allow) {
-    return errorResponse(request.id, DENIED, "AgentPass denied MCP tool call", compactObject({
+    return errorResponse(request.id, DENIED, "AgentAction denied MCP tool call", compactObject({
       findings: decision.findings,
       event: decision.event,
       challenge: decision.challenge,

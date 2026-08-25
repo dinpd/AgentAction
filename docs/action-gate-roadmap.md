@@ -22,7 +22,7 @@ is a small, reliable control point that answers:
 > Should this proposed agent action execute right now, with these arguments, for
 > this user, job, resource, approval state, and data-flow boundary?
 
-AgentPass should meet developers where they are: agent loops, MCP gateways,
+AgentAction should meet developers where they are: agent loops, MCP gateways,
 workflow automations, browser agents, payment tools, CRM tools, email tools,
 internal APIs, and production-change tools.
 
@@ -70,7 +70,7 @@ agent loop. The stronger product story is:
 - Prefer concrete failure modes over abstract governance language.
 - Keep standards alignment available for deeper review, but do not make DID,
   VC, or broad identity messaging the first developer touchpoint.
-- Use AgentAction for the public product and AgentPass for compatibility-named
+- Use AgentAction for the public product and AgentAction for compatibility-named
   packages, commands, schemas, and implementation artifacts.
 
 Recommended project line:
@@ -79,7 +79,7 @@ Recommended project line:
 
 Recommended module line:
 
-> AgentPass Action Authorization is a stateful guard for consequential AI agent
+> AgentAction Action Authorization is a stateful guard for consequential AI agent
 > actions.
 
 ## Action-Gate Capability Stack
@@ -107,12 +107,12 @@ Cloudflare's [Agent Access Model (AAM)](https://blog.cloudflare.com/the-agent-ac
 is a useful external reference architecture for task-scoped agent security. Its
 emphasis on action-level authorization, enforcement outside the model,
 short-lived and bounded authority, monotonic capability reduction after
-protected events, and directly captured evidence aligns with AgentPass's action
+protected events, and directly captured evidence aligns with AgentAction's action
 gate and evidence model.
 
-AgentPass does not claim to implement the complete AAM architecture. Identity
+AgentAction does not claim to implement the complete AAM architecture. Identity
 brokering and sender-constrained task credentials remain inputs or integrations,
-and network enforcement remains an independent enforcement point. AgentPass
+and network enforcement remains an independent enforcement point. AgentAction
 focuses on the task and action boundary: the capability ceiling, exact tool and
 data-flow decision, stateful enforcement, provider-verifiable evidence, and
 execution and outcome assurance.
@@ -138,7 +138,7 @@ downstream MCP server.
 
 As of 2026-08-10, the next enforcement milestone after the active provider
 trust gate is monotonic task capability state and protected-result release. The
-tracking program is [#78](https://github.com/dinpd/AgentPass/issues/78). This
+tracking program is [#78](https://github.com/dinpd/AgentAction/issues/78). This
 work makes the task's capability ceiling explicit, lets declared protected
 events remove incompatible tools and destinations, and fences stale work before
 protected results reach model context.
@@ -163,7 +163,7 @@ more about hardening the production boundary:
 - document stateless versus stateful enforcement boundaries;
 - add more integration guides around the existing packages;
 - align the gateway adapter with emerging MCP interceptor/PDP shapes without
-  requiring AgentPass to become the network gateway.
+  requiring AgentAction to become the network gateway.
 
 ### Enterprise Gateway Product Path
 
@@ -261,18 +261,18 @@ Current issue mapping:
 
 | Priority | Demonstration | Tracking issues |
 | --- | --- | --- |
-| P0 | Hosted approval to single-use execution | [#3 approval evidence](https://github.com/dinpd/AgentPass/issues/3), [#4 decision audit context](https://github.com/dinpd/AgentPass/issues/4) |
-| P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentPass/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentPass/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentPass/issues/12) |
-| P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentPass/issues/10) |
+| P0 | Hosted approval to single-use execution | [#3 approval evidence](https://github.com/dinpd/AgentAction/issues/3), [#4 decision audit context](https://github.com/dinpd/AgentAction/issues/4) |
+| P1 | Double-refund protection with result replay | [#5 idempotency result cache](https://github.com/dinpd/AgentAction/issues/5), [#9 execution correlation](https://github.com/dinpd/AgentAction/issues/9), [#12 duplicate-refund guide](https://github.com/dinpd/AgentAction/issues/12) |
+| P2 | Hosted PII egress gate | Complete; [#10 hosted data-flow parity](https://github.com/dinpd/AgentAction/issues/10) |
 | P3 | Production deploy action gate | Complete |
-| P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift, revocation, ledgered consumption, fixtures, and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentPass/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentPass/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentPass/issues/9) |
-| P5 | Monotonic task capability state and protected-result release | Planned after P4; [#78 program](https://github.com/dinpd/AgentPass/issues/78), [#79 state contract](https://github.com/dinpd/AgentPass/issues/79), [#80 local enforcement](https://github.com/dinpd/AgentPass/issues/80), [#83 hosted transitions](https://github.com/dinpd/AgentPass/issues/83), [#81 network adapter](https://github.com/dinpd/AgentPass/issues/81), [#82 proof and fixtures](https://github.com/dinpd/AgentPass/issues/82) |
-| P6 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentPass/issues/13); select additional wrappers from adopter demand |
-| P7 | Downstream agent attribution | Follow the stable enforcement, provider-trust, and distribution foundations; [#75 attribution and provenance](https://github.com/dinpd/AgentPass/issues/75) |
+| P4 | Provider trust gate | Active; hosted JWS/JWKS receipt slice complete, contract drift, revocation, ledgered consumption, fixtures, and provider failure classes next; [#2 provider trust gate](https://github.com/dinpd/AgentAction/issues/2), [#8 production JWS/JWKS](https://github.com/dinpd/AgentAction/issues/8), [#9 execution receipts](https://github.com/dinpd/AgentAction/issues/9) |
+| P5 | Monotonic task capability state and protected-result release | Planned after P4; [#78 program](https://github.com/dinpd/AgentAction/issues/78), [#79 state contract](https://github.com/dinpd/AgentAction/issues/79), [#80 local enforcement](https://github.com/dinpd/AgentAction/issues/80), [#83 hosted transitions](https://github.com/dinpd/AgentAction/issues/83), [#81 network adapter](https://github.com/dinpd/AgentAction/issues/81), [#82 proof and fixtures](https://github.com/dinpd/AgentAction/issues/82) |
+| P6 | Framework and workflow distribution | [#13 OpenAI Agents SDK wrapper](https://github.com/dinpd/AgentAction/issues/13); select additional wrappers from adopter demand |
+| P7 | Downstream agent attribution | Follow the stable enforcement, provider-trust, and distribution foundations; [#75 attribution and provenance](https://github.com/dinpd/AgentAction/issues/75) |
 
-Issues [#6](https://github.com/dinpd/AgentPass/issues/6),
-[#7](https://github.com/dinpd/AgentPass/issues/7), and
-[#11](https://github.com/dinpd/AgentPass/issues/11) are supporting work. They
+Issues [#6](https://github.com/dinpd/AgentAction/issues/6),
+[#7](https://github.com/dinpd/AgentAction/issues/7), and
+[#11](https://github.com/dinpd/AgentAction/issues/11) are supporting work. They
 should not displace the active demonstrable priority unless they become a
 blocker. Issue #12's guide is part of P1's completion gate, not a standalone
 documentation priority.
@@ -434,9 +434,9 @@ Current status:
 #### P4: Provider Trust Gate
 
 Close the authorization loop at the provider boundary after the first three
-user-visible safety flows are complete. This priority should keep AgentPass
+user-visible safety flows are complete. This priority should keep AgentAction
 focused on the authorization decision, approval evidence, provider contract,
-and verifier semantics, without requiring AgentPass to become the network
+and verifier semantics, without requiring AgentAction to become the network
 gateway or MCP proxy.
 
 Ship together:
@@ -523,7 +523,7 @@ Ship together:
 - Compare-and-set or single-writer hosted state, stale-version denial, and
   cancellation or reauthorization of parallel and persistent work.
 - An adapter contract that lets an external network enforcement point apply and
-  acknowledge the same transition without making AgentPass a network gateway.
+  acknowledge the same transition without making AgentAction a network gateway.
 - Direct transition evidence containing state and reference metadata, never
   protected payloads.
 - Portable local/hosted fixtures and a runnable reconciliation/exfiltration
@@ -547,19 +547,19 @@ Demo gate:
 
 Implementation program:
 
-- [#78](https://github.com/dinpd/AgentPass/issues/78) tracks the milestone.
-- [#79](https://github.com/dinpd/AgentPass/issues/79) defines the task graph,
+- [#78](https://github.com/dinpd/AgentAction/issues/78) tracks the milestone.
+- [#79](https://github.com/dinpd/AgentAction/issues/79) defines the task graph,
   capability ceiling, state machine, policy, and evidence contracts.
-- [#80](https://github.com/dinpd/AgentPass/issues/80) adds protected-result
+- [#80](https://github.com/dinpd/AgentAction/issues/80) adds protected-result
   hold, classify, transition, and release to the local tool gate.
-- [#83](https://github.com/dinpd/AgentPass/issues/83) implements durable hosted
+- [#83](https://github.com/dinpd/AgentAction/issues/83) implements durable hosted
   transitions and stale-work fencing.
-- [#81](https://github.com/dinpd/AgentPass/issues/81) defines the external
+- [#81](https://github.com/dinpd/AgentAction/issues/81) defines the external
   network-enforcement acknowledgement adapter.
-- [#82](https://github.com/dinpd/AgentPass/issues/82) delivers the end-to-end
+- [#82](https://github.com/dinpd/AgentAction/issues/82) delivers the end-to-end
   proof and conformance fixtures.
-- Existing [#56](https://github.com/dinpd/AgentPass/issues/56) supplies
-  tool-result lineage, and [#7](https://github.com/dinpd/AgentPass/issues/7)
+- Existing [#56](https://github.com/dinpd/AgentAction/issues/56) supplies
+  tool-result lineage, and [#7](https://github.com/dinpd/AgentAction/issues/7)
   supplies related structured degradation semantics.
 
 #### P6: Framework And Workflow Distribution
@@ -582,7 +582,7 @@ Demo gate:
 Add destination-aware, human-visible attribution only after the action boundary,
 provider verification, and primary framework integrations are stable. Native
 provider metadata and visible text labels must remain projections of trusted
-AgentPass evidence, never authorization or cryptographic proof by themselves.
+AgentAction evidence, never authorization or cryptographic proof by themselves.
 
 Demo gate:
 
@@ -591,7 +591,7 @@ Demo gate:
 - Spoofed, stripped, altered, unsupported, and replayed attribution outcomes are
   distinguishable without exposing credentials, raw receipts, reusable grants,
   protected payloads, or unnecessary personal data.
-- See [#75](https://github.com/dinpd/AgentPass/issues/75).
+- See [#75](https://github.com/dinpd/AgentAction/issues/75).
 
 Work that does not directly unlock these demonstrations is lower priority:
 
@@ -612,7 +612,7 @@ Completed:
 - The primary execution diagram is in the README:
 
   ```text
-  Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+  Agent proposes tool call -> AgentAction checks policy + state -> allow / deny / challenge
   ```
 
 - Identity/passport language is secondary to the runtime authorization story.
@@ -629,7 +629,7 @@ Original work items now satisfied:
 - Add the core execution diagram:
 
   ```text
-  Agent proposes tool call -> AgentPass checks -> allow / deny / challenge
+  Agent proposes tool call -> AgentAction checks -> allow / deny / challenge
   ```
 
 - Move identity/passport language below the runtime authorization story.
@@ -646,9 +646,9 @@ Original work items now satisfied:
 
 Exit criteria status:
 
-- Done: a new visitor should understand AgentPass as a tool-call guard within
+- Done: a new visitor should understand AgentAction as a tool-call guard within
   30 seconds.
-- Done: the README shows where AgentPass sits in an existing agent loop.
+- Done: the README shows where AgentAction sits in an existing agent loop.
 - Done: the first examples describe action failures, not abstract identity
   gaps.
 
@@ -673,7 +673,7 @@ Completed:
 Target shape:
 
 ```ts
-const decision = await agentpass.guard({
+const decision = await agentaction.guard({
   agentId: "support-agent",
   tool: "stripe.refund",
   action: "pay",
@@ -728,7 +728,7 @@ Developer-entrypoint work status:
 
 Exit criteria status:
 
-- Done: a developer can add AgentPass before a tool call with a small code
+- Done: a developer can add AgentAction before a tool call with a small code
   change.
 - Done: a deny/challenge result is structured enough to render in a UI or
   workflow.
@@ -802,7 +802,7 @@ Remaining work:
   cases.
 
 Agent systems fail when a harmless read is chained into an unsafe write, send,
-export, prompt, or tool call. AgentPass should model and enforce these flows
+export, prompt, or tool call. AgentAction should model and enforce these flows
 directly.
 
 In this roadmap, data exfiltration primarily means PII, PHI, payment data,
@@ -955,11 +955,11 @@ Primary demo:
 
 Flow:
 
-1. Agent reads customer and order data. AgentPass allows the read.
-2. Agent proposes a refund. AgentPass returns `challenge_required`.
-3. Human approves. AgentPass issues a short-lived, single-use grant.
+1. Agent reads customer and order data. AgentAction allows the read.
+2. Agent proposes a refund. AgentAction returns `challenge_required`.
+3. Human approves. AgentAction issues a short-lived, single-use grant.
 4. Refund executes with a signed receipt.
-5. Agent retries after timeout. AgentPass denies replay/idempotency violation.
+5. Agent retries after timeout. AgentAction denies replay/idempotency violation.
 6. Audit log shows the decision chain.
 
 Secondary demos:
@@ -1048,7 +1048,7 @@ Priority integrations still open:
 Exit criteria:
 
 - Each integration has a minimal example and a high-risk example.
-- Tool-call context maps into the same AgentPass decision object.
+- Tool-call context maps into the same AgentAction decision object.
 - Integrations fail closed when required guard context is absent.
 
 ### Phase 7: Recipes, Not Whitepapers
@@ -1083,7 +1083,7 @@ Tone:
 - Broad enterprise governance dashboard.
 - Multi-agent delegation as the primary wedge.
 - A proprietary identity broker or OAuth replacement.
-- A universal network gateway; AgentPass defines an enforcement adapter and
+- A universal network gateway; AgentAction defines an enforcement adapter and
   shared state contract instead.
 - Claiming complete AAM or multiplayer access-control coverage before the
   required identity, mediation, and principal-provenance boundaries exist.
@@ -1092,7 +1092,7 @@ Tone:
 
 ## Naming
 
-AgentPass remains the project and package family name.
+AgentAction remains the project and package family name.
 
 Public positioning should use direct product language that explains the runtime
 role clearly:

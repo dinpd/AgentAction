@@ -7,7 +7,7 @@
     "toolCallId": "tool-submit-pr-review",
     "params": {
       "action": "submit",
-      "url": "https://github.com/dinpd/AgentPass/pull/123",
+      "url": "https://github.com/dinpd/AgentAction/pull/123",
       "comment": "Looks good overall. Please add a regression test for the config path before merge.",
       "data_from": "agent_context",
       "data_to": "browser_form"

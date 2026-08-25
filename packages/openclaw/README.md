@@ -1,16 +1,16 @@
-# AgentPass OpenClaw
+# AgentAction OpenClaw
 
-AgentPass trusted tool policy plugin for OpenClaw tool-call authorization.
+AgentAction trusted tool policy plugin for OpenClaw tool-call authorization.
 
-For a runnable AgentPass gateway deployment shape, see
-[`solutions/openclaw-agentpass`](../../solutions/openclaw-agentpass/).
+For a runnable AgentAction gateway deployment shape, see
+[`solutions/openclaw-agentaction`](../../solutions/openclaw-agentaction/).
 
 The current package is a plugin-level adapter. It is not a replacement for
 OpenClaw's proposed core approval-resolver seam; if OpenClaw adds that seam,
-AgentPass should implement it as the external policy decision provider.
+AgentAction should implement it as the external policy decision provider.
 
 The plugin registers a trusted pre-tool policy named `agentpass`. For each
-OpenClaw tool call it maps the tool event into an AgentPass authorization check
+OpenClaw tool call it maps the tool event into an AgentAction authorization check
 and returns one of OpenClaw's existing policy outcomes:
 
 - allow: return no decision
@@ -31,7 +31,7 @@ cd packages/openclaw
 npm install
 npm run build
 cd ../..
-agentpass openclaw doctor --demo budget
+agentaction openclaw doctor --demo budget
 ```
 
 Expected behavior:
@@ -72,7 +72,7 @@ For the production path, publish this package and install it with one of
 OpenClaw's managed sources:
 
 ```bash
-openclaw plugins install npm:@agentpass/openclaw
+openclaw plugins install npm:@agentaction/openclaw
 ```
 
 OpenClaw installs npm-sourced plugins into its managed per-plugin npm project.
@@ -109,7 +109,7 @@ Remote authorization mode:
         "enabled": true,
         "config": {
           "mode": "remote",
-          "authorizeUrl": "https://agentpass.example.com/authorize",
+          "authorizeUrl": "https://agentaction.example.com/authorize",
           "apiKey": "replace-me",
           "failClosed": true
         }
@@ -126,14 +126,14 @@ uses its built-in OpenClaw starter policy.
 
 The mapper estimates token usage for each OpenClaw tool call from the stable
 JSON size of the tool name, metadata, params, and derived paths. Local mode
-passes that value to AgentPass as `estimatedTokens`, so policy budgets such as
+passes that value to AgentAction as `estimatedTokens`, so policy budgets such as
 `challengeAfterTokensPerJob` and `maxTokensPerJob` can challenge or stop large
 payloads and runaway loops.
 
 This protects tool-call payloads. Heartbeat or prompt-context growth happens
 before tool execution, so it should be gated separately with OpenClaw's
 pre-model hooks such as `before_prompt_build`, `before_agent_run`, and
-`heartbeat_prompt_contribution`. A follow-on AgentPass context gate can map
+`heartbeat_prompt_contribution`. A follow-on AgentAction context gate can map
 that to a pseudo resource such as `openclaw.context` / `heartbeat`.
 
 ## Development

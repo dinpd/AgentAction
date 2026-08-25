@@ -5,7 +5,7 @@ This use case models a frequent MCP failure mode:
 1. A gateway approves an initial MCP `tools/list` surface.
 2. The downstream MCP server later exposes a new high-risk tool or changes the
    semantics of an existing tool.
-3. AgentPass detects drift and fails the check before the new tool surface is
+3. AgentAction detects drift and fails the check before the new tool surface is
    treated as trusted.
 
 The policy goal is to prevent tool poisoning, rug-pull changes, and accidental
@@ -13,7 +13,7 @@ tool sprawl from silently expanding an agent's authority.
 
 ## Current Enforcement Status
 
-This use case is a **preflight/startup gate** today. It uses AgentPass MCP
+This use case is a **preflight/startup gate** today. It uses AgentAction MCP
 analysis before MCP tools are exposed to OpenClaw. The current OpenClaw plugin
 enforces tool-call decisions, but it does not yet hook MCP discovery or
 `tools/list` changes at runtime.
@@ -46,7 +46,7 @@ The test uses MCP `tools/list` snapshots:
 - `fixtures/mcp-tools-approved.json`
 - `fixtures/mcp-tools-drifted.json`
 
-`mcp-drift-use-case.py` loads both snapshots, runs AgentPass MCP risk analysis,
+`mcp-drift-use-case.py` loads both snapshots, runs AgentAction MCP risk analysis,
 then runs a drift check with `fail_on_drift=True`.
 
 ## Run
@@ -54,17 +54,17 @@ then runs a drift check with `fail_on_drift=True`.
 From the repository root:
 
 ```bash
-solutions/openclaw-agentpass/mcp-drift-use-case.py
+solutions/openclaw-agentaction/mcp-drift-use-case.py
 ```
 
 Equivalent CLI commands:
 
 ```bash
-agentpass mcp check solutions/openclaw-agentpass/fixtures/mcp-tools-approved.json \
+agentaction mcp check solutions/openclaw-agentaction/fixtures/mcp-tools-approved.json \
   --max-risk high
 
-agentpass mcp check solutions/openclaw-agentpass/fixtures/mcp-tools-drifted.json \
-  --before solutions/openclaw-agentpass/fixtures/mcp-tools-approved.json \
+agentaction mcp check solutions/openclaw-agentaction/fixtures/mcp-tools-drifted.json \
+  --before solutions/openclaw-agentaction/fixtures/mcp-tools-approved.json \
   --max-risk high \
   --fail-on-drift
 ```
@@ -93,7 +93,7 @@ Expected result:
 
 ## What This Proves
 
-- AgentPass can freeze an approved MCP tool surface.
+- AgentAction can freeze an approved MCP tool surface.
 - New high-risk MCP tools are detected before exposure to an agent.
 - Existing tool descriptions or schemas cannot drift silently.
 - The check is deterministic and can run in CI, gateway startup, or OpenClaw

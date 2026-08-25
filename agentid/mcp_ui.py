@@ -8,7 +8,7 @@ MCP_UI_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentPass MCP Analyzer</title>
+  <title>AgentAction MCP Analyzer</title>
   <style>
     :root {
       color-scheme: light;
@@ -311,7 +311,7 @@ MCP_UI_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentPass MCP Analyzer</h1>
+    <h1>AgentAction MCP Analyzer</h1>
     <div class="row">
       <button id="loadSample">Load sample</button>
       <button id="exportJson" disabled>Export JSON</button>
@@ -334,7 +334,7 @@ MCP_UI_HTML = r"""<!doctype html>
         <div class="row">
           <button id="fetchRemote">Fetch tools</button>
         </div>
-        <p class="hint">Remote fetch requires <code>agentpass mcp serve-ui</code>. Headers stay on localhost.</p>
+        <p class="hint">Remote fetch requires <code>agentaction mcp serve-ui</code>. Headers stay on localhost.</p>
       </div>
       <textarea id="input" spellcheck="false" placeholder='{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'></textarea>
       <div class="row">
@@ -720,7 +720,7 @@ MCP_UI_HTML = r"""<!doctype html>
           ${list(selectedTool.remediation)}
         </div>
         <div>
-          <h2>AgentPass Manifest Snippet</h2>
+          <h2>AgentAction Manifest Snippet</h2>
           <pre>${escapeHtml(manifestSnippet(selectedTool))}</pre>
         </div>
       `;
@@ -793,7 +793,7 @@ MCP_UI_HTML = r"""<!doctype html>
         .slice(0, 8)
         .map((tool) => `- ${tool.name}: ${tool.risk_score}/100 (${tool.risk_label}, ${tool.action})`);
       const lines = [
-        "# AgentPass MCP Analysis",
+        "# AgentAction MCP Analysis",
         "",
         `Risk score: ${currentAnalysis.risk_score}/100 (${currentAnalysis.risk_label})`,
         `Tools analyzed: ${currentAnalysis.tool_count}`,
@@ -813,7 +813,7 @@ MCP_UI_HTML = r"""<!doctype html>
         "- Bind authorization to user, agent, job, resource, and time window.",
         "- Log decisions and track tool drift in CI.",
         "",
-        "## Starter AgentPass Manifest Snippet",
+        "## Starter AgentAction Manifest Snippet",
         "```yaml",
         reportManifestSnippet(currentAnalysis),
         "```"
@@ -844,7 +844,7 @@ MCP_UI_HTML = r"""<!doctype html>
       if (["secrets", "identity/access", "admin"].some((category) => categories.has(category))) {
         remediation.push("add audit logging and a kill-switch for this capability");
       }
-      if (!remediation.length) remediation.push("declare this tool in an AgentPass manifest and audit usage");
+      if (!remediation.length) remediation.push("declare this tool in an AgentAction manifest and audit usage");
       return remediation;
     }
 
@@ -935,7 +935,7 @@ MCP_UI_HTML = r"""<!doctype html>
         currentDiff = null;
         render(analyzeTools(toolsFromPayload(payload.tools_list)));
       } catch (err) {
-        error.textContent = `${err.message} If this is the static HTML file, run agentpass mcp serve-ui and open that local URL.`;
+        error.textContent = `${err.message} If this is the static HTML file, run agentaction mcp serve-ui and open that local URL.`;
       }
     });
 

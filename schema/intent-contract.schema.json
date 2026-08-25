@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentpass.dev/schema/intent-contract.schema.json",
-  "title": "AgentPass Intent Contract",
+  "title": "AgentAction Intent Contract",
   "type": "object",
   "additionalProperties": false,
   "required": [

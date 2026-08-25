@@ -160,7 +160,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`AgentPass fixture console: http://127.0.0.1:${port}`);
+  console.log(`AgentAction fixture console: http://127.0.0.1:${port}`);
   if (stale) console.log("Serving rollups older than the console freshness threshold.");
 });
 

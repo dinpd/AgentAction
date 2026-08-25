@@ -1,5 +1,5 @@
 {
-  "name": "@agentpass/provider-express",
+  "name": "@agentaction/provider-express",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -3,7 +3,7 @@ agent:
   name: OpenClaw Agent
   owner: agentpass-local
   environment: local
-  purpose: Authorizes OpenClaw tool calls through AgentPass before execution
+  purpose: Authorizes OpenClaw tool calls through AgentAction before execution
   expires_at: 2026-12-31
 
 delegation:

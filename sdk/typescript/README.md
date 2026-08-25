@@ -1,17 +1,17 @@
-# AgentPass TypeScript Client
+# AgentAction TypeScript Client
 
-Small helper client for calling an AgentPass gateway from a SaaS app or agent
+Small helper client for calling an AgentAction gateway from a SaaS app or agent
 runtime.
 
 ```ts
-import { AgentPassClient } from "@agentpass/client";
+import { AgentActionClient } from "@agentaction/client";
 
-const agentpass = new AgentPassClient({
-  baseUrl: "https://agentpass-gateway.example.com",
+const agentaction = new AgentActionClient({
+  baseUrl: "https://agentaction-gateway.example.com",
   token: async () => getAccessTokenFromYourIdP(),
 });
 
-await agentpass.assertAllowed("tenant-a", {
+await agentaction.assertAllowed("tenant-a", {
   agent_id: "refund-agent",
   tool: "zendesk.search_tickets",
   action: "read",
@@ -19,7 +19,7 @@ await agentpass.assertAllowed("tenant-a", {
   data_to: "agent_context",
 });
 
-const grant = await agentpass.requestJitGrant("tenant-a", {
+const grant = await agentaction.requestJitGrant("tenant-a", {
   tool: "stripe.create_refund",
   action: "write",
   resource: "refund/case-1042",
@@ -28,7 +28,7 @@ const grant = await agentpass.requestJitGrant("tenant-a", {
   idempotency_key: "refund-case-1042",
 });
 
-await agentpass.assertAllowed("tenant-a", {
+await agentaction.assertAllowed("tenant-a", {
   agent_id: "refund-agent",
   tool: "stripe.create_refund",
   action: "write",
@@ -38,7 +38,7 @@ await agentpass.assertAllowed("tenant-a", {
   idempotency_key: "refund-case-1042",
 });
 
-await agentpass.recordExecutionResult("tenant-a", {
+await agentaction.recordExecutionResult("tenant-a", {
   agent_id: "refund-agent",
   tool: "stripe.create_refund",
   action: "write",
@@ -60,7 +60,7 @@ evaluate the durable evidence after execution:
 ```ts
 const profile = await agentpass.registerIntentProfile("tenant-a", profileDefinition);
 
-const registered = await agentpass.issueIntentContract(
+const registered = await agentaction.issueIntentContract(
   "tenant-a",
   profile.profile_key,
   {
@@ -78,7 +78,7 @@ const binding = {
   job_id: registered.job_id,
 };
 
-const recorded = await agentpass.recordIntentObservation("tenant-a", registered.intent_id, {
+const recorded = await agentaction.recordIntentObservation("tenant-a", registered.intent_id, {
   observation_id: "obs-refund-case-1042",
   predicate: "refund.status",
   value: "succeeded",
@@ -91,7 +91,7 @@ if (recorded.replayed) {
   console.log("The identical observation was already stored");
 }
 
-const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_id, {
+const evaluation = await agentaction.evaluateIntent("tenant-a", registered.intent_id, {
   job: {
     ...binding,
     started_at: jobStartedAt,
@@ -99,7 +99,7 @@ const evaluation = await agentpass.evaluateIntent("tenant-a", registered.intent_
   },
 });
 
-const finalization = await agentpass.finalizeIntent("tenant-a", registered.intent_id, {
+const finalization = await agentaction.finalizeIntent("tenant-a", registered.intent_id, {
   job: {
     ...binding,
     started_at: jobStartedAt,
@@ -107,7 +107,7 @@ const finalization = await agentpass.finalizeIntent("tenant-a", registered.inten
   },
 });
 
-const lifecycle = await agentpass.getIntentEvaluations(
+const lifecycle = await agentaction.getIntentEvaluations(
   "tenant-a",
   registered.intent_id,
 );
@@ -136,7 +136,7 @@ Once jobs are finalized, query comparable quality groups with an explicit,
 bounded time window:
 
 ```ts
-const quality = await agentpass.getIntentQualityRollups("tenant-a", {
+const quality = await agentaction.getIntentQualityRollups("tenant-a", {
   from: "2026-07-20T00:00:00Z",
   to: "2026-07-22T00:00:00Z",
   profile_key: "support_refund.v1",
@@ -160,7 +160,7 @@ population.
 For approval-gated actions, the client can drive the durable hosted lifecycle:
 
 ```ts
-const approval = await agentpass.createApprovalRequest("tenant-a", {
+const approval = await agentaction.createApprovalRequest("tenant-a", {
   tool: "stripe.create_refund",
   action: "write",
   resource: "refund/case-1042",
@@ -171,7 +171,7 @@ const approval = await agentpass.createApprovalRequest("tenant-a", {
   currency: "USD",
 });
 
-await agentpass.decideApprovalRequest(
+await agentaction.decideApprovalRequest(
   "tenant-a",
   approval.approval_id,
   "approve",
@@ -181,10 +181,10 @@ await agentpass.decideApprovalRequest(
   },
 );
 
-const queue = await agentpass.listApprovalRequests("tenant-a", {
+const queue = await agentaction.listApprovalRequests("tenant-a", {
   status: "pending",
 });
-const timeline = await agentpass.listAuditEvents({
+const timeline = await agentaction.listAuditEvents({
   tenantId: "tenant-a",
   approvalId: approval.approval_id,
 });
@@ -193,7 +193,7 @@ const timeline = await agentpass.listAuditEvents({
 For hosted PII egress checks, include the exact data-flow context:
 
 ```ts
-const decision = await agentpass.authorizeToolCall("tenant-a", {
+const decision = await agentaction.authorizeToolCall("tenant-a", {
   agent_id: "support-agent",
   tool: "email.send_external",
   action: "send",

@@ -17,7 +17,7 @@ def test_format_openclaw_doctor_success():
 
     output = format_openclaw_doctor(result)
 
-    assert "AgentPass OpenClaw budget doctor" in output
+    assert "AgentAction OpenClaw budget doctor" in output
     assert "[ok] manifest: manifest is valid" in output
     assert "Budget demo passed" in output
     assert "Full heartbeat/prompt-context enforcement still needs" in output

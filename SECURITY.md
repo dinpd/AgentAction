@@ -1,6 +1,6 @@
 # Security Policy
 
-AgentPass is designed for security-sensitive AI agent execution paths. Please
+AgentAction is designed for security-sensitive AI agent execution paths. Please
 report vulnerabilities privately so maintainers can investigate and coordinate a
 fix before public disclosure.
 
@@ -49,7 +49,7 @@ Examples usually out of scope:
 - Missing hardening for demo-only HMAC examples when clearly documented as
   non-production
 - Denial-of-service reports without a plausible impact on realistic deployments
-- Vulnerabilities in unrelated dependencies with no AgentPass-specific exposure
+- Vulnerabilities in unrelated dependencies with no AgentAction-specific exposure
 
 ## Response Process
 

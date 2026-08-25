@@ -8,7 +8,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgentPass Policy Builder</title>
+  <title>AgentAction Policy Builder</title>
   <style>
     :root {
       color-scheme: light;
@@ -424,7 +424,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>AgentPass Policy Builder</h1>
+    <h1>AgentAction Policy Builder</h1>
     <div class="toolbar">
       <button id="addTool">Add tool</button>
       <button id="addSkill">Add skill</button>
@@ -458,7 +458,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
             <button id="quickLoadMcpSample">Use sample</button>
           </div>
           <div id="quickBuildStatus" class="quick-build-status"></div>
-          <p class="hint">For authenticated remote MCP servers, run `agentpass config-ui --serve` and open the localhost URL so credentials stay on your machine.</p>
+          <p class="hint">For authenticated remote MCP servers, run `agentaction config-ui --serve` and open the localhost URL so credentials stay on your machine.</p>
         </div>
       </section>
 
@@ -511,7 +511,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
           <label>Provider<input id="mcpProvider" value="example-crm"></label>
           <label>Downstream server<input id="mcpServer" value="provider-crm-mcp"></label>
         </div>
-        <p class="hint">The generated mapping derives AgentPass fields from MCP tool arguments such as job_id, case_id, and customer_id.</p>
+        <p class="hint">The generated mapping derives AgentAction fields from MCP tool arguments such as job_id, case_id, and customer_id.</p>
       </section>
 
       <section class="builder-step active" data-step="source">
@@ -1061,7 +1061,7 @@ CONFIG_UI_HTML = r"""<!doctype html>
       const url = quickMcpUrl.value.trim();
       if (!url) throw new Error("Paste tools/list JSON or enter an MCP server URL.");
       if (!isLocalHelperOrigin()) {
-        throw new Error("Remote MCP fetch is local-only so auth headers do not leave your machine. Run agentpass config-ui --serve and open the localhost URL.");
+        throw new Error("Remote MCP fetch is local-only so auth headers do not leave your machine. Run agentaction config-ui --serve and open the localhost URL.");
       }
       const response = await fetch("/api/fetch-tools", {
         method: "POST",

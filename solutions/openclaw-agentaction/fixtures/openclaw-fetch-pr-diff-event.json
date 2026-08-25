@@ -6,7 +6,7 @@
     "runId": "pr-review-123",
     "toolCallId": "tool-fetch-pr-diff",
     "params": {
-      "url": "https://github.com/dinpd/AgentPass/pull/123.diff",
+      "url": "https://github.com/dinpd/AgentAction/pull/123.diff",
       "data_from": "github_pull_request",
       "data_to": "agent_context"
     }

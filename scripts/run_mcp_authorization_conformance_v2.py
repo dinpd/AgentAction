@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the experimental AgentPass MCP authorization conformance suite v2."""
+"""Run the experimental AgentAction MCP authorization conformance suite v2."""
 
 from __future__ import annotations
 

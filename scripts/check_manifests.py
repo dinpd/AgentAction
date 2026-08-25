@@ -10,7 +10,7 @@ from agentid.risk import risk_label, risk_score
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate AgentPass manifests and enforce a risk threshold.")
+    parser = argparse.ArgumentParser(description="Validate AgentAction manifests and enforce a risk threshold.")
     parser.add_argument("patterns", nargs="+", help="Manifest paths or glob patterns.")
     parser.add_argument("--max-risk", type=int, default=100)
     args = parser.parse_args(argv)

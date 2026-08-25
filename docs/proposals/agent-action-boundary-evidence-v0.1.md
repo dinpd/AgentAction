@@ -4,7 +4,7 @@
 
 **Maturity:** Experimental; not an adopted standard
 
-**Discussion:** [AgentPass issue #43](https://github.com/dinpd/AgentPass/issues/43)
+**Discussion:** [AgentAction issue #43](https://github.com/dinpd/AgentAction/issues/43)
 
 **Intended audience:** Agent runtimes, gateways, tool providers, authorization
 services, observability systems, and evaluation platforms
@@ -117,7 +117,7 @@ This proposal does not:
 - define one universal policy vocabulary;
 - prove that a signed issuer is trustworthy without an external trust policy;
   or
-- standardize AgentPass-specific infrastructure or product fields.
+- standardize AgentAction-specific infrastructure or product fields.
 
 ## Trust model
 
@@ -483,7 +483,7 @@ model-produced basis is self-asserted proposer context. A boundary-produced
 basis can describe the policy evaluation performed by that boundary, subject
 to the same provenance and local trust rules as other evidence records.
 
-AgentPass's non-normative extension is documented in
+AgentAction's non-normative extension is documented in
 [Decision-Basis Evidence](../decision-basis.md).
 
 ### `action.assessed`
@@ -849,12 +849,12 @@ Tenant identifiers, traces, event streams, indexes, and artifact access must
 remain tenant-scoped. Global identifiers should not expose customer identity or
 become high-cardinality metric labels.
 
-## Non-normative AgentPass mapping
+## Non-normative AgentAction mapping
 
-AgentPass is one reference implementation of the concepts; it is not the
+AgentAction is one reference implementation of the concepts; it is not the
 normative schema.
 
-| Draft concept | AgentPass artifact |
+| Draft concept | AgentAction artifact |
 | --- | --- |
 | Action descriptor | Guard check and approval evidence |
 | Authorization decision | Guard decision event / intent decision evidence |
@@ -866,7 +866,7 @@ normative schema.
 | Assessment | Intent evaluation receipt |
 | Aggregate quality | Profile-scoped intent quality rollup |
 
-AgentPass-specific fields such as manifest shape, policy findings, JIT grant
+AgentAction-specific fields such as manifest shape, policy findings, JIT grant
 format, and console storage are outside the portable core.
 
 ## Relationship to existing work

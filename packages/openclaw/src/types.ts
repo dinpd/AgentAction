@@ -69,7 +69,7 @@ export type OpenClawPluginApi = {
   registerTrustedToolPolicy: (policy: OpenClawTrustedToolPolicy) => void;
 };
 
-export type AgentPassOpenClawConfig = {
+export type AgentActionOpenClawConfig = {
   enabled: boolean;
   mode: "local" | "remote";
   policy?: GuardPolicy;
@@ -81,7 +81,7 @@ export type AgentPassOpenClawConfig = {
   defaultAction: AgentAction;
 };
 
-export type AgentPassOpenClawDecision =
+export type AgentActionOpenClawDecision =
   | GuardDecision
   | {
       type?: "allow" | "deny" | "challenge_required";
@@ -93,20 +93,24 @@ export type AgentPassOpenClawDecision =
       challenge?: GuardDecision["challenge"];
     };
 
-export type AgentPassOpenClawRuntime = {
-  authorize(check: GuardCheck): Promise<AgentPassOpenClawDecision>;
+export type AgentActionOpenClawRuntime = {
+  authorize(check: GuardCheck): Promise<AgentActionOpenClawDecision>;
   recordApprovalResolution(input: {
     resolution: PluginApprovalResolution;
     check: GuardCheck;
-    decision: AgentPassOpenClawDecision;
+    decision: AgentActionOpenClawDecision;
     event: OpenClawBeforeToolCallEvent;
     ctx: OpenClawToolContext;
   }): Promise<void> | void;
   recordAllowedDecision(input: {
     check: GuardCheck;
-    decision: AgentPassOpenClawDecision;
+    decision: AgentActionOpenClawDecision;
     event: OpenClawBeforeToolCallEvent;
     ctx: OpenClawToolContext;
   }): Promise<void> | void;
 };
 
+// Backward-compatible types retained for existing AgentPass integrations.
+export type AgentPassOpenClawConfig = AgentActionOpenClawConfig;
+export type AgentPassOpenClawDecision = AgentActionOpenClawDecision;
+export type AgentPassOpenClawRuntime = AgentActionOpenClawRuntime;

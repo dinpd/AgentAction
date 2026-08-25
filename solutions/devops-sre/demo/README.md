@@ -1,7 +1,7 @@
-# AgentPass DevOps Control Demo
+# AgentAction DevOps Control Demo
 
 This Cloudflare Worker hosts a hypothetical DevOps/SRE control demo for
-AgentPass. It shows a release agent reading production context, being denied when
+AgentAction. It shows a release agent reading production context, being denied when
 it tries to deploy without approval/JIT, receiving approval, getting a scoped
 JIT grant, and then dispatching a dry-run production deployment.
 
@@ -11,7 +11,7 @@ Live demo target:
 https://agentid-devops-demo.drisw.workers.dev
 ```
 
-The demo calls the deployed AgentPass gateway through a Cloudflare Service Binding
+The demo calls the deployed AgentAction gateway through a Cloudflare Service Binding
 when available. The browser never sees gateway credentials. For the
 self-contained demo, the Worker mints a short-lived HS256-signed OIDC-style JWT
 and the gateway validates it against the DevOps/SRE tenant manifest.

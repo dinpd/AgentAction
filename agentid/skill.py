@@ -53,7 +53,7 @@ def validate_skill_contract(contract: dict[str, Any]) -> ValidationResult:
             "name": "Skill Contract Validator",
             "owner": "agentid",
             "environment": "validation",
-            "purpose": "Validate a skill-local AgentPass authority contract.",
+            "purpose": "Validate a skill-local AgentAction authority contract.",
         },
         "jit_authorization": {
             "enabled": jit_enabled,

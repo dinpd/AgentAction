@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/agentid.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/agentid.schema.json",
   "agent": {
     "id": "platform-release-agent",
     "name": "Platform Release Agent",

@@ -151,7 +151,7 @@ class ReceiptVerification:
 
 class AgentIdReceiptError(Exception):
     def __init__(self, findings: list[str], status_code: int = 403) -> None:
-        super().__init__("AgentPass provider authorization receipt denied")
+        super().__init__("AgentAction provider authorization receipt denied")
         self.findings = findings
         self.status_code = status_code
 

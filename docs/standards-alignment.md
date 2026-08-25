@@ -2,7 +2,7 @@
 
 AgentAction's product category is trust infrastructure for autonomous AI
 agents, as defined in [Project Positioning](positioning.md). Within that broader
-lifecycle, AgentPass standards work is an open reference implementation and
+lifecycle, AgentAction standards work is an open reference implementation and
 conformance project for action-bound authorization, provider verification, and
 execution closure. It does not create a general agent identity or replace
 existing identity and authorization standards. The detailed standards boundary
@@ -27,7 +27,7 @@ DID proves portable cryptographic identity.
 Verifiable Credentials prove signed claims about an agent.
 Agent Evaluation measures behavior against versioned intent profiles.
 Decision Assurance assesses the declared basis for a consequential choice.
-AgentPass Action Authorization decides what may execute right now.
+AgentAction Action Authorization decides what may execute right now.
 Execution evidence and outcome evaluation establish what happened afterward.
 ```
 
@@ -53,7 +53,7 @@ Keep these items ahead of the DID/VC track:
 Fold DID/VC work into those areas as production hardening:
 
 ```text
-AgentPass manifest
+AgentAction manifest
   -> DID-bound agent identity
   -> trusted issuer policy
   -> VC-style attestations
@@ -65,7 +65,7 @@ AgentPass manifest
 
 ## Manifest Fields
 
-AgentPass manifests can carry an optional DID for the agent:
+AgentAction manifests can carry an optional DID for the agent:
 
 ```yaml
 agent:
@@ -181,7 +181,7 @@ grant should be attenuated, auditable, short-lived, and revocable.
 
 ## Visibility and Contribution Targets
 
-AgentPass should engage standards projects by contributing examples and
+AgentAction should engage standards projects by contributing examples and
 implementation guidance, not by claiming to replace their identity layers.
 
 Useful targets:
@@ -189,7 +189,7 @@ Useful targets:
 - OpenID Foundation AI Identity Management Community Group: contribute the
   distinction between agent identity, delegated user identity, and
   action-level authority.
-- NIST AI Agent Standards Initiative: publish an AgentPass response describing
+- NIST AI Agent Standards Initiative: publish an AgentAction response describing
   identification, authorization, auditing, non-repudiation, prompt-injection
   controls, JIT grants, and execution receipts.
 - MCP authorization: contribute examples for argument-sensitive authorization,
@@ -197,12 +197,12 @@ Useful targets:
 - A2A: propose an Agent Card extension or example for
   `authorization_contract_uri`, `authority_manifest_uri`, signed Agent Cards,
   and delegated-task receipt requirements.
-- AGNTCY/OASF: contribute an example mapping an AgentPass authority contract into
+- AGNTCY/OASF: contribute an example mapping an AgentAction authority contract into
   Agent Badge or OASF metadata.
 
 The external message should be:
 
-> AgentPass does not compete with distributed identity standards. It gives them
+> AgentAction does not compete with distributed identity standards. It gives them
 > the missing authorization payload: what the verified agent may do, under
 > which context, and what evidence must exist before execution.
 

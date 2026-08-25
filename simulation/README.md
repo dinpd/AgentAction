@@ -1,6 +1,6 @@
-# AgentPass synthetic runner
+# AgentAction synthetic runner
 
-This Cloudflare Worker produces bounded, deterministic AgentPass intent runs for
+This Cloudflare Worker produces bounded, deterministic AgentAction intent runs for
 the observability console. A UTC Cron Trigger invokes the Worker every 15
 minutes. The Worker calls the real `agentid-gateway` through a service binding;
 it does not call Stripe, Zendesk, or another external provider.

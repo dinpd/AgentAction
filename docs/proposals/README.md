@@ -1,7 +1,7 @@
 # Community proposals
 
 This directory contains experimental, vendor-neutral proposals derived from
-AgentPass implementation experience.
+AgentAction implementation experience.
 
 These documents are discussion drafts, not adopted standards. They are
 published in the repository so changes can be reviewed, compared, and

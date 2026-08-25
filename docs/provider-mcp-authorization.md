@@ -1,6 +1,6 @@
 # Provider MCP Authorization
 
-AgentPass should cover both sides of the MCP authorization boundary:
+AgentAction should cover both sides of the MCP authorization boundary:
 
 - The enterprise side decides whether its agent may attempt a provider tool call.
 - The provider side decides whether its MCP server should honor and execute that agent-originated call.
@@ -20,9 +20,9 @@ flows are allowed.
 ```text
 Enterprise Agent
   -> Enterprise MCP Gateway
-  -> Enterprise AgentPass authorization
+  -> Enterprise AgentAction authorization
   -> Provider MCP Server
-  -> Provider AgentPass receipt verification
+  -> Provider AgentAction receipt verification
   -> Provider business authorization
   -> Tool execution
 ```
@@ -50,7 +50,7 @@ Existing standards cover important pieces:
   resource binding, JIT approval, receipt verification, or provider execution
   audit semantics.
 
-AgentPass should treat those standards as foundations, not competitors. The gap is
+AgentAction should treat those standards as foundations, not competitors. The gap is
 the action-level MCP provider contract:
 
 ```text
@@ -64,7 +64,7 @@ provider execution receipt -> shared audit handle
 
 In other words, OAuth can prove that a client may access the MCP server. MCP
 schemas can prove what arguments the tool accepts. MCP annotations can hint at
-tool behavior. AgentPass should define the missing contract for whether this
+tool behavior. AgentAction should define the missing contract for whether this
 agent-originated action, on this resource, for this job and approval state,
 should be allowed to execute.
 
@@ -87,7 +87,7 @@ require approval plus short-lived just-in-time authority.
 
 ```text
 Support agent asks to update customer billing email
-  -> enterprise gateway checks the AgentPass manifest
+  -> enterprise gateway checks the AgentAction manifest
   -> enterprise gateway forwards the call with an authorization receipt
   -> provider MCP server verifies the receipt
   -> provider checks tenant, user, customer, and business rules
@@ -119,19 +119,19 @@ Provider MCP contract
   -> drift metadata
 ```
 
-AgentPass includes a draft JSON Schema for this contract at
+AgentAction includes a draft JSON Schema for this contract at
 [`../schema/provider-mcp-contract.schema.json`](../schema/provider-mcp-contract.schema.json).
 Providers can expose that schema in published contract files with:
 
 ```yaml
-$schema: https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json
+$schema: https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/provider-mcp-contract.schema.json
 ```
 
 The enterprise should consume that contract and produce a tenant-specific
-AgentPass manifest:
+AgentAction manifest:
 
 ```text
-Enterprise AgentPass manifest
+Enterprise AgentAction manifest
   -> allowed agents and users
   -> allowed jobs, cases, and customers
   -> allowed provider tools
@@ -149,7 +149,7 @@ Receipt verification can be implemented several ways:
 
 - raw JSON receipts for local development and fixtures
 - signed receipt envelopes for direct provider verification
-- introspection against an AgentPass gateway or authorization service
+- introspection against an AgentAction gateway or authorization service
 
 The reference adapter supports a dependency-free HMAC-signed envelope for the
 local provider demo. Production deployments should use managed keys, key
@@ -160,14 +160,14 @@ Provider contracts can also advertise a receipt profile in
 `provider_agentid.receipt.profile`. The profile names the URI, canonicalization
 rule, default bound fields, outcome vocabulary, and privacy-preserving basis
 handling that verifiers should apply to scoped authorization receipts. See
-[`receipt-profiles.md`](receipt-profiles.md) for the AgentPass profile shape and
+[`receipt-profiles.md`](receipt-profiles.md) for the AgentAction profile shape and
 the `agentid_canonical_json_v1` canonicalization rule.
 
 For local validation and CI tests, providers can verify a receipt without
 running the mock server:
 
 ```bash
-agentpass provider verify-receipt examples/provider-signed-receipt.json \
+agentaction provider verify-receipt examples/provider-signed-receipt.json \
   --secret dev-provider-receipt-secret \
   --require-signed \
   --tool provider.crm.update_customer \
@@ -176,7 +176,7 @@ agentpass provider verify-receipt examples/provider-signed-receipt.json \
 
 ## When Provider-Side Auth Matters
 
-Provider-side AgentPass receipt verification is useful for most provider-hosted
+Provider-side AgentAction receipt verification is useful for most provider-hosted
 MCP tools, but it becomes necessary when a tool has meaningful blast radius. A
 provider should not rely only on the enterprise gateway for tools that can
 change durable state, expose sensitive data, move money, contact third parties,
@@ -185,7 +185,7 @@ or affect other users and tenants.
 Provider-side verification is **beneficial** when:
 
 - The provider wants a consistent audit handle that ties tool execution back to
-  an enterprise-side AgentPass decision.
+  an enterprise-side AgentAction decision.
 - The provider exposes read tools that return customer, account, ticket,
   billing, or operational data.
 - The same MCP server supports multiple enterprise tenants or agent platforms.
@@ -216,7 +216,7 @@ The rule of thumb is:
 ```text
 If a provider would require user confirmation, elevated permission, audit review,
 or rate limiting in its normal UI/API, the provider-hosted MCP version should
-verify a scoped AgentPass authorization receipt before executing.
+verify a scoped AgentAction authorization receipt before executing.
 ```
 
 For low-risk tools, provider-side receipt verification can start in audit-only
@@ -284,7 +284,7 @@ provider_agentid:
 ```
 
 This metadata should include enough information for an enterprise gateway to
-build an AgentPass authorization event:
+build an AgentAction authorization event:
 
 - tool name
 - action category
@@ -382,7 +382,7 @@ it should define:
 
 After an enterprise gateway allows a provider MCP tool call, it should forward a
 verifiable receipt with the MCP request. The provider can verify a signed
-receipt locally or introspect it with the AgentPass gateway.
+receipt locally or introspect it with the AgentAction gateway.
 
 ```json
 {
@@ -425,7 +425,7 @@ Provider MCP servers should enforce three checks before executing a tool:
    Validate the enterprise gateway, tenant, client, or mTLS/OAuth credentials
    that are allowed to call the provider MCP server.
 
-2. **AgentPass receipt verification**
+2. **AgentAction receipt verification**
 
    Verify that the enterprise authorized this exact agent-originated call. For
    JIT operations, verify the grant is scoped, fresh, and single-use where
@@ -437,7 +437,7 @@ Provider MCP servers should enforce three checks before executing a tool:
    tenant access this customer, can this delegated user issue a credit, is the
    amount inside provider limits, and is the account eligible for the operation?
 
-The provider should not treat an AgentPass receipt as a business authorization
+The provider should not treat an AgentAction receipt as a business authorization
 override. It is proof of enterprise-side agent authorization, not proof that the
 provider must execute the operation.
 
@@ -519,7 +519,7 @@ backlog.
 
 3. **Forward receipts from the gateway adapter**
 
-   Add an optional receipt builder after AgentPass returns `allow`. Attach the
+   Add an optional receipt builder after AgentAction returns `allow`. Attach the
    receipt to the downstream MCP request in a reserved argument or metadata
    field.
 

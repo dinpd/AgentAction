@@ -21,13 +21,13 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dinpd/AgentPass.git",
+    "url": "git+https://github.com/dinpd/AgentAction.git",
     "directory": "packages/guard"
   },
   "bugs": {
-    "url": "https://github.com/dinpd/AgentPass/issues"
+    "url": "https://github.com/dinpd/AgentAction/issues"
   },
-  "homepage": "https://github.com/dinpd/AgentPass/tree/main/packages/guard#readme",
+  "homepage": "https://github.com/dinpd/AgentAction/tree/main/packages/guard#readme",
   "keywords": [
     "ai-agents",
     "agent",

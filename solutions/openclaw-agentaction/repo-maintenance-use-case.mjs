@@ -17,17 +17,17 @@ try {
 }
 
 const {
-  createAgentPassOpenClawRuntime,
+  createAgentActionOpenClawRuntime,
   decisionReasons,
   decisionType,
   isAllowedDecision,
-  mapOpenClawToolCallToAgentPass,
+  mapOpenClawToolCallToAgentAction,
 } = adapter;
 
 const gatewayUrl = process.env.AGENTPASS_GATEWAY_URL || "http://127.0.0.1:8787";
 const apiKey = process.env.AGENTPASS_GATEWAY_API_KEY || "dev-token";
 
-const runtime = createAgentPassOpenClawRuntime({
+const runtime = createAgentActionOpenClawRuntime({
   config: {
     mode: "remote",
     authorizeUrl: `${gatewayUrl.replace(/\/$/, "")}/authorize`,
@@ -43,7 +43,7 @@ async function loadFixture(name) {
 
 async function authorizeFixture(name) {
   const { event, context } = await loadFixture(name);
-  const check = mapOpenClawToolCallToAgentPass(event, context);
+  const check = mapOpenClawToolCallToAgentAction(event, context);
   const decision = await runtime.authorize(check);
   return {
     event,

@@ -40,9 +40,9 @@ def run_openclaw_budget_doctor(
     npm_bin: str = "npm",
 ) -> OpenClawDoctorResult:
     repo_root = Path(root).resolve()
-    solution_dir = repo_root / "solutions" / "openclaw-agentpass"
+    solution_dir = repo_root / "solutions" / "openclaw-agentaction"
     package_dir = repo_root / "packages" / "openclaw"
-    manifest_path = solution_dir / "agentpass-openclaw-manifest.yaml"
+    manifest_path = solution_dir / "agentaction-openclaw-manifest.yaml"
     adapter_path = package_dir / "dist" / "index.js"
     demo_script = solution_dir / "tool-loop-budget-use-case.mjs"
 
@@ -131,7 +131,7 @@ def openclaw_doctor_to_dict(result: OpenClawDoctorResult) -> dict[str, Any]:
 
 
 def format_openclaw_doctor(result: OpenClawDoctorResult) -> str:
-    lines = ["AgentPass OpenClaw budget doctor"]
+    lines = ["AgentAction OpenClaw budget doctor"]
     for check in result.checks:
         status = "ok" if check.ok else "fail"
         lines.append(f"[{status}] {check.name}: {check.detail}")

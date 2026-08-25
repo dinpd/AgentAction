@@ -1,10 +1,10 @@
-export type AgentPassClientOptions = {
+export type AgentActionClientOptions = {
   baseUrl: string;
   token?: string | (() => string | Promise<string>);
   fetch?: typeof fetch;
 };
 
-export type AgentIdClientOptions = AgentPassClientOptions;
+export type AgentIdClientOptions = AgentActionClientOptions;
 
 export type IntentEvidenceSource = "decision_events" | "execution_receipts" | "observations" | "job";
 
@@ -632,34 +632,34 @@ export type JitGrantResponse = {
   auth?: Record<string, unknown>;
 };
 
-export class AgentPassDeniedError extends Error {
+export class AgentActionDeniedError extends Error {
   response: AuthorizeResponse;
 
   constructor(response: AuthorizeResponse) {
-    super(`AgentPass denied tool call: ${response.findings.join("; ") || response.decision}`);
-    this.name = "AgentPassDeniedError";
+    super(`AgentAction denied tool call: ${response.findings.join("; ") || response.decision}`);
+    this.name = "AgentActionDeniedError";
     this.response = response;
   }
 }
 
-export class AgentPassHttpError extends Error {
+export class AgentActionHttpError extends Error {
   status: number;
   body: unknown;
 
   constructor(status: number, body: unknown) {
-    super(`AgentPass gateway request failed with status ${status}`);
-    this.name = "AgentPassHttpError";
+    super(`AgentAction gateway request failed with status ${status}`);
+    this.name = "AgentActionHttpError";
     this.status = status;
     this.body = body;
   }
 }
 
-export class AgentPassClient {
+export class AgentActionClient {
   private baseUrl: string;
-  private token?: AgentPassClientOptions["token"];
+  private token?: AgentActionClientOptions["token"];
   private fetchImpl: typeof fetch;
 
-  constructor(options: AgentPassClientOptions) {
+  constructor(options: AgentActionClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.token = options.token;
     this.fetchImpl = options.fetch || fetch;
@@ -793,7 +793,7 @@ export class AgentPassClient {
 
   async assertAllowed(tenantId: string, request: ToolCallRequest): Promise<AuthorizeResponse> {
     const response = await this.authorizeToolCall(tenantId, request);
-    if (!response.allow) throw new AgentPassDeniedError(response);
+    if (!response.allow) throw new AgentActionDeniedError(response);
     return response;
   }
 
@@ -866,7 +866,7 @@ export class AgentPassClient {
     });
     const body = await response.json().catch(() => ({}));
     if (!expectedStatuses.includes(response.status)) {
-      throw new AgentPassHttpError(response.status, body);
+      throw new AgentActionHttpError(response.status, body);
     }
     return body as T;
   }
@@ -878,7 +878,7 @@ export class AgentPassClient {
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, { headers });
     const body = await response.json().catch(() => ({}));
     if (!expectedStatuses.includes(response.status)) {
-      throw new AgentPassHttpError(response.status, body);
+      throw new AgentActionHttpError(response.status, body);
     }
     return body as T;
   }
@@ -890,6 +890,14 @@ export class AgentPassClient {
   }
 }
 
-export const AgentIdDeniedError = AgentPassDeniedError;
-export const AgentIdHttpError = AgentPassHttpError;
-export const AgentIdClient = AgentPassClient;
+export const AgentIdDeniedError = AgentActionDeniedError;
+export const AgentIdHttpError = AgentActionHttpError;
+export const AgentIdClient = AgentActionClient;
+
+// Backward-compatible names retained for existing AgentPass integrations.
+export type AgentPassClientOptions = AgentActionClientOptions;
+export {
+  AgentActionClient as AgentPassClient,
+  AgentActionDeniedError as AgentPassDeniedError,
+  AgentActionHttpError as AgentPassHttpError,
+};

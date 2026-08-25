@@ -1,9 +1,9 @@
-import { createGuard, type AgentPassGuard, type GuardCheck } from "@dinpd/ai-agent-guard";
+import { createGuard, type AgentActionGuard, type GuardCheck } from "@dinpd/ai-agent-guard";
 
 import { mapToolCallToAuthorize } from "./mapper.js";
 import type { AdapterConfig, AgentIdAuthorizeResponse, RequestContext, ToolMapping } from "./types.js";
 
-const guardsByConfig = new WeakMap<AdapterConfig, AgentPassGuard>();
+const guardsByConfig = new WeakMap<AdapterConfig, AgentActionGuard>();
 
 export function authorizeWithLocalGuard(
   config: AdapterConfig,
@@ -34,7 +34,7 @@ export function mapToolCallToGuardCheck(
 ): GuardCheck {
   const mapping = config.tools[toolName];
   if (!mapping) {
-    throw new Error(`No AgentPass mapping configured for MCP tool: ${toolName}`);
+    throw new Error(`No AgentAction mapping configured for MCP tool: ${toolName}`);
   }
 
   const payload = mapToolCallToAuthorize(config, toolName, args, context);
@@ -66,7 +66,7 @@ export function mapToolCallToGuardCheck(
   });
 }
 
-function localGuardFor(config: AdapterConfig): AgentPassGuard {
+function localGuardFor(config: AdapterConfig): AgentActionGuard {
   if (!config.local_guard) {
     throw new Error("Adapter config does not include local_guard.policy");
   }

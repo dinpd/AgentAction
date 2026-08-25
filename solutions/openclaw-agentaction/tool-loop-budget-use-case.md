@@ -12,7 +12,7 @@ that exceed hard per-job budgets.
 
 ## Current Enforcement Status
 
-This use case is enforced by the current OpenClaw plugin in **local AgentPass
+This use case is enforced by the current OpenClaw plugin in **local AgentAction
 mode**, because the TypeScript guard owns in-memory budget state. Tool-call
 payload budgets are enforced today.
 
@@ -62,7 +62,7 @@ From the repository root:
 cd packages/openclaw
 npm run build
 cd ../..
-node solutions/openclaw-agentpass/tool-loop-budget-use-case.mjs
+node solutions/openclaw-agentaction/tool-loop-budget-use-case.mjs
 ```
 
 Expected result:
@@ -84,7 +84,7 @@ Expected result:
 
 ## What This Proves
 
-- AgentPass can keep per-job budget state for OpenClaw tool calls.
+- AgentAction can keep per-job budget state for OpenClaw tool calls.
 - Soft limits can route through OpenClaw approval.
 - Hard token limits can stop oversized payloads.
 - A full heartbeat solution should reuse this policy shape behind an OpenClaw

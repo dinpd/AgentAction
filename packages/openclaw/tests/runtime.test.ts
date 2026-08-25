@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createAgentActionOpenClawRuntime,
   createAgentPassOpenClawRuntime,
   decisionReasons,
   decisionType,
@@ -9,8 +10,12 @@ import {
   isChallengeDecision,
 } from "../src/index.ts";
 
+test("legacy AgentPass runtime export remains a compatibility alias", () => {
+  assert.equal(createAgentPassOpenClawRuntime, createAgentActionOpenClawRuntime);
+});
+
 test("local runtime allows declared read tools", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       policy: {
         tools: {
@@ -31,7 +36,7 @@ test("local runtime allows declared read tools", async () => {
 });
 
 test("local runtime returns challenge for approval-required tools", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       policy: {
         tools: {
@@ -53,7 +58,7 @@ test("local runtime returns challenge for approval-required tools", async () => 
 });
 
 test("local runtime returns challenge for token budget crossings", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       policy: {
         tools: {
@@ -88,7 +93,7 @@ test("local runtime returns challenge for token budget crossings", async () => {
 });
 
 test("local runtime denies hard token budget crossings", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       policy: {
         tools: {
@@ -123,7 +128,7 @@ test("local runtime denies hard token budget crossings", async () => {
 });
 
 test("runtime fails closed on remote authorization errors by default", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       mode: "remote",
       authorizeUrl: "https://agentpass.invalid/authorize",
@@ -145,7 +150,7 @@ test("runtime fails closed on remote authorization errors by default", async () 
 });
 
 test("runtime can fail open when explicitly configured", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       mode: "remote",
       authorizeUrl: "https://agentpass.invalid/authorize",
@@ -166,9 +171,9 @@ test("runtime can fail open when explicitly configured", async () => {
   assert.equal(isAllowedDecision(decision), true);
 });
 
-test("remote runtime sends AgentPass gateway field aliases", async () => {
+test("remote runtime sends AgentAction gateway field aliases", async () => {
   let payload: Record<string, unknown> | undefined;
-  const runtime = createAgentPassOpenClawRuntime({
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       mode: "remote",
       authorizeUrl: "http://127.0.0.1:8787/authorize",
@@ -200,8 +205,8 @@ test("remote runtime sends AgentPass gateway field aliases", async () => {
   assert.equal(payload?.estimated_tokens, 42);
 });
 
-test("remote runtime preserves AgentPass gateway denials", async () => {
-  const runtime = createAgentPassOpenClawRuntime({
+test("remote runtime preserves AgentAction gateway denials", async () => {
+  const runtime = createAgentActionOpenClawRuntime({
     config: {
       mode: "remote",
       authorizeUrl: "http://127.0.0.1:8787/authorize",

@@ -1,5 +1,5 @@
 {
-  "name": "agentpass-synthetic-runner",
+  "name": "agentaction-synthetic-runner",
   "private": true,
   "type": "module",
   "scripts": {

@@ -10,7 +10,7 @@ request() {
   curl -s "${GATEWAY_URL}/authorize" \
     -H "Authorization: Bearer ${API_KEY}" \
     -H "Content-Type: application/json" \
-    -d @"${ROOT_DIR}/solutions/openclaw-agentpass/fixtures/${fixture}"
+    -d @"${ROOT_DIR}/solutions/openclaw-agentaction/fixtures/${fixture}"
 }
 
 read_response="$(request allowed-read.json)"
@@ -30,5 +30,5 @@ if write.get("allow") is not False:
 if "missing jit_grant_id" not in write.get("findings", []):
     raise SystemExit(f"expected missing JIT finding, got: {write.get('findings')}")
 
-print("AgentPass OpenClaw smoke passed: read allowed, write denied without JIT.")
+print("AgentAction OpenClaw smoke passed: read allowed, write denied without JIT.")
 PY

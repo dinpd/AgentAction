@@ -102,7 +102,7 @@ const SHELL_HTML = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>AgentPass Observability</title>
+  <title>AgentAction Observability</title>
   <link rel="stylesheet" href="/assets/app.css">
   <script src="/assets/app.js" defer></script>
 </head>
@@ -110,12 +110,12 @@ const SHELL_HTML = `<!doctype html>
   <a class="skip-link" href="#main">Skip to main content</a>
   <header class="topbar">
     <div class="brand-lockup">
-      <p class="eyebrow">AgentPass</p>
+      <p class="eyebrow">AgentAction</p>
       <h1>Intent observability</h1>
       <p class="brand-description">Open-source intent contracts, execution controls, and immutable evidence for accountable agents.</p>
     </div>
     <div class="topbar-context">
-      <a class="repo-link" href="https://github.com/dinpd/AgentPass" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
+      <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
       <div class="identity" aria-label="Authenticated context">
         <span data-tenant>Tenant loading…</span>
         <span data-subject>Identity loading…</span>
@@ -178,7 +178,7 @@ const SHELL_HTML = `<!doctype html>
             </li>
             <li>
               <span class="stage-number" aria-hidden="true">03</span>
-              <h3>AgentPass Gateway</h3>
+              <h3>AgentAction Gateway</h3>
               <p>Calls the real service through a private binding.</p>
             </li>
             <li>
@@ -1106,7 +1106,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     stale: ["Fleet quality may be stale", "The latest generated response is older than the configured freshness threshold."],
     unauthorized: ["Authentication required", "Sign in through the configured Cloudflare Access application."],
     forbidden: ["Tenant access denied", "The authenticated identity is not permitted to use this tenant console."],
-    unavailable: ["Console data is unavailable", "The private AgentPass gateway cannot be reached. Try again or contact an operator."],
+    unavailable: ["Console data is unavailable", "The private AgentAction gateway cannot be reached. Try again or contact an operator."],
   };
   let tenantId = "";
   let activeView: "job-detail" | "jobs" | "overview" = runtime.location.hash === "#jobs"
@@ -2721,16 +2721,16 @@ async function consoleHealth(identity: ConsoleIdentity, env: Env): Promise<Respo
 
 async function callGateway(path: string, query: URLSearchParams, env: Env): Promise<Response> {
   if (!env.AGENTID_GATEWAY) {
-    throw new ConsoleError(503, "gateway_binding_unavailable", "AgentPass gateway is unavailable.", "unavailable");
+    throw new ConsoleError(503, "gateway_binding_unavailable", "AgentAction gateway is unavailable.", "unavailable");
   }
   if (consoleEnvironment(env) === "production" && !env.AGENTID_GATEWAY_TOKEN) {
-    throw new ConsoleError(500, "gateway_credential_missing", "AgentPass gateway credential is not configured.", "unavailable");
+    throw new ConsoleError(500, "gateway_credential_missing", "AgentAction gateway credential is not configured.", "unavailable");
   }
   const target = new URL(`https://agentpass-gateway.internal${path}`);
   target.search = query.toString();
   const headers = new Headers({
     accept: "application/json",
-    "user-agent": "agentpass-observability-console/0.1",
+    "user-agent": "agentaction-observability-console/0.1",
   });
   if (env.AGENTID_GATEWAY_TOKEN) headers.set("authorization", `Bearer ${env.AGENTID_GATEWAY_TOKEN}`);
 
@@ -2738,18 +2738,18 @@ async function callGateway(path: string, query: URLSearchParams, env: Env): Prom
   try {
     upstream = await env.AGENTID_GATEWAY.fetch(new Request(target, { method: "GET", headers }));
   } catch {
-    throw new ConsoleError(503, "gateway_unavailable", "AgentPass gateway is unavailable.", "unavailable");
+    throw new ConsoleError(503, "gateway_unavailable", "AgentAction gateway is unavailable.", "unavailable");
   }
   if (upstream.status === 401 || upstream.status === 403) {
-    throw new ConsoleError(502, "gateway_authorization_failed", "AgentPass gateway authorization failed.", "unavailable");
+    throw new ConsoleError(502, "gateway_authorization_failed", "AgentAction gateway authorization failed.", "unavailable");
   }
   if (upstream.status >= 500) {
-    throw new ConsoleError(503, "gateway_unavailable", "AgentPass gateway is unavailable.", "unavailable");
+    throw new ConsoleError(503, "gateway_unavailable", "AgentAction gateway is unavailable.", "unavailable");
   }
   if (upstream.status !== 204 && upstream.status !== 304) {
     const contentType = upstream.headers.get("content-type") || "";
     if (!contentType.toLowerCase().includes("application/json")) {
-      throw new ConsoleError(502, "gateway_response_invalid", "AgentPass gateway returned an invalid response.", "unavailable");
+      throw new ConsoleError(502, "gateway_response_invalid", "AgentAction gateway returned an invalid response.", "unavailable");
     }
   }
 

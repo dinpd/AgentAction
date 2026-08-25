@@ -18,11 +18,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install AgentPass
-        run: python -m pip install "agentpass @ git+https://github.com/dinpd/AgentPass.git@main"
+      - name: Install AgentAction
+        run: python -m pip install "agentaction-dev @ git+https://github.com/dinpd/AgentAction.git@main"
 
       - name: Validate provider MCP contract
-        run: agentpass provider validate provider-mcp-contract.yaml
+        run: agentaction provider validate provider-mcp-contract.yaml
 
       - name: Validate provider MCP contract JSON Schema
         run: |
@@ -33,7 +33,7 @@ jobs:
           import yaml
           from jsonschema import Draft202012Validator
 
-          schema_url = "https://raw.githubusercontent.com/dinpd/AgentPass/main/schema/provider-mcp-contract.schema.json"
+          schema_url = "https://raw.githubusercontent.com/dinpd/AgentAction/main/schema/provider-mcp-contract.schema.json"
           schema = json.load(urllib.request.urlopen(schema_url))
           contract = yaml.safe_load(open("provider-mcp-contract.yaml", encoding="utf-8"))
           Draft202012Validator.check_schema(schema)
@@ -46,7 +46,7 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
           if git cat-file -e "origin/${BASE_REF}:provider-mcp-contract.yaml" 2>/dev/null; then
             git show "origin/${BASE_REF}:provider-mcp-contract.yaml" > /tmp/base-provider-mcp-contract.yaml
-            agentpass provider diff /tmp/base-provider-mcp-contract.yaml provider-mcp-contract.yaml
+            agentaction provider diff /tmp/base-provider-mcp-contract.yaml provider-mcp-contract.yaml
           else
             echo "No provider-mcp-contract.yaml found on base branch; skipping diff."
           fi

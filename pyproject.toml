@@ -3,19 +3,25 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentpass"
+name = "agentaction-dev"
 version = "0.2.0"
 description = "Trust infrastructure for autonomous AI agents: decision assurance, action authorization, runtime controls, and verifiable lifecycle evidence."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "AgentPass contributors" }]
+authors = [{ name = "AgentAction contributors" }]
 dependencies = ["PyYAML>=6.0.1", "PyJWT[crypto]>=2.8.0"]
+
+[project.urls]
+Homepage = "https://agentaction.dev/"
+Repository = "https://github.com/dinpd/AgentAction"
+Issues = "https://github.com/dinpd/AgentAction/issues"
 
 [project.optional-dependencies]
 dev = ["anyio>=4.0.0", "jsonschema>=4.23.0", "pytest>=9.0.3"]
 
 [project.scripts]
+agentaction = "agentid.cli:main"
 agentpass = "agentid.cli:main"
 agentid = "agentid.cli:main"
 

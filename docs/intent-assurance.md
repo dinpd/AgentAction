@@ -1,6 +1,6 @@
 # Intent Assurance
 
-AgentPass intent assurance evaluates whether one bounded agent job achieved a
+AgentAction intent assurance evaluates whether one bounded agent job achieved a
 trusted, structured intent after tool execution.
 
 It extends the runtime loop without changing the authorization question:
@@ -25,7 +25,7 @@ variables, but should not issue, approve, or mutate its own profile or contract
 after execution begins.
 
 `bindIntentContract` computes a canonical SHA-256 digest. The job supplies the
-resulting `intent_id` and `intent_digest` with every guarded call. AgentPass
+resulting `intent_id` and `intent_digest` with every guarded call. AgentAction
 carries that binding through decision events, approval evidence, request
 digests, and provider execution receipts.
 

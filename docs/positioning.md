@@ -1,12 +1,13 @@
-# AgentAction And AgentPass Project Positioning
+# AgentAction Project Positioning
 
 ## Brand And Category
 
 **Trust infrastructure for autonomous AI agents.**
 
-AgentAction is the public product brand for AgentPass. Existing packages,
-schemas, commands, environment variables, and repository links retain
-AgentPass-compatible names during the migration.
+AgentAction is the canonical project and product brand. The project site is
+[AgentAction.dev](https://agentaction.dev/). Versioned `agentpass.*` protocol
+identifiers and the legacy `agentpass` and `agentid` commands remain supported
+for compatibility.
 
 AgentAction is the trust layer between autonomous agents and enterprise
 systems. It evaluates decisions, enforces policy, authorizes actions, and
@@ -95,7 +96,7 @@ Lead with the complete trust problem:
 Then show the current enforcement wedge:
 
 ```text
-Agent proposes tool call -> AgentPass checks policy + state -> allow / deny / challenge
+Agent proposes tool call -> AgentAction checks policy + state -> allow / deny / challenge
 ```
 
 The wedge is practical because it stops real side effects and creates the
@@ -116,7 +117,7 @@ trusted evidence needed by the rest of the lifecycle.
 
 Identity establishes the actors. AgentAction adds decision assurance, action
 authorization, and evidence controls across the trust lifecycle. Within that
-scope, AgentPass standards work focuses on portable action authority, provider
+scope, AgentAction standards work focuses on portable action authority, provider
 verification, execution closure, and interoperable evidence.
 
 The project reuses OIDC, OAuth, AuthZEN, SPIFFE, WIMSE, MCP authorization, JOSE,
@@ -126,7 +127,7 @@ fixtures, reference implementations, conformance tests, and narrowly scoped
 profiles before proposing new vocabulary.
 
 Conformance proves portability for a defined experimental profile; it is not
-the product category. Passing an AgentPass suite means agreement with published
+the product category. Passing an AgentAction suite means agreement with published
 reference cases, not certification by an external standards body.
 
 ## What AgentAction Is Not
@@ -156,8 +157,8 @@ AgentAction is not:
 - Use “deterministic” only for enforceable policy and state transitions, not
   model behavior or outcome truth.
 - Preserve experimental labels and avoid unsupported certification claims.
-- Use AgentAction for the public product and AgentPass where compatibility
-  identifiers or implementation artifacts require it.
+- Use AgentAction for the public project and product. Use the old names only
+  when documenting a compatibility alias or an immutable protocol identifier.
 
 ## Current Proof
 
@@ -175,5 +176,5 @@ The repository demonstrates the platform scope through:
   correlation, and intent-outcome assessment for lifecycle assurance.
 
 The next external proof milestone is two independent providers passing the same
-public action-authorization suite without AgentPass-specific coordination at
+public action-authorization suite without AgentAction-specific coordination at
 runtime.

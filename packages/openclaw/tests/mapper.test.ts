@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { estimateOpenClawToolCallTokens, inferAction, mapOpenClawToolCallToAgentPass } from "../src/index.ts";
+import { estimateOpenClawToolCallTokens, inferAction, mapOpenClawToolCallToAgentAction } from "../src/index.ts";
 
-test("maps OpenClaw exec calls to AgentPass admin checks", () => {
-  const check = mapOpenClawToolCallToAgentPass(
+test("maps OpenClaw exec calls to AgentAction admin checks", () => {
+  const check = mapOpenClawToolCallToAgentAction(
     {
       toolName: "exec",
       toolCallId: "call-1",
@@ -29,7 +29,7 @@ test("maps OpenClaw exec calls to AgentPass admin checks", () => {
 });
 
 test("maps derived paths and secret fields for filesystem writes", () => {
-  const check = mapOpenClawToolCallToAgentPass(
+  const check = mapOpenClawToolCallToAgentAction(
     {
       toolName: "apply_patch",
       params: { input: "*** Begin Patch\n*** Add File: .env\n+API_KEY=x\n*** End Patch" },
@@ -50,7 +50,7 @@ test("maps derived paths and secret fields for filesystem writes", () => {
 });
 
 test("detects likely PII in message sends", () => {
-  const check = mapOpenClawToolCallToAgentPass(
+  const check = mapOpenClawToolCallToAgentAction(
     {
       toolName: "message",
       params: {

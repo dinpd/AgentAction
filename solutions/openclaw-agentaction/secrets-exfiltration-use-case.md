@@ -5,14 +5,14 @@ This use case models a frequent OpenClaw risk:
 1. The agent reads local configuration while debugging.
 2. A malicious instruction or accidental workflow asks it to paste an API key
    into an external browser form.
-3. AgentPass blocks the data movement before the browser submission executes.
+3. AgentAction blocks the data movement before the browser submission executes.
 
 The policy goal is to preserve useful local analysis while preventing sensitive
 data from crossing into external destinations.
 
 ## Policy Boundary
 
-The AgentPass manifest allows local file context to move into agent context:
+The AgentAction manifest allows local file context to move into agent context:
 
 ```text
 read .env -> allow
@@ -32,15 +32,15 @@ The test uses OpenClaw-style tool events:
 - `fixtures/openclaw-submit-secret-event.json`
 
 `secrets-exfiltration-use-case.mjs` maps those events through the actual
-`packages/openclaw` mapper and remote runtime, then calls AgentPass
+`packages/openclaw` mapper and remote runtime, then calls AgentAction
 `/authorize`.
 
 ## Run
 
-Terminal 1: start AgentPass.
+Terminal 1: start AgentAction.
 
 ```bash
-agentpass gateway solutions/openclaw-agentpass/agentpass-openclaw-manifest.yaml \
+agentaction gateway solutions/openclaw-agentaction/agentaction-openclaw-manifest.yaml \
   --host 127.0.0.1 \
   --port 8787 \
   --api-key dev-token
@@ -52,7 +52,7 @@ Terminal 2: build the OpenClaw adapter and run the use case.
 cd packages/openclaw
 npm run build
 cd ../..
-node solutions/openclaw-agentpass/secrets-exfiltration-use-case.mjs
+node solutions/openclaw-agentaction/secrets-exfiltration-use-case.mjs
 ```
 
 Expected result:
@@ -82,6 +82,6 @@ Expected result:
 
 - OpenClaw can inspect local project context without blocking every read.
 - Secret-like fields are classified by the adapter before authorization.
-- AgentPass blocks secret movement to browser forms even if the browser tool is
+- AgentAction blocks secret movement to browser forms even if the browser tool is
   otherwise configured as an approval-gated write path.
 - The remote gateway path can enforce data-flow policy, not just tool names.
