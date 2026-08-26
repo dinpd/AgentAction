@@ -5,16 +5,8 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
-  EMAIL?: {
-    send(message: {
-      to: string;
-      from: { email: string; name: string };
-      replyTo: { email: string; name: string };
-      subject: string;
-      text: string;
-      html: string;
-    }): Promise<{ messageId: string }>;
-  };
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_EMAIL_API_TOKEN?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -35,6 +27,8 @@ interface ProjectInquiry {
   website: string;
   startedAt: number;
 }
+
+type SendRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const PROJECT_INBOX = "info@agentaction.dev";
 const PROJECT_SENDER = "website@agentaction.dev";
@@ -102,6 +96,7 @@ function parseInquiry(value: unknown): ProjectInquiry | null {
 export async function handleProjectInquiry(
   request: Request,
   env: Env,
+  sendRequest: SendRequest = fetch,
 ): Promise<Response> {
   const requestUrl = new URL(request.url);
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -131,7 +126,9 @@ export async function handleProjectInquiry(
     return json({ error: "Check the form and try again" }, 400);
   }
 
-  if (!env.EMAIL) {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? "";
+  const apiToken = env.CLOUDFLARE_EMAIL_API_TOKEN?.trim() ?? "";
+  if (!/^[a-f0-9]{32}$/i.test(accountId) || !apiToken) {
     return json({ error: "Project inquiries are temporarily unavailable" }, 503);
   }
 
@@ -163,14 +160,33 @@ export async function handleProjectInquiry(
     <p>${escapeHtml(inquiry.project).replace(/\n/g, "<br>")}</p>`;
 
   try {
-    await env.EMAIL.send({
-      to: PROJECT_INBOX,
-      from: { email: PROJECT_SENDER, name: "AgentAction website" },
-      replyTo: { email: inquiry.email, name: inquiry.name },
-      subject: `[Project inquiry] ${inquiry.stage}: ${inquiry.name}`,
-      text,
-      html,
-    });
+    const delivery = await sendRequest(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          to: PROJECT_INBOX,
+          from: { address: PROJECT_SENDER, name: "AgentAction website" },
+          reply_to: { address: inquiry.email, name: inquiry.name },
+          subject: `[Project inquiry] ${inquiry.stage}: ${inquiry.name}`,
+          text,
+          html,
+        }),
+      },
+    );
+
+    if (!delivery.ok) {
+      return json({ error: "We could not send your note. Please try again." }, 503);
+    }
+
+    const result = await delivery.json().catch(() => null) as { success?: boolean } | null;
+    if (!result?.success) {
+      return json({ error: "We could not send your note. Please try again." }, 503);
+    }
   } catch {
     return json({ error: "We could not send your note. Please try again." }, 503);
   }

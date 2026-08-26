@@ -31,13 +31,6 @@ const localBindingConfig = {
         },
       ]
     : [],
-  send_email: [
-    {
-      name: "EMAIL",
-      allowed_destination_addresses: ["info@agentaction.dev"],
-      allowed_sender_addresses: ["website@agentaction.dev"],
-    },
-  ],
 };
 
 export default defineConfig(async () => {
