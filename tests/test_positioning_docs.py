@@ -55,6 +55,33 @@ def test_readme_leads_with_trust_lifecycle_and_preserves_action_gate_wedge():
     assert action_heading < README.index(ACTION_GATE_FLOW)
 
 
+def test_readme_prefers_passive_mcp_observation_for_onboarding():
+    quick_start = README[
+        README.index("## Quick Start") : README.index("## How It Works")
+    ]
+    observe_heading = "### Recommended: Observe An MCP Workflow"
+    embed_heading = "### Alternative: Embed The Guard"
+
+    assert observe_heading in quick_start
+    assert embed_heading in quick_start
+    assert quick_start.index(observe_heading) < quick_start.index(embed_heading)
+    assert "npm run demo:observe" in quick_start
+    assert (
+        "MCP client -> customer-run observer adapter -> downstream MCP server"
+        in quick_start
+    )
+    assert 'set `"mode": "observe"`' in quick_start
+    assert "process-local shadow state" in quick_start
+    assert "not yet a production-complete MCP gateway" in quick_start
+    assert (
+        "[observe-mode configuration, transition to enforcement, and limitations]"
+        "(mcp-gateway-adapter/#observe-before-enforce)"
+        in quick_start
+    )
+    assert "recommended passive observer quick start" in README
+    assert "Passive observe and fail-closed enforce modes" in README
+
+
 def test_canonical_positioning_defines_brand_lifecycle_and_control_surfaces():
     assert f"**{CATEGORY}**" in POSITIONING
     assert PROMISE in POSITIONING
