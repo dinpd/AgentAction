@@ -33,8 +33,10 @@ repository.
 
 ## Project inquiry delivery
 
-The homepage project form sends directly to `info@agentaction.dev` through a
-restricted Cloudflare Email Service binding and does not store submissions. The
-binding can send only from `website@agentaction.dev` and only to the project
-inbox. The destination address used by the `info@agentaction.dev` Email Routing
-rule must be verified in Cloudflare before delivery can succeed.
+The homepage project form sends directly to `info@agentaction.dev` through the
+Cloudflare Email Service REST API and does not store submissions. Configure the
+Sites production runtime with `CLOUDFLARE_ACCOUNT_ID` and the secret
+`CLOUDFLARE_EMAIL_API_TOKEN`; neither value is exposed to the browser. Email
+Sending must be enabled for `agentaction.dev`, and the destination used by the
+`info@agentaction.dev` Email Routing rule must be verified before delivery can
+succeed.

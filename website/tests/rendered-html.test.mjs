@@ -78,6 +78,15 @@ test("delivers a valid project inquiry through the server-side Cloudflare email 
   workerUrl.searchParams.set("inquiry-test", `${process.pid}-${Date.now()}`);
   const { handleProjectInquiry } = await import(workerUrl.href);
   let outbound;
+  const sendRequest = async (input, init) => {
+    outbound = { input: String(input), init };
+    return Response.json({
+      success: true,
+      errors: [],
+      messages: [],
+      result: { delivered: ["info@agentaction.dev"], queued: [], permanent_bounces: [] },
+    });
+  };
   const response = await handleProjectInquiry(
     new Request("https://agentaction.dev/api/project-inquiry", {
       method: "POST",
@@ -95,23 +104,24 @@ test("delivers a valid project inquiry through the server-side Cloudflare email 
       }),
     }),
     {
-      EMAIL: {
-        send: async (message) => {
-          outbound = message;
-          return { messageId: "message_123" };
-        },
-      },
+      CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+      CLOUDFLARE_EMAIL_API_TOKEN: "runtime-only-token",
     },
+    sendRequest,
   );
 
   assert.equal(response.status, 200);
   const responseBody = await response.json();
   assert.deepEqual(responseBody, { received: true });
-  assert.equal(outbound.to, "info@agentaction.dev");
-  assert.equal(outbound.from.email, "website@agentaction.dev");
-  assert.equal(outbound.replyTo.email, "ada@example.com");
-  assert.match(outbound.text, /approve refunds/);
-  assert.match(outbound.text, /\+1 415 555 0142/);
+  assert.equal(outbound.input, `https://api.cloudflare.com/client/v4/accounts/${"a".repeat(32)}/email/sending/send`);
+  assert.equal(outbound.init.method, "POST");
+  assert.equal(outbound.init.headers.authorization, "Bearer runtime-only-token");
+  const message = JSON.parse(outbound.init.body);
+  assert.equal(message.to, "info@agentaction.dev");
+  assert.equal(message.from.address, "website@agentaction.dev");
+  assert.equal(message.reply_to.address, "ada@example.com");
+  assert.match(message.text, /approve refunds/);
+  assert.match(message.text, /\+1 415 555 0142/);
   assert.doesNotMatch(JSON.stringify(responseBody), /ada@example\.com/);
 });
 
@@ -121,12 +131,12 @@ test("rejects abusive and invalid project inquiries before email delivery", asyn
   const { handleProjectInquiry } = await import(workerUrl.href);
   let sendCount = 0;
   const env = {
-    EMAIL: {
-      send: async () => {
-        sendCount += 1;
-        return { messageId: "message_123" };
-      },
-    },
+    CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    CLOUDFLARE_EMAIL_API_TOKEN: "runtime-only-token",
+  };
+  const sendRequest = async () => {
+    sendCount += 1;
+    return Response.json({ success: true });
   };
   const validBody = {
     name: "Grace Hopper",
@@ -148,12 +158,12 @@ test("rejects abusive and invalid project inquiries before email delivery", asyn
     },
   );
 
-  assert.equal((await handleProjectInquiry(request(validBody, "https://attacker.example"), env)).status, 403);
-  assert.equal((await handleProjectInquiry(request({ ...validBody, website: "https://spam.example" }), env)).status, 400);
-  assert.equal((await handleProjectInquiry(request({ ...validBody, phone: "not a phone" }), env)).status, 400);
-  assert.equal((await handleProjectInquiry(request({ ...validBody, name: "Grace\nBcc: attacker@example.com" }), env)).status, 400);
-  assert.equal((await handleProjectInquiry(request({ ...validBody, startedAt: Date.now() }), env)).status, 400);
-  assert.equal((await handleProjectInquiry(request({ ...validBody, project: "x".repeat(17_000) }), env)).status, 413);
+  assert.equal((await handleProjectInquiry(request(validBody, "https://attacker.example"), env, sendRequest)).status, 403);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, website: "https://spam.example" }), env, sendRequest)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, phone: "not a phone" }), env, sendRequest)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, name: "Grace\nBcc: attacker@example.com" }), env, sendRequest)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, startedAt: Date.now() }), env, sendRequest)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, project: "x".repeat(17_000) }), env, sendRequest)).status, 413);
   assert.equal(sendCount, 0);
 });
 
@@ -178,12 +188,10 @@ test("returns a private, retryable error when inquiry delivery fails", async () 
       }),
     }),
     {
-      EMAIL: {
-        send: async () => {
-          throw new Error("temporary provider failure");
-        },
-      },
+      CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+      CLOUDFLARE_EMAIL_API_TOKEN: "runtime-only-token",
     },
+    async () => Response.json({ success: false }, { status: 503 }),
   );
 
   assert.equal(response.status, 503);
@@ -191,15 +199,37 @@ test("returns a private, retryable error when inquiry delivery fails", async () 
   assert.doesNotMatch(body, /katherine@example\.com/);
 });
 
-test("packages a least-privilege Cloudflare email binding", async () => {
-  const config = JSON.parse(await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
-  assert.deepEqual(config.send_email, [
-    {
-      name: "EMAIL",
-      allowed_destination_addresses: ["info@agentaction.dev"],
-      allowed_sender_addresses: ["website@agentaction.dev"],
+test("fails closed before delivery when Cloudflare email configuration is missing", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("inquiry-config-test", `${process.pid}-${Date.now()}`);
+  const { handleProjectInquiry } = await import(workerUrl.href);
+  let sendCount = 0;
+  const response = await handleProjectInquiry(
+    new Request("https://agentaction.dev/api/project-inquiry", {
+      method: "POST",
+      headers: { origin: "https://agentaction.dev", "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Dorothy Vaughan",
+        email: "dorothy@example.com",
+        phone: "",
+        organization: "",
+        stage: "prototype",
+        helpArea: "gateway",
+        project: "We are prototyping a governed agent gateway and need an initial action-boundary review.",
+        website: "",
+        startedAt: Date.now() - 5000,
+      }),
+    }),
+    {},
+    async () => {
+      sendCount += 1;
+      return Response.json({ success: true });
     },
-  ]);
+  );
+
+  assert.equal(response.status, 503);
+  assert.equal(sendCount, 0);
+  assert.doesNotMatch(JSON.stringify(await response.json()), /dorothy@example\.com/);
 });
 
 test("positions AgentAction as a privacy-safe trust layer across the agent lifecycle", async () => {
