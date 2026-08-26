@@ -3,6 +3,7 @@ import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
 
 const github = "https://github.com/dinpd/AgentAction";
+const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
 
 const gatewayCapabilities = [
   {
@@ -161,6 +162,7 @@ export default function Home() {
           <a href="#platform">Platform</a>
           <a href="#architecture">Decision assurance</a>
           <a href="#proof">Audit &amp; receipts</a>
+          <a href="#observe">Start here</a>
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/gateway">Action gateway</Link>
           <Link className="nav-page" href="/landscape">Landscape</Link>
@@ -193,13 +195,18 @@ export default function Home() {
             execution—without inspecting hidden chain-of-thought.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href={`${github}#quick-start`}>
-              Try the guard <span aria-hidden="true">↗</span>
+            <a className="button button-primary" href={observerQuickStart}>
+              Observe an MCP workflow <span aria-hidden="true">↗</span>
             </a>
             <a className="button button-secondary" href="#architecture">
               See the trust lifecycle <span aria-hidden="true">↓</span>
             </a>
           </div>
+          <p className="hero-onboarding">
+            Recommended onboarding: run the customer-controlled adapter in
+            passive observe mode, learn from counterfactual findings, then
+            choose when to enforce.
+          </p>
           <ul className="hero-signals" aria-label="Project properties">
             <li>Apache-2.0</li>
             <li>Model-agnostic</li>
@@ -435,42 +442,67 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="quickstart section-shell" aria-labelledby="quickstart-title">
+      <section id="observe" className="quickstart section-shell" aria-labelledby="quickstart-title">
         <div className="quickstart-copy">
-          <p className="section-index">08 / Developer entry point</p>
-          <h2 id="quickstart-title">Put policy around the side effect.</h2>
+          <p className="section-index">08 / Recommended onboarding</p>
+          <span className="status-label status-current">Available in v0.4.0</span>
+          <h2 id="quickstart-title">Observe first. Enforce when ready.</h2>
           <p>
-            Start with the published TypeScript guard. Its established
-            <code>@dinpd/ai-agent-guard</code> package name remains unchanged.
+            Run the customer-controlled MCP adapter beside an existing workflow.
+            In observe mode, it forwards every MCP call unchanged while recording
+            the counterfactual allow, deny, or challenge decision and actionable
+            findings in process-local shadow state.
           </p>
-          <a className="text-link" href={`${github}/tree/main/packages/guard`}>
-            Open the guard package <span aria-hidden="true">↗</span>
+          <a className="text-link" href={observerQuickStart}>
+            Run the observer quick start <span aria-hidden="true">↗</span>
           </a>
+          <p className="observer-boundary">
+            This reference adapter is a quick onboarding and integration path,
+            not yet a production-complete MCP gateway. When the findings look
+            right, switch the same deployment from <code>observe</code> to
+            <code>enforce</code> deliberately.
+          </p>
+          <p className="observer-alternative">
+            Need an in-process boundary instead?{" "}
+            <a href={`${github}/tree/main/packages/guard`}>
+              Embed the TypeScript guard <span aria-hidden="true">↗</span>
+            </a>
+          </p>
         </div>
-        <div className="code-panel" aria-label="AgentAction TypeScript quickstart">
+        <div className="code-panel observer-panel" aria-label="Passive MCP observer deployment model">
           <div className="code-panel-header">
-            <span>agent-loop.ts</span>
-            <span>TypeScript</span>
+            <span>customer environment</span>
+            <span>mode: observe</span>
           </div>
-          <pre>
-            <code>{`import { createToolGate } from
-  "@dinpd/ai-agent-guard";
-
-const gate = createToolGate({ policy });
-
-const result = await gate.run({
-  agentId: "support-agent",
-  jobId: "case-1042",
-  tool: "stripe.refund",
-  resource: "payment/pi_123",
-  amountUsd: 49,
-  idempotencyKey: "refund-1042-pi_123"
-}, executeRefund);
-
-if (!result.executed) {
-  return result.decision;
-}`}</code>
-          </pre>
+          <div className="observer-topology" aria-label="MCP client to observer adapter to MCP server">
+            <span>MCP client</span>
+            <span aria-hidden="true">→</span>
+            <strong>Observer adapter</strong>
+            <span aria-hidden="true">→</span>
+            <span>MCP server</span>
+          </div>
+          <dl className="observer-event">
+            <div>
+              <dt>gateway_outcome</dt>
+              <dd>forwarded</dd>
+            </div>
+            <div>
+              <dt>counterfactual_decision</dt>
+              <dd>deny</dd>
+            </div>
+            <div>
+              <dt>finding</dt>
+              <dd>idempotency key missing</dd>
+            </div>
+            <div>
+              <dt>downstream_result</dt>
+              <dd>returned unchanged</dd>
+            </div>
+          </dl>
+          <div className="observer-transition">
+            <span>after validation</span>
+            <code>observe → enforce</code>
+          </div>
         </div>
       </section>
 
