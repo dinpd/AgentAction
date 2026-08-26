@@ -1276,6 +1276,209 @@ nav a:not(.nav-cta):hover,
   background: var(--lime);
 }
 
+.project-engagement {
+  display: grid;
+  grid-template-columns: minmax(0, 1.03fr) minmax(430px, 0.72fr);
+  align-items: start;
+  gap: clamp(3rem, 7vw, 7rem);
+}
+
+.project-engagement h2 {
+  max-width: 850px;
+  font-size: clamp(3rem, 5.4vw, 5.8rem);
+  line-height: 0.94;
+}
+
+.engagement-lede {
+  max-width: 720px;
+  margin-top: 1.7rem;
+  color: #38402f;
+  font-size: clamp(1rem, 1.35vw, 1.18rem);
+  line-height: 1.65;
+}
+
+.engagement-services {
+  max-width: 760px;
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--ink);
+  list-style: none;
+}
+
+.engagement-services li {
+  padding: 1.15rem 0;
+  display: grid;
+  grid-template-columns: 2.6rem 1fr;
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.engagement-services li > span,
+.form-kicker,
+.project-form label > span {
+  font: 800 0.65rem/1.2 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.engagement-services li > span {
+  padding-top: 0.22rem;
+  color: #547900;
+}
+
+.engagement-services h3 {
+  font-size: 1rem;
+}
+
+.engagement-services p {
+  margin-top: 0.35rem;
+  color: #46503b;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.engagement-github {
+  margin-top: 1.8rem;
+}
+
+.project-form {
+  padding: clamp(1.35rem, 3vw, 2.25rem);
+  border: 1px solid var(--ink);
+  background: var(--paper-strong);
+  box-shadow: 12px 12px 0 var(--ink);
+}
+
+.project-form-heading {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.form-kicker {
+  color: #547900;
+}
+
+.project-form-heading h3 {
+  max-width: 520px;
+  margin-top: 0.65rem;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1;
+}
+
+.project-form-heading > p:last-child {
+  margin-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.form-grid {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.project-form label {
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.project-form label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.project-form label small {
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+}
+
+.project-form input,
+.project-form select,
+.project-form textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.72rem 0.8rem;
+  border: 1px solid #777d70;
+  border-radius: 0;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.project-form textarea {
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.project-form input:focus-visible,
+.project-form select:focus-visible,
+.project-form textarea:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+
+.project-form input::placeholder,
+.project-form textarea::placeholder {
+  color: #757a70;
+}
+
+.project-form .form-span {
+  grid-column: 1 / -1;
+}
+
+.form-honeypot {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+
+.form-submit-row {
+  margin-top: 1.3rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+.form-submit-row button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
+}
+
+.form-submit-row p {
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.form-status {
+  min-height: 1.5rem;
+  margin-top: 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.form-status-sent {
+  color: #416400;
+}
+
+.form-status-error {
+  color: #982a17;
+}
+
 footer {
   padding: 2.2rem max(1.5rem, calc((100vw - var(--max)) / 2));
   display: grid;
@@ -1323,9 +1526,14 @@ button:focus-visible {
 
   .section-heading,
   .quickstart,
-  .community {
+  .community,
+  .project-engagement {
     grid-template-columns: 1fr;
     gap: 2rem;
+  }
+
+  .project-form {
+    width: min(100%, 720px);
   }
 
   .lifecycle {
@@ -1542,6 +1750,19 @@ button:focus-visible {
 
   .community {
     gap: 3rem;
+  }
+
+  .form-grid,
+  .form-submit-row {
+    grid-template-columns: 1fr;
+  }
+
+  .project-form .form-span {
+    grid-column: auto;
+  }
+
+  .form-submit-row .button {
+    width: 100%;
   }
 
   footer {

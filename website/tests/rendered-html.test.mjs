@@ -57,8 +57,149 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
   assert.match(html, /Build interoperability before vocabulary/);
+  assert.match(html, /Bring us a consequential agent workflow/);
+  assert.match(html, /Map the action boundary/);
+  assert.match(html, /Prove the integration/);
+  assert.match(html, /Validate before rollout/);
+  assert.match(html, /Start a project conversation/);
+  assert.match(html, /<input[^>]+name="email"/i);
+  assert.match(html, /<input[^>]+type="email"/i);
+  assert.match(html, /<input[^>]+name="phone"/i);
+  assert.match(html, /<input[^>]+type="tel"/i);
+  assert.match(html, /name="project"/i);
+  assert.match(html, /Sent privately to info@agentaction\.dev/);
+  assert.match(html, /Prefer to explore the implementation\? Open GitHub/);
   assert.match(html, /https:\/\/github\.com\/dinpd\/AgentAction/);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
+});
+
+test("delivers a valid project inquiry through the server-side Cloudflare email API", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("inquiry-test", `${process.pid}-${Date.now()}`);
+  const { handleProjectInquiry } = await import(workerUrl.href);
+  let outbound;
+  const response = await handleProjectInquiry(
+    new Request("https://agentaction.dev/api/project-inquiry", {
+      method: "POST",
+      headers: { origin: "https://agentaction.dev", "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Ada Lovelace",
+        email: "ada@example.com",
+        phone: "+1 415 555 0142",
+        organization: "Analytical Engines",
+        stage: "prototype",
+        helpArea: "boundary",
+        project: "Our agent can approve refunds and needs explicit authority, review paths, and durable evidence.",
+        website: "",
+        startedAt: Date.now() - 5000,
+      }),
+    }),
+    {
+      EMAIL: {
+        send: async (message) => {
+          outbound = message;
+          return { messageId: "message_123" };
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const responseBody = await response.json();
+  assert.deepEqual(responseBody, { received: true });
+  assert.equal(outbound.to, "info@agentaction.dev");
+  assert.equal(outbound.from.email, "website@agentaction.dev");
+  assert.equal(outbound.replyTo.email, "ada@example.com");
+  assert.match(outbound.text, /approve refunds/);
+  assert.match(outbound.text, /\+1 415 555 0142/);
+  assert.doesNotMatch(JSON.stringify(responseBody), /ada@example\.com/);
+});
+
+test("rejects abusive and invalid project inquiries before email delivery", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("inquiry-rejection-test", `${process.pid}-${Date.now()}`);
+  const { handleProjectInquiry } = await import(workerUrl.href);
+  let sendCount = 0;
+  const env = {
+    EMAIL: {
+      send: async () => {
+        sendCount += 1;
+        return { messageId: "message_123" };
+      },
+    },
+  };
+  const validBody = {
+    name: "Grace Hopper",
+    email: "grace@example.com",
+    phone: "",
+    organization: "",
+    stage: "production",
+    helpArea: "evidence",
+    project: "Our production agent changes customer state and needs verifiable authorization and execution evidence.",
+    website: "",
+    startedAt: Date.now() - 5000,
+  };
+  const request = (body, origin = "https://agentaction.dev") => new Request(
+    "https://agentaction.dev/api/project-inquiry",
+    {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+
+  assert.equal((await handleProjectInquiry(request(validBody, "https://attacker.example"), env)).status, 403);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, website: "https://spam.example" }), env)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, phone: "not a phone" }), env)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, name: "Grace\nBcc: attacker@example.com" }), env)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, startedAt: Date.now() }), env)).status, 400);
+  assert.equal((await handleProjectInquiry(request({ ...validBody, project: "x".repeat(17_000) }), env)).status, 413);
+  assert.equal(sendCount, 0);
+});
+
+test("returns a private, retryable error when inquiry delivery fails", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("inquiry-failure-test", `${process.pid}-${Date.now()}`);
+  const { handleProjectInquiry } = await import(workerUrl.href);
+  const response = await handleProjectInquiry(
+    new Request("https://agentaction.dev/api/project-inquiry", {
+      method: "POST",
+      headers: { origin: "https://agentaction.dev", "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Katherine Johnson",
+        email: "katherine@example.com",
+        phone: "",
+        organization: "",
+        stage: "exploring",
+        helpArea: "integration",
+        project: "We are mapping an agent integration that can change durable state across several internal systems.",
+        website: "",
+        startedAt: Date.now() - 5000,
+      }),
+    }),
+    {
+      EMAIL: {
+        send: async () => {
+          throw new Error("temporary provider failure");
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 503);
+  const body = JSON.stringify(await response.json());
+  assert.doesNotMatch(body, /katherine@example\.com/);
+});
+
+test("packages a least-privilege Cloudflare email binding", async () => {
+  const config = JSON.parse(await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
+  assert.deepEqual(config.send_email, [
+    {
+      name: "EMAIL",
+      allowed_destination_addresses: ["info@agentaction.dev"],
+      allowed_sender_addresses: ["website@agentaction.dev"],
+    },
+  ]);
 });
 
 test("positions AgentAction as a privacy-safe trust layer across the agent lifecycle", async () => {

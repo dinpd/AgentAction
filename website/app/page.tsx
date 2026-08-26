@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Brand } from "./brand";
+import { ProjectInquiryForm } from "./project-inquiry-form";
 
 const github = "https://github.com/dinpd/AgentAction";
 
@@ -527,17 +528,43 @@ if (!result.executed) {
         </div>
       </section>
 
-      <section className="closing" aria-labelledby="closing-title">
-        <p className="eyebrow">Trust spans the full agent lifecycle.</p>
-        <h2 id="closing-title">Build agents that can act—and show why they should have.</h2>
-        <div className="hero-actions">
-          <a className="button button-primary" href={github}>
-            Explore AgentAction on GitHub <span aria-hidden="true">↗</span>
-          </a>
-          <a className="button button-secondary" href={`${github}/issues`}>
-            Join the discussion <span aria-hidden="true">↗</span>
+      <section id="project" className="closing project-engagement" aria-labelledby="closing-title">
+        <div className="engagement-copy">
+          <p className="eyebrow">Bring us a consequential agent workflow.</p>
+          <h2 id="closing-title">Build agents that can act—and show why they should have.</h2>
+          <p className="engagement-lede">
+            If your agent can move money, change production, contact customers,
+            or mutate durable state, we can help define the authority and evidence
+            it needs before rollout.
+          </p>
+          <ol className="engagement-services" aria-label="How AgentAction can help">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>Map the action boundary</h3>
+                <p>Identify consequential actions, identities, approvals, budgets, and data-flow rules.</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>Prove the integration</h3>
+                <p>Connect the runtime, gateway, and provider; simulate decisions; and add receipts and replay.</p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>Validate before rollout</h3>
+                <p>Exercise deny and challenge paths, provider verification, and investigation-ready evidence.</p>
+              </div>
+            </li>
+          </ol>
+          <a className="text-link engagement-github" href={github}>
+            Prefer to explore the implementation? Open GitHub <span aria-hidden="true">↗</span>
           </a>
         </div>
+        <ProjectInquiryForm />
       </section>
 
       <footer>

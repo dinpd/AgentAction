@@ -30,3 +30,11 @@ npm audit --omit=dev
 The production build targets a Cloudflare Worker through vinext. Hosting
 metadata is stored in `.openai/hosting.json`; no credentials belong in the
 repository.
+
+## Project inquiry delivery
+
+The homepage project form sends directly to `info@agentaction.dev` through a
+restricted Cloudflare Email Service binding and does not store submissions. The
+binding can send only from `website@agentaction.dev` and only to the project
+inbox. The destination address used by the `info@agentaction.dev` Email Routing
+rule must be verified in Cloudflare before delivery can succeed.
