@@ -93,9 +93,11 @@ export default function GatewayPage() {
       <header className="site-header">
         <Brand href="/" />
         <nav aria-label="Primary navigation">
-          <Link href="/">Project</Link>
           <a href="#workflow">How it works</a>
           <a href="#compatibility">Compatibility</a>
+          <span className="nav-divider" aria-hidden="true" />
+          <Link className="nav-page" href="/">Project</Link>
+          <Link className="nav-page" href="/landscape">Landscape</Link>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>

@@ -125,6 +125,30 @@ nav a:not(.nav-cta):hover,
   text-underline-offset: 0.3rem;
 }
 
+.nav-divider {
+  width: 1px;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  background: rgba(17, 19, 15, 0.22);
+}
+
+/* Cross-page destinations, distinct from in-page anchors. */
+.nav-page {
+  position: relative;
+  color: var(--muted);
+}
+
+.nav-page::before {
+  content: "\2192";
+  margin-right: 0.32rem;
+  font-size: 0.82em;
+  opacity: 0.55;
+}
+
+.nav-page:hover {
+  color: var(--ink);
+}
+
 .nav-cta {
   padding: 0.7rem 1rem;
   border: 1px solid var(--ink);
@@ -682,6 +706,56 @@ nav a:not(.nav-cta):hover,
   font: 800 0.61rem/1 "SFMono-Regular", Consolas, monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* Status tones: the column should scan as a spectrum from real to theoretical. */
+.status-live {
+  border-color: #6f9f00;
+  background: rgba(201, 255, 70, 0.26);
+  color: #3f6100;
+}
+
+.status-mixed {
+  border-color: #9a8a2e;
+  background: linear-gradient(
+    100deg,
+    rgba(201, 255, 70, 0.3) 0%,
+    rgba(201, 255, 70, 0.3) 46%,
+    rgba(255, 196, 0, 0.22) 54%,
+    rgba(255, 196, 0, 0.22) 100%
+  );
+  color: #5f5200;
+}
+
+.status-preview {
+  border-color: #b08a12;
+  background: rgba(255, 196, 0, 0.2);
+  color: #745200;
+}
+
+.status-early {
+  border-color: #8e9288;
+  background: transparent;
+  color: #5e6259;
+}
+
+.status-draft {
+  border-color: #b6b9af;
+  background: transparent;
+  color: #85897f;
+}
+
+.status-concept {
+  border-style: dashed;
+  border-color: #b6b9af;
+  background: transparent;
+  color: #85897f;
+}
+
+.status-dormant {
+  border-color: #b08a8a;
+  background: rgba(176, 138, 138, 0.14);
+  color: #7d5555;
 }
 
 .status-current {
@@ -1308,6 +1382,10 @@ button:focus-visible {
     display: none;
   }
 
+  .nav-divider {
+    display: none;
+  }
+
   .transition-note {
     align-items: flex-start;
   }
@@ -1490,5 +1568,458 @@ button:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Landscape survey page                                             */
+/* ---------------------------------------------------------------- */
+
+.landscape-hero {
+  padding: 4.5rem 6vw 3.5rem;
+  border-bottom: 1px solid var(--line);
+  max-width: 62rem;
+}
+
+.landscape-hero h1 {
+  margin: 0.6rem 0 1.4rem;
+}
+
+.landscape-lede {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 46rem;
+}
+
+.landscape-disclosure {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  max-width: 46rem;
+}
+
+.landscape-disclosure a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.landscape-legend {
+  margin-top: 2.4rem;
+  border: 1px solid var(--ink);
+  padding: 1.4rem 1.5rem;
+}
+
+.landscape-legend h2 {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.landscape-legend-lede {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  max-width: 34rem;
+  margin-bottom: 1.4rem;
+}
+
+.status-scale-axis {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+  font: 700 0.63rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-scale-rule {
+  flex: 1 1 auto;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    #6f9f00 0%,
+    #b08a12 38%,
+    #8e9288 68%,
+    #cfd2c8 100%
+  );
+}
+
+.status-scale dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 1px solid var(--line);
+}
+
+.status-scale-item {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.05rem;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
+}
+
+.status-scale-item:nth-child(3n) {
+  border-right: 0;
+}
+
+.status-scale-item:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.status-scale-item.tone-live {
+  border-left-color: #6f9f00;
+}
+
+.status-scale-item.tone-preview {
+  border-left-color: #b08a12;
+}
+
+.status-scale-item.tone-early {
+  border-left-color: #8e9288;
+}
+
+.status-scale-item.tone-draft,
+.status-scale-item.tone-concept {
+  border-left-color: #cfd2c8;
+}
+
+.status-scale-item.tone-dormant {
+  border-left-color: #b08a8a;
+}
+
+.landscape-legend dd {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.landscape-finding-list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--ink);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.landscape-finding-list > li {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 1.4rem;
+  padding: 1.6rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.landscape-finding-list > li:last-child {
+  border-bottom: 0;
+}
+
+.finding-index {
+  font: 800 0.72rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding-top: 0.25rem;
+}
+
+.landscape-finding-list h3 {
+  font-size: 1.02rem;
+  line-height: 1.35;
+  margin-bottom: 0.6rem;
+}
+
+.landscape-finding-list p {
+  color: var(--muted);
+  font-size: 0.89rem;
+  line-height: 1.62;
+  max-width: 52rem;
+}
+
+.landscape-tier {
+  margin-top: 2.8rem;
+}
+
+.landscape-tier-head {
+  margin-bottom: 1rem;
+}
+
+.landscape-tier-head h3 {
+  font-size: 1.15rem;
+  margin: 0.3rem 0 0.5rem;
+}
+
+.landscape-tier-head > p:last-child {
+  color: var(--muted);
+  font-size: 0.87rem;
+  line-height: 1.55;
+  max-width: 44rem;
+}
+
+.landscape-table {
+  border: 1px solid var(--ink);
+}
+
+.landscape-row {
+  display: grid;
+  grid-template-columns: 12rem 8rem 11rem 1fr;
+  border-bottom: 1px solid var(--line);
+}
+
+.landscape-row:last-child {
+  border-bottom: 0;
+}
+
+.landscape-row > * {
+  padding: 0.95rem 1.05rem;
+  border-right: 1px solid var(--line);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.landscape-row > *:last-child {
+  border-right: 0;
+}
+
+.landscape-head {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.landscape-head > span {
+  font: 800 0.66rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landscape-row a {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.landscape-row a:hover {
+  border-bottom-color: var(--ink);
+}
+
+.landscape-row em {
+  display: block;
+  margin-top: 0.25rem;
+  font-style: normal;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.landscape-tags {
+  font: 600 0.76rem/1.45 "SFMono-Regular", Consolas, monospace;
+  color: var(--muted);
+}
+
+.landscape-note {
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.58;
+}
+
+.standards-table .landscape-row {
+  grid-template-columns: 16rem 9rem 12rem 1fr;
+}
+
+.standards-table strong {
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+/* The maintainer's own entry: visually marked so the disclosure is unmissable. */
+.landscape-row-self {
+  background: rgba(201, 255, 70, 0.07);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+.landscape-row-self em {
+  font-weight: 700;
+  color: #5e6259;
+}
+
+.landscape-try {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.landscape-try a {
+  font: 600 0.76rem/1.4 "SFMono-Regular", Consolas, monospace;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(17, 19, 15, 0.25);
+}
+
+.landscape-try a:hover {
+  border-bottom-color: var(--ink);
+}
+
+.landscape-aside {
+  margin-top: 2.4rem;
+  padding: 1.3rem 1.5rem;
+  border-left: 3px solid var(--ink);
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  max-width: 52rem;
+}
+
+.landscape-conclusion-body {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 50rem;
+}
+
+.landscape-conclusion-body p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.68;
+}
+
+.landscape-pullquote {
+  margin-top: 0.6rem;
+  padding: 1.2rem 1.4rem;
+  border: 1px solid var(--ink);
+  color: var(--ink) !important;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+  font-weight: 600;
+}
+
+.landscape-choosing,
+.landscape-problems {
+  margin-top: 2.6rem;
+}
+
+.landscape-choosing h3,
+.landscape-problems h3 {
+  font-size: 1.05rem;
+  margin-bottom: 1rem;
+}
+
+.landscape-choosing dl {
+  border: 1px solid var(--ink);
+}
+
+.landscape-choosing dl > div {
+  display: grid;
+  grid-template-columns: 22rem 1fr;
+  border-bottom: 1px solid var(--line);
+}
+
+.landscape-choosing dl > div:last-child {
+  border-bottom: 0;
+}
+
+.landscape-choosing dt,
+.landscape-choosing dd {
+  padding: 0.95rem 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.landscape-choosing dt {
+  border-right: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.landscape-choosing dd {
+  color: var(--muted);
+}
+
+.landscape-problems ol {
+  display: grid;
+  gap: 0.8rem;
+  padding-left: 1.2rem;
+  max-width: 52rem;
+}
+
+.landscape-problems li {
+  color: var(--muted);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  padding-left: 0.3rem;
+}
+
+@media (max-width: 900px) {
+  .landscape-hero {
+    padding: 3rem 6vw 2.4rem;
+  }
+
+  .status-scale dl {
+    grid-template-columns: 1fr;
+  }
+
+  .status-scale-item,
+  .status-scale-item:nth-child(3n) {
+    border-right: 0;
+  }
+
+  .status-scale-item:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .status-scale-item:last-child {
+    border-bottom: 0;
+  }
+
+  .status-scale-axis span:not(.status-scale-rule) {
+    display: none;
+  }
+
+  .landscape-finding-list > li {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .landscape-table {
+    border: 0;
+  }
+
+  .landscape-row,
+  .standards-table .landscape-row {
+    grid-template-columns: 1fr;
+    border: 1px solid var(--ink);
+    margin-bottom: 0.9rem;
+  }
+
+  .landscape-head {
+    display: none;
+  }
+
+  .landscape-row > * {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .landscape-row > *:last-child {
+    border-bottom: 0;
+  }
+
+  .landscape-choosing dl > div {
+    grid-template-columns: 1fr;
+  }
+
+  .landscape-choosing dt {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
   }
 }
