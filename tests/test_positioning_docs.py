@@ -123,6 +123,21 @@ def test_repository_positioning_matches_agentaction_website():
     assert "without inspecting hidden chain-of-thought" in WEBSITE_PAGE
 
 
+def test_website_prefers_passive_mcp_observation_without_overstating_the_adapter():
+    observer_heading = "Observe first. Enforce when ready."
+    guard_alternative = "Embed the TypeScript guard"
+
+    assert observer_heading in WEBSITE_PAGE
+    assert guard_alternative in WEBSITE_PAGE
+    assert WEBSITE_PAGE.index(observer_heading) < WEBSITE_PAGE.index(guard_alternative)
+    assert "forwards every MCP call unchanged" in WEBSITE_PAGE
+    assert "counterfactual allow, deny, or challenge decision" in WEBSITE_PAGE
+    assert "process-local shadow state" in WEBSITE_PAGE
+    assert "quick onboarding and integration path" in WEBSITE_PAGE
+    assert "not yet a production-complete MCP gateway" in WEBSITE_PAGE
+    assert "observe → enforce" in WEBSITE_PAGE
+
+
 def test_action_gate_roadmap_is_scoped_within_the_platform():
     assert "[Project Positioning](positioning.md)" in ROADMAP
     assert PROMISE in ROADMAP

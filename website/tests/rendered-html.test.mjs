@@ -271,6 +271,44 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   assert.equal(website?.publisher?.["@id"], organization?.["@id"]);
 });
 
+test("presents passive MCP observation as the preferred low-risk onboarding path", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /Recommended onboarding: run the customer-controlled adapter/i);
+  assert.match(html, /Observe first\. Enforce when ready\./);
+  assert.match(html, /forwards every MCP call unchanged/i);
+  assert.match(html, /counterfactual allow, deny, or challenge decision/i);
+  assert.match(html, /process-local shadow state/i);
+  assert.match(html, /quick onboarding and integration path/i);
+  assert.match(html, /not yet a production-complete MCP gateway/i);
+  assert.match(html, /MCP client[\s\S]*Observer adapter[\s\S]*MCP server/i);
+  assert.match(html, /gateway_outcome[\s\S]*forwarded/i);
+  assert.match(html, /counterfactual_decision[\s\S]*deny/i);
+  assert.match(html, /observe → enforce/i);
+  assert.match(
+    html,
+    /href="https:\/\/github\.com\/dinpd\/AgentAction#recommended-observe-an-mcp-workflow"[^>]*>\s*Observe an MCP workflow/i,
+  );
+
+  const observerPosition = html.indexOf("Run the observer quick start");
+  const guardPosition = html.indexOf("Embed the TypeScript guard");
+  assert.ok(observerPosition >= 0);
+  assert.ok(guardPosition > observerPosition);
+});
+
+test("keeps the observer deployment model readable at narrow widths", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const narrowStart = styles.indexOf("@media (max-width: 720px)");
+  const nextMedia = styles.indexOf("@media (", narrowStart + 1);
+  const narrowRules = styles.slice(narrowStart, nextMedia >= 0 ? nextMedia : undefined);
+
+  assert.ok(narrowStart >= 0);
+  assert.match(narrowRules, /\.observer-topology\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(narrowRules, /\.observer-event > div\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(narrowRules, /\.observer-transition\s*\{[\s\S]*?flex-direction:\s*column/);
+});
+
 test("server-renders the AgentAction Gateway product page with route metadata", async () => {
   const response = await render("/gateway");
   assert.equal(response.status, 200);
