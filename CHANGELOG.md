@@ -4,6 +4,40 @@
 
 No changes yet.
 
+## 0.4.0 - 2026-08-26
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.4.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- MCP gateway enforcement remains the default. Observe mode is explicitly
+  enabled with `"mode": "observe"`, so existing configurations require no
+  migration.
+- Existing `agentpass` and `agentid` CLI aliases, Python import paths,
+  AgentPass-named public API aliases, and versioned `agentpass.*` protocol
+  identifiers remain compatible.
+- npm packages retain their independent versions and are not republished by
+  this repository release.
+
+### MCP gateway onboarding and policy testing
+
+- Added a passive observe mode to the reference MCP gateway adapter. It uses the
+  local stateful guard to evaluate representative traffic without filtering
+  tool discovery, blocking tool calls, calling hosted authorization, consuming
+  hosted approval or JIT state, or attaching provider receipts.
+- Added privacy-safe `agentaction.mcp.observation` events with evaluation status,
+  counterfactual allow, deny, or challenge decisions, normalized findings, and
+  downstream outcome while excluding raw tool arguments and results.
+- Made observe mode isolate missing identity, missing mappings, local evaluator
+  failures, and caller-provided log-sink failures so onboarding traffic remains
+  transparent. Enforce mode retains its existing fail-closed behavior.
+- Added regression coverage for transparent request forwarding, stateful
+  duplicate detection, identity and mapping failures, evaluator isolation, no
+  hosted authorization or receipt mutation, and existing enforcement behavior.
+- Added a runnable `npm run demo:observe` example and documented the deliberate
+  transition from representative observation to enforcement.
+
 ## 0.3.0 - 2026-08-25
 
 ### Upgrade and compatibility
