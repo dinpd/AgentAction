@@ -159,8 +159,10 @@ export default function Home() {
         <nav aria-label="Primary navigation">
           <a href="#platform">Platform</a>
           <a href="#architecture">Decision assurance</a>
-          <Link href="/gateway">Action gateway</Link>
           <a href="#proof">Audit &amp; receipts</a>
+          <span className="nav-divider" aria-hidden="true" />
+          <Link className="nav-page" href="/gateway">Action gateway</Link>
+          <Link className="nav-page" href="/landscape">Landscape</Link>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>
@@ -502,6 +504,10 @@ if (!result.executed) {
           </p>
         </div>
         <div className="community-links">
+          <Link href="/landscape">
+            <span>Governance landscape</span>
+            <span aria-hidden="true">↗</span>
+          </Link>
           <a href={`${github}/tree/main/docs/proposals`}>
             <span>Community RFCs</span>
             <span aria-hidden="true">↗</span>

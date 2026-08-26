@@ -37,6 +37,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /AgentAction is the canonical project brand/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
+  assert.match(html, /href="\/landscape"[^>]*>Landscape</i);
   assert.match(html, /class="brand-symbol"/i);
   assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
   assert.doesNotMatch(html, /class="brand-mark"/i);
@@ -111,6 +112,52 @@ test("server-renders the AgentAction Gateway product page with route metadata", 
   assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
   assert.doesNotMatch(html, /class="brand-mark"/i);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
+});
+
+test("server-renders the governance landscape survey", async () => {
+  const response = await render("/landscape");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, /<title>The AI Agent Governance Landscape — AgentAction<\/title>/i);
+  assert.match(html, /<link rel="canonical" href="https:\/\/agentaction\.dev\/landscape"/i);
+  assert.match(html, /The AI agent governance landscape/);
+  assert.match(html, /Six findings\./);
+  assert.match(html, /Ordered by backing, not by preference/);
+  assert.match(html, /What is adopted, and what is one person/);
+  assert.match(html, /Gating became table stakes\. Evidence did not/);
+
+  // discloses that we maintain it and lists ourselves honestly
+  assert.match(html, /Maintained by AgentAction/);
+  assert.match(html, /Inclusion is not endorsement/);
+  assert.match(html, /listed in the independent tier\s+below/);
+  assert.match(html, /Self-listed by the maintainer/);
+  assert.match(html, /class="landscape-row landscape-row-self"/);
+  // our own row must keep its honest caveats
+  assert.match(html, /Solo-maintained and thinly adopted/);
+  assert.match(html, /product direction, not shipped/);
+
+  // live-versus-theory labelling must survive
+  assert.match(html, /Early as OSS, Live in AgentCore/);
+  assert.match(html, /Individual draft, expires Sept 2026/);
+  assert.match(html, /Concept/);
+  assert.match(html, /Dormant/);
+  assert.match(html, /class="status-label status-live"/);
+  assert.match(html, /class="status-label status-concept"/);
+  assert.match(html, /class="status-label status-dormant"/);
+  assert.match(html, /class="status-scale-rule"/);
+
+  assert.match(html, /class="brand-symbol"/i);
+  assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
+
+  const headings = html.match(/<h1\b/gi) ?? [];
+  assert.equal(headings.length, 1);
+
+  const localLinks = [...html.matchAll(/href=["']#([^"']+)["']/gi)].map((match) => match[1]);
+  for (const id of localLinks) {
+    assert.match(html, new RegExp(`id=["']${id}["']`, "i"));
+  }
 });
 
 test("removes starter-only assets and metadata", async () => {
