@@ -8,8 +8,10 @@ import type {
   AgentIdAuthorizeRequest,
   AgentIdAuthorizeResponse,
   AuthorizationDecisionLog,
+  GatewayDecisionLog,
   JsonRpcRequest,
   JsonRpcResponse,
+  ObservationDecisionLog,
   JwsProviderAuthorizationReceipt,
   ProviderAuthorizationReceipt,
   RequestContext,
@@ -44,7 +46,8 @@ async function handleSingle(
   }
 
   if (request.method === "tools/list") {
-    return filterToolsList(await forward(request as JsonRpcRequest, config, fetchImpl), config);
+    const response = await forward(request as JsonRpcRequest, config, fetchImpl);
+    return config.mode === "observe" ? response : filterToolsList(response, config);
   }
 
   if (request.method !== "tools/call") {
@@ -54,6 +57,10 @@ async function handleSingle(
   const params = request.params || {};
   const toolName = typeof params.name === "string" ? params.name : "";
   const args = isRecord(params.arguments) ? params.arguments : {};
+
+  if (config.mode === "observe") {
+    return observeToolCall(request as JsonRpcRequest, toolName, args, config, context, fetchImpl);
+  }
 
   if (!toolName) {
     return errorResponse(request.id, BAD_REQUEST, "MCP tools/call is missing params.name");
@@ -91,6 +98,129 @@ async function handleSingle(
       ? withProviderReceipt(request as JsonRpcRequest, authorizePayload, decision, mapped, args, config)
       : (request as JsonRpcRequest);
   return forward(downstreamRequest, config, fetchImpl);
+}
+
+async function observeToolCall(
+  request: JsonRpcRequest,
+  toolName: string,
+  args: Record<string, unknown>,
+  config: AdapterConfig,
+  context: RequestContext,
+  fetchImpl: typeof fetch,
+): Promise<JsonRpcResponse> {
+  let evaluation: Omit<ObservationDecisionLog, "downstream_outcome"> = {
+    event: "agentaction.mcp.observation",
+    mode: "observe",
+    gateway_outcome: "forwarded",
+    evaluation_status: "skipped",
+    agent_id: context.agentId || config.agent.id,
+    intent_id: context.intentId,
+    intent_digest: context.intentDigest,
+    tenant_id: context.tenantId || config.agentid.tenant_id,
+    user_id: context.userId,
+    tool: toolName,
+    findings: toolName ? [] : ["MCP tools/call is missing params.name"],
+  };
+
+  if (toolName) {
+    const enterpriseAuth = await resolveEnterpriseAuth(config, context, fetchImpl);
+    if (!enterpriseAuth.ok) {
+      evaluation = {
+        ...evaluation,
+        findings: enterpriseAuth.findings,
+      };
+    } else {
+      try {
+        const payload = mapToolCallToAuthorize(config, toolName, args, enterpriseAuth.context);
+        if (!config.local_guard) {
+          evaluation = {
+            ...observationLogContext(payload),
+            event: "agentaction.mcp.observation",
+            mode: "observe",
+            gateway_outcome: "forwarded",
+            evaluation_status: "error",
+            findings: ["observe mode requires local_guard.policy"],
+          };
+        } else {
+          const decision = authorizeWithLocalGuard(config, toolName, args, enterpriseAuth.context);
+          evaluation = {
+            ...observationLogContext(payload),
+            event: "agentaction.mcp.observation",
+            mode: "observe",
+            gateway_outcome: "forwarded",
+            evaluation_status: "evaluated",
+            counterfactual_allow: decision.allow,
+            counterfactual_decision: decision.decision,
+            findings: decision.findings,
+          };
+        }
+      } catch {
+        evaluation = {
+          ...evaluation,
+          evaluation_status: config.tools[toolName] ? "error" : "skipped",
+          findings: [
+            config.tools[toolName]
+              ? "local policy evaluation failed"
+              : `No AgentAction mapping configured for MCP tool: ${toolName}`,
+          ],
+        };
+      }
+    }
+  }
+
+  try {
+    const response = await forward(request, config, fetchImpl);
+    logObservation(context.logger, {
+      ...evaluation,
+      downstream_outcome: response.error ? "error" : "success",
+    });
+    return response;
+  } catch (error) {
+    logObservation(context.logger, {
+      ...evaluation,
+      downstream_outcome: "transport_error",
+    });
+    throw error;
+  }
+}
+
+function observationLogContext(payload: AgentIdAuthorizeRequest): Pick<
+  ObservationDecisionLog,
+  | "agent_id"
+  | "intent_id"
+  | "intent_digest"
+  | "tenant_id"
+  | "user_id"
+  | "tool"
+  | "action"
+  | "resource"
+  | "job_id"
+  | "case_id"
+  | "customer_id"
+  | "enterprise_auth"
+> {
+  return compactLog({
+    agent_id: payload.agent_id,
+    intent_id: payload.intent_id,
+    intent_digest: payload.intent_digest,
+    tenant_id: payload.tenant_id,
+    user_id: payload.user_id,
+    tool: payload.tool,
+    action: payload.action,
+    resource: payload.resource,
+    job_id: payload.job_id,
+    case_id: payload.case_id,
+    customer_id: payload.customer_id,
+    ...contextFromPayload(payload),
+  });
+}
+
+function logObservation(logger: RequestContext["logger"], entry: ObservationDecisionLog): void {
+  try {
+    logger?.(entry);
+  } catch {
+    // Observation must remain passive even when a caller-provided log sink fails.
+  }
 }
 
 async function resolveEnterpriseAuth(
@@ -138,8 +268,8 @@ function authorizationLog(
   });
 }
 
-function compactLog(entry: AuthorizationDecisionLog): AuthorizationDecisionLog {
-  return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as AuthorizationDecisionLog;
+function compactLog<T extends GatewayDecisionLog | Partial<GatewayDecisionLog>>(entry: T): T {
+  return Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== undefined)) as T;
 }
 
 function compactObject<T extends Record<string, unknown>>(entry: T): T {

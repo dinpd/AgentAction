@@ -10,6 +10,7 @@
     "test": "node --test --import tsx tests/*.test.ts",
     "demo:enterprise-auth": "node --import tsx examples/enterprise-auth-receipt-demo.ts",
     "demo:local-guard": "node --import tsx examples/local-guard-demo.ts",
+    "demo:observe": "node --import tsx examples/observe-mode-demo.ts",
     "dev": "tsx src/index.ts examples/config.json",
     "dev:local-guard": "tsx src/index.ts examples/local-guard-config.json",
     "dev:devops": "tsx src/index.ts ../solutions/devops-sre/gateway-config.json",

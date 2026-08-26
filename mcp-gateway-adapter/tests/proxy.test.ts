@@ -3,7 +3,12 @@ import { createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
 import { handleJsonRpc } from "../src/proxy.ts";
-import type { AdapterConfig, AuthorizationDecisionLog, JsonWebKeySet } from "../src/types.ts";
+import type {
+  AdapterConfig,
+  AuthorizationDecisionLog,
+  JsonWebKeySet,
+  ObservationDecisionLog,
+} from "../src/types.ts";
 
 test("filters tools/list to configured tools", async () => {
   const response = await handleJsonRpc(
@@ -696,6 +701,191 @@ test("local guard mode blocks PII egress before forwarding", async () => {
   assert.ok((response as any).error.data.findings.includes("field is blocked: ssn"));
 });
 
+test("observe mode forwards tools/list without filtering", async () => {
+  const downstream = {
+    jsonrpc: "2.0",
+    id: 20,
+    result: {
+      tools: [
+        { name: "provider.crm.search_customer" },
+        { name: "provider.admin.delete_customer" },
+      ],
+    },
+  };
+  const response = await handleJsonRpc(
+    { jsonrpc: "2.0", id: 20, method: "tools/list" },
+    observeConfig(),
+    {},
+    async () => jsonResponse(downstream),
+  );
+
+  assert.deepEqual(response, downstream);
+});
+
+test("observe mode forwards counterfactual denials unchanged and preserves shadow state", async () => {
+  const configured = observeConfig();
+  const logs: ObservationDecisionLog[] = [];
+  const calls: string[] = [];
+  const forwarded: unknown[] = [];
+  const request = observedCreditRequest(21);
+  const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push(String(url));
+    forwarded.push(JSON.parse(String(init?.body)));
+    return jsonResponse({ jsonrpc: "2.0", id: 21, result: { content: [] } });
+  };
+
+  const first = await handleJsonRpc(request, configured, {
+    logger: (entry) => logs.push(entry as ObservationDecisionLog),
+  }, fetchImpl);
+  const second = await handleJsonRpc(request, configured, {
+    logger: (entry) => logs.push(entry as ObservationDecisionLog),
+  }, fetchImpl);
+
+  assert.deepEqual(calls, ["https://mcp.example.com", "https://mcp.example.com"]);
+  assert.deepEqual(forwarded, [request, request]);
+  assert.equal(JSON.stringify(forwarded).includes("_agentid_receipt"), false);
+  assert.deepEqual(first, { jsonrpc: "2.0", id: 21, result: { content: [] } });
+  assert.deepEqual(second, { jsonrpc: "2.0", id: 21, result: { content: [] } });
+  assert.deepEqual(logs.map((entry) => ({
+    event: entry.event,
+    mode: entry.mode,
+    evaluation_status: entry.evaluation_status,
+    gateway_outcome: entry.gateway_outcome,
+    downstream_outcome: entry.downstream_outcome,
+    counterfactual_decision: entry.counterfactual_decision,
+    findings: entry.findings,
+  })), [
+    {
+      event: "agentaction.mcp.observation",
+      mode: "observe",
+      evaluation_status: "evaluated",
+      gateway_outcome: "forwarded",
+      downstream_outcome: "success",
+      counterfactual_decision: "allow",
+      findings: [],
+    },
+    {
+      event: "agentaction.mcp.observation",
+      mode: "observe",
+      evaluation_status: "evaluated",
+      gateway_outcome: "forwarded",
+      downstream_outcome: "success",
+      counterfactual_decision: "deny",
+      findings: ["idempotencyKey was already used"],
+    },
+  ]);
+});
+
+test("observe mode forwards invalid enterprise identity without hosted authorization", async () => {
+  const { privateKey, jwks } = rsaKeyPair();
+  const token = signJwt({
+    iss: "https://idp.example.com",
+    aud: "provider-crm-mcp",
+    sub: "user-17",
+    tid: "tenant-a",
+    scp: ["mcp:provider-crm"],
+    groups: ["support-admins"],
+    iat: 1,
+    exp: 1,
+  }, privateKey);
+  const configured: AdapterConfig = {
+    ...enterpriseJwtConfig(jwks),
+    mode: "observe",
+  };
+  const logs: ObservationDecisionLog[] = [];
+  const calls: string[] = [];
+  const request = jwtProtectedRequest(22);
+  const response = await handleJsonRpc(request, configured, {
+    bearerToken: token,
+    logger: (entry) => logs.push(entry as ObservationDecisionLog),
+  }, async (url, init) => {
+    calls.push(String(url));
+    assert.deepEqual(JSON.parse(String(init?.body)), request);
+    return jsonResponse({ jsonrpc: "2.0", id: 22, result: { content: [] } });
+  });
+
+  assert.deepEqual(calls, ["https://mcp.example.com"]);
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 22, result: { content: [] } });
+  assert.equal(logs[0].evaluation_status, "skipped");
+  assert.deepEqual(logs[0].findings, ["enterprise JWT is expired"]);
+});
+
+test("observe mode forwards unmapped and malformed tool calls with safe findings", async () => {
+  const configured = observeConfig();
+  const logs: ObservationDecisionLog[] = [];
+  const requests = [
+    {
+      jsonrpc: "2.0" as const,
+      id: 23,
+      method: "tools/call",
+      params: { name: "provider.admin.delete_customer", arguments: { access_token: "do-not-log" } },
+    },
+    {
+      jsonrpc: "2.0" as const,
+      id: 24,
+      method: "tools/call",
+      params: { arguments: { access_token: "do-not-log" } },
+    },
+  ];
+  const forwarded: unknown[] = [];
+
+  for (const request of requests) {
+    await handleJsonRpc(request, configured, {
+      logger: (entry) => logs.push(entry as ObservationDecisionLog),
+    }, async (_url, init) => {
+      forwarded.push(JSON.parse(String(init?.body)));
+      return jsonResponse({ jsonrpc: "2.0", id: request.id, result: { content: [] } });
+    });
+  }
+
+  assert.deepEqual(forwarded, requests);
+  assert.deepEqual(logs.map((entry) => ({ status: entry.evaluation_status, findings: entry.findings })), [
+    {
+      status: "skipped",
+      findings: ["No AgentAction mapping configured for MCP tool: provider.admin.delete_customer"],
+    },
+    {
+      status: "skipped",
+      findings: ["MCP tools/call is missing params.name"],
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes("do-not-log"), false);
+});
+
+test("observe mode forwards when local evaluation or the log sink fails", async () => {
+  const configured: AdapterConfig = {
+    ...config,
+    mode: "observe",
+  };
+  const logs: ObservationDecisionLog[] = [];
+  const request = {
+    jsonrpc: "2.0" as const,
+    id: 25,
+    method: "tools/call",
+    params: {
+      name: "provider.crm.search_customer",
+      arguments: { customer_id: "cus_123", job_id: "support_case_resolution" },
+    },
+  };
+  let forwarded = 0;
+
+  const response = await handleJsonRpc(request, configured, {
+    logger: (entry) => {
+      logs.push(entry as ObservationDecisionLog);
+      throw new Error("log sink unavailable");
+    },
+  }, async (_url, init) => {
+    forwarded += 1;
+    assert.deepEqual(JSON.parse(String(init?.body)), request);
+    return jsonResponse({ jsonrpc: "2.0", id: 25, result: { content: [] } });
+  });
+
+  assert.equal(forwarded, 1);
+  assert.equal(logs[0].evaluation_status, "error");
+  assert.deepEqual(logs[0].findings, ["observe mode requires local_guard.policy"]);
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 25, result: { content: [] } });
+});
+
 const config: AdapterConfig = {
   agentid: { base_url: "https://agentid.example.com", tenant_id: "tenant-a" },
   downstream: { url: "https://mcp.example.com" },
@@ -912,6 +1102,43 @@ function localGuardConfig(): AdapterConfig {
         external_domain_arg: "domain",
         data_classification: ["customer_data", "pii"],
         field_set_arg: "fields",
+      },
+    },
+  };
+}
+
+function observeConfig(): AdapterConfig {
+  const configured = localGuardConfig();
+  return {
+    ...configured,
+    mode: "observe",
+    provider_receipts: {
+      tenant_id: "tenant-a",
+      hmac_secret: "must-not-be-used-in-observe-mode",
+    },
+    tools: {
+      ...configured.tools,
+      "provider.billing.issue_credit": {
+        ...configured.tools["provider.billing.issue_credit"],
+        receipt_required: true,
+      },
+    },
+  };
+}
+
+function observedCreditRequest(id: number) {
+  return {
+    jsonrpc: "2.0" as const,
+    id,
+    method: "tools/call",
+    params: {
+      name: "provider.billing.issue_credit",
+      arguments: {
+        customer_id: "cus_123",
+        job_id: "support_case_resolution",
+        amount_usd: 49,
+        idempotency_key: "credit-case-1042-cus_123",
+        approval_id: "approval-1",
       },
     },
   };

@@ -48,6 +48,8 @@ export type AgentIdAuthorizeResponse = {
   challenge?: unknown;
 };
 
+export type AdapterMode = "enforce" | "observe";
+
 export type ToolMapping = {
   action: string;
   data_from?: string;
@@ -78,6 +80,7 @@ export type ToolMapping = {
 };
 
 export type AdapterConfig = {
+  mode?: AdapterMode;
   listen?: {
     host?: string;
     port?: number;
@@ -167,6 +170,31 @@ export type AuthorizationDecisionLog = {
   enterprise_auth?: EnterpriseAuthContext;
 };
 
+export type ObservationDecisionLog = {
+  event: "agentaction.mcp.observation";
+  mode: "observe";
+  gateway_outcome: "forwarded";
+  evaluation_status: "evaluated" | "skipped" | "error";
+  downstream_outcome: "success" | "error" | "transport_error";
+  agent_id: string;
+  intent_id?: string;
+  intent_digest?: string;
+  tenant_id?: string;
+  user_id?: string;
+  tool: string;
+  action?: string;
+  resource?: string;
+  job_id?: string;
+  case_id?: string;
+  customer_id?: string;
+  counterfactual_allow?: boolean;
+  counterfactual_decision?: AgentIdAuthorizeResponse["decision"];
+  findings: string[];
+  enterprise_auth?: EnterpriseAuthContext;
+};
+
+export type GatewayDecisionLog = AuthorizationDecisionLog | ObservationDecisionLog;
+
 export type ProviderAuthorizationReceipt = {
   [key: string]: unknown;
   decision_id: string;
@@ -215,5 +243,5 @@ export type RequestContext = {
   userId?: string;
   bearerToken?: string;
   enterpriseAuth?: EnterpriseAuthContext;
-  logger?: (entry: AuthorizationDecisionLog) => void;
+  logger?: (entry: GatewayDecisionLog) => void;
 };

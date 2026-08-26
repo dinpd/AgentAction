@@ -1,7 +1,7 @@
 # AgentAction MCP Gateway Adapter
 
-This is a reference MCP gateway adapter for enforcing AgentAction checks before MCP
-tool calls.
+This is a reference MCP gateway adapter for observing or enforcing AgentAction
+checks before MCP tool calls.
 
 ```text
 MCP client -> AgentAction MCP gateway adapter -> AgentAction check -> downstream MCP server
@@ -23,6 +23,50 @@ without trying to be a production MCP gateway.
 - Forwards allowed calls to the downstream MCP server.
 - Preserves state across calls in local guard mode for duplicate side effects,
   job budgets, tool thrashing, and PII/data-flow enforcement.
+- Supports an explicit passive observe mode for onboarding and policy testing.
+
+## Observe Before Enforce
+
+Set `"mode": "observe"` to evaluate representative MCP traffic without changing
+its behavior:
+
+```json
+{
+  "mode": "observe",
+  "local_guard": {
+    "policy": {
+      "tools": {
+        "provider.billing.issue_credit": {
+          "action": "pay",
+          "requiresApproval": true,
+          "requireIdempotencyKey": true,
+          "singleUse": true
+        }
+      }
+    }
+  }
+}
+```
+
+Observe mode forwards `tools/list` unchanged and forwards every `tools/call`
+unchanged, even when identity validation, mapping, or local policy evaluation
+would fail. It never calls the hosted `/authorize` endpoint, consumes hosted
+approval or JIT state, filters tool discovery, or attaches provider receipts.
+The local stateful guard still tracks the observed stream, so later duplicate
+side effects and tool loops appear as counterfactual denials.
+
+Observation is fail-open only when explicitly configured. Omitting `mode`, or
+setting it to `"enforce"`, preserves the existing fail-closed behavior.
+
+Run the self-contained onboarding example:
+
+```bash
+npm run demo:observe
+```
+
+The example forwards an initial credit, its duplicate, and a PII-bearing email
+call while showing which calls would be denied under enforcement. After the
+policy findings match the intended boundary, change the mode to `"enforce"`.
 
 ## Run Locally
 
@@ -198,3 +242,27 @@ The adapter writes one structured JSON log line for each intercepted
 
 This makes the local demo easier to evaluate and gives upstream gateway
 maintainers a concrete audit shape to review.
+
+Observe mode emits a separate privacy-safe event after the downstream response:
+
+```json
+{
+  "event": "agentaction.mcp.observation",
+  "mode": "observe",
+  "gateway_outcome": "forwarded",
+  "evaluation_status": "evaluated",
+  "downstream_outcome": "success",
+  "agent_id": "enterprise-support-agent",
+  "tool": "provider.billing.issue_credit",
+  "action": "pay",
+  "counterfactual_allow": false,
+  "counterfactual_decision": "deny",
+  "findings": ["idempotencyKey was already used"]
+}
+```
+
+The event contains normalized mapping and policy fields, not raw tool arguments
+or results. `evaluation_status` is `skipped` when trusted identity or a tool
+mapping is unavailable and `error` when the local evaluator is unavailable.
+The call remains forwarded in all three states. A caller-provided log sink is
+also isolated so its failure cannot block observe-mode traffic.
