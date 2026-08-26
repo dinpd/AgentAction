@@ -30,13 +30,57 @@ boundaries.
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
 
-Prefer to start locally? Install the guard package and run the quickstart below.
-The hosted observability console is an operator surface protected by Cloudflare
-Access, not a public demo.
+Prefer to start without blocking an existing workflow? Run the passive MCP
+observer quick start below, inspect the counterfactual policy decisions, and
+enable enforcement only after the boundary matches your intent. The hosted
+observability console is an operator surface protected by Cloudflare Access,
+not a public demo.
 
 ## Quick Start
 
-Install the local TypeScript guard:
+### Recommended: Observe An MCP Workflow
+
+Run the self-contained observer from a fresh clone:
+
+```bash
+git clone https://github.com/dinpd/AgentAction.git
+cd AgentAction/mcp-gateway-adapter
+npm ci
+npm run demo:observe
+```
+
+The demo puts the existing reference adapter into passive mode:
+
+```text
+MCP client -> customer-run observer adapter -> downstream MCP server
+                      |-> local policy + process-local shadow state
+                      `-> privacy-safe JSON observation events
+```
+
+Every MCP request and response remains unchanged. The observer records which
+calls would be allowed, denied, or challenged under enforcement, including
+stateful findings such as duplicate side effects and tool loops. It does not
+call hosted authorization, consume approval or JIT authority, filter tool
+discovery, or attach provider receipts.
+
+The command above is a self-contained onboarding test. To place the adapter in
+front of representative traffic, set `"mode": "observe"`, configure its
+`downstream.url` and tool mappings, then start it with:
+
+```bash
+npx tsx src/index.ts /path/to/observe-config.json
+```
+
+The current deployment is a customer-run Node HTTP sidecar with process-local
+shadow state and JSON events written to stdout. Review the
+[observe-mode configuration, transition to enforcement, and limitations](mcp-gateway-adapter/#observe-before-enforce)
+before using it with a real workflow. The reference adapter is an onboarding
+and integration surface, not yet a production-complete MCP gateway.
+
+### Alternative: Embed The Guard
+
+For an application that owns the tool execution path, install the local
+TypeScript guard:
 
 ```bash
 npm install @dinpd/ai-agent-guard
@@ -67,7 +111,7 @@ if (!execution.executed) {
 }
 ```
 
-Run the repository demos:
+Run the embedded-guard repository demos:
 
 ```bash
 git clone https://github.com/dinpd/AgentAction.git
@@ -150,9 +194,9 @@ replacing them.
 
 | You are building | Start here |
 | --- | --- |
+| An existing MCP workflow or gateway | Start with the [recommended passive observer quick start](#recommended-observe-an-mcp-workflow), then use the [`mcp-gateway-adapter/`](mcp-gateway-adapter/) integration guide |
 | An agent or application | [`packages/guard/`](packages/guard/) and the [local examples](packages/guard/examples/) |
 | An enterprise AI platform | [Enterprise governance](docs/enterprise-governance.md) and [authorization in practice](docs/authorization-in-practice.md) |
-| An MCP gateway or interceptor | [`mcp-gateway-adapter/`](mcp-gateway-adapter/) and [MCP gateway integration](docs/mcp-gateway-integration.md) |
 | A SaaS, API, or MCP provider | [Provider MCP authorization](docs/provider-mcp-authorization.md), [Express middleware](packages/provider-express/), or [FastAPI helpers](packages/provider-fastapi/) |
 | A security or risk program | [Enterprise topology](docs/enterprise-agent-action-control-topology.png), [receipt profiles](docs/receipt-profiles.md), and [standards alignment](docs/standards-alignment.md) |
 | An observability or assurance implementation | [Intent assurance](docs/intent-assurance.md), the [operator console](console/), and [community proposals](docs/proposals/) |
@@ -200,7 +244,8 @@ delivery and interoperability mechanisms, not separate product surfaces.
   chain-of-thought.
 - Local TypeScript action authorization with circuit breakers, budgets,
   approvals, idempotency, PII/data-flow controls, and decision audit events.
-- MCP `tools/call` interception and an MCP gateway adapter.
+- Passive observe and fail-closed enforce modes for MCP `tools/call` through the
+  reference MCP gateway adapter.
 - Cloudflare gateway runtime with tenant manifests, OIDC checks, approval
   queues, scoped JIT grants, audit timelines, and provider-result replay.
 - Provider authorization receipts signed as JWS with a public JWKS endpoint.
