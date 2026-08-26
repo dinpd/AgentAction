@@ -25,10 +25,17 @@ async function render(pathname = "/") {
   );
 }
 
+function structuredData(html) {
+  return [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)].map(
+    (match) => JSON.parse(match[1]),
+  );
+}
+
 test("server-renders the complete AgentAction project site", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.match(response.headers.get("cache-control") ?? "", /s-maxage=/i);
 
   const html = await response.text();
   assert.match(html, /<title>AgentAction — Trust infrastructure for autonomous AI agents<\/title>/i);
@@ -82,6 +89,15 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   assert.deepEqual(lifecycleOrder, [...lifecycleOrder].sort((left, right) => left - right));
   assert.match(html, /<meta property="og:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
   assert.match(html, /<meta name="twitter:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
+
+  const graph = structuredData(html).flatMap((entry) => entry["@graph"] ?? []);
+  const organization = graph.find((entry) => entry["@type"] === "Organization");
+  const website = graph.find((entry) => entry["@type"] === "WebSite");
+  assert.equal(organization?.["@id"], "https://agentaction.dev/#organization");
+  assert.equal(organization?.url, "https://agentaction.dev/");
+  assert.deepEqual(organization?.sameAs, ["https://github.com/dinpd/AgentAction"]);
+  assert.equal(website?.["@id"], "https://agentaction.dev/#website");
+  assert.equal(website?.publisher?.["@id"], organization?.["@id"]);
 });
 
 test("server-renders the AgentAction Gateway product page with route metadata", async () => {
@@ -158,6 +174,35 @@ test("server-renders the governance landscape survey", async () => {
   for (const id of localLinks) {
     assert.match(html, new RegExp(`id=["']${id}["']`, "i"));
   }
+
+  const article = structuredData(html).find((entry) => entry["@type"] === "Article");
+  assert.equal(article?.mainEntityOfPage?.["@id"], "https://agentaction.dev/landscape");
+  assert.equal(article?.headline, "The AI Agent Governance Landscape");
+  assert.equal(article?.image, "https://agentaction.dev/og.png");
+  assert.equal(article?.datePublished, "2026-08-26");
+  assert.equal(article?.dateModified, "2026-08-26");
+  assert.equal(article?.publisher?.["@id"], "https://agentaction.dev/#organization");
+});
+
+test("publishes canonical sitemap and robots discovery endpoints", async () => {
+  const [sitemapResponse, robotsResponse] = await Promise.all([
+    render("/sitemap.xml"),
+    render("/robots.txt"),
+  ]);
+
+  assert.equal(sitemapResponse.status, 200);
+  assert.match(sitemapResponse.headers.get("content-type") ?? "", /application\/xml|text\/xml/i);
+  const sitemap = await sitemapResponse.text();
+  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/gateway<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/landscape<\/loc>/);
+
+  assert.equal(robotsResponse.status, 200);
+  assert.match(robotsResponse.headers.get("content-type") ?? "", /^text\/plain\b/i);
+  const robots = await robotsResponse.text();
+  assert.match(robots, /User-Agent: \*/i);
+  assert.match(robots, /Allow: \//i);
+  assert.match(robots, /Sitemap: https:\/\/agentaction\.dev\/sitemap\.xml/i);
 });
 
 test("removes starter-only assets and metadata", async () => {

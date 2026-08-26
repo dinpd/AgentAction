@@ -4,12 +4,14 @@ import { Brand } from "../brand";
 
 const github = "https://github.com/dinpd/AgentAction";
 const sourceDoc = `${github}/blob/main/docs/agent-governance-landscape.md`;
+const landscapeUrl = "https://agentaction.dev/landscape";
+const landscapeDescription =
+  "A verified survey of open-source projects that control what AI agents may do, ordered by institutional backing, separating what ships today from what is still a draft.";
 
 export const metadata: Metadata = {
   title: { absolute: "The AI Agent Governance Landscape — AgentAction" },
-  description:
-    "A verified survey of open-source projects that control what AI agents may do, ordered by institutional backing, separating what ships today from what is still a draft.",
-  alternates: { canonical: "https://agentaction.dev/landscape" },
+  description: landscapeDescription,
+  alternates: { canonical: landscapeUrl },
   openGraph: {
     type: "article",
     url: "https://agentaction.dev/landscape",
@@ -32,6 +34,25 @@ export const metadata: Metadata = {
       "Who actually gates agent actions, what ships today, and what is still one person's IETF draft. Verified August 2026.",
     images: ["/og.png"],
   },
+};
+
+const landscapeStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "@id": `${landscapeUrl}#article`,
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": landscapeUrl,
+  },
+  headline: "The AI Agent Governance Landscape",
+  description: landscapeDescription,
+  image: "https://agentaction.dev/og.png",
+  datePublished: "2026-08-26",
+  dateModified: "2026-08-26",
+  author: { "@id": "https://agentaction.dev/#organization" },
+  publisher: { "@id": "https://agentaction.dev/#organization" },
+  isPartOf: { "@id": "https://agentaction.dev/#website" },
+  inLanguage: "en",
 };
 
 const statusLegend: [string, string][] = [
@@ -436,6 +457,10 @@ const openProblems = [
 export default function LandscapePage() {
   return (
     <main className="landscape-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(landscapeStructuredData) }}
+      />
       <a className="skip-link" href="#landscape-content">
         Skip to content
       </a>
