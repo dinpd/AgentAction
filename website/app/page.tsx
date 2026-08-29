@@ -149,6 +149,44 @@ const trustRows = [
   ["Execution and outcome", "Independent evidence", "Kept distinct from the authorization decision"],
 ];
 
+const transitionStages = [
+  {
+    step: "01",
+    mode: "Frame",
+    title: "Frame the job",
+    copy: "Define one bounded workflow, its owner, value, risk, consequential actions, and human baseline.",
+    question: "Is the job, owner, value, risk, and human baseline clear?",
+  },
+  {
+    step: "02",
+    mode: "Prove offline",
+    title: "Prove behavior",
+    copy: "Test historical, edge, adversarial, and failure cases before the agent touches production traffic.",
+    question: "Does the agent meet quality and safety thresholds on representative cases?",
+  },
+  {
+    step: "03",
+    mode: "Shadow",
+    title: "Shadow production",
+    copy: "Record counterfactual decisions on representative traffic without duplicating or changing side effects.",
+    question: "What would happen on real traffic if policy were enforced?",
+  },
+  {
+    step: "04",
+    mode: "Supervise",
+    title: "Supervise actions",
+    copy: "Bind approval and short-lived authority to the exact actor, job, tool, resource, and payload.",
+    question: "Can exact actions execute safely with approval and recovery controls?",
+  },
+  {
+    step: "05",
+    mode: "Bound and scale",
+    title: "Scale the proven envelope",
+    copy: "Automate only earned action classes; keep exceptions, missing context, and high-impact work supervised.",
+    question: "Which actions can run autonomously without exceeding the risk envelope?",
+  },
+];
+
 export default function Home() {
   return (
     <main>
@@ -557,6 +595,66 @@ export default function Home() {
             <span>Security policy</span>
             <span aria-hidden="true">↗</span>
           </a>
+        </div>
+      </section>
+
+      <section id="transition" className="transition-path" aria-labelledby="transition-title">
+        <div className="transition-path-heading">
+          <div>
+            <p className="section-index">11 / Enterprise transition blueprint</p>
+            <h2 id="transition-title">Move from AI assistance to bounded autonomy.</h2>
+          </div>
+          <div className="transition-path-intro">
+            <p>
+              Do not decide whether an agent is simply “autonomous.” Decide which
+              action classes it has earned the right to perform, under which
+              conditions, and with what evidence.
+            </p>
+            <p>
+              Advance one bounded workflow at a time. Every stage changes the
+              operating mode only after its exit evidence is available.
+            </p>
+          </div>
+        </div>
+
+        <ol className="transition-stages" aria-label="Five-stage enterprise agentic AI transition path">
+          {transitionStages.map((stage) => (
+            <li key={stage.step}>
+              <div className="transition-stage-topline">
+                <span>{stage.step}</span>
+                <span>{stage.mode}</span>
+              </div>
+              <h3>{stage.title}</h3>
+              <p>{stage.copy}</p>
+              <div className="transition-stage-question">
+                <span>Evidence must answer</span>
+                <p>{stage.question}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div className="transition-resource">
+          <div>
+            <p className="transition-resource-kicker">Referenced practitioner field guide · 9 pages</p>
+            <h3>Take the complete transition blueprint into your planning session.</h3>
+            <p>
+              Includes the evidence stack, evaluation scorecard, 90-day launch
+              plan, three applied workflow playbooks, and reference anchors.
+            </p>
+          </div>
+          <div className="transition-resource-actions">
+            <a
+              className="button transition-download"
+              href="/enterprise-agentic-ai-transition-blueprint.pdf"
+              download
+            >
+              Download the blueprint <span aria-hidden="true">↓</span>
+            </a>
+            <a className="button transition-contact" href="#project">
+              Discuss a workflow <span aria-hidden="true">↓</span>
+            </a>
+          </div>
         </div>
       </section>
 
