@@ -297,6 +297,33 @@ test("presents passive MCP observation as the preferred low-risk onboarding path
   assert.ok(guardPosition > observerPosition);
 });
 
+test("places the five-stage transition path and blueprint download before project contact", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(html, /Enterprise transition blueprint/i);
+  assert.match(html, /Move from AI assistance to bounded autonomy/i);
+  assert.match(html, /earned the right to perform/i);
+  assert.match(html, /href="\/enterprise-agentic-ai-transition-blueprint\.pdf"[^>]*download/i);
+  await access(new URL("../public/enterprise-agentic-ai-transition-blueprint.pdf", import.meta.url));
+
+  const transitionMarkup = html.match(/<ol class="transition-stages"[^>]*>([\s\S]*?)<\/ol>/i)?.[1] ?? "";
+  const stageOrder = [
+    "Frame",
+    "Prove offline",
+    "Shadow",
+    "Supervise",
+    "Bound and scale",
+  ].map((label) => transitionMarkup.indexOf(label));
+
+  assert.ok(stageOrder.every((index) => index >= 0));
+  assert.deepEqual(stageOrder, [...stageOrder].sort((left, right) => left - right));
+  assert.ok(html.indexOf('id="transition"') < html.indexOf('id="project"'));
+  assert.match(transitionMarkup, /Evidence must answer/g);
+  assert.match(html, /Discuss a workflow/);
+  assert.match(html, /Start a project conversation/);
+});
+
 test("keeps the observer deployment model readable at narrow widths", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const narrowStart = styles.indexOf("@media (max-width: 720px)");
