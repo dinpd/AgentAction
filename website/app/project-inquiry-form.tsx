@@ -52,9 +52,9 @@ export function ProjectInquiryForm() {
   return (
     <form className="project-form" onSubmit={submitInquiry} aria-labelledby="project-form-title">
       <div className="project-form-heading">
-        <p className="form-kicker">Start a project conversation</p>
-        <h3 id="project-form-title">Tell us what your agent needs to do.</h3>
-        <p>We will reply with a practical first take on the trust boundary and next step.</p>
+        <p className="form-kicker">Start a transition assessment</p>
+        <h3 id="project-form-title">Tell us about one consequential workflow.</h3>
+        <p>We will reply with a practical first take on its current stage, evidence gaps, and next step.</p>
       </div>
 
       <div className="form-grid">
@@ -115,7 +115,7 @@ export function ProjectInquiryForm() {
 
       <div className="form-submit-row">
         <button className="button button-primary" type="submit" disabled={submitState === "sending"}>
-          {submitState === "sending" ? "Sending…" : "Discuss your project"}
+          {submitState === "sending" ? "Sending…" : "Start the assessment"}
           {submitState !== "sending" && <span aria-hidden="true">→</span>}
         </button>
         <p>

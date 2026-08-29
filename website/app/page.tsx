@@ -598,103 +598,105 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="transition" className="transition-path" aria-labelledby="transition-title">
-        <div className="transition-path-heading">
-          <div>
-            <p className="section-index">11 / Enterprise transition blueprint</p>
-            <h2 id="transition-title">Move from AI assistance to bounded autonomy.</h2>
+      <section id="transition" className="transition-assessment" aria-labelledby="transition-title">
+        <div className="transition-path">
+          <div className="transition-path-heading">
+            <div>
+              <p className="section-index">11 / Enterprise transition blueprint</p>
+              <h2 id="transition-title">Move from AI assistance to bounded autonomy.</h2>
+            </div>
+            <div className="transition-path-intro">
+              <p>
+                Do not decide whether an agent is simply “autonomous.” Decide which
+                action classes it has earned the right to perform, under which
+                conditions, and with what evidence.
+              </p>
+              <p>
+                Advance one bounded workflow at a time. Every stage changes the
+                operating mode only after its exit evidence is available.
+              </p>
+            </div>
           </div>
-          <div className="transition-path-intro">
-            <p>
-              Do not decide whether an agent is simply “autonomous.” Decide which
-              action classes it has earned the right to perform, under which
-              conditions, and with what evidence.
-            </p>
-            <p>
-              Advance one bounded workflow at a time. Every stage changes the
-              operating mode only after its exit evidence is available.
-            </p>
-          </div>
-        </div>
 
-        <ol className="transition-stages" aria-label="Five-stage enterprise agentic AI transition path">
-          {transitionStages.map((stage) => (
-            <li key={stage.step}>
-              <div className="transition-stage-topline">
-                <span>{stage.step}</span>
-                <span>{stage.mode}</span>
-              </div>
-              <h3>{stage.title}</h3>
-              <p>{stage.copy}</p>
-              <div className="transition-stage-question">
-                <span>Evidence must answer</span>
-                <p>{stage.question}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        <div className="transition-resource">
-          <div>
-            <p className="transition-resource-kicker">Referenced practitioner field guide · 9 pages</p>
-            <h3>Take the complete transition blueprint into your planning session.</h3>
-            <p>
-              Includes the evidence stack, evaluation scorecard, 90-day launch
-              plan, three applied workflow playbooks, and reference anchors.
-            </p>
-          </div>
-          <div className="transition-resource-actions">
-            <a
-              className="button transition-download"
-              href="/enterprise-agentic-ai-transition-blueprint.pdf"
-              download
-            >
-              Download the blueprint <span aria-hidden="true">↓</span>
-            </a>
-            <a className="button transition-contact" href="#project">
-              Discuss a workflow <span aria-hidden="true">↓</span>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section id="project" className="closing project-engagement" aria-labelledby="closing-title">
-        <div className="engagement-copy">
-          <p className="eyebrow">Bring us a consequential agent workflow.</p>
-          <h2 id="closing-title">Build agents that can act—and show why they should have.</h2>
-          <p className="engagement-lede">
-            If your agent can move money, change production, contact customers,
-            or mutate durable state, we can help define the authority and evidence
-            it needs before rollout.
-          </p>
-          <ol className="engagement-services" aria-label="How AgentAction can help">
-            <li>
-              <span>01</span>
-              <div>
-                <h3>Map the action boundary</h3>
-                <p>Identify consequential actions, identities, approvals, budgets, and data-flow rules.</p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <h3>Prove the integration</h3>
-                <p>Connect the runtime, gateway, and provider; simulate decisions; and add receipts and replay.</p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <h3>Validate before rollout</h3>
-                <p>Exercise deny and challenge paths, provider verification, and investigation-ready evidence.</p>
-              </div>
-            </li>
+          <ol className="transition-stages" aria-label="Five-stage enterprise agentic AI transition path">
+            {transitionStages.map((stage) => (
+              <li key={stage.step}>
+                <div className="transition-stage-topline">
+                  <span>{stage.step}</span>
+                  <span>{stage.mode}</span>
+                </div>
+                <h3>{stage.title}</h3>
+                <p>{stage.copy}</p>
+                <div className="transition-stage-question">
+                  <span>Evidence must answer</span>
+                  <p>{stage.question}</p>
+                </div>
+              </li>
+            ))}
           </ol>
-          <a className="text-link engagement-github" href={github}>
-            Prefer to explore the implementation? Open GitHub <span aria-hidden="true">↗</span>
-          </a>
+
+          <div className="transition-resource">
+            <div>
+              <p className="transition-resource-kicker">Referenced practitioner field guide · 9 pages</p>
+              <h3>Take the complete transition blueprint into your planning session.</h3>
+              <p>
+                Includes the evidence stack, evaluation scorecard, 90-day launch
+                plan, three applied workflow playbooks, and reference anchors.
+              </p>
+            </div>
+            <div className="transition-resource-actions">
+              <a
+                className="button transition-download"
+                href="/enterprise-agentic-ai-transition-blueprint.pdf"
+                download
+              >
+                Download the blueprint <span aria-hidden="true">↓</span>
+              </a>
+              <a className="button transition-contact" href="#project">
+                Start a transition assessment <span aria-hidden="true">↓</span>
+              </a>
+            </div>
+          </div>
         </div>
-        <ProjectInquiryForm />
+
+        <div id="project" className="closing project-engagement">
+          <div className="engagement-copy">
+            <p className="eyebrow">Bring us one consequential agent workflow.</p>
+            <h2 id="closing-title">Turn the blueprint into an evidence-backed transition plan.</h2>
+            <p className="engagement-lede">
+              We will map where the workflow is today, what evidence it needs to
+              advance, and how to reach supervised action without widening
+              authority faster than the controls around it.
+            </p>
+            <ol className="engagement-services" aria-label="Transition assessment deliverables">
+              <li>
+                <span>01</span>
+                <div>
+                  <h3>Action-class map and baseline</h3>
+                  <p>Define the bounded job, owners, consequential actions, risk tiers, constraints, and current human performance.</p>
+                </div>
+              </li>
+              <li>
+                <span>02</span>
+                <div>
+                  <h3>Evaluation and shadow-readiness plan</h3>
+                  <p>Specify representative cases, promotion thresholds, counterfactual decisions, traffic coverage, and required evidence.</p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <h3>Supervised launch and 90-day roadmap</h3>
+                  <p>Design exact approvals, action-bound authority, provider evidence, recovery controls, and a staged operating plan.</p>
+                </div>
+              </li>
+            </ol>
+            <a className="text-link engagement-github" href={github}>
+              Prefer to explore the implementation? Open GitHub <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+          <ProjectInquiryForm />
+        </div>
       </section>
 
       <footer>
