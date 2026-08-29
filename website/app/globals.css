@@ -1427,6 +1427,10 @@ nav a:not(.nav-cta):hover,
   margin-top: 1.8rem;
 }
 
+.transition-assessment {
+  background: var(--terminal);
+}
+
 .transition-path {
   padding: 7rem max(1.5rem, calc((100vw - var(--max)) / 2));
   background:
@@ -1603,6 +1607,24 @@ nav a:not(.nav-cta):hover,
 
 .transition-contact:hover {
   box-shadow: 4px 4px 0 var(--lime);
+}
+
+.transition-assessment .project-engagement {
+  position: relative;
+  border-top: 1px solid var(--ink);
+}
+
+.transition-assessment .project-engagement::before {
+  content: "Apply the blueprint";
+  position: absolute;
+  top: 0;
+  left: max(1.5rem, calc((100vw - var(--max)) / 2));
+  padding: 0.6rem 0.8rem;
+  background: var(--ink);
+  color: var(--lime);
+  font: 800 0.61rem/1 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 .project-form {

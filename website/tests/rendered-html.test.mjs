@@ -57,11 +57,11 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
   assert.match(html, /Build interoperability before vocabulary/);
-  assert.match(html, /Bring us a consequential agent workflow/);
-  assert.match(html, /Map the action boundary/);
-  assert.match(html, /Prove the integration/);
-  assert.match(html, /Validate before rollout/);
-  assert.match(html, /Start a project conversation/);
+  assert.match(html, /Bring us one consequential agent workflow/);
+  assert.match(html, /Action-class map and baseline/);
+  assert.match(html, /Evaluation and shadow-readiness plan/);
+  assert.match(html, /Supervised launch and 90-day roadmap/);
+  assert.match(html, /Start a transition assessment/);
   assert.match(html, /<input[^>]+name="email"/i);
   assert.match(html, /<input[^>]+type="email"/i);
   assert.match(html, /<input[^>]+name="phone"/i);
@@ -297,7 +297,7 @@ test("presents passive MCP observation as the preferred low-risk onboarding path
   assert.ok(guardPosition > observerPosition);
 });
 
-test("places the five-stage transition path and blueprint download before project contact", async () => {
+test("unifies the five-stage path, blueprint download, and transition assessment", async () => {
   const response = await render();
   const html = await response.text();
 
@@ -318,10 +318,16 @@ test("places the five-stage transition path and blueprint download before projec
 
   assert.ok(stageOrder.every((index) => index >= 0));
   assert.deepEqual(stageOrder, [...stageOrder].sort((left, right) => left - right));
-  assert.ok(html.indexOf('id="transition"') < html.indexOf('id="project"'));
+  const assessmentMarkup = html.match(/<section id="transition"[^>]*>([\s\S]*?)<\/section>/i)?.[1] ?? "";
+  assert.match(assessmentMarkup, /id="project"/);
+  assert.match(assessmentMarkup, /class="project-form"/);
+  assert.doesNotMatch(html, /<section[^>]+id="project"/i);
   assert.match(transitionMarkup, /Evidence must answer/g);
-  assert.match(html, /Discuss a workflow/);
-  assert.match(html, /Start a project conversation/);
+  assert.match(assessmentMarkup, /Action-class map and baseline/);
+  assert.match(assessmentMarkup, /Evaluation and shadow-readiness plan/);
+  assert.match(assessmentMarkup, /Supervised launch and 90-day roadmap/);
+  assert.match(assessmentMarkup, /Start a transition assessment/);
+  assert.match(assessmentMarkup, /Start the assessment/);
 });
 
 test("keeps the observer deployment model readable at narrow widths", async () => {
