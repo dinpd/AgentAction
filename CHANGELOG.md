@@ -4,6 +4,33 @@
 
 No changes yet.
 
+## 0.5.0 - 2026-08-30
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.5.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- Existing operator-console authentication, tenant isolation, gateway routes,
+  schemas, CLI behavior, package aliases, and versioned `agentpass.*` protocol
+  identifiers remain compatible. No migration is required.
+- npm packages retain their independent versions and are not republished by
+  this repository release.
+
+### Public observability demo
+
+- Added a separately deployable public observability console backed only by
+  bundled synthetic fixtures, with no production service binding, gateway
+  credential, tenant selection, audit routes, or approval routes.
+- Reused the production Fleet Overview, finalized Jobs explorer, Job detail,
+  filters, and deterministic evidence timeline without weakening the existing
+  Cloudflare Access-protected operator console.
+- Added automated boundary coverage and independent Wrangler configuration for
+  the public Worker.
+- Surfaced the public demo and protected operator sign-in in the main README,
+  console documentation, and AgentAction.dev while keeping richer OpenTelemetry
+  causal correlation labeled as roadmap work.
+
 ## 0.4.0 - 2026-08-26
 
 ### Upgrade and compatibility

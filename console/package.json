@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env development --local --port 8791",
+    "dev:public": "wrangler dev --config wrangler.demo.toml --local --port 8792",
     "dev:fixture": "node --experimental-strip-types dev/fixture-server.ts",
     "deploy": "wrangler deploy --env=\"\"",
+    "deploy:demo": "wrangler deploy --config wrangler.demo.toml",
     "dry-run": "WRANGLER_LOG_PATH=/tmp/agentpass-console-wrangler.log wrangler deploy --env=\"\" --dry-run --outdir /tmp/agentpass-console-worker-dist",
+    "dry-run:demo": "WRANGLER_LOG_PATH=/tmp/agentaction-console-demo-wrangler.log wrangler deploy --config wrangler.demo.toml --dry-run --outdir /tmp/agentaction-console-demo-worker-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts"
   },
   "devDependencies": {

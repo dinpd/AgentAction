@@ -849,11 +849,107 @@ nav a:not(.nav-cta):hover,
   font-size: 1.55rem;
 }
 
-.proof-grid article > p:last-child {
+.proof-grid article > p:not(.proof-state) {
   margin-top: 0.9rem;
   color: var(--muted);
   font-size: 0.87rem;
   line-height: 1.6;
+}
+
+.proof-link {
+  display: inline-block;
+  margin-top: 1.15rem;
+  color: #486a00;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+}
+
+.observability {
+  border-top: 1px solid var(--line);
+}
+
+.observability-surfaces {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  border: 1px solid var(--ink);
+}
+
+.observability-surfaces article {
+  min-height: 390px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.observability-public {
+  border-right: 1px solid var(--ink);
+  background: var(--terminal);
+  color: white;
+}
+
+.observability-operator {
+  background: var(--paper-strong);
+}
+
+.observability-surfaces h3 {
+  margin-top: 1.4rem;
+  max-width: 17ch;
+  font-size: clamp(1.9rem, 3vw, 3rem);
+}
+
+.observability-surfaces article > div > p {
+  max-width: 60ch;
+  margin-top: 1rem;
+  color: var(--terminal-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.observability-operator article > div > p,
+.observability-operator > div > p {
+  color: var(--muted);
+}
+
+.observability-public ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  color: #d4d9cc;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.observability-public li::before {
+  content: "→";
+  margin-right: 0.55rem;
+  color: var(--lime);
+}
+
+.observability-public .button {
+  align-self: flex-start;
+}
+
+.observability-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+.observability-roadmap {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--ink);
+  border-top: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
 }
 
 .quickstart {
@@ -2018,6 +2114,7 @@ button:focus-visible {
   .lifecycle,
   .module-grid,
   .proof-grid,
+  .observability-surfaces,
   .audience-grid,
   .gateway-capability-grid,
   .gateway-product-grid,
@@ -2099,6 +2196,15 @@ button:focus-visible {
 
   .proof-grid article {
     border-left: 1px solid var(--ink);
+  }
+
+  .observability-surfaces article {
+    min-height: 0;
+  }
+
+  .observability-public {
+    border-right: 0;
+    border-bottom: 1px solid var(--ink);
   }
 
   .gateway-capability-grid article,
