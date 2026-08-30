@@ -870,6 +870,52 @@ nav a:not(.nav-cta):hover,
   border-top: 1px solid var(--line);
 }
 
+.observability-preview {
+  margin: 0 0 1.5rem;
+  border: 1px solid var(--ink);
+  background: #edf0e6;
+}
+
+.observability-preview > a {
+  display: block;
+  padding: clamp(0.75rem, 2.4vw, 2rem);
+}
+
+.observability-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  background: var(--paper-strong);
+  box-shadow: 12px 12px 0 rgba(28, 35, 29, 0.12);
+}
+
+.observability-preview figcaption {
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--ink);
+  background: var(--terminal);
+  color: var(--terminal-muted);
+  font: 0.7rem/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.observability-preview figcaption a {
+  color: var(--lime);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.observability-preview figcaption a:hover,
+.observability-preview figcaption a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
 .observability-surfaces {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
@@ -2200,6 +2246,11 @@ button:focus-visible {
 
   .observability-surfaces article {
     min-height: 0;
+  }
+
+  .observability-preview figcaption {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .observability-public {

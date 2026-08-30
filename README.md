@@ -39,6 +39,8 @@ observability demo to inspect the interface without signing in. The separate
 operator console remains protected by Cloudflare Access and derives its tenant
 boundary from the authenticated identity.
 
+[![AgentAction public observability console showing synthetic outcome, constraint, confidence, execution, and data-quality metrics](website/public/observability-console.png)](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview)
+
 ## Quick Start
 
 ### Recommended: Observe An MCP Workflow

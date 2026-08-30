@@ -59,6 +59,12 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /See how agent outcomes hold up across runs/);
   assert.match(html, /Public · synthetic data/);
   assert.match(html, /Open the public demo/);
+  assert.match(html, /src="\/observability-console\.png"/i);
+  assert.match(
+    html,
+    /alt="AgentAction public observability console showing synthetic support-refund outcome, constraint, confidence, execution, and data-quality metrics"/i,
+  );
+  assert.match(html, /Explore the live console/);
   assert.match(html, /Operator sign-in/);
   assert.match(html, /https:\/\/agentaction-observability-demo\.drisw\.workers\.dev/);
   assert.match(html, /https:\/\/agentpass-observability-console\.drisw\.workers\.dev/);
@@ -479,6 +485,7 @@ test("removes starter-only assets and metadata", async () => {
   await access(new URL("public/favicon.png", templateRoot));
   await access(new URL("public/logo.png", templateRoot));
   await access(new URL("public/apple-touch-icon.png", templateRoot));
+  await access(new URL("public/observability-console.png", templateRoot));
   await assert.rejects(access(new URL("public/favicon.svg", templateRoot)));
   await assert.rejects(access(new URL("public/logo.svg", templateRoot)));
   await assert.rejects(access(new URL("../app/_sites-preview", templateRoot)));

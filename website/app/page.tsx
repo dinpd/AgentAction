@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
 
@@ -507,6 +508,25 @@ export default function Home() {
             visible instead of blending them into one score.
           </p>
         </div>
+
+        <figure className="observability-preview">
+          <a href={consoleDemo} aria-label="Open the public observability console demo">
+            <Image
+              src="/observability-console.png"
+              alt="AgentAction public observability console showing synthetic support-refund outcome, constraint, confidence, execution, and data-quality metrics"
+              width={1189}
+              height={993}
+              sizes="(max-width: 720px) 100vw, 1189px"
+              unoptimized
+            />
+          </a>
+          <figcaption>
+            <span>Public demo · synthetic fixtures</span>
+            <a href={consoleDemo}>
+              Explore the live console <span aria-hidden="true">↗</span>
+            </a>
+          </figcaption>
+        </figure>
 
         <div className="observability-surfaces">
           <article className="observability-public">
