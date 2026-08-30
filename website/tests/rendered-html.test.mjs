@@ -56,6 +56,14 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /What exists—and what comes next/);
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
+  assert.match(html, /See how agent outcomes hold up across runs/);
+  assert.match(html, /Public · synthetic data/);
+  assert.match(html, /Open the public demo/);
+  assert.match(html, /Operator sign-in/);
+  assert.match(html, /https:\/\/agentaction-observability-demo\.drisw\.workers\.dev/);
+  assert.match(html, /https:\/\/agentpass-observability-console\.drisw\.workers\.dev/);
+  assert.match(html, /Available now: profile-scoped intent and outcome observability/);
+  assert.match(html, /Roadmap:\s*richer OpenTelemetry correlation/);
   assert.match(html, /Build interoperability before vocabulary/);
   assert.match(html, /Bring us one consequential agent workflow/);
   assert.match(html, /Action-class map and baseline/);

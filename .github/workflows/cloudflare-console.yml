@@ -33,8 +33,11 @@ jobs:
       - name: Test console security boundary
         run: npm test
 
-      - name: Verify Worker bundle
+      - name: Verify operator Worker bundle
         run: npm run dry-run
+
+      - name: Verify public demo Worker bundle
+        run: npm run dry-run:demo
 
       - name: Check Cloudflare deploy secrets
         if: github.event_name != 'pull_request'
@@ -53,6 +56,13 @@ jobs:
       - name: Deploy console Worker
         if: github.event_name != 'pull_request' && steps.cloudflare-secrets.outputs.configured == 'true'
         run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy public console demo
+        if: github.event_name != 'pull_request' && steps.cloudflare-secrets.outputs.configured == 'true'
+        run: npm run deploy:demo
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

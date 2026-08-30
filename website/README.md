@@ -6,6 +6,14 @@ assurance through action authorization, execution evidence, and continuous
 evaluation, together with the current implementation, roadmap, and open-source
 participation paths.
 
+The site links two observability surfaces with distinct trust boundaries:
+
+- the [public console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview), which contains only synthetic fixtures and requires no sign-in; and
+- the [operator console](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview), which remains protected by Cloudflare Access for real tenant evidence.
+
+The available intent and outcome console is described separately from roadmap
+work for richer OpenTelemetry causal correlation.
+
 Existing package names, schemas, CLI commands, and repository links continue to
 retain legacy identifiers where compatibility requires them.
 

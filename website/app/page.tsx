@@ -4,6 +4,9 @@ import { ProjectInquiryForm } from "./project-inquiry-form";
 
 const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
+const consoleDemo = "https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview";
+const operatorConsole = "https://agentpass-observability-console.drisw.workers.dev/?window=7#overview";
+const consoleDocs = `${github}/tree/main/console`;
 
 const gatewayCapabilities = [
   {
@@ -106,6 +109,13 @@ const proof = [
     copy: "Linked execution receipts, immutable evidence snapshots, verified observations, versioned intent contracts, and outcome assessments.",
   },
   {
+    state: "Available now",
+    title: "Observability console",
+    copy: "Explore synthetic fleet rollups, finalized jobs, constraint outcomes, evidence confidence, and deterministic evidence timelines in the public read-only demo.",
+    href: consoleDemo,
+    linkLabel: "Open the public console demo",
+  },
+  {
     state: "Roadmap",
     title: "Causal observability",
     copy: "Richer OpenTelemetry correlation across runs, boundary decisions, tool calls, retries, provider execution, observations, and assessment evidence.",
@@ -199,7 +209,7 @@ export default function Home() {
         <nav aria-label="Primary navigation">
           <a href="#platform">Platform</a>
           <a href="#architecture">Decision assurance</a>
-          <a href="#proof">Audit &amp; receipts</a>
+          <a href="#console">Console</a>
           <a href="#observe">Start here</a>
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/gateway">Action gateway</Link>
@@ -475,15 +485,82 @@ export default function Home() {
               <p className="proof-state">{item.state}</p>
               <h3>{item.title}</h3>
               <p>{item.copy}</p>
+              {item.href ? (
+                <a className="proof-link" href={item.href}>
+                  {item.linkLabel} <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
             </article>
           ))}
         </div>
       </section>
 
+      <section id="console" className="observability section-shell" aria-labelledby="observability-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-index">08 / Inspect the evidence</p>
+            <h2 id="observability-title">See how agent outcomes hold up across runs.</h2>
+          </div>
+          <p>
+            The read-only console keeps unlike intent-profile versions separate
+            and makes failed, partial, indeterminate, and low-confidence outcomes
+            visible instead of blending them into one score.
+          </p>
+        </div>
+
+        <div className="observability-surfaces">
+          <article className="observability-public">
+            <div>
+              <span className="status-label status-current">Public · synthetic data</span>
+              <h3>Explore the observability console</h3>
+              <p>
+                Inspect Fleet Overview, filter finalized Jobs, and open a
+                deterministic evidence timeline without signing in. The demo is
+                isolated from production services and contains no customer data.
+              </p>
+            </div>
+            <ul aria-label="Public observability demo views">
+              <li>Profile-scoped outcome and constraint rollups</li>
+              <li>Finalized Jobs with confidence and discipline signals</li>
+              <li>Job detail with immutable digests and evidence timeline</li>
+            </ul>
+            <a className="button button-primary" href={consoleDemo}>
+              Open the public demo <span aria-hidden="true">↗</span>
+            </a>
+          </article>
+
+          <article className="observability-operator">
+            <div>
+              <span className="status-label">Operator access</span>
+              <h3>Keep real tenant evidence protected</h3>
+              <p>
+                The production operator console remains behind Cloudflare Access.
+                Identity establishes the tenant boundary before the console can
+                reach the private, read-only gateway service.
+              </p>
+            </div>
+            <div className="observability-actions">
+              <a className="button button-secondary" href={operatorConsole}>
+                Operator sign-in <span aria-hidden="true">↗</span>
+              </a>
+              <a className="text-link" href={consoleDocs}>
+                Read the console architecture <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </article>
+        </div>
+
+        <p className="observability-roadmap">
+          Available now: profile-scoped intent and outcome observability. Roadmap:
+          richer OpenTelemetry correlation across runtime boundaries, retries,
+          provider execution, observations, and assessments.
+        </p>
+      </section>
+
       <section id="observe" className="quickstart section-shell" aria-labelledby="quickstart-title">
         <div className="quickstart-copy">
-          <p className="section-index">08 / Recommended onboarding</p>
-          <span className="status-label status-current">Available in v0.4.0</span>
+          <p className="section-index">09 / Recommended onboarding</p>
+          <span className="status-label status-current">Available now</span>
           <h2 id="quickstart-title">Observe first. Enforce when ready.</h2>
           <p>
             Run the customer-controlled MCP adapter beside an existing workflow.
@@ -547,7 +624,7 @@ export default function Home() {
       <section className="audiences section-shell" aria-labelledby="audiences-title">
         <div className="section-heading compact">
           <div>
-            <p className="section-index">09 / One boundary, four entry points</p>
+            <p className="section-index">10 / One boundary, four entry points</p>
             <h2 id="audiences-title">Meet the project where you build.</h2>
           </div>
         </div>
@@ -564,7 +641,7 @@ export default function Home() {
 
       <section id="community" className="community section-shell" aria-labelledby="community-title">
         <div className="community-copy">
-          <p className="section-index">10 / Open standards posture</p>
+          <p className="section-index">11 / Open standards posture</p>
           <h2 id="community-title">Build interoperability before vocabulary.</h2>
           <p>
             AgentAction reuses established identity, policy, transport, signing,
@@ -602,7 +679,7 @@ export default function Home() {
         <div className="transition-path">
           <div className="transition-path-heading">
             <div>
-              <p className="section-index">11 / Enterprise transition blueprint</p>
+              <p className="section-index">12 / Enterprise transition blueprint</p>
               <h2 id="transition-title">Move from AI assistance to bounded autonomy.</h2>
             </div>
             <div className="transition-path-intro">

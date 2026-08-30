@@ -14,6 +14,7 @@ export type Env = {
   CONSOLE_MOCK_EMAIL?: string;
   CONSOLE_MOCK_SUBJECT?: string;
   CONSOLE_MOCK_TENANT_ID?: string;
+  CONSOLE_PUBLIC_DEMO?: string;
   CONSOLE_STATIC_TENANT_ID?: string;
   CONSOLE_STALE_AFTER_SECONDS?: string;
 };
@@ -2416,7 +2417,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/") {
-        return htmlResponse(SHELL_HTML);
+        return htmlResponse(consoleShell(env));
       }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
         return assetResponse(APP_CSS, "text/css; charset=utf-8");
@@ -2451,6 +2452,27 @@ export default {
     }
   },
 };
+
+function consoleShell(env: Env): string {
+  if (env.CONSOLE_PUBLIC_DEMO !== "true") return SHELL_HTML;
+  return SHELL_HTML
+    .replace('aria-label="Authenticated context"', 'aria-label="Public demo context"')
+    .replace("Authenticating console session", "Loading synthetic console data")
+    .replace(
+      "Verifying the tenant boundary and private gateway binding.",
+      "Loading bundled synthetic fixtures; no production service is connected.",
+    )
+    .replace("<dt>Auth</dt><dd>Cloudflare Access</dd>", "<dt>Data</dt><dd>Public synthetic fixtures</dd>")
+    .replace(
+      "How scheduled runs become immutable, profile-scoped quality data.",
+      "Example production path represented by the bundled fixtures.",
+    )
+    .replace("Calls the real service through a private binding.", "Fixtures represent calls through the private production boundary.")
+    .replace(
+      "Authenticated and tenant-scoped. No gateway credential is stored in browser JavaScript.",
+      "Public synthetic demo. No production gateway credential or customer data is available to this Worker.",
+    );
+}
 
 async function authenticateConsoleRequest(request: Request, env: Env): Promise<ConsoleIdentity> {
   const environment = consoleEnvironment(env);

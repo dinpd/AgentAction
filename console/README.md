@@ -5,6 +5,21 @@ Overview, finalized Jobs explorer, and finalized Job detail for the AgentAction
 intent observability console. It is intentionally read only. Exception views
 build on this boundary in later slices.
 
+## Hosted surfaces
+
+AgentAction publishes two deliberately separate console deployments:
+
+| Surface | URL | Data and access boundary |
+| --- | --- | --- |
+| Public demo | [agentaction-observability-demo.drisw.workers.dev](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Unauthenticated, synthetic repository fixtures only; no production binding, credential, tenant selection, audit routes, or approval routes. |
+| Operator console | [agentpass-observability-console.drisw.workers.dev](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant evidence through a private, read-only gateway binding. |
+
+The public demo reuses the production interface and interaction model but its
+Worker entry point constructs an in-memory fixture service. It cannot read
+runtime bindings supplied by a deployment environment. Requests outside health,
+Fleet Overview, finalized Jobs, and Job detail receive a not-found response.
+Never connect this public Worker to a gateway service binding or secret.
+
 ## Security model
 
 The browser talks only to the console Worker's same-origin
@@ -217,6 +232,13 @@ verified-observation, finalization, and missing-timestamp preview sequence. The
 fixture has no gateway credential and uses the same development-only mock
 identity guard as the Worker.
 
+To run the deployable public-demo entry point locally on port 8792:
+
+```bash
+cd console
+npm run dev:public
+```
+
 To verify the stale presentation locally:
 
 ```bash
@@ -229,6 +251,7 @@ AGENTPASS_FIXTURE_STALE=true npm run dev:fixture
 cd console
 npm test
 npm run dry-run
+npm run dry-run:demo
 ```
 
 After deployment:

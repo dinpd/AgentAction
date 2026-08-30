@@ -29,12 +29,15 @@ boundaries.
 | [Gateway and refund control](https://agentid-refund-demo.drisw.workers.dev/) | Approval, scoped JIT authority, idempotency, audit, and provider-tool authorization in a support workflow. |
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
+| [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |
+| [Operator console](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected review of real tenant outcome, constraint, confidence, execution-discipline, and data-quality evidence. |
 
 Prefer to start without blocking an existing workflow? Run the passive MCP
 observer quick start below, inspect the counterfactual policy decisions, and
-enable enforcement only after the boundary matches your intent. The hosted
-observability console is an operator surface protected by Cloudflare Access,
-not a public demo.
+enable enforcement only after the boundary matches your intent. Use the public
+observability demo to inspect the interface without signing in. The separate
+operator console remains protected by Cloudflare Access and derives its tenant
+boundary from the authenticated identity.
 
 ## Quick Start
 
@@ -252,8 +255,9 @@ delivery and interoperability mechanisms, not separate product surfaces.
 - Express and FastAPI provider-side verification middleware.
 - Versioned intent contracts, execution evidence, verified outcome
   observations, immutable snapshots, final evaluations, and quality rollups.
-- Access-protected operator console for fleet-level outcome, constraint,
-  confidence, execution-discipline, and data-quality review.
+- Public synthetic-data observability demo plus an Access-protected operator
+  console for fleet-level outcome, constraint, confidence,
+  execution-discipline, and data-quality review.
 - DevOps/SRE and OpenClaw solution packs for concrete integration paths.
 
 See [Current implementation status](docs/action-gate-roadmap.md) for planned and

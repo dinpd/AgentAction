@@ -1,0 +1,6 @@
+name = "agentaction-observability-demo"
+main = "src/demo-worker.ts"
+compatibility_date = "2026-07-29"
+workers_dev = true
+preview_urls = false
+keep_names = false
