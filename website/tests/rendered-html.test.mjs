@@ -57,6 +57,13 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /Available now/);
   assert.match(html, /Roadmap/);
   assert.match(html, /See how agent outcomes hold up across runs/);
+  assert.match(html, /07 \/ Inspect the evidence/);
+  assert.match(html, /08 \/ Proof, not promises/);
+  assert.match(html, /09 \/ Recommended onboarding/);
+  assert.ok(
+    html.indexOf('id="console"') < html.indexOf('id="proof"'),
+    "observability console should render before state and roadmap",
+  );
   assert.match(html, /Public · synthetic data/);
   assert.match(html, /Open the public demo/);
   assert.match(html, /src="\/observability-console\.png"/i);
