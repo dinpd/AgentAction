@@ -468,38 +468,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="proof" className="proof section-shell" aria-labelledby="proof-title">
-        <div className="section-heading">
-          <div>
-            <p className="section-index">07 / Proof, not promises</p>
-            <h2 id="proof-title">What exists—and what comes next.</h2>
-          </div>
-          <p>
-            AgentAction labels experimental work and roadmap items plainly. The
-            public repository, runnable examples, fixtures, and tests are the
-            source of truth.
-          </p>
-        </div>
-        <div className="proof-grid">
-          {proof.map((item) => (
-            <article key={item.title} className={item.state === "Available now" ? "is-current" : "is-roadmap"}>
-              <p className="proof-state">{item.state}</p>
-              <h3>{item.title}</h3>
-              <p>{item.copy}</p>
-              {item.href ? (
-                <a className="proof-link" href={item.href}>
-                  {item.linkLabel} <span aria-hidden="true">↗</span>
-                </a>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section id="console" className="observability section-shell" aria-labelledby="observability-title">
         <div className="section-heading">
           <div>
-            <p className="section-index">08 / Inspect the evidence</p>
+            <p className="section-index">07 / Inspect the evidence</p>
             <h2 id="observability-title">See how agent outcomes hold up across runs.</h2>
           </div>
           <p>
@@ -575,6 +547,34 @@ export default function Home() {
           richer OpenTelemetry correlation across runtime boundaries, retries,
           provider execution, observations, and assessments.
         </p>
+      </section>
+
+      <section id="proof" className="proof section-shell" aria-labelledby="proof-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-index">08 / Proof, not promises</p>
+            <h2 id="proof-title">What exists—and what comes next.</h2>
+          </div>
+          <p>
+            AgentAction labels experimental work and roadmap items plainly. The
+            public repository, runnable examples, fixtures, and tests are the
+            source of truth.
+          </p>
+        </div>
+        <div className="proof-grid">
+          {proof.map((item) => (
+            <article key={item.title} className={item.state === "Available now" ? "is-current" : "is-roadmap"}>
+              <p className="proof-state">{item.state}</p>
+              <h3>{item.title}</h3>
+              <p>{item.copy}</p>
+              {item.href ? (
+                <a className="proof-link" href={item.href}>
+                  {item.linkLabel} <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+            </article>
+          ))}
+        </div>
       </section>
 
       <section id="observe" className="quickstart section-shell" aria-labelledby="quickstart-title">
