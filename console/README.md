@@ -53,14 +53,16 @@ normal key rotation does not require a deploy:
 - [Access application token claims](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)
 - [Workers service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/)
 
-## Tenant onboarding
+## Workspace onboarding
 
 Cloudflare Access remains the login and account-verification surface. After
-login, an operator with no membership sees Setup instead of an error. They can:
+login, an operator sees an always-available workspace control. They can:
 
-- create an isolated tenant and its first Hermes source;
+- create an isolated workspace, with an optional first agent integration;
 - redeem a seven-day, single-use invitation bound to their signed-in email;
-- switch among directory memberships;
+- switch among server-authorized directory memberships;
+- adopt an existing SSO-pinned workspace as an owner without changing its data
+  or credentials;
 - see whether the tenant has received its first activity event;
 - create, rotate, or disable sources as an `owner` or `operator`; and
 - create viewer/operator invitations and inspect members as an `owner`.
@@ -69,6 +71,14 @@ Source tokens and invitation codes are displayed only in the response that
 creates them. Only SHA-256 source-token digests and invitation-secret digests
 are stored. The browser keeps a returned secret only in page memory, never in a
 URL or browser storage, and clears it when dismissed or when tenants change.
+
+Unmigrated signed claims remain visibly **Managed by SSO** and fixed to their
+claimed workspace. Owner adoption is one-way, idempotent, and scoped to the
+verified Access principal; it does not change another user with the same claim.
+
+Workspace creation is framework-neutral. Operators can add a Hermes source or
+a custom AgentAction source afterward. Hermes-specific environment and YAML
+configuration appears only for a Hermes source.
 
 Roles are ordered `viewer < operator < owner`. Viewers can inspect data and
 setup health. Operators can also manage source credentials. Owners can also

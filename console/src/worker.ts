@@ -136,8 +136,12 @@ const SHELL_HTML = `<!doctype html>
     <div class="topbar-context">
       <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
       <div class="identity" aria-label="Authenticated context">
-        <label class="tenant-switcher" data-tenant-switcher hidden><span>Tenant</span><select data-tenant-select aria-label="Active tenant"></select></label>
-        <span data-tenant>Tenant loading…</span>
+        <div class="workspace-control" data-tenant-switcher hidden>
+          <label><span>Workspace</span><select data-tenant-select aria-label="Active workspace"></select></label>
+          <small data-workspace-mode>Loading access…</small>
+          <a href="#setup" data-workspace-manage>Manage</a>
+        </div>
+        <span data-tenant>Workspace loading…</span>
         <span data-subject>Identity loading…</span>
       </div>
     </div>
@@ -239,44 +243,53 @@ const SHELL_HTML = `<!doctype html>
       <section id="setup" class="setup-panel" data-console-view="setup" aria-labelledby="setup-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">Tenant setup</p>
+            <p class="eyebrow">Workspace setup</p>
             <h2 id="setup-heading">Connect agents to observability</h2>
-            <p>Create a tenant or join one by invitation, then configure a privacy-safe Hermes shadow source.</p>
+            <p>Create or join a workspace, then connect the agent integration that fits your deployment.</p>
           </div>
           <span class="role-badge" data-setup-role>Not provisioned</span>
         </header>
         <section class="setup-notice" data-setup-message role="status" aria-live="polite">
           <h3 data-setup-message-title>Choose how to get started</h3>
-          <p data-setup-message-detail>Create a tenant for your team, or redeem an invitation from an owner.</p>
+          <p data-setup-message-detail>Create a workspace for your team, or redeem an invitation from an owner.</p>
         </section>
-        <div class="setup-grid" data-setup-onboarding>
+        <section class="setup-card setup-wide migration-card" data-workspace-migration hidden>
+          <p class="eyebrow">Managed by SSO</p>
+          <h3>Enable workspace switching</h3>
+          <p>Your signed Access claim currently pins this workspace. Owners can adopt it into the workspace directory without moving data or changing agent credentials.</p>
+          <button class="primary-button" type="button" data-enable-workspace-switching>Enable workspace switching</button>
+        </section>
+        <div class="setup-grid" data-setup-onboarding hidden>
           <form class="setup-card" data-create-tenant-form>
             <p class="eyebrow">New workspace</p>
-            <h3>Create a tenant</h3>
-            <label><span>Tenant ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
+            <h3>Create a workspace</h3>
+            <label><span>Workspace ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
             <label><span>Display name</span><input name="display_name" data-create-display-name required maxlength="120" placeholder="Acme Support"></label>
-            <label><span>Hermes source ID</span><input name="source_id" data-create-source-id required maxlength="128" value="hermes-production" autocomplete="off"></label>
-            <label><span>Agent ID</span><input name="agent_id" data-create-agent-id required maxlength="128" value="hermes-agent" autocomplete="off"></label>
-            <button class="primary-button" type="submit">Create tenant</button>
+            <label><span>First integration</span><select data-create-integration><option value="none" selected>Add later</option><option value="hermes">Hermes Agent</option><option value="agentaction">Custom AgentAction source</option></select></label>
+            <div data-create-integration-fields hidden>
+              <label><span>Source ID</span><input name="source_id" data-create-source-id maxlength="128" placeholder="production-agents" autocomplete="off"></label>
+              <label><span>Agent ID</span><input name="agent_id" data-create-agent-id maxlength="128" placeholder="support-agent" autocomplete="off"></label>
+            </div>
+            <button class="primary-button" type="submit">Create workspace</button>
           </form>
           <form class="setup-card" data-redeem-invite-form>
             <p class="eyebrow">Existing workspace</p>
             <h3>Redeem an invitation</h3>
             <label><span>Invitation code</span><input name="code" data-invite-code required maxlength="300" autocomplete="off" spellcheck="false" placeholder="invite_….aa_inv_…"></label>
             <p>Invitation codes are email-bound, expire after seven days, and can be used once.</p>
-            <button class="primary-button" type="submit">Join tenant</button>
+            <button class="primary-button" type="submit">Join workspace</button>
           </form>
         </div>
         <section class="secret-panel" data-secret-panel hidden aria-labelledby="secret-title">
           <div><p class="eyebrow">Shown once</p><h3 id="secret-title">Save this source token now</h3><p>AgentAction stores only its digest. This token cannot be displayed again; rotate the source if it is lost.</p></div>
           <div class="secret-value"><code data-source-token></code><button class="text-button" type="button" data-copy-source-token>Copy token</button></div>
           <div class="config-snippet"><strong>Environment</strong><pre data-hermes-environment></pre><button class="text-button" type="button" data-copy-hermes-environment>Copy</button></div>
-          <div class="config-snippet"><strong>Hermes configuration</strong><pre data-hermes-yaml></pre><button class="text-button" type="button" data-copy-hermes-yaml>Copy</button></div>
+          <div class="config-snippet"><strong data-setup-config-label>Integration configuration</strong><pre data-hermes-yaml></pre><button class="text-button" type="button" data-copy-hermes-yaml>Copy</button></div>
           <button class="text-button" type="button" data-dismiss-secret>I saved the token</button>
         </section>
         <section data-tenant-setup hidden>
           <div class="setup-grid setup-summary-grid">
-            <article class="setup-card"><p class="eyebrow">Ingestion</p><h3 data-ingestion-title>Waiting for activity</h3><p data-ingestion-detail>Send one Hermes action to verify the connection.</p><a class="text-link" href="#activity" data-open-activity>Open activity</a></article>
+            <article class="setup-card"><p class="eyebrow">Ingestion</p><h3 data-ingestion-title>Waiting for activity</h3><p data-ingestion-detail>Connect an agent and send one action to verify the connection.</p><a class="text-link" href="#activity" data-open-activity>Open activity</a></article>
             <article class="setup-card"><p class="eyebrow">Access</p><h3 data-access-title>Viewer</h3><p data-access-detail>Your role determines which setup controls are available.</p></article>
           </div>
           <div class="setup-grid">
@@ -284,6 +297,7 @@ const SHELL_HTML = `<!doctype html>
               <div class="setup-card-heading"><div><p class="eyebrow">Sources</p><h3>Agent connections</h3></div></div>
               <div class="source-list" data-source-list></div>
               <form class="inline-setup-form" data-create-source-form hidden>
+                <label><span>Integration</span><select data-source-integration><option value="hermes">Hermes Agent</option><option value="agentaction">Custom AgentAction source</option></select></label>
                 <label><span>Source ID</span><input data-source-id required maxlength="128" placeholder="hermes-staging" autocomplete="off"></label>
                 <label><span>Agent ID</span><input data-source-agent-id required maxlength="128" placeholder="support-agent" autocomplete="off"></label>
                 <button class="primary-button" type="submit">Add source</button>
@@ -766,8 +780,10 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
 }
 @media (max-width: 520px) {
   .topbar { display: grid; }
-  .topbar-context { justify-content: space-between; }
-  .identity { max-width: none; }
+  .topbar-context { display: grid; justify-content: stretch; }
+  .identity { width: 100%; max-width: none; text-align: left; }
+  .workspace-control { grid-template-columns: minmax(0, 1fr) auto; justify-content: stretch; }
+  .repo-link { justify-self: start; }
   .brand-description { max-width: none; white-space: normal; }
   .placeholder-card { grid-template-columns: auto minmax(0, 1fr); }
   .phase { grid-column: 2; justify-self: start; }
@@ -1053,8 +1069,12 @@ button { cursor: pointer; }
 .detail-findings { grid-template-columns: minmax(170px, 0.35fr) minmax(0, 1fr); }
 .future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
-.tenant-switcher { display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--muted); font-size: 0.68rem; font-weight: 800; }
-.tenant-switcher select { max-width: 220px; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
+.workspace-control { display: grid; grid-template-columns: minmax(150px, 220px) auto; gap: 2px 9px; align-items: end; justify-content: end; text-align: left; }
+.workspace-control label { display: grid; grid-row: 1 / span 2; gap: 2px; color: var(--muted); font-size: 0.64rem; font-weight: 800; }
+.workspace-control select { width: 100%; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
+.workspace-control small { align-self: end; color: var(--muted); font-size: 0.61rem; white-space: nowrap; }
+.workspace-control a { align-self: start; color: var(--green); font-size: 0.64rem; font-weight: 900; text-decoration: none; }
+.migration-card { margin-bottom: 14px; border-color: var(--amber); background: #fff8e8; }
 .setup-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
 .setup-panel > .section-heading { margin-bottom: 14px; }
 .role-badge { align-self: start; padding: 5px 9px; border: 1px solid var(--green); border-radius: 999px; color: var(--green); font-size: 0.67rem; font-weight: 900; text-transform: capitalize; }
@@ -1073,7 +1093,7 @@ button { cursor: pointer; }
 .setup-card .primary-button { margin-top: 6px; }
 .setup-wide { grid-column: 1 / -1; }
 .setup-card-heading { display: flex; justify-content: space-between; gap: 12px; }
-.inline-setup-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.inline-setup-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .inline-setup-form label { margin: 0; }
 .source-list { display: grid; gap: 7px; }
 .source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -1219,6 +1239,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const tenantLabel = required<HTMLElement>("[data-tenant]");
   const tenantSwitcher = required<HTMLElement>("[data-tenant-switcher]");
   const tenantSelect = required<HTMLSelectElement>("[data-tenant-select]");
+  const workspaceModeLabel = required<HTMLElement>("[data-workspace-mode]");
+  const workspaceManage = required<HTMLAnchorElement>("[data-workspace-manage]");
   const subjectLabel = required<HTMLElement>("[data-subject]");
   const refreshButton = required<HTMLButtonElement>("[data-refresh]");
   const filterForm = required<HTMLFormElement>("[data-overview-filters]");
@@ -1255,6 +1277,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const createTenantForm = required<HTMLFormElement>("[data-create-tenant-form]");
   const createTenantId = required<HTMLInputElement>("[data-create-tenant-id]");
   const createDisplayName = required<HTMLInputElement>("[data-create-display-name]");
+  const createIntegration = required<HTMLSelectElement>("[data-create-integration]");
+  const createIntegrationFields = required<HTMLElement>("[data-create-integration-fields]");
   const createSourceId = required<HTMLInputElement>("[data-create-source-id]");
   const createAgentId = required<HTMLInputElement>("[data-create-agent-id]");
   const redeemInviteForm = required<HTMLFormElement>("[data-redeem-invite-form]");
@@ -1265,12 +1289,15 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const setupMessage = required<HTMLElement>("[data-setup-message]");
   const setupMessageTitle = required<HTMLElement>("[data-setup-message-title]");
   const setupMessageDetail = required<HTMLElement>("[data-setup-message-detail]");
+  const workspaceMigration = required<HTMLElement>("[data-workspace-migration]");
+  const enableWorkspaceSwitching = required<HTMLButtonElement>("[data-enable-workspace-switching]");
   const ingestionTitle = required<HTMLElement>("[data-ingestion-title]");
   const ingestionDetail = required<HTMLElement>("[data-ingestion-detail]");
   const accessTitle = required<HTMLElement>("[data-access-title]");
   const accessDetail = required<HTMLElement>("[data-access-detail]");
   const sourceList = required<HTMLElement>("[data-source-list]");
   const createSourceForm = required<HTMLFormElement>("[data-create-source-form]");
+  const sourceIntegration = required<HTMLSelectElement>("[data-source-integration]");
   const sourceIdInput = required<HTMLInputElement>("[data-source-id]");
   const sourceAgentIdInput = required<HTMLInputElement>("[data-source-agent-id]");
   const inviteMembersCard = required<HTMLElement>("[data-invite-members-card]");
@@ -1285,6 +1312,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const sourceToken = required<HTMLElement>("[data-source-token]");
   const hermesEnvironment = required<HTMLElement>("[data-hermes-environment]");
   const hermesYaml = required<HTMLElement>("[data-hermes-yaml]");
+  const setupConfigLabel = required<HTMLElement>("[data-setup-config-label]");
   const copySourceToken = required<HTMLButtonElement>("[data-copy-source-token]");
   const copyHermesEnvironment = required<HTMLButtonElement>("[data-copy-hermes-environment]");
   const copyHermesYaml = required<HTMLButtonElement>("[data-copy-hermes-yaml]");
@@ -1369,6 +1397,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   let tenantId = "";
   let tenantMemberships: Array<{ membership: Record<string, any>; tenant: Record<string, any> }> = [];
   let activeRole: TenantRole | "" = "";
+  let workspaceMode: "directory" | "sso_fixed" = "directory";
   let publicDemo = false;
   let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = runtime.location.hash === "#activity"
     ? "activity"
@@ -1529,6 +1558,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
   function applySession(body: Record<string, any>, preferredTenant = ""): void {
     publicDemo = body.public_demo === true;
+    workspaceMode = body.workspace_mode === "sso_fixed" ? "sso_fixed" : "directory";
     setupNav.hidden = publicDemo;
     if (publicDemo && activeView === "setup") showView("overview");
     tenantMemberships = membershipEntries(body.memberships);
@@ -1539,10 +1569,24 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       option.textContent = `${safeText(entry.tenant.display_name, option.value)} · ${safeText(entry.membership.role, "viewer")}`;
       tenantSelect.append(option);
     }
-    const defaultTenant = preferredTenant || safeText(body.tenant_id, "") || safeText(tenantMemberships[0]?.tenant.tenant_id, "");
+    if (tenantMemberships.length === 0) {
+      const option = doc.createElement("option");
+      option.value = "";
+      option.textContent = "No workspace yet";
+      tenantSelect.append(option);
+    }
+    const preferred = tenantMemberships.some((entry) => safeText(entry.tenant.tenant_id, "") === preferredTenant) ? preferredTenant : "";
+    const defaultTenant = preferred || safeText(body.tenant_id, "") || safeText(tenantMemberships[0]?.tenant.tenant_id, "");
     selectTenant(defaultTenant);
-    tenantSwitcher.hidden = tenantMemberships.length < 2;
-    tenantLabel.hidden = tenantMemberships.length > 1;
+    tenantSwitcher.hidden = publicDemo;
+    tenantSelect.disabled = workspaceMode === "sso_fixed" || tenantMemberships.length < 2;
+    workspaceModeLabel.textContent = workspaceMode === "sso_fixed"
+      ? "Managed by SSO"
+      : `${tenantMemberships.length} workspace${tenantMemberships.length === 1 ? "" : "s"}`;
+    workspaceManage.hidden = publicDemo;
+    tenantLabel.hidden = !publicDemo;
+    setupOnboarding.hidden = publicDemo || workspaceMode !== "directory";
+    workspaceMigration.hidden = true;
   }
 
   function selectTenant(selected: string): void {
@@ -1551,7 +1595,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const role = safeText(entry?.membership.role, "");
     activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "";
     tenantSelect.value = tenantId;
-    tenantLabel.textContent = tenantId ? `Tenant: ${tenantId}` : "No tenant yet";
+    tenantLabel.textContent = tenantId ? `Workspace: ${tenantId}` : "No workspace yet";
     setupRole.textContent = activeRole || "Not provisioned";
   }
 
@@ -1575,10 +1619,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   function showOneTimeSecret(body: Record<string, any>): void {
     const token = safeText(body.source_token, "");
     if (!token) return;
-    const hermes = record(body.hermes);
+    const setup = Object.keys(record(body.setup)).length > 0 ? record(body.setup) : record(body.hermes);
+    const integration = safeText(setup.integration, body.hermes ? "hermes" : "agentaction");
     sourceToken.textContent = token;
-    hermesEnvironment.textContent = safeText(hermes.environment, "AGENTACTION_INGEST_TOKEN=<one-time-token>").replace("<one-time-token>", token);
-    hermesYaml.textContent = safeText(hermes.yaml, "");
+    hermesEnvironment.textContent = safeText(setup.environment, "AGENTACTION_INGEST_TOKEN=<one-time-token>").replace("<one-time-token>", token);
+    hermesYaml.textContent = safeText(setup.configuration || setup.yaml, "");
+    setupConfigLabel.textContent = integration === "hermes" ? "Hermes configuration" : "AgentAction source configuration";
     secretPanel.hidden = false;
   }
 
@@ -1631,7 +1677,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       details.append(
         create("strong", undefined, sourceId),
         create("code", undefined, (Array.isArray(source.agent_ids) ? source.agent_ids.join(", ") : "No agents")),
-        create("small", undefined, source.enabled === true ? "Enabled" : "Disabled"),
+        create("small", undefined, `${safeText(source.integration, "AgentAction")} · ${source.enabled === true ? "Enabled" : "Disabled"}`),
       );
       row.append(details);
       if (canManage) {
@@ -1668,17 +1714,18 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView("setup");
     if (!tenantId) {
       setupOnboarding.hidden = false;
+      workspaceMigration.hidden = true;
       tenantSetup.hidden = true;
       setupRole.textContent = "Not provisioned";
-      setStatus("ready", "Signed in. Create a tenant or redeem an invitation to begin.");
-      setSetupMessage("ready", "Choose how to get started", "Create a tenant for your team, or redeem an invitation from an owner.");
+      setStatus("ready", "Signed in. Create a workspace or redeem an invitation to begin.");
+      setSetupMessage("ready", "Choose how to get started", "Create a workspace for your team, or redeem an invitation from an owner.");
       return;
     }
-    setStatus("loading", "Loading tenant setup and ingestion health.");
+    setStatus("loading", "Loading workspace setup and ingestion health.");
     const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/setup`);
     if (!result.response.ok) {
-      const detail = failureMessage(result.body, "Tenant setup is unavailable.");
-      setSetupMessage("error", "Tenant setup unavailable", detail);
+      const detail = failureMessage(result.body, "Workspace setup is unavailable.");
+      setSetupMessage("error", "Workspace setup unavailable", detail);
       setStatus(failureState(result.response.status), detail);
       return;
     }
@@ -1687,7 +1734,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const role = safeText(membership.role, activeRole || "viewer");
     activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "viewer";
     setupRole.textContent = activeRole;
-    setupOnboarding.hidden = true;
+    setupOnboarding.hidden = workspaceMode !== "directory";
+    workspaceMigration.hidden = !(workspaceMode === "sso_fixed" && activeRole === "owner");
     tenantSetup.hidden = false;
     const ingestion = record(body.ingestion);
     if (ingestion.observed === true) {
@@ -1695,17 +1743,23 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       ingestionDetail.textContent = `Last seen ${safeText(ingestion.last_observed_at)} · ${safeText(ingestion.last_agent_id)} · ${safeText(ingestion.last_event_type)}`;
     } else {
       ingestionTitle.textContent = "Waiting for activity";
-      ingestionDetail.textContent = "Install the Hermes plugin and send one agent action to verify the connection.";
+      ingestionDetail.textContent = "Connect an agent integration and send one action to verify the connection.";
     }
     accessTitle.textContent = activeRole[0].toUpperCase() + activeRole.slice(1);
-    accessDetail.textContent = activeRole === "owner" ? "Manage sources, invitations, and members." : activeRole === "operator" ? "Manage source credentials and inspect activity." : "Inspect tenant activity and setup health.";
+    accessDetail.textContent = activeRole === "owner" ? "Manage sources, invitations, and members." : activeRole === "operator" ? "Manage source credentials and inspect activity." : "Inspect workspace activity and setup health.";
     const canManageSources = activeRole === "owner" || activeRole === "operator";
     createSourceForm.hidden = !canManageSources;
     inviteMembersCard.hidden = activeRole !== "owner";
     renderSources(body.sources, canManageSources);
     renderMembers(body.members);
-    setSetupMessage("ready", "Tenant setup ready", ingestion.observed === true ? "Agent activity is flowing into this tenant." : "Finish the Hermes configuration, then verify the first event here.");
-    setStatus("ready", `Tenant ${tenantId} is ready.`);
+    if (workspaceMode === "sso_fixed") {
+      setSetupMessage("ready", "Workspace managed by SSO", activeRole === "owner"
+        ? "Enable workspace switching to create, join, and move among workspaces from this console."
+        : "Your signed Access claim selects this workspace. Ask an owner if directory-based switching is needed.");
+    } else {
+      setSetupMessage("ready", "Workspace setup ready", ingestion.observed === true ? "Agent activity is flowing into this workspace." : "Connect an agent integration, then verify the first event here.");
+    }
+    setStatus("ready", `Workspace ${tenantId} is ready.`);
   }
 
   function restoreFilters(): void {
@@ -3048,6 +3102,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     event.preventDefault();
     void loadSetup();
   });
+  workspaceManage.addEventListener("click", (event) => {
+    event.preventDefault();
+    void loadSetup();
+  });
   openActivity.addEventListener("click", (event) => {
     event.preventDefault();
     showView("activity");
@@ -3063,16 +3121,41 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     else if (activeView === "job-detail") void loadJobDetail();
     else void loadOverview();
   });
+  createIntegration.addEventListener("change", () => {
+    const enabled = createIntegration.value !== "none";
+    createIntegrationFields.hidden = !enabled;
+    createSourceId.required = enabled;
+    createAgentId.required = enabled;
+  });
+  enableWorkspaceSwitching.addEventListener("click", async () => {
+    if (!tenantId || activeRole !== "owner") return;
+    enableWorkspaceSwitching.disabled = true;
+    setSetupMessage("ready", "Enabling workspace switching", "Adopting this workspace into your directory memberships without changing its data or credentials.");
+    const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/migrate`, "POST", {});
+    enableWorkspaceSwitching.disabled = false;
+    if (!result.response.ok) return setSetupMessage("error", "Workspace migration failed", failureMessage(result.body, "Workspace switching could not be enabled."));
+    const currentTenant = tenantId;
+    await refreshSession(currentTenant);
+    await loadSetup();
+    setSetupMessage("ready", "Workspace switching enabled", "You can now create, join, and move among your authorized workspaces from the header.");
+  });
   createTenantForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    setSetupMessage("ready", "Creating tenant", "Provisioning an isolated tenant and first Hermes source.");
-    const result = await write("/api/console/onboarding/tenants", "POST", {
+    const integration = createIntegration.value;
+    setSetupMessage("ready", "Creating workspace", integration === "none"
+      ? "Provisioning an isolated workspace."
+      : "Provisioning an isolated workspace and its first agent connection.");
+    const payload: Record<string, unknown> = {
       tenant_id: createTenantId.value.trim(),
       display_name: createDisplayName.value.trim(),
-      source_id: createSourceId.value.trim(),
-      agent_id: createAgentId.value.trim(),
-    });
-    if (!result.response.ok) return setSetupMessage("error", "Tenant creation failed", failureMessage(result.body, "The tenant could not be created."));
+    };
+    if (integration !== "none") {
+      payload.integration = integration;
+      payload.source_id = createSourceId.value.trim();
+      payload.agent_id = createAgentId.value.trim();
+    }
+    const result = await write("/api/console/onboarding/tenants", "POST", payload);
+    if (!result.response.ok) return setSetupMessage("error", "Workspace creation failed", failureMessage(result.body, "The workspace could not be created."));
     const createdTenant = safeText(record(result.body.tenant).tenant_id, createTenantId.value.trim());
     showOneTimeSecret(record(result.body));
     await refreshSession(createdTenant);
@@ -3090,6 +3173,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   createSourceForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources`, "POST", {
+      integration: sourceIntegration.value,
       source_id: sourceIdInput.value.trim(),
       agent_id: sourceAgentIdInput.value.trim(),
     });
@@ -3160,11 +3244,11 @@ export default {
       }
       if (url.pathname.startsWith("/api/console/tenants/")) {
         const routeTenant = routeTenantId(url);
-        await requireTenantAccess(identity, routeTenant, env);
         const route = parseGatewayRoute(url, routeTenant);
         if (request.method !== "GET") {
           return problemResponse(request, new ConsoleError(405, "method_not_allowed", "Console gateway routes are read only."));
         }
+        await requireTenantAccess(identity, routeTenant, env);
         return await forwardGateway(request, url, route, env);
       }
       if (request.method !== "GET") {
@@ -3446,6 +3530,7 @@ async function consoleSession(identity: ConsoleIdentity, env: Env): Promise<Resp
     return jsonResponse({ authenticated: true, public_demo: true, tenant_id: identity.tenantId, subject: identity.subject });
   }
   let memberships: unknown[] = [];
+  let workspaceMode: "directory" | "sso_fixed" = identity.tenantId ? "sso_fixed" : "directory";
   if ((env.CONSOLE_STATIC_TENANT_ID || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") && identity.tenantId) {
     memberships = [{
       tenant: { tenant_id: identity.tenantId, display_name: identity.tenantId },
@@ -3459,20 +3544,27 @@ async function consoleSession(identity: ConsoleIdentity, env: Env): Promise<Resp
       env,
     );
     if (!upstream.ok) return upstream;
-    const body = await upstream.json() as { memberships?: unknown[] };
+    const body = await upstream.json() as { memberships?: unknown[]; workspace_mode?: unknown };
     memberships = Array.isArray(body.memberships) ? body.memberships : [];
+    workspaceMode = body.workspace_mode === "directory" ? "directory" : "sso_fixed";
   }
-  if (identity.tenantId && !memberships.some((entry) => membershipTenantId(entry) === identity.tenantId)) {
+  if (workspaceMode === "sso_fixed" && identity.tenantId && !memberships.some((entry) => membershipTenantId(entry) === identity.tenantId)) {
     memberships.unshift({
       tenant: { tenant_id: identity.tenantId, display_name: identity.tenantId },
       membership: { tenant_id: identity.tenantId, role: identity.role || "viewer", source: "signed_claim" },
     });
   }
-  if (identity.tenantId) memberships = memberships.filter((entry) => membershipTenantId(entry) === identity.tenantId);
-  const defaultTenant = identity.tenantId || (memberships.length === 1 ? membershipTenantId(memberships[0]) : undefined);
+  if (workspaceMode === "sso_fixed" && identity.tenantId) {
+    memberships = memberships.filter((entry) => membershipTenantId(entry) === identity.tenantId);
+  }
+  const defaultTenant = workspaceMode === "sso_fixed"
+    ? identity.tenantId
+    : (memberships.length === 1 ? membershipTenantId(memberships[0]) : undefined);
   return jsonResponse({
     authenticated: true,
     tenant_id: defaultTenant || null,
+    workspace_mode: workspaceMode,
+    claimed_tenant_id: identity.tenantId || null,
     memberships,
     subject: identity.subject,
     ...(identity.email ? { email: identity.email } : {}),
@@ -3488,7 +3580,7 @@ function membershipTenantId(value: unknown): string | undefined {
 }
 
 async function requireTenantAccess(identity: ConsoleIdentity, tenantId: string, env: Env): Promise<void> {
-  if (identity.tenantId) {
+  if (env.CONSOLE_STATIC_TENANT_ID || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") {
     if (identity.tenantId !== tenantId) {
       throw new ConsoleError(403, "tenant_mismatch", "Authenticated tenant does not match the requested route.", "forbidden");
     }
@@ -3528,6 +3620,7 @@ function parseOnboardingRoute(url: URL, method: string): string {
   const tenantId = validateTenantId(suffix[1], "route tenant");
   const tail = suffix.slice(2);
   if (method === "GET" && sameSegments(tail, ["setup"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/setup`;
+  if (method === "POST" && sameSegments(tail, ["migrate"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/migrate`;
   if (method === "POST" && sameSegments(tail, ["invitations"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/invitations`;
   if (method === "GET" && sameSegments(tail, ["members"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/members`;
   if (method === "POST" && sameSegments(tail, ["sources"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/sources`;

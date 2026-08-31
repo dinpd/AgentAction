@@ -4,6 +4,33 @@
 
 No changes yet.
 
+## 0.8.0 - 2026-08-31
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.8.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- Existing SSO-pinned tenant claims remain fixed until an owner explicitly
+  enables workspace switching. The one-way adoption preserves the existing
+  manifest, sources, credentials, and activity data.
+- Existing tenant/source API names and `agentpass.*` protocol identifiers remain
+  compatible. npm packages retain their independent versions.
+
+### Workspace switching and agent connections
+
+- Added an always-visible authenticated workspace control and directory-backed
+  switching among only the operator's server-authorized memberships.
+- Added an owner-only UI action that adopts the current SSO-pinned workspace as
+  a directory-owned membership. Migration is idempotent and scoped to the
+  verified Access principal; other identities remain pinned.
+- Kept create and invitation-redeem actions available after a workspace is
+  selected so operators can manage multiple workspaces without changing Access
+  configuration.
+- Generalized Connect agents so workspace creation is framework-neutral.
+  Hermes is the first named integration, alongside a generic AgentAction source,
+  and integration configuration is shown only after a source is selected.
+
 ## 0.7.0 - 2026-08-31
 
 ### Upgrade and compatibility

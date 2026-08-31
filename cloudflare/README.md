@@ -98,10 +98,13 @@ are rejected. The console supplies only identity fields it derived from a
 verified Cloudflare Access JWT over the private service binding.
 
 The directory is stored in a dedicated, consistently named Durable Object and
-keeps tenant records, subject memberships, and expiring single-use invitations.
+keeps tenant records, subject memberships, per-principal workspace mode, and
+expiring single-use invitations.
 Tenant manifests and source-token digests remain in `AGENTID_MANIFESTS` KV.
-Tenant creation provisions a non-enforcing shadow-observability manifest and
-returns the first source token once. Source rotation invalidates the prior token
+Tenant creation provisions a non-enforcing shadow-observability manifest; an
+optional first source returns its token once. A signed-claim owner can adopt an
+existing tenant into directory mode without rewriting its manifest. Source
+rotation invalidates the prior token
 immediately; disabling a source stops new ingestion without deleting retained
 events.
 

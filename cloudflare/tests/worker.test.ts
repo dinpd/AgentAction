@@ -2839,6 +2839,79 @@ test("signed tenant claims remain authoritative virtual memberships", async () =
   assert.equal(missingManifest.body.error, "tenant manifest not found");
 });
 
+test("signed owners can adopt a workspace and then use directory memberships", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const legacyManifest = JSON.stringify(activityManifest("legacy-source-token"));
+  await manifests.put("legacy-tenant", legacyManifest);
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const owner = controlHeaders("legacy-owner", "owner@example.com", "legacy-tenant", "owner");
+  const viewer = controlHeaders("legacy-viewer", "viewer@example.com", "legacy-tenant", "viewer");
+  const otherOwner = controlHeaders("other-owner", "other@example.com");
+
+  const fixedSession = await call(env, ctx, "GET", "/control-plane/session", undefined, owner);
+  assert.equal(fixedSession.body.workspace_mode, "sso_fixed");
+  const viewerMigration = await call(env, ctx, "POST", "/control-plane/tenants/legacy-tenant/migrate", {}, viewer);
+  assert.equal(viewerMigration.status, 403);
+
+  const migrated = await call(env, ctx, "POST", "/control-plane/tenants/legacy-tenant/migrate", {}, owner);
+  assert.equal(migrated.status, 201);
+  assert.equal(migrated.body.workspace_mode, "directory");
+  assert.equal(migrated.body.membership.role, "owner");
+  assert.equal(await manifests.get("legacy-tenant"), legacyManifest);
+  const repeated = await call(env, ctx, "POST", "/control-plane/tenants/legacy-tenant/migrate", {}, owner);
+  assert.equal(repeated.status, 200);
+
+  const beta = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "beta",
+    display_name: "Beta",
+  }, otherOwner);
+  assert.equal(beta.status, 201);
+  assert.equal(beta.body.source_token, undefined);
+  const betaManifest = JSON.parse(String(await manifests.get("beta")));
+  assert.deepEqual(betaManifest.observability.ingestion.sources, {});
+  const invitation = await call(env, ctx, "POST", "/control-plane/tenants/beta/invitations", {
+    email: "owner@example.com",
+    role: "operator",
+  }, otherOwner);
+  const joined = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+  }, owner);
+  assert.equal(joined.status, 201);
+
+  const genericSource = await call(env, ctx, "POST", "/control-plane/tenants/beta/sources", {
+    integration: "agentaction",
+    source_id: "custom-source",
+    agent_id: "custom-agent",
+  }, owner);
+  assert.equal(genericSource.status, 201);
+  assert.equal(genericSource.body.source.integration, "agentaction");
+  assert.equal(genericSource.body.hermes, undefined);
+  assert.match(genericSource.body.setup.configuration, /AGENTACTION_TENANT_ID=beta/);
+
+  const directorySession = await call(env, ctx, "GET", "/control-plane/session", undefined, owner);
+  assert.equal(directorySession.body.workspace_mode, "directory");
+  assert.deepEqual(
+    directorySession.body.memberships.map((entry: any) => entry.tenant.tenant_id).sort(),
+    ["beta", "legacy-tenant"],
+  );
+  const stillFixed = await call(
+    env,
+    ctx,
+    "GET",
+    "/control-plane/session",
+    undefined,
+    controlHeaders("another-legacy-owner", "another@example.com", "legacy-tenant", "owner"),
+  );
+  assert.equal(stillFixed.body.workspace_mode, "sso_fixed");
+  assert.deepEqual(stillFixed.body.memberships.map((entry: any) => entry.tenant.tenant_id), ["legacy-tenant"]);
+});
+
 function controlHeaders(
   subject: string,
   email: string,

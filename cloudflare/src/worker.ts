@@ -1926,8 +1926,14 @@ export class AgentIdJitGrants {
   async directoryRequest(method: string, pathname: string, payload: Record<string, unknown>): Promise<Response> {
     if (method === "POST" && pathname === "/directory/session") {
       const identity = directoryIdentity(payload.identity);
+      const workspaceMode = await this.directoryWorkspaceMode(identity);
       const memberships = await this.directoryMemberships(identity);
-      return json({ schema_version: "agentaction.tenant-session.v1", memberships });
+      return json({
+        schema_version: "agentaction.tenant-session.v1",
+        workspace_mode: workspaceMode,
+        claimed_tenant_id: identity.claimed_tenant_id || null,
+        memberships,
+      });
     }
 
     if (method === "POST" && pathname === "/directory/authorize") {
@@ -1943,6 +1949,9 @@ export class AgentIdJitGrants {
 
     if (method === "POST" && pathname === "/directory/tenants") {
       const identity = directoryIdentity(payload.identity);
+      if (await this.directoryWorkspaceMode(identity) !== "directory") {
+        return json({ error: "signed tenant identity must enable workspace switching first", error_code: "claimed_tenant_fixed" }, 403);
+      }
       const tenantId = directoryId(payload.tenant_id, "tenant_id");
       const displayName = directoryLabel(payload.display_name, "display_name", 120);
       const existing = await this.state.storage.get<TenantRecord>(`directory:tenant:${tenantId}`);
@@ -1968,6 +1977,43 @@ export class AgentIdJitGrants {
       await this.state.storage.put(`directory:tenant:${tenantId}`, tenant);
       await this.persistDirectoryMembership(membership);
       return json({ tenant, membership }, 201);
+    }
+
+    const migrationMatch = pathname.match(/^\/directory\/tenants\/([^/]+)\/migrate$/);
+    if (method === "POST" && migrationMatch) {
+      const tenantId = directoryId(decodeURIComponent(migrationMatch[1]), "tenant_id");
+      const identity = directoryIdentity(payload.identity);
+      if (identity.claimed_tenant_id !== tenantId || identity.claimed_role !== "owner") {
+        return json({ error: "only the signed tenant owner can enable workspace switching", error_code: "tenant_role_forbidden" }, 403);
+      }
+      const displayName = directoryLabel(payload.display_name || tenantId, "display_name", 120);
+      const createdAt = new Date().toISOString();
+      const existingTenant = await this.state.storage.get<TenantRecord>(`directory:tenant:${tenantId}`);
+      const tenant: TenantRecord = existingTenant || {
+        schema_version: "agentaction.tenant.v1",
+        tenant_id: tenantId,
+        display_name: displayName,
+        created_at: createdAt,
+        created_by: identity.subject,
+      };
+      const existingMembership = await this.state.storage.get<TenantMembership>(
+        await directoryMembershipKey(identity.issuer, identity.subject, tenantId),
+      );
+      const membership: TenantMembership = existingMembership?.role === "owner" ? existingMembership : {
+        schema_version: "agentaction.tenant-membership.v1",
+        tenant_id: tenantId,
+        subject: identity.subject,
+        issuer: identity.issuer,
+        ...(identity.email ? { email: identity.email } : {}),
+        role: "owner",
+        created_at: createdAt,
+        created_by: "signed-access-owner-migration",
+      };
+      if (!existingTenant) await this.state.storage.put(`directory:tenant:${tenantId}`, tenant);
+      await this.persistDirectoryMembership(membership);
+      const subjectKey = await directorySubjectKey(identity.issuer, identity.subject);
+      await this.state.storage.put(`${subjectKey}:workspace-mode`, "directory");
+      return json({ tenant, membership, workspace_mode: "directory" }, existingMembership ? 200 : 201);
     }
 
     if (method === "DELETE" && pathname.startsWith("/directory/tenants/")) {
@@ -2024,7 +2070,7 @@ export class AgentIdJitGrants {
       if (!invitation || !constantTimeEqual(invitation.secret_digest, secretDigest)) {
         return json({ error: "invitation is invalid", error_code: "invitation_invalid" }, 404);
       }
-      if (identity.claimed_tenant_id && identity.claimed_tenant_id !== invitation.tenant_id) {
+      if (await this.directoryWorkspaceMode(identity) !== "directory" && identity.claimed_tenant_id !== invitation.tenant_id) {
         return json({ error: "signed tenant identity cannot join another tenant", error_code: "claimed_tenant_fixed" }, 403);
       }
       if (invitation.redeemed_at) return json({ error: "invitation was already redeemed", error_code: "invitation_replayed" }, 409);
@@ -2066,7 +2112,7 @@ export class AgentIdJitGrants {
   }
 
   async directoryMembership(identity: ControlIdentity, tenantId: string): Promise<TenantMembership | undefined> {
-    if (identity.claimed_tenant_id === tenantId && identity.claimed_role) {
+    if (await this.directoryWorkspaceMode(identity) !== "directory" && identity.claimed_tenant_id === tenantId && identity.claimed_role) {
       return {
         schema_version: "agentaction.tenant-membership.v1",
         tenant_id: tenantId,
@@ -2084,7 +2130,9 @@ export class AgentIdJitGrants {
   async directoryMemberships(identity: ControlIdentity): Promise<Array<{ tenant: TenantRecord; membership: TenantMembership }>> {
     const subjectKey = await directorySubjectKey(identity.issuer, identity.subject);
     const tenantIds = await this.state.storage.get<string[]>(`${subjectKey}:tenants`) || [];
-    if (identity.claimed_tenant_id && !tenantIds.includes(identity.claimed_tenant_id)) tenantIds.unshift(identity.claimed_tenant_id);
+    if (await this.directoryWorkspaceMode(identity) !== "directory" && identity.claimed_tenant_id && !tenantIds.includes(identity.claimed_tenant_id)) {
+      tenantIds.unshift(identity.claimed_tenant_id);
+    }
     const memberships: Array<{ tenant: TenantRecord; membership: TenantMembership }> = [];
     for (const tenantId of tenantIds) {
       const membership = await this.directoryMembership(identity, tenantId);
@@ -2100,6 +2148,12 @@ export class AgentIdJitGrants {
       memberships.push({ tenant, membership });
     }
     return memberships;
+  }
+
+  async directoryWorkspaceMode(identity: ControlIdentity): Promise<"directory" | "sso_fixed"> {
+    if (!identity.claimed_tenant_id) return "directory";
+    const subjectKey = await directorySubjectKey(identity.issuer, identity.subject);
+    return await this.state.storage.get<string>(`${subjectKey}:workspace-mode`) === "directory" ? "directory" : "sso_fixed";
   }
 
   async persistDirectoryMembership(membership: TenantMembership): Promise<void> {
@@ -3956,15 +4010,16 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
   }
 
   if (request.method === "POST" && url.pathname === "/control-plane/tenants") {
-    if (identity.claimed_tenant_id) {
-      return json({ error: "signed tenant identities cannot create another tenant", error_code: "claimed_tenant_fixed" }, 403);
-    }
     if (!env.AGENTID_MANIFESTS) return json({ error: "tenant manifest storage is not configured" }, 503);
     const input = await readControlJson(request);
     const tenantId = directoryId(input.tenant_id, "tenant_id");
     const displayName = directoryLabel(input.display_name, "display_name", 120);
-    const sourceId = directoryId(input.source_id || "hermes-production", "source_id");
-    const agentId = directoryId(input.agent_id || "hermes-agent", "agent_id");
+    const sourceValue = optionalString(input.source_id)?.trim();
+    const agentValue = optionalString(input.agent_id)?.trim();
+    if (Boolean(sourceValue) !== Boolean(agentValue)) return json({ error: "source_id and agent_id must be provided together" }, 400);
+    const sourceId = sourceValue ? directoryId(sourceValue, "source_id") : undefined;
+    const agentId = agentValue ? directoryId(agentValue, "agent_id") : undefined;
+    const integration = sourceIntegration(input.integration, "hermes");
     if (await env.AGENTID_MANIFESTS.get(tenantId)) return json({ error: "tenant ID is already registered", error_code: "tenant_exists" }, 409);
     const created = await directory.fetch(directoryRequest("/directory/tenants", {
       identity,
@@ -3972,9 +4027,9 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
       display_name: displayName,
     }));
     if (!created.ok) return json(await created.json(), created.status);
-    const token = randomSecret("aa_src");
-    const tokenDigest = await sha256Hex(token);
-    const manifest = newTenantManifest(tenantId, displayName, sourceId, agentId, tokenDigest);
+    const token = sourceId ? randomSecret("aa_src") : undefined;
+    const tokenDigest = token ? await sha256Hex(token) : undefined;
+    const manifest = newTenantManifest(tenantId, displayName, sourceId, agentId, tokenDigest, integration);
     try {
       await env.AGENTID_MANIFESTS.put(tenantId, JSON.stringify(manifest));
     } catch {
@@ -3982,12 +4037,16 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
       return json({ error: "tenant manifest could not be provisioned" }, 503);
     }
     const directoryBody = await created.json() as Record<string, unknown>;
+    const source = sourceId ? publicActivitySource(sourceId, activitySources(manifest)[sourceId]) : undefined;
     return json({
       schema_version: "agentaction.tenant-onboarding.v1",
       ...directoryBody,
-      source: publicActivitySource(sourceId, recordValue(recordValue(recordValue(manifest.observability).ingestion).sources)[sourceId]),
-      source_token: token,
-      hermes: hermesSetup(tenantId, sourceId, agentId),
+      ...(source && token && agentId ? {
+        source,
+        source_token: token,
+        setup: integrationSetup(integration, tenantId, sourceId, agentId),
+        ...(integration === "hermes" ? { hermes: hermesSetup(tenantId, sourceId, agentId) } : {}),
+      } : {}),
     }, 201);
   }
 
@@ -4010,6 +4069,17 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
   if (!tenantMatch) return json({ error: "not found" }, 404);
   const tenantId = directoryId(decodeURIComponent(tenantMatch[1]), "tenant_id");
   const suffix = tenantMatch[2] || "";
+
+  if (request.method === "POST" && suffix === "migrate") {
+    if (!env.AGENTID_MANIFESTS) return json({ error: "tenant manifest storage is not configured" }, 503);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const displayName = directoryLabel(recordValue(manifest.agent).name || tenantId, "display_name", 120);
+    const migrated = await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/migrate`, {
+      identity,
+      display_name: displayName,
+    }));
+    return json(await migrated.json(), migrated.status);
+  }
 
   if (request.method === "GET" && suffix === "authorize") {
     const checked = await authorizeControlTenant(directory, identity, tenantId, "viewer");
@@ -4083,7 +4153,14 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
     const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
     if (!checked.ok) return json(await checked.json(), checked.status);
     const input = await readControlJson(request);
-    return provisionActivitySource(env, tenantId, directoryId(input.source_id, "source_id"), directoryId(input.agent_id, "agent_id"), false);
+    return provisionActivitySource(
+      env,
+      tenantId,
+      directoryId(input.source_id, "source_id"),
+      directoryId(input.agent_id, "agent_id"),
+      false,
+      sourceIntegration(input.integration, "hermes"),
+    );
   }
 
   const sourceMatch = suffix.match(/^sources\/([^/]+)(?:\/(rotate))?$/);
@@ -4094,7 +4171,14 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
     const sourceId = directoryId(decodeURIComponent(sourceMatch[1]), "source_id");
     const source = recordValue(activitySources(manifest)[sourceId]);
     if (!source.token_sha256) return json({ error: "source not found" }, 404);
-    return provisionActivitySource(env, tenantId, sourceId, directoryId(arrayValue(source.agent_ids)[0], "agent_id"), true);
+    return provisionActivitySource(
+      env,
+      tenantId,
+      sourceId,
+      directoryId(arrayValue(source.agent_ids)[0], "agent_id"),
+      true,
+      sourceIntegration(source.integration, "hermes"),
+    );
   }
   if (sourceMatch && request.method === "DELETE" && !sourceMatch[2]) {
     const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
@@ -4118,6 +4202,7 @@ async function provisionActivitySource(
   sourceId: string,
   agentId: string,
   rotate: boolean,
+  integration: "agentaction" | "hermes",
 ): Promise<Response> {
   const manifest = await requiredTenantManifest(env, tenantId);
   const sources = activitySources(manifest);
@@ -4127,26 +4212,38 @@ async function provisionActivitySource(
     enabled: true,
     token_sha256: `sha256:${await sha256Hex(token)}`,
     agent_ids: [agentId],
+    integration,
     rotated_at: new Date().toISOString(),
   };
   await env.AGENTID_MANIFESTS!.put(tenantId, JSON.stringify(manifest));
   return json({
     source: publicActivitySource(sourceId, sources[sourceId]),
     source_token: token,
-    hermes: hermesSetup(tenantId, sourceId, agentId),
+    setup: integrationSetup(integration, tenantId, sourceId, agentId),
+    ...(integration === "hermes" ? { hermes: hermesSetup(tenantId, sourceId, agentId) } : {}),
   }, rotate ? 200 : 201);
 }
 
 function newTenantManifest(
   tenantId: string,
   displayName: string,
-  sourceId: string,
-  agentId: string,
-  tokenDigest: string,
+  sourceId?: string,
+  agentId?: string,
+  tokenDigest?: string,
+  integration: "agentaction" | "hermes" = "hermes",
 ): AgentIdManifest {
+  const sources = sourceId && agentId && tokenDigest ? {
+    [sourceId]: {
+      enabled: true,
+      token_sha256: `sha256:${tokenDigest}`,
+      agent_ids: [agentId],
+      integration,
+      created_at: new Date().toISOString(),
+    },
+  } : {};
   return {
     agent: {
-      id: agentId,
+      id: agentId || tenantId,
       name: displayName,
       owner: tenantId,
       environment: "production",
@@ -4157,14 +4254,7 @@ function newTenantManifest(
     runtime: { enforce_manifest: false },
     observability: {
       ingestion: {
-        sources: {
-          [sourceId]: {
-            enabled: true,
-            token_sha256: `sha256:${tokenDigest}`,
-            agent_ids: [agentId],
-            created_at: new Date().toISOString(),
-          },
-        },
+        sources,
       },
     },
   };
@@ -4184,9 +4274,39 @@ function publicActivitySource(sourceId: string, value: unknown): Record<string, 
   return {
     source_id: sourceId,
     enabled: source.enabled === true,
+    integration: sourceIntegration(source.integration, "hermes"),
     agent_ids: arrayValue(source.agent_ids),
     created_at: optionalString(source.created_at) || null,
     rotated_at: optionalString(source.rotated_at) || null,
+  };
+}
+
+function sourceIntegration(value: unknown, fallback: "agentaction" | "hermes"): "agentaction" | "hermes" {
+  const integration = optionalString(value)?.trim();
+  if (!integration) return fallback;
+  if (integration === "agentaction" || integration === "hermes") return integration;
+  throw new Error("integration is invalid");
+}
+
+function integrationSetup(
+  integration: "agentaction" | "hermes",
+  tenantId: string,
+  sourceId: string,
+  agentId: string,
+): Record<string, string> {
+  const environment = "AGENTACTION_INGEST_TOKEN=<one-time-token>";
+  if (integration === "hermes") {
+    return { integration, environment, configuration: hermesSetup(tenantId, sourceId, agentId).yaml };
+  }
+  return {
+    integration,
+    environment,
+    configuration: [
+      "AGENTACTION_GATEWAY=https://agentid-gateway.drisw.workers.dev",
+      `AGENTACTION_TENANT_ID=${tenantId}`,
+      `AGENTACTION_SOURCE_ID=${sourceId}`,
+      `AGENTACTION_AGENT_ID=${agentId}`,
+    ].join("\n"),
   };
 }
 
