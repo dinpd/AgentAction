@@ -12,6 +12,7 @@ export type Env = {
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_TENANT_CLAIM?: string;
   CONSOLE_ENABLE_MOCK_IDENTITY?: string;
+  CONSOLE_DIRECTORY_MODE?: string;
   CONSOLE_ENVIRONMENT?: string;
   CONSOLE_MOCK_EMAIL?: string;
   CONSOLE_MOCK_SUBJECT?: string;
@@ -3329,7 +3330,7 @@ async function authenticateConsoleRequest(request: Request, env: Env): Promise<C
   }
   const tenantClaim = env.ACCESS_TENANT_CLAIM?.trim() || "custom.tenant_id";
   const roleClaim = env.ACCESS_ROLE_CLAIM?.trim() || "custom.tenant_role";
-  const configuredTenant = env.CONSOLE_STATIC_TENANT_ID?.trim();
+  const configuredTenant = env.CONSOLE_DIRECTORY_MODE === "true" ? undefined : env.CONSOLE_STATIC_TENANT_ID?.trim();
   let tenantId: string | undefined;
   let role: TenantRole | undefined;
   if (configuredTenant) {
@@ -3531,7 +3532,7 @@ async function consoleSession(identity: ConsoleIdentity, env: Env): Promise<Resp
   }
   let memberships: unknown[] = [];
   let workspaceMode: "directory" | "sso_fixed" = identity.tenantId ? "sso_fixed" : "directory";
-  if ((env.CONSOLE_STATIC_TENANT_ID || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") && identity.tenantId) {
+  if (((env.CONSOLE_DIRECTORY_MODE !== "true" && env.CONSOLE_STATIC_TENANT_ID) || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") && identity.tenantId) {
     memberships = [{
       tenant: { tenant_id: identity.tenantId, display_name: identity.tenantId },
       membership: { tenant_id: identity.tenantId, role: identity.role || "owner", source: "signed_claim" },
@@ -3580,7 +3581,7 @@ function membershipTenantId(value: unknown): string | undefined {
 }
 
 async function requireTenantAccess(identity: ConsoleIdentity, tenantId: string, env: Env): Promise<void> {
-  if (env.CONSOLE_STATIC_TENANT_ID || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") {
+  if ((env.CONSOLE_DIRECTORY_MODE !== "true" && env.CONSOLE_STATIC_TENANT_ID) || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") {
     if (identity.tenantId !== tenantId) {
       throw new ConsoleError(403, "tenant_mismatch", "Authenticated tenant does not match the requested route.", "forbidden");
     }

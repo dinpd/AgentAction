@@ -13,6 +13,9 @@ No changes yet.
 - Upgrade an already-adopted owner membership idempotently when the owner
   repeats the action; the mode remains scoped to the exact Access issuer and
   subject.
+- Make the hosted SaaS console explicitly directory-backed so a legacy static
+  tenant variable preserved by Cloudflare deployment settings cannot keep the
+  workspace selector pinned.
 
 ## 0.8.0 - 2026-08-31
 
