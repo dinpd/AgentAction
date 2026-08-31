@@ -58,8 +58,10 @@ normal key rotation does not require a deploy:
 Cloudflare Access remains the login and account-verification surface. After
 login, an operator sees an always-available workspace control. They can:
 
-- create an isolated workspace, with an optional first agent integration;
-- redeem a seven-day, single-use invitation bound to their signed-in email;
+- create an isolated first workspace, or create another when they own at least
+  one existing workspace, with an optional first agent integration;
+- follow an emailed, seven-day, single-use invitation that redeems
+  automatically for their exact signed-in email, or enter its fallback code;
 - switch among server-authorized directory memberships;
 - adopt an existing SSO-pinned workspace as an owner without changing its data
   or credentials;
@@ -69,20 +71,27 @@ login, an operator sees an always-available workspace control. They can:
 
 Source tokens and invitation codes are displayed only in the response that
 creates them. Only SHA-256 source-token digests and invitation-secret digests
-are stored. The browser keeps a returned secret only in page memory, never in a
-URL or browser storage, and clears it when dismissed or when tenants change.
+are stored. Invitation links carry the secret in the URL fragment, which is
+removed before the browser makes the authenticated redemption request and is
+not sent in HTTP requests. The one-time code remains available as a manual
+fallback when email delivery or automatic redemption fails.
 
 Unmigrated signed claims remain visibly **Managed by SSO** and fixed to their
 claimed workspace. Owner adoption is one-way, idempotent, and scoped to the
 verified Access principal; it does not change another user with the same claim.
 
-Workspace creation is framework-neutral. Operators can add a Hermes source or
-a custom AgentAction source afterward. Hermes-specific environment and YAML
-configuration appears only for a Hermes source.
+Workspace creation is framework-neutral. Owners and operators can add a Hermes
+source or a custom AgentAction source afterward. The Agent connections form
+shows connection steps and documentation for the selected integration;
+Hermes-specific environment and YAML configuration appears only for a Hermes
+source.
 
 Roles are ordered `viewer < operator < owner`. Viewers can inspect data and
 setup health. Operators can also manage source credentials. Owners can also
-invite members and read the member list. Invitations cannot grant `owner`.
+invite members, read the member list, and create additional workspaces.
+Identities with no memberships may create their first workspace; identities
+with only viewer/operator memberships may not create another. Invitations
+cannot grant `owner`.
 
 ## BFF routes
 

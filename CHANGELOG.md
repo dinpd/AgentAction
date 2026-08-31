@@ -4,6 +4,23 @@
 
 No changes yet.
 
+## 0.9.0 - 2026-08-31
+
+### Workspace invitation onboarding
+
+- Deliver owner-created viewer/operator invitations through Cloudflare Email
+  Service with workspace, inviter, role, expiry, Access sign-in guidance, and a
+  one-time fallback code.
+- Auto-redeem protected invitation links after Cloudflare Access authenticates
+  the exact invited email, while removing the secret-bearing fragment before
+  any redemption request.
+- Preserve invitations and expose manual fallback instructions when email
+  delivery is unavailable or fails.
+- Restrict additional workspace creation to existing workspace owners while
+  still allowing an identity with no memberships to create its first workspace.
+- Show integration-specific Hermes or generic AgentAction connection steps in
+  the operator console.
+
 ## 0.8.1 - 2026-08-31
 
 ### Workspace adoption

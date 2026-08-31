@@ -261,7 +261,7 @@ const SHELL_HTML = `<!doctype html>
           <button class="primary-button" type="button" data-enable-workspace-switching>Enable workspace switching</button>
         </section>
         <div class="setup-grid" data-setup-onboarding hidden>
-          <form class="setup-card" data-create-tenant-form>
+          <form class="setup-card" data-create-tenant-form data-create-workspace-card>
             <p class="eyebrow">New workspace</p>
             <h3>Create a workspace</h3>
             <label><span>Workspace ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
@@ -302,6 +302,13 @@ const SHELL_HTML = `<!doctype html>
                 <label><span>Source ID</span><input data-source-id required maxlength="128" placeholder="hermes-staging" autocomplete="off"></label>
                 <label><span>Agent ID</span><input data-source-agent-id required maxlength="128" placeholder="support-agent" autocomplete="off"></label>
                 <button class="primary-button" type="submit">Add source</button>
+                <aside class="integration-guide" data-integration-guide>
+                  <p class="eyebrow">Selected integration</p>
+                  <h4 data-integration-guide-title>Hermes Agent</h4>
+                  <p data-integration-guide-detail></p>
+                  <ol data-integration-guide-steps></ol>
+                  <a class="text-link" data-integration-guide-link target="_blank" rel="noreferrer">Open integration guide <span aria-hidden="true">↗</span></a>
+                </aside>
               </form>
             </section>
             <section class="setup-card setup-wide" data-invite-members-card hidden>
@@ -311,7 +318,7 @@ const SHELL_HTML = `<!doctype html>
                 <label><span>Role</span><select data-member-role><option value="viewer">Viewer</option><option value="operator">Operator</option></select></label>
                 <button class="primary-button" type="submit">Create invitation</button>
               </form>
-              <div class="invitation-result" data-invitation-result hidden><strong>Invitation code (shown once)</strong><code data-created-invitation-code></code><button class="text-button" type="button" data-copy-invitation>Copy code</button></div>
+              <div class="invitation-result" data-invitation-result hidden><strong>Invitation code (shown once)</strong><small data-invitation-delivery></small><code data-created-invitation-code></code><button class="text-button" type="button" data-copy-invitation>Copy code</button></div>
               <h4>Members</h4><ul class="member-list" data-member-list></ul>
             </section>
           </div>
@@ -1097,6 +1104,9 @@ button { cursor: pointer; }
 .inline-setup-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .inline-setup-form label { margin: 0; }
 .source-list { display: grid; gap: 7px; }
+.integration-guide { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+.integration-guide h4, .integration-guide p, .integration-guide ol { margin: 0; }
+.integration-guide ol { display: grid; gap: 5px; padding-left: 20px; color: var(--muted); }
 .source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .source-row:last-child { border-bottom: 0; }
 .source-row strong, .source-row code { display: block; overflow-wrap: anywhere; }
@@ -1276,6 +1286,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const setupNav = required<HTMLAnchorElement>("[data-nav-setup]");
   const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
   const createTenantForm = required<HTMLFormElement>("[data-create-tenant-form]");
+  const createWorkspaceCard = required<HTMLElement>("[data-create-workspace-card]");
   const createTenantId = required<HTMLInputElement>("[data-create-tenant-id]");
   const createDisplayName = required<HTMLInputElement>("[data-create-display-name]");
   const createIntegration = required<HTMLSelectElement>("[data-create-integration]");
@@ -1299,6 +1310,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const sourceList = required<HTMLElement>("[data-source-list]");
   const createSourceForm = required<HTMLFormElement>("[data-create-source-form]");
   const sourceIntegration = required<HTMLSelectElement>("[data-source-integration]");
+  const integrationGuideTitle = required<HTMLElement>("[data-integration-guide-title]");
+  const integrationGuideDetail = required<HTMLElement>("[data-integration-guide-detail]");
+  const integrationGuideSteps = required<HTMLElement>("[data-integration-guide-steps]");
+  const integrationGuideLink = required<HTMLAnchorElement>("[data-integration-guide-link]");
   const sourceIdInput = required<HTMLInputElement>("[data-source-id]");
   const sourceAgentIdInput = required<HTMLInputElement>("[data-source-agent-id]");
   const inviteMembersCard = required<HTMLElement>("[data-invite-members-card]");
@@ -1307,6 +1322,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const memberRole = required<HTMLSelectElement>("[data-member-role]");
   const memberList = required<HTMLElement>("[data-member-list]");
   const invitationResult = required<HTMLElement>("[data-invitation-result]");
+  const invitationDelivery = required<HTMLElement>("[data-invitation-delivery]");
   const createdInvitationCode = required<HTMLElement>("[data-created-invitation-code]");
   const copyInvitation = required<HTMLButtonElement>("[data-copy-invitation]");
   const secretPanel = required<HTMLElement>("[data-secret-panel]");
@@ -1400,13 +1416,25 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   let activeRole: TenantRole | "" = "";
   let workspaceMode: "directory" | "sso_fixed" = "directory";
   let publicDemo = false;
-  let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = runtime.location.hash === "#activity"
+  function invitationCodeFromHash(hash: string): string {
+    if (!hash.startsWith("#setup?")) return "";
+    const value = new URLSearchParams(hash.slice("#setup?".length)).get("invite")?.trim() || "";
+    return value.length <= 300 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value) ? value : "";
+  }
+
+  let pendingInvitationCode = invitationCodeFromHash(runtime.location.hash);
+  if (pendingInvitationCode) {
+    inviteCode.value = pendingInvitationCode;
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${runtime.location.search || ""}#setup`);
+  }
+  const initialHash = runtime.location.hash.split("?", 1)[0];
+  let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = initialHash === "#activity"
     ? "activity"
-    : runtime.location.hash === "#jobs"
+    : initialHash === "#jobs"
       ? "jobs"
-      : runtime.location.hash === "#job-detail"
+      : initialHash === "#job-detail"
         ? "job-detail"
-        : runtime.location.hash === "#setup"
+        : initialHash === "#setup"
           ? "setup"
         : "overview";
   let currentActivityCursor = "";
@@ -1563,6 +1591,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setupNav.hidden = publicDemo;
     if (publicDemo && activeView === "setup") showView("overview");
     tenantMemberships = membershipEntries(body.memberships);
+    const canCreateWorkspace = tenantMemberships.length === 0 || tenantMemberships.some((entry) => safeText(entry.membership.role, "") === "owner");
+    createWorkspaceCard.hidden = publicDemo || workspaceMode !== "directory" || !canCreateWorkspace;
     tenantSelect.replaceChildren();
     for (const entry of tenantMemberships) {
       const option = doc.createElement("option");
@@ -1638,7 +1668,53 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
   function clearInvitationSecret(): void {
     createdInvitationCode.textContent = "";
+    invitationDelivery.textContent = "";
     invitationResult.hidden = true;
+  }
+
+  function renderIntegrationGuide(): void {
+    const hermes = sourceIntegration.value === "hermes";
+    integrationGuideTitle.textContent = hermes ? "Hermes Agent" : "Custom AgentAction source";
+    integrationGuideDetail.textContent = hermes
+      ? "Install the maintained Hermes plugin and point it at this workspace's privacy-safe activity endpoint."
+      : "Send allowlisted, privacy-safe AgentAction activity batches from your agent runtime.";
+    const steps = hermes
+      ? [
+        "Add the source and save the token and generated configuration shown once.",
+        "Install the AgentAction plugin in the Hermes environment and enable it.",
+        "Apply the generated environment and YAML values, then restart Hermes.",
+        "Run one agent action and confirm that it appears in Activity.",
+      ]
+      : [
+        "Add the source and save the token and generated configuration shown once.",
+        "Instrument the agent client to send privacy-safe activity batches with the source ID and bearer token.",
+        "Post batches to the workspace activity endpoint shown in the generated configuration.",
+        "Run one agent action and confirm that it appears in Activity.",
+      ];
+    integrationGuideSteps.replaceChildren(...steps.map((step) => create("li", undefined, step)));
+    integrationGuideLink.href = hermes
+      ? "https://github.com/dinpd/AgentAction/tree/main/integrations/hermes-agentaction"
+      : "https://github.com/dinpd/AgentAction#shadow-observability-quickstart";
+  }
+
+  async function redeemInvitation(code: string, automatic = false): Promise<boolean> {
+    const normalized = code.trim();
+    if (!normalized) return false;
+    showView("setup");
+    setSetupMessage("ready", automatic ? "Joining your workspace" : "Redeeming invitation", "Confirming the signed-in email and one-time invitation.");
+    const result = await write("/api/console/onboarding/invitations/redeem", "POST", { code: normalized });
+    if (!result.response.ok) {
+      inviteCode.value = normalized;
+      setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Check the invitation and signed-in email."));
+      return false;
+    }
+    const joinedTenant = safeText(record(result.body.membership).tenant_id, "");
+    pendingInvitationCode = "";
+    inviteCode.value = "";
+    await refreshSession(joinedTenant);
+    await loadSetup();
+    setSetupMessage("ready", "Workspace joined", `You now have ${safeText(record(result.body.membership).role, "member")} access to ${joinedTenant || "the invited workspace"}.`);
+    return true;
   }
 
   async function copyText(value: string, button: HTMLButtonElement): Promise<void> {
@@ -3018,7 +3094,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView(activeView);
     try {
       if (!await refreshSession()) return;
-      if (!tenantId) await loadSetup();
+      if (pendingInvitationCode) await redeemInvitation(pendingInvitationCode, true);
+      else if (!tenantId) await loadSetup();
       else if (activeView === "setup") await loadSetup();
       else if (activeView === "activity") await loadActivity();
       else if (activeView === "jobs") await loadJobs();
@@ -3128,6 +3205,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     createSourceId.required = enabled;
     createAgentId.required = enabled;
   });
+  sourceIntegration.addEventListener("change", renderIntegrationGuide);
   enableWorkspaceSwitching.addEventListener("click", async () => {
     if (!tenantId || activeRole !== "owner") return;
     enableWorkspaceSwitching.disabled = true;
@@ -3164,12 +3242,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   });
   redeemInviteForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const result = await write("/api/console/onboarding/invitations/redeem", "POST", { code: inviteCode.value.trim() });
-    if (!result.response.ok) return setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Check the code and signed-in email."));
-    const joinedTenant = safeText(record(result.body.membership).tenant_id, "");
-    inviteCode.value = "";
-    await refreshSession(joinedTenant);
-    await loadSetup();
+    await redeemInvitation(inviteCode.value, false);
   });
   createSourceForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3193,10 +3266,22 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     });
     if (!result.response.ok) return setSetupMessage("error", "Invitation creation failed", failureMessage(result.body, "The invitation could not be created."));
     const code = safeText(result.body.invitation_code, "");
+    const delivery = safeText(record(result.body.delivery).status, "unavailable");
     createdInvitationCode.textContent = code;
+    invitationDelivery.textContent = delivery === "sent"
+      ? "Invitation email sent. Keep this code as a one-time fallback."
+      : delivery === "failed"
+        ? "Email delivery failed. Share this fallback code through a secure channel."
+        : "Email delivery is not configured. Share this fallback code through a secure channel.";
     invitationResult.hidden = !code;
     memberEmail.value = "";
-    setSetupMessage("ready", "Invitation created", "Share the one-time code with the invited member through a secure channel.");
+    setSetupMessage(
+      delivery === "sent" ? "ready" : "error",
+      delivery === "sent" ? "Invitation email sent" : "Invitation created; email not sent",
+      delivery === "sent"
+        ? "The invitee can use the protected link in the email. The invitation will redeem automatically after sign-in."
+        : "The invitation is still valid. Share the displayed fallback code through a secure channel.",
+    );
   });
   copySourceToken.addEventListener("click", () => { void copyText(sourceToken.textContent || "", copySourceToken); });
   copyHermesEnvironment.addEventListener("click", () => { void copyText(hermesEnvironment.textContent || "", copyHermesEnvironment); });
@@ -3204,6 +3289,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   copyInvitation.addEventListener("click", () => { void copyText(createdInvitationCode.textContent || "", copyInvitation); });
   dismissSecret.addEventListener("click", clearOneTimeSecret);
 
+  renderIntegrationGuide();
   const ready = start();
   return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }

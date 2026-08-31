@@ -2771,6 +2771,12 @@ test("control plane enforces roles, single-use invitations, source rotation, and
     agent_id: "bob-agent",
   }, bob);
   assert.equal(viewerSource.status, 403);
+  const viewerWorkspace = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "bob-workspace",
+    display_name: "Bob Workspace",
+  }, bob);
+  assert.equal(viewerWorkspace.status, 403);
+  assert.equal(viewerWorkspace.body.error_code, "workspace_creation_forbidden");
   const crossTenant = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, mallory);
   assert.equal(crossTenant.status, 403);
 
@@ -2796,6 +2802,76 @@ test("control plane enforces roles, single-use invitations, source rotation, and
   const revoked = await call(env, ctx, "DELETE", "/control-plane/tenants/acme/sources/hermes-production", undefined, alice);
   assert.equal(revoked.status, 200);
   assert.equal(revoked.body.source.enabled, false);
+});
+
+test("emails protected auto-redeem invitations and preserves fallback redemption when delivery fails", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const messages: Array<Record<string, any>> = [];
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+    AGENTACTION_CONSOLE_URL: "https://console.agentaction.dev/",
+    AGENTACTION_INVITATION_FROM_EMAIL: "invites@agentaction.dev",
+    INVITATION_EMAIL: {
+      async send(message: Record<string, any>): Promise<{ messageId: string }> {
+        messages.push(message);
+        return { messageId: "message-1" };
+      },
+    },
+  };
+  const ctx = new TestContext();
+  const alice = controlHeaders("alice-subject", "alice@example.com");
+  const bob = controlHeaders("bob-subject", "bob@example.com");
+  await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Acme & Partners",
+  }, alice);
+
+  const invitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "bob@example.com",
+    role: "viewer",
+  }, alice);
+  assert.equal(invitation.status, 201);
+  assert.equal(invitation.body.delivery.status, "sent");
+  assert.equal(messages.length, 1);
+  assert.deepEqual(messages[0].from, { email: "invites@agentaction.dev", name: "AgentAction" });
+  assert.equal(messages[0].to, "bob@example.com");
+  assert.match(messages[0].subject, /Acme & Partners/);
+  assert.match(messages[0].text, /Invited by: alice@example.com/);
+  assert.match(messages[0].text, /Role: Viewer/);
+  assert.match(messages[0].text, /redeems the invitation automatically/);
+  assert.match(messages[0].text, /Cloudflare Access/);
+  assert.match(messages[0].html, /Acme &amp; Partners/);
+  assert.doesNotMatch(messages[0].html, /<h1>Join Acme & Partners/);
+  const invitationCode = String(invitation.body.invitation_code);
+  const link = String(messages[0].text).split("\n").find((line) => line.startsWith("https://")) || "";
+  assert.equal(link, `https://console.agentaction.dev/#setup?invite=${encodeURIComponent(invitationCode)}`);
+  assert.equal(link.slice(0, link.indexOf("#")).includes(invitationCode), false);
+  const storedDirectory = JSON.stringify([...namespace.stores.get("__agentaction_tenant_directory__")!.entries()]);
+  assert.equal(storedDirectory.includes(invitationCode), false);
+
+  const failingEnv = {
+    ...env,
+    INVITATION_EMAIL: {
+      async send(): Promise<never> {
+        throw new Error("delivery unavailable");
+      },
+    },
+  };
+  const failed = await call(failingEnv, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "carol@example.com",
+    role: "operator",
+  }, alice);
+  assert.equal(failed.status, 201);
+  assert.equal(failed.body.delivery.status, "failed");
+  assert.match(failed.body.invitation_code, /^invite_[a-f0-9]+\.aa_inv_/);
+  const redeemed = await call(failingEnv, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: failed.body.invitation_code,
+  }, controlHeaders("carol-subject", "carol@example.com"));
+  assert.equal(redeemed.status, 201);
+  assert.equal(redeemed.body.membership.role, "operator");
 });
 
 test("signed tenant claims remain authoritative virtual memberships", async () => {

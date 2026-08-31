@@ -2,6 +2,10 @@ name = "agentid-gateway"
 main = "src/worker.ts"
 compatibility_date = "2026-05-24"
 
+[vars]
+AGENTACTION_CONSOLE_URL = "https://agentpass-observability-console.drisw.workers.dev/"
+AGENTACTION_INVITATION_FROM_EMAIL = "invites@agentaction.dev"
+
 # Set AGENTID_API_KEY as a secret in production:
 #   npx wrangler secret put AGENTID_API_KEY
 #
@@ -29,6 +33,10 @@ class_name = "AgentIdJitGrants"
 [[kv_namespaces]]
 binding = "AGENTID_MANIFESTS"
 id = "fcaf886fa671404b9b39033fb34f4990"
+
+[[send_email]]
+name = "INVITATION_EMAIL"
+allowed_sender_addresses = ["invites@agentaction.dev"]
 
 [[migrations]]
 tag = "v1"

@@ -24,6 +24,8 @@ import {
 } from "./decision-basis.ts";
 
 type Env = {
+  AGENTACTION_CONSOLE_URL?: string;
+  AGENTACTION_INVITATION_FROM_EMAIL?: string;
   AGENTID_API_KEY?: string;
   AGENTID_INTERNAL_SERVICE_TOKEN?: string;
   AGENTID_AUDIT_WEBHOOK_TOKEN?: string;
@@ -42,6 +44,15 @@ type Env = {
   AGENTID_RECEIPT_KEY_ID?: string;
   AGENTID_RECEIPT_PRIVATE_JWK?: string;
   AGENTID_RECEIPT_PUBLIC_JWKS?: string;
+  INVITATION_EMAIL?: {
+    send(message: {
+      from: string | { email: string; name?: string };
+      to: string | { email: string; name?: string };
+      subject: string;
+      html?: string;
+      text?: string;
+    }): Promise<{ messageId?: string }>;
+  };
   JIT_GRANTS: {
     idFromName(name: string): unknown;
     get(id: unknown): { fetch(request: Request): Promise<Response> };
@@ -1952,6 +1963,10 @@ export class AgentIdJitGrants {
       const identity = directoryIdentity(payload.identity);
       if (await this.directoryWorkspaceMode(identity) !== "directory") {
         return json({ error: "signed tenant identity must enable workspace switching first", error_code: "claimed_tenant_fixed" }, 403);
+      }
+      const existingMemberships = await this.directoryMemberships(identity);
+      if (existingMemberships.length > 0 && !existingMemberships.some((entry) => entry.membership.role === "owner")) {
+        return json({ error: "only workspace owners can create another workspace", error_code: "workspace_creation_forbidden" }, 403);
       }
       const tenantId = directoryId(payload.tenant_id, "tenant_id");
       const displayName = directoryLabel(payload.display_name, "display_name", 120);
@@ -4142,9 +4157,21 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
       },
     }));
     if (!created.ok) return json(await created.json(), created.status);
+    const invitationCode = `${invitationId}.${secret}`;
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const workspaceName = directoryLabel(recordValue(manifest.agent).name || tenantId, "workspace name", 120);
+    const delivery = await deliverWorkspaceInvitation(env, {
+      code: invitationCode,
+      email,
+      expiresAt,
+      inviter: identity.email || "an AgentAction workspace owner",
+      role,
+      workspaceName,
+    });
     return json({
       ...(await created.json() as Record<string, unknown>),
-      invitation_code: `${invitationId}.${secret}`,
+      invitation_code: invitationCode,
+      delivery,
     }, 201);
   }
 
@@ -4330,6 +4357,93 @@ function hermesSetup(tenantId: string, sourceId: string, agentId: string): Recor
       `        agent_id: ${agentId}`,
     ].join("\n"),
   };
+}
+
+async function deliverWorkspaceInvitation(
+  env: Env,
+  invitation: {
+    code: string;
+    email: string;
+    expiresAt: string;
+    inviter: string;
+    role: Exclude<TenantRole, "owner">;
+    workspaceName: string;
+  },
+): Promise<{ status: "failed" | "sent" | "unavailable" }> {
+  const fromEmail = optionalString(env.AGENTACTION_INVITATION_FROM_EMAIL)?.trim().toLowerCase() || "";
+  const consoleUrl = optionalString(env.AGENTACTION_CONSOLE_URL)?.trim() || "";
+  if (!env.INVITATION_EMAIL || !fromEmail || !consoleUrl) return { status: "unavailable" };
+
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(consoleUrl);
+  } catch {
+    return { status: "unavailable" };
+  }
+  if (baseUrl.protocol !== "https:" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
+    return { status: "unavailable" };
+  }
+
+  const inviteUrl = `${baseUrl.origin}${baseUrl.pathname || "/"}#setup?invite=${encodeURIComponent(invitation.code)}`;
+  const roleLabel = invitation.role === "operator" ? "Operator" : "Viewer";
+  const text = [
+    `You have been invited to ${invitation.workspaceName} in AgentAction Observability.`,
+    "",
+    `Invited by: ${invitation.inviter}`,
+    `Role: ${roleLabel}`,
+    `Expires: ${invitation.expiresAt}`,
+    "",
+    "To join:",
+    "1. Open the secure invitation link below.",
+    `2. Sign in through Cloudflare Access as ${invitation.email}.`,
+    "3. After sign-in, the console redeems the invitation automatically for that exact email.",
+    "4. Select the workspace from the Workspace menu if it is not already selected.",
+    "",
+    inviteUrl,
+    "",
+    "Fallback invitation code:",
+    invitation.code,
+    "",
+    "The invitation is email-bound, expires after seven days, and can be used once. If Cloudflare Access blocks sign-in, ask the workspace owner to add your email to the console Access policy.",
+  ].join("\n");
+  const html = `<h1>Join ${htmlEscape(invitation.workspaceName)}</h1>
+    <p>You have been invited to an AgentAction Observability workspace.</p>
+    <dl>
+      <dt>Invited by</dt><dd>${htmlEscape(invitation.inviter)}</dd>
+      <dt>Role</dt><dd>${roleLabel}</dd>
+      <dt>Expires</dt><dd>${htmlEscape(invitation.expiresAt)}</dd>
+    </dl>
+    <p><a href="${htmlEscape(inviteUrl)}">Open the secure invitation</a></p>
+    <ol>
+      <li>Sign in through Cloudflare Access as ${htmlEscape(invitation.email)}.</li>
+      <li>After sign-in, the console redeems the invitation automatically for that exact email.</li>
+      <li>Select ${htmlEscape(invitation.workspaceName)} from the Workspace menu if it is not already selected.</li>
+    </ol>
+    <p>If automatic redemption fails, paste this one-time code into Setup:</p>
+    <p><code>${htmlEscape(invitation.code)}</code></p>
+    <p>This invitation is email-bound, expires after seven days, and can be used once. If Cloudflare Access blocks sign-in, ask the workspace owner to add your email to the console Access policy.</p>`;
+  try {
+    await env.INVITATION_EMAIL.send({
+      from: { email: fromEmail, name: "AgentAction" },
+      to: invitation.email,
+      subject: `Join ${invitation.workspaceName} in AgentAction Observability`,
+      text,
+      html,
+    });
+    return { status: "sent" };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+function htmlEscape(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] || character);
 }
 
 async function requiredTenantManifest(env: Env, tenantId: string): Promise<AgentIdManifest> {

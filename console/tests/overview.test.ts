@@ -131,6 +131,7 @@ class FakeElement {
   readonly tagName: string;
   className = "";
   hidden = false;
+  href = "";
   id = "";
   max = 0;
   textContent = "";
@@ -213,6 +214,7 @@ class FakeDocument {
       "[data-nav-setup]",
       "[data-job-detail-back]",
       "[data-create-tenant-form]",
+      "[data-create-workspace-card]",
       "[data-create-tenant-id]",
       "[data-create-display-name]",
       "[data-create-integration]",
@@ -236,6 +238,11 @@ class FakeDocument {
       "[data-source-list]",
       "[data-create-source-form]",
       "[data-source-integration]",
+      "[data-integration-guide]",
+      "[data-integration-guide-title]",
+      "[data-integration-guide-detail]",
+      "[data-integration-guide-steps]",
+      "[data-integration-guide-link]",
       "[data-source-id]",
       "[data-source-agent-id]",
       "[data-invite-members-card]",
@@ -244,6 +251,7 @@ class FakeDocument {
       "[data-member-role]",
       "[data-member-list]",
       "[data-invitation-result]",
+      "[data-invitation-delivery]",
       "[data-created-invitation-code]",
       "[data-copy-invitation]",
       "[data-secret-panel]",
@@ -375,6 +383,7 @@ type RuntimeOptions = {
   sessionStatus?: number;
   sessionPayload?: Record<string, any>;
   setupPayload?: Record<string, any>;
+  invitationDelivery?: "failed" | "sent" | "unavailable";
   startSsoFixed?: boolean;
   startUnprovisioned?: boolean;
 };
@@ -389,6 +398,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
   let provisioned = options.startUnprovisioned !== true;
   let workspaceMigrated = false;
+  let invitationJoined = false;
   const runtime = {
     Date: FixedDate,
     document,
@@ -406,7 +416,10 @@ function makeRuntime(options: RuntimeOptions = {}) {
         return response(
           status === 200
             ? options.sessionPayload || (provisioned
-              ? { authenticated: true, workspace_mode: options.startSsoFixed && !workspaceMigrated ? "sso_fixed" : "directory", tenant_id: "acme", subject: "operator-1", email: "operator@example.com", memberships: [{ tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } }] }
+              ? { authenticated: true, workspace_mode: options.startSsoFixed && !workspaceMigrated ? "sso_fixed" : "directory", tenant_id: "acme", subject: "operator-1", email: "operator@example.com", memberships: [
+                { tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } },
+                ...(invitationJoined ? [{ tenant: { tenant_id: "beta", display_name: "Beta" }, membership: { tenant_id: "beta", role: "viewer" } }] : []),
+              ] }
               : { authenticated: true, workspace_mode: "directory", tenant_id: null, subject: "operator-1", email: "operator@example.com", memberships: [] })
             : { error: { code: "access_token_missing", message: "Authentication is required." } },
           status,
@@ -424,6 +437,17 @@ function makeRuntime(options: RuntimeOptions = {}) {
       if (path === "/api/console/onboarding/tenants/acme/migrate") {
         workspaceMigrated = true;
         return response({ workspace_mode: "directory", membership: { tenant_id: "acme", role: "owner" } }, 201);
+      }
+      if (path === "/api/console/onboarding/invitations/redeem") {
+        invitationJoined = true;
+        return response({ membership: { tenant_id: "beta", role: "viewer" } }, 201);
+      }
+      if (path === "/api/console/onboarding/tenants/acme/invitations") {
+        return response({
+          invitation: { invitation_id: "invite_test", email: "member@example.com", role: "viewer" },
+          invitation_code: "invite_test.aa_inv_secret",
+          delivery: { status: options.invitationDelivery || "sent" },
+        }, 201);
       }
       if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/setup$/.test(path)) {
         const role = path.includes("/beta/") ? "viewer" : "owner";
@@ -657,6 +681,48 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
 });
 
+test("changes connection instructions with the selected integration", async () => {
+  const { controller, document } = makeRuntime({ hash: "#setup" });
+  await controller.ready;
+
+  assert.equal(document.get("[data-integration-guide-title]").textContent, "Hermes Agent");
+  assert.match(textOf(document.get("[data-integration-guide-steps]")), /Install the AgentAction plugin/);
+  assert.match(document.get("[data-integration-guide-link]").href, /integrations\/hermes-agentaction/);
+
+  document.get("[data-source-integration]").value = "agentaction";
+  await document.get("[data-source-integration]").dispatch("change");
+  assert.equal(document.get("[data-integration-guide-title]").textContent, "Custom AgentAction source");
+  assert.match(textOf(document.get("[data-integration-guide-steps]")), /privacy-safe activity batches/);
+  assert.match(document.get("[data-integration-guide-link]").href, /shadow-observability-quickstart/);
+});
+
+test("auto-redeems an email invitation after sign-in and scrubs its secret from the URL", async () => {
+  const code = "invite_test.aa_inv_secret";
+  const { controller, document, pageUrls, requests } = makeRuntime({ hash: `#setup?invite=${code}` });
+  await controller.ready;
+
+  assert.ok(requests.includes("/api/console/onboarding/invitations/redeem"));
+  assert.equal(pageUrls[0], "/#setup");
+  assert.equal(pageUrls.some((url) => url.includes(code)), false);
+  assert.equal(document.get("[data-tenant-select]").value, "beta");
+  assert.equal(document.get("[data-invite-code]").value, "");
+  assert.equal(document.get("[data-setup-message-title]").textContent, "Workspace joined");
+});
+
+test("shows invitation delivery outcome while preserving a manual fallback code", async () => {
+  const { controller, document } = makeRuntime({ hash: "#setup", invitationDelivery: "failed" });
+  await controller.ready;
+
+  document.get("[data-member-email]").value = "member@example.com";
+  document.get("[data-member-role]").value = "viewer";
+  await document.get("[data-create-invite-form]").dispatch("submit");
+
+  assert.equal(document.get("[data-invitation-result]").hidden, false);
+  assert.equal(document.get("[data-created-invitation-code]").textContent, "invite_test.aa_inv_secret");
+  assert.match(document.get("[data-invitation-delivery]").textContent, /Email delivery failed/);
+  assert.match(document.get("[data-setup-message-title]").textContent, /email not sent/);
+});
+
 test("adopts an SSO-managed workspace and reveals directory workspace actions", async () => {
   const { controller, document, requests } = makeRuntime({ hash: "#setup", startSsoFixed: true });
   await controller.ready;
@@ -713,6 +779,33 @@ test("switches only among the authenticated session memberships", async () => {
   assert.equal(document.get("[data-tenant-select]").value, "beta");
   assert.equal(document.get("[data-create-source-form]").hidden, true);
   assert.equal(document.get("[data-invite-members-card]").hidden, true);
+});
+
+test("allows workspace creation only for a new identity or an existing workspace owner", async () => {
+  const viewer = makeRuntime({
+    hash: "#setup",
+    sessionPayload: {
+      authenticated: true,
+      workspace_mode: "directory",
+      tenant_id: "beta",
+      subject: "viewer-1",
+      email: "viewer@example.com",
+      memberships: [{ tenant: { tenant_id: "beta", display_name: "Beta" }, membership: { tenant_id: "beta", role: "viewer" } }],
+    },
+    setupPayload: {
+      membership: { tenant_id: "beta", role: "viewer" },
+      sources: [],
+      members: [],
+      ingestion: { observed: false },
+    },
+  });
+  await viewer.controller.ready;
+  assert.equal(viewer.document.get("[data-create-workspace-card]").hidden, true);
+  assert.equal(viewer.document.get("[data-setup-onboarding]").hidden, false);
+
+  const newcomer = makeRuntime({ hash: "#setup", startUnprovisioned: true });
+  await newcomer.controller.ready;
+  assert.equal(newcomer.document.get("[data-create-workspace-card]").hidden, false);
 });
 
 test("creates an unprovisioned tenant and shows its source secret only in memory", async () => {
