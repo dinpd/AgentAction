@@ -30,14 +30,15 @@ boundaries.
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
 | [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |
-| [Operator console](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected review of real tenant outcome, constraint, confidence, execution-discipline, and data-quality evidence. |
+| [Operator console](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant onboarding, Hermes setup, Activity, intent-relative outcomes, constraints, confidence, and evidence. |
 
 Prefer to start without blocking an existing workflow? Run the passive MCP
 observer quick start below, inspect the counterfactual policy decisions, and
 enable enforcement only after the boundary matches your intent. Use the public
 observability demo to inspect the interface without signing in. The separate
-operator console remains protected by Cloudflare Access and derives its tenant
-boundary from the authenticated identity.
+operator console remains protected by Cloudflare Access. New operators can
+create or join a tenant after login; every selected tenant is re-authorized
+server-side before its data is read.
 
 [![AgentAction public observability console showing synthetic outcome, constraint, confidence, execution, and data-quality metrics](website/public/observability-console.png)](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview)
 
@@ -61,9 +62,10 @@ contract; otherwise events are correctly labeled `unbound` rather than having
 intent inferred from prompts or model output.
 
 See the [Hermes onboarding guide](integrations/hermes-agentaction/) for the
-complete plugin and tenant-manifest configuration. The hosted operator console
-derives tenant access from Cloudflare Access, while each Hermes source uses a
-separate write-only token whose hash is stored in that tenant's manifest.
+complete flow. The hosted operator console now creates the tenant and first
+source, displays the source token once, and verifies the first event. Each
+Hermes source still uses a separate write-only token whose hash is stored in
+that tenant's manifest.
 
 ### Recommended: Observe An MCP Workflow
 

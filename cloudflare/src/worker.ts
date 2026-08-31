@@ -35,6 +35,7 @@ type Env = {
   AGENTID_INTENT_OBSERVATION_DEV_UNSIGNED?: string;
   AGENTID_MANIFESTS?: {
     get(key: string): Promise<string | null>;
+    put(key: string, value: string): Promise<void>;
   };
   AGENTID_RECEIPT_AUDIENCE?: string;
   AGENTID_RECEIPT_ISSUER?: string;
@@ -99,7 +100,7 @@ type StoredActivityEvent = { digest: string; event: ActivityEvent };
 
 type ToolEvent = Record<string, unknown>;
 type AuthContext = {
-  method: "api_key" | "oidc" | "none";
+  method: "api_key" | "internal_service" | "oidc" | "none";
   subject?: string;
   tenant_id?: string;
   user_id?: string;
@@ -107,6 +108,52 @@ type AuthContext = {
   scopes?: string[];
   issuer?: string;
 };
+type TenantRole = "owner" | "operator" | "viewer";
+type ControlIdentity = {
+  subject: string;
+  email?: string;
+  issuer: string;
+  claimed_tenant_id?: string;
+  claimed_role?: TenantRole;
+};
+type TenantRecord = {
+  schema_version: "agentaction.tenant.v1";
+  tenant_id: string;
+  display_name: string;
+  created_at: string;
+  created_by: string;
+};
+type TenantMembership = {
+  schema_version: "agentaction.tenant-membership.v1";
+  tenant_id: string;
+  subject: string;
+  issuer: string;
+  email?: string;
+  role: TenantRole;
+  created_at: string;
+  created_by: string;
+};
+type TenantInvitation = {
+  schema_version: "agentaction.tenant-invitation.v1";
+  invitation_id: string;
+  tenant_id: string;
+  email: string;
+  role: Exclude<TenantRole, "owner">;
+  secret_digest: string;
+  created_at: string;
+  created_by: string;
+  expires_at: string;
+  redeemed_at?: string;
+  redeemed_by?: string;
+};
+class TenantManifestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 type Grant = {
   jit_grant_id: string;
   agent_id: string;
@@ -487,6 +534,15 @@ export default {
           }),
         );
         return json(await stored.json(), stored.status);
+      }
+
+      if (route.endpoint === "control-plane") {
+        const controlAuthentication = await authenticate(request, env, SAMPLE_MANIFEST, null, "control-plane");
+        if (!controlAuthentication.ok || controlAuthentication.context.method !== "internal_service") {
+          return json({ error: "control plane requires the internal console service credential" }, 403);
+        }
+        const identity = controlIdentity(request);
+        return await handleControlPlane(request, env, identity);
       }
 
       const manifest = await loadManifest(env, route.tenantId);
@@ -1325,7 +1381,7 @@ export default {
 
       return json({ error: "not found" }, 404);
     } catch (error) {
-      return json({ error: (error as Error).message }, 400);
+      return json({ error: (error as Error).message }, error instanceof TenantManifestError ? error.status : 400);
     }
   },
 };
@@ -1348,6 +1404,10 @@ export class AgentIdJitGrants {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const payload = request.method === "GET" ? {} : await readJson(request);
+
+    if (url.pathname.startsWith("/directory/")) {
+      return this.directoryRequest(request.method, url.pathname, recordValue(payload));
+    }
 
     if (request.method === "POST" && url.pathname === "/grants") {
       const grant = payload as Grant;
@@ -1861,6 +1921,205 @@ export class AgentIdJitGrants {
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async directoryRequest(method: string, pathname: string, payload: Record<string, unknown>): Promise<Response> {
+    if (method === "POST" && pathname === "/directory/session") {
+      const identity = directoryIdentity(payload.identity);
+      const memberships = await this.directoryMemberships(identity);
+      return json({ schema_version: "agentaction.tenant-session.v1", memberships });
+    }
+
+    if (method === "POST" && pathname === "/directory/authorize") {
+      const identity = directoryIdentity(payload.identity);
+      const tenantId = directoryId(payload.tenant_id, "tenant_id");
+      const minimumRole = directoryRole(payload.minimum_role, "viewer");
+      const membership = await this.directoryMembership(identity, tenantId);
+      if (!membership || !roleAllows(membership.role, minimumRole)) {
+        return json({ error: "tenant membership does not permit this operation", error_code: "tenant_role_forbidden" }, 403);
+      }
+      return json({ membership });
+    }
+
+    if (method === "POST" && pathname === "/directory/tenants") {
+      const identity = directoryIdentity(payload.identity);
+      const tenantId = directoryId(payload.tenant_id, "tenant_id");
+      const displayName = directoryLabel(payload.display_name, "display_name", 120);
+      const existing = await this.state.storage.get<TenantRecord>(`directory:tenant:${tenantId}`);
+      if (existing) return json({ error: "tenant ID is already registered", error_code: "tenant_exists" }, 409);
+      const createdAt = new Date().toISOString();
+      const tenant: TenantRecord = {
+        schema_version: "agentaction.tenant.v1",
+        tenant_id: tenantId,
+        display_name: displayName,
+        created_at: createdAt,
+        created_by: identity.subject,
+      };
+      const membership: TenantMembership = {
+        schema_version: "agentaction.tenant-membership.v1",
+        tenant_id: tenantId,
+        subject: identity.subject,
+        issuer: identity.issuer,
+        ...(identity.email ? { email: identity.email } : {}),
+        role: "owner",
+        created_at: createdAt,
+        created_by: identity.subject,
+      };
+      await this.state.storage.put(`directory:tenant:${tenantId}`, tenant);
+      await this.persistDirectoryMembership(membership);
+      return json({ tenant, membership }, 201);
+    }
+
+    if (method === "DELETE" && pathname.startsWith("/directory/tenants/")) {
+      const tenantId = directoryId(decodeURIComponent(pathname.slice("/directory/tenants/".length)), "tenant_id");
+      const identity = directoryIdentity(payload.identity);
+      const tenant = await this.state.storage.get<TenantRecord>(`directory:tenant:${tenantId}`);
+      if (!tenant || tenant.created_by !== identity.subject) return json({ error: "tenant rollback is not permitted" }, 403);
+      const members = await this.state.storage.get<string[]>(`directory:tenant:${tenantId}:members`) || [];
+      const creatorPrincipal = await directorySubjectKey(identity.issuer, identity.subject);
+      if (members.some((principal) => principal !== creatorPrincipal)) return json({ error: "tenant rollback is not permitted" }, 409);
+      await this.state.storage.delete(`directory:tenant:${tenantId}`);
+      await this.removeDirectoryMembership(identity.issuer, identity.subject, tenantId);
+      return empty(204);
+    }
+
+    const invitationMatch = pathname.match(/^\/directory\/tenants\/([^/]+)\/invitations$/);
+    if (method === "POST" && invitationMatch) {
+      const tenantId = directoryId(decodeURIComponent(invitationMatch[1]), "tenant_id");
+      const identity = directoryIdentity(payload.identity);
+      const owner = await this.directoryMembership(identity, tenantId);
+      if (!owner || owner.role !== "owner") {
+        return json({ error: "only tenant owners can create invitations", error_code: "tenant_role_forbidden" }, 403);
+      }
+      const invitation = payload.invitation as TenantInvitation;
+      const email = directoryEmail(invitation.email);
+      const role = directoryRole(invitation.role, "viewer");
+      if (role === "owner") throw new Error("invitations cannot grant the owner role");
+      const expiresAt = Date.parse(stringValue(invitation.expires_at));
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || expiresAt > Date.now() + 7 * 86_400_000) {
+        throw new Error("invitation expiry must be within seven days");
+      }
+      const record: TenantInvitation = {
+        schema_version: "agentaction.tenant-invitation.v1",
+        invitation_id: directoryId(invitation.invitation_id, "invitation_id"),
+        tenant_id: tenantId,
+        email,
+        role,
+        secret_digest: stringValue(invitation.secret_digest),
+        created_at: new Date().toISOString(),
+        created_by: identity.subject,
+        expires_at: new Date(expiresAt).toISOString(),
+      };
+      if (!/^[a-f0-9]{64}$/.test(record.secret_digest)) throw new Error("invitation secret digest is invalid");
+      await this.state.storage.put(`directory:invitation:${record.invitation_id}`, record);
+      return json({ invitation: publicInvitation(record) }, 201);
+    }
+
+    if (method === "POST" && pathname === "/directory/invitations/redeem") {
+      const identity = directoryIdentity(payload.identity);
+      if (!identity.email) return json({ error: "a verified Access email is required to redeem invitations" }, 403);
+      const invitationId = directoryId(payload.invitation_id, "invitation_id");
+      const secretDigest = stringValue(payload.secret_digest);
+      const invitation = await this.state.storage.get<TenantInvitation>(`directory:invitation:${invitationId}`);
+      if (!invitation || !constantTimeEqual(invitation.secret_digest, secretDigest)) {
+        return json({ error: "invitation is invalid", error_code: "invitation_invalid" }, 404);
+      }
+      if (identity.claimed_tenant_id && identity.claimed_tenant_id !== invitation.tenant_id) {
+        return json({ error: "signed tenant identity cannot join another tenant", error_code: "claimed_tenant_fixed" }, 403);
+      }
+      if (invitation.redeemed_at) return json({ error: "invitation was already redeemed", error_code: "invitation_replayed" }, 409);
+      if (Date.parse(invitation.expires_at) <= Date.now()) return json({ error: "invitation has expired", error_code: "invitation_expired" }, 410);
+      if (identity.email.toLowerCase() !== invitation.email) return json({ error: "invitation email does not match Access identity" }, 403);
+      const membership: TenantMembership = {
+        schema_version: "agentaction.tenant-membership.v1",
+        tenant_id: invitation.tenant_id,
+        subject: identity.subject,
+        issuer: identity.issuer,
+        email: identity.email,
+        role: invitation.role,
+        created_at: new Date().toISOString(),
+        created_by: invitation.created_by,
+      };
+      await this.persistDirectoryMembership(membership);
+      invitation.redeemed_at = new Date().toISOString();
+      invitation.redeemed_by = identity.subject;
+      await this.state.storage.put(`directory:invitation:${invitationId}`, invitation);
+      return json({ membership }, 201);
+    }
+
+    const membersMatch = pathname.match(/^\/directory\/tenants\/([^/]+)\/members$/);
+    if (method === "POST" && membersMatch) {
+      const tenantId = directoryId(decodeURIComponent(membersMatch[1]), "tenant_id");
+      const identity = directoryIdentity(payload.identity);
+      const membership = await this.directoryMembership(identity, tenantId);
+      if (!membership || membership.role !== "owner") return json({ error: "only tenant owners can list members" }, 403);
+      const subjects = await this.state.storage.get<string[]>(`directory:tenant:${tenantId}:members`) || [];
+      const members: TenantMembership[] = [];
+      for (const principal of subjects) {
+        const member = await this.state.storage.get<TenantMembership>(`${principal}:membership:${tenantId}`);
+        if (member) members.push(member);
+      }
+      return json({ members });
+    }
+
+    return json({ error: "not found" }, 404);
+  }
+
+  async directoryMembership(identity: ControlIdentity, tenantId: string): Promise<TenantMembership | undefined> {
+    if (identity.claimed_tenant_id === tenantId && identity.claimed_role) {
+      return {
+        schema_version: "agentaction.tenant-membership.v1",
+        tenant_id: tenantId,
+        subject: identity.subject,
+        issuer: identity.issuer,
+        ...(identity.email ? { email: identity.email } : {}),
+        role: identity.claimed_role,
+        created_at: new Date(0).toISOString(),
+        created_by: "signed-access-claim",
+      };
+    }
+    return this.state.storage.get<TenantMembership>(await directoryMembershipKey(identity.issuer, identity.subject, tenantId));
+  }
+
+  async directoryMemberships(identity: ControlIdentity): Promise<Array<{ tenant: TenantRecord; membership: TenantMembership }>> {
+    const subjectKey = await directorySubjectKey(identity.issuer, identity.subject);
+    const tenantIds = await this.state.storage.get<string[]>(`${subjectKey}:tenants`) || [];
+    if (identity.claimed_tenant_id && !tenantIds.includes(identity.claimed_tenant_id)) tenantIds.unshift(identity.claimed_tenant_id);
+    const memberships: Array<{ tenant: TenantRecord; membership: TenantMembership }> = [];
+    for (const tenantId of tenantIds) {
+      const membership = await this.directoryMembership(identity, tenantId);
+      if (!membership) continue;
+      const storedTenant = await this.state.storage.get<TenantRecord>(`directory:tenant:${tenantId}`);
+      const tenant = storedTenant || {
+        schema_version: "agentaction.tenant.v1" as const,
+        tenant_id: tenantId,
+        display_name: tenantId,
+        created_at: membership.created_at,
+        created_by: membership.created_by,
+      };
+      memberships.push({ tenant, membership });
+    }
+    return memberships;
+  }
+
+  async persistDirectoryMembership(membership: TenantMembership): Promise<void> {
+    const key = await directoryMembershipKey(membership.issuer, membership.subject, membership.tenant_id);
+    const subjectKey = await directorySubjectKey(membership.issuer, membership.subject);
+    const tenantIds = await this.state.storage.get<string[]>(`${subjectKey}:tenants`) || [];
+    const subjects = await this.state.storage.get<string[]>(`directory:tenant:${membership.tenant_id}:members`) || [];
+    await this.state.storage.put(key, membership);
+    await this.state.storage.put(`${subjectKey}:tenants`, [membership.tenant_id, ...tenantIds.filter((id) => id !== membership.tenant_id)]);
+    await this.state.storage.put(`directory:tenant:${membership.tenant_id}:members`, [subjectKey, ...subjects.filter((principal) => principal !== subjectKey)]);
+  }
+
+  async removeDirectoryMembership(issuer: string, subject: string, tenantId: string): Promise<void> {
+    const key = await directoryMembershipKey(issuer, subject, tenantId);
+    const subjectKey = await directorySubjectKey(issuer, subject);
+    const tenantIds = await this.state.storage.get<string[]>(`${subjectKey}:tenants`) || [];
+    const subjects = await this.state.storage.get<string[]>(`directory:tenant:${tenantId}:members`) || [];
+    await this.state.storage.delete(key);
+    await this.state.storage.put(`${subjectKey}:tenants`, tenantIds.filter((id) => id !== tenantId));
+    await this.state.storage.put(`directory:tenant:${tenantId}:members`, subjects.filter((entry) => entry !== subjectKey));
   }
 
   async activityEvents(url: URL): Promise<Response> {
@@ -3687,6 +3946,412 @@ async function loadManifest(env: Env, tenantId: string | null): Promise<AgentIdM
   }
   if (env.AGENTID_MANIFEST_JSON) return JSON.parse(env.AGENTID_MANIFEST_JSON) as AgentIdManifest;
   return SAMPLE_MANIFEST;
+}
+
+async function handleControlPlane(request: Request, env: Env, identity: ControlIdentity): Promise<Response> {
+  const url = new URL(request.url);
+  const directory = tenantDirectoryStore(env);
+  if (request.method === "GET" && url.pathname === "/control-plane/session") {
+    return directory.fetch(directoryRequest("/directory/session", { identity }));
+  }
+
+  if (request.method === "POST" && url.pathname === "/control-plane/tenants") {
+    if (identity.claimed_tenant_id) {
+      return json({ error: "signed tenant identities cannot create another tenant", error_code: "claimed_tenant_fixed" }, 403);
+    }
+    if (!env.AGENTID_MANIFESTS) return json({ error: "tenant manifest storage is not configured" }, 503);
+    const input = await readControlJson(request);
+    const tenantId = directoryId(input.tenant_id, "tenant_id");
+    const displayName = directoryLabel(input.display_name, "display_name", 120);
+    const sourceId = directoryId(input.source_id || "hermes-production", "source_id");
+    const agentId = directoryId(input.agent_id || "hermes-agent", "agent_id");
+    if (await env.AGENTID_MANIFESTS.get(tenantId)) return json({ error: "tenant ID is already registered", error_code: "tenant_exists" }, 409);
+    const created = await directory.fetch(directoryRequest("/directory/tenants", {
+      identity,
+      tenant_id: tenantId,
+      display_name: displayName,
+    }));
+    if (!created.ok) return json(await created.json(), created.status);
+    const token = randomSecret("aa_src");
+    const tokenDigest = await sha256Hex(token);
+    const manifest = newTenantManifest(tenantId, displayName, sourceId, agentId, tokenDigest);
+    try {
+      await env.AGENTID_MANIFESTS.put(tenantId, JSON.stringify(manifest));
+    } catch {
+      await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}`, { identity }, "DELETE"));
+      return json({ error: "tenant manifest could not be provisioned" }, 503);
+    }
+    const directoryBody = await created.json() as Record<string, unknown>;
+    return json({
+      schema_version: "agentaction.tenant-onboarding.v1",
+      ...directoryBody,
+      source: publicActivitySource(sourceId, recordValue(recordValue(recordValue(manifest.observability).ingestion).sources)[sourceId]),
+      source_token: token,
+      hermes: hermesSetup(tenantId, sourceId, agentId),
+    }, 201);
+  }
+
+  if (request.method === "POST" && url.pathname === "/control-plane/invitations/redeem") {
+    const input = await readControlJson(request);
+    const code = stringValue(input.code).trim();
+    const separator = code.indexOf(".");
+    if (separator < 1 || separator === code.length - 1 || code.length > 300) return json({ error: "invitation code is invalid" }, 400);
+    const invitationId = directoryId(code.slice(0, separator), "invitation_id");
+    const secretDigest = await sha256Hex(code.slice(separator + 1));
+    const redeemed = await directory.fetch(directoryRequest("/directory/invitations/redeem", {
+      identity,
+      invitation_id: invitationId,
+      secret_digest: secretDigest,
+    }));
+    return json(await redeemed.json(), redeemed.status);
+  }
+
+  const tenantMatch = url.pathname.match(/^\/control-plane\/tenants\/([^/]+)(?:\/(.*))?$/);
+  if (!tenantMatch) return json({ error: "not found" }, 404);
+  const tenantId = directoryId(decodeURIComponent(tenantMatch[1]), "tenant_id");
+  const suffix = tenantMatch[2] || "";
+
+  if (request.method === "GET" && suffix === "authorize") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "viewer");
+    return json(await checked.json(), checked.status);
+  }
+
+  if (request.method === "GET" && suffix === "setup") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "viewer");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const membership = recordValue((await checked.json() as Record<string, unknown>).membership) as TenantMembership;
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const sources = activitySources(manifest);
+    const page = await authorizationStore(env, tenantId, manifest).fetch(new Request("https://agentid.local/activity/events?limit=1"));
+    const pageBody = await page.json() as { events?: ActivityEvent[] };
+    const latest = Array.isArray(pageBody.events) ? pageBody.events[0] : undefined;
+    let members: unknown[] = [];
+    if (membership.role === "owner") {
+      const response = await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/members`, { identity }));
+      if (response.ok) members = (await response.json() as { members?: unknown[] }).members || [];
+    }
+    return json({
+      schema_version: "agentaction.tenant-setup.v1",
+      tenant_id: tenantId,
+      membership,
+      sources: Object.entries(sources).map(([sourceId, source]) => publicActivitySource(sourceId, source)),
+      members,
+      ingestion: {
+        observed: Boolean(latest),
+        last_observed_at: latest?.observed_at || null,
+        last_event_type: latest?.event_type || null,
+        last_agent_id: latest?.agent_id || null,
+      },
+    });
+  }
+
+  if (request.method === "POST" && suffix === "invitations") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "owner");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const input = await readControlJson(request);
+    const email = directoryEmail(input.email);
+    const role = directoryRole(input.role, "viewer");
+    if (role === "owner") return json({ error: "invitations cannot grant owner" }, 400);
+    const invitationId = randomIdentifier("invite");
+    const secret = randomSecret("aa_inv");
+    const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    const created = await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/invitations`, {
+      identity,
+      invitation: {
+        invitation_id: invitationId,
+        email,
+        role,
+        secret_digest: await sha256Hex(secret),
+        expires_at: expiresAt,
+      },
+    }));
+    if (!created.ok) return json(await created.json(), created.status);
+    return json({
+      ...(await created.json() as Record<string, unknown>),
+      invitation_code: `${invitationId}.${secret}`,
+    }, 201);
+  }
+
+  if (request.method === "GET" && suffix === "members") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "owner");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const members = await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/members`, { identity }));
+    return json(await members.json(), members.status);
+  }
+
+  if (request.method === "POST" && suffix === "sources") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const input = await readControlJson(request);
+    return provisionActivitySource(env, tenantId, directoryId(input.source_id, "source_id"), directoryId(input.agent_id, "agent_id"), false);
+  }
+
+  const sourceMatch = suffix.match(/^sources\/([^/]+)(?:\/(rotate))?$/);
+  if (sourceMatch && request.method === "POST" && sourceMatch[2] === "rotate") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const sourceId = directoryId(decodeURIComponent(sourceMatch[1]), "source_id");
+    const source = recordValue(activitySources(manifest)[sourceId]);
+    if (!source.token_sha256) return json({ error: "source not found" }, 404);
+    return provisionActivitySource(env, tenantId, sourceId, directoryId(arrayValue(source.agent_ids)[0], "agent_id"), true);
+  }
+  if (sourceMatch && request.method === "DELETE" && !sourceMatch[2]) {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const sourceId = directoryId(decodeURIComponent(sourceMatch[1]), "source_id");
+    const sources = activitySources(manifest);
+    const source = recordValue(sources[sourceId]);
+    if (!source.token_sha256) return json({ error: "source not found" }, 404);
+    sources[sourceId] = { ...source, enabled: false };
+    await env.AGENTID_MANIFESTS!.put(tenantId, JSON.stringify(manifest));
+    return json({ source: publicActivitySource(sourceId, sources[sourceId]) });
+  }
+
+  return json({ error: "not found" }, 404);
+}
+
+async function provisionActivitySource(
+  env: Env,
+  tenantId: string,
+  sourceId: string,
+  agentId: string,
+  rotate: boolean,
+): Promise<Response> {
+  const manifest = await requiredTenantManifest(env, tenantId);
+  const sources = activitySources(manifest);
+  if (!rotate && sources[sourceId]) return json({ error: "source ID is already registered" }, 409);
+  const token = randomSecret("aa_src");
+  sources[sourceId] = {
+    enabled: true,
+    token_sha256: `sha256:${await sha256Hex(token)}`,
+    agent_ids: [agentId],
+    rotated_at: new Date().toISOString(),
+  };
+  await env.AGENTID_MANIFESTS!.put(tenantId, JSON.stringify(manifest));
+  return json({
+    source: publicActivitySource(sourceId, sources[sourceId]),
+    source_token: token,
+    hermes: hermesSetup(tenantId, sourceId, agentId),
+  }, rotate ? 200 : 201);
+}
+
+function newTenantManifest(
+  tenantId: string,
+  displayName: string,
+  sourceId: string,
+  agentId: string,
+  tokenDigest: string,
+): AgentIdManifest {
+  return {
+    agent: {
+      id: agentId,
+      name: displayName,
+      owner: tenantId,
+      environment: "production",
+      purpose: "AgentAction shadow observability",
+    },
+    tools: [],
+    data_flows: [],
+    runtime: { enforce_manifest: false },
+    observability: {
+      ingestion: {
+        sources: {
+          [sourceId]: {
+            enabled: true,
+            token_sha256: `sha256:${tokenDigest}`,
+            agent_ids: [agentId],
+            created_at: new Date().toISOString(),
+          },
+        },
+      },
+    },
+  };
+}
+
+function activitySources(manifest: AgentIdManifest): Record<string, Record<string, unknown>> {
+  const observability = recordValue(manifest.observability);
+  const ingestion = recordValue(observability.ingestion);
+  if (!ingestion.sources || typeof ingestion.sources !== "object" || Array.isArray(ingestion.sources)) ingestion.sources = {};
+  observability.ingestion = ingestion;
+  manifest.observability = observability;
+  return ingestion.sources as Record<string, Record<string, unknown>>;
+}
+
+function publicActivitySource(sourceId: string, value: unknown): Record<string, unknown> {
+  const source = recordValue(value);
+  return {
+    source_id: sourceId,
+    enabled: source.enabled === true,
+    agent_ids: arrayValue(source.agent_ids),
+    created_at: optionalString(source.created_at) || null,
+    rotated_at: optionalString(source.rotated_at) || null,
+  };
+}
+
+function hermesSetup(tenantId: string, sourceId: string, agentId: string): Record<string, string> {
+  return {
+    environment: "AGENTACTION_INGEST_TOKEN=<one-time-token>",
+    yaml: [
+      "plugins:",
+      "  entries:",
+      "    agentaction:",
+      "      settings:",
+      "        endpoint: https://agentid-gateway.drisw.workers.dev",
+      `        tenant_id: ${tenantId}`,
+      `        source_id: ${sourceId}`,
+      `        agent_id: ${agentId}`,
+    ].join("\n"),
+  };
+}
+
+async function requiredTenantManifest(env: Env, tenantId: string): Promise<AgentIdManifest> {
+  if (!env.AGENTID_MANIFESTS) throw new TenantManifestError(503, "tenant manifest storage is not configured");
+  const raw = await env.AGENTID_MANIFESTS.get(tenantId);
+  if (!raw) throw new TenantManifestError(404, "tenant manifest not found");
+  return JSON.parse(raw) as AgentIdManifest;
+}
+
+function tenantDirectoryStore(env: Env) {
+  return env.JIT_GRANTS.get(env.JIT_GRANTS.idFromName("__agentaction_tenant_directory__"));
+}
+
+function directoryRequest(path: string, body: Record<string, unknown>, method = "POST"): Request {
+  return new Request(`https://agentid.local${path}`, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function authorizeControlTenant(
+  directory: { fetch(request: Request): Promise<Response> },
+  identity: ControlIdentity,
+  tenantId: string,
+  minimumRole: TenantRole,
+): Promise<Response> {
+  return directory.fetch(directoryRequest("/directory/authorize", { identity, tenant_id: tenantId, minimum_role: minimumRole }));
+}
+
+async function readControlJson(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("application/json")) throw new Error("control plane content-type must be application/json");
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (declared > 32_768) throw new Error("control plane request exceeds 32 KiB");
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("control plane request body is required");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    if (total > 32_768) {
+      await reader.cancel();
+      throw new Error("control plane request exceeds 32 KiB");
+    }
+    chunks.push(part.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return recordValue(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+  } catch {
+    throw new Error("control plane request must be valid JSON");
+  }
+}
+
+function controlIdentity(request: Request): ControlIdentity {
+  const subject = directoryLabel(request.headers.get("x-agentaction-console-subject"), "console subject", 256);
+  const issuer = directoryLabel(request.headers.get("x-agentaction-console-issuer"), "console issuer", 256);
+  const emailValue = request.headers.get("x-agentaction-console-email");
+  const claimedTenant = request.headers.get("x-agentaction-console-tenant-id");
+  const claimedRole = request.headers.get("x-agentaction-console-role");
+  return {
+    subject,
+    issuer,
+    ...(emailValue ? { email: directoryEmail(emailValue) } : {}),
+    ...(claimedTenant ? { claimed_tenant_id: directoryId(claimedTenant, "claimed tenant") } : {}),
+    ...(claimedRole ? { claimed_role: directoryRole(claimedRole, "viewer") } : {}),
+  };
+}
+
+function directoryIdentity(value: unknown): ControlIdentity {
+  const input = recordValue(value);
+  const subject = directoryLabel(input.subject, "subject", 256);
+  const issuer = directoryLabel(input.issuer, "issuer", 256);
+  return {
+    subject,
+    issuer,
+    ...(input.email ? { email: directoryEmail(input.email) } : {}),
+    ...(input.claimed_tenant_id ? { claimed_tenant_id: directoryId(input.claimed_tenant_id, "claimed tenant") } : {}),
+    ...(input.claimed_role ? { claimed_role: directoryRole(input.claimed_role, "viewer") } : {}),
+  };
+}
+
+function directoryId(value: unknown, label: string): string {
+  const id = stringValue(value).trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$/.test(id)) throw new Error(`${label} is invalid`);
+  return id;
+}
+
+function directoryLabel(value: unknown, label: string, maximum: number): string {
+  const result = stringValue(value).trim();
+  if (!result || result.length > maximum || /[\u0000-\u001f]/.test(result)) throw new Error(`${label} is invalid`);
+  return result;
+}
+
+function directoryEmail(value: unknown): string {
+  const email = stringValue(value).trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("email is invalid");
+  return email;
+}
+
+function directoryRole(value: unknown, fallback: TenantRole): TenantRole {
+  const role = stringValue(value) || fallback;
+  if (role !== "owner" && role !== "operator" && role !== "viewer") throw new Error("tenant role is invalid");
+  return role;
+}
+
+function roleAllows(actual: TenantRole, minimum: TenantRole): boolean {
+  const rank: Record<TenantRole, number> = { viewer: 1, operator: 2, owner: 3 };
+  return rank[actual] >= rank[minimum];
+}
+
+function publicInvitation(invitation: TenantInvitation): Record<string, unknown> {
+  return {
+    invitation_id: invitation.invitation_id,
+    tenant_id: invitation.tenant_id,
+    email: invitation.email,
+    role: invitation.role,
+    created_at: invitation.created_at,
+    expires_at: invitation.expires_at,
+    redeemed_at: invitation.redeemed_at || null,
+  };
+}
+
+async function directorySubjectKey(issuer: string, subject: string): Promise<string> {
+  return `directory:principal:${await sha256Hex(`${issuer}\u0000${subject}`)}`;
+}
+
+async function directoryMembershipKey(issuer: string, subject: string, tenantId: string): Promise<string> {
+  return `${await directorySubjectKey(issuer, subject)}:membership:${tenantId}`;
+}
+
+function randomIdentifier(prefix: string): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return `${prefix}_${[...bytes].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function randomSecret(prefix: string): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${prefix}_${encoded}`;
 }
 
 function authorizationStore(env: Env, tenantId: string | null, manifest: AgentIdManifest) {

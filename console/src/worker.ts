@@ -5,8 +5,10 @@ type Fetcher = {
 export type Env = {
   AGENTID_GATEWAY?: Fetcher;
   AGENTID_GATEWAY_TOKEN?: string;
+  AGENTID_INTERNAL_SERVICE_TOKEN?: string;
   ACCESS_AUD?: string;
   ACCESS_JWKS_URL?: string;
+  ACCESS_ROLE_CLAIM?: string;
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_TENANT_CLAIM?: string;
   CONSOLE_ENABLE_MOCK_IDENTITY?: string;
@@ -16,15 +18,19 @@ export type Env = {
   CONSOLE_MOCK_TENANT_ID?: string;
   CONSOLE_PUBLIC_DEMO?: string;
   CONSOLE_STATIC_TENANT_ID?: string;
+  CONSOLE_STATIC_TENANT_ROLE?: string;
   CONSOLE_STALE_AFTER_SECONDS?: string;
 };
 
 type ConsoleIdentity = {
   email?: string;
   issuer: string;
+  role?: TenantRole;
   subject: string;
-  tenantId: string;
+  tenantId?: string;
 };
+
+type TenantRole = "operator" | "owner" | "viewer";
 
 type GatewayRoute = {
   allowedQuery: ReadonlySet<string>;
@@ -124,12 +130,13 @@ const SHELL_HTML = `<!doctype html>
   <header class="topbar">
     <div class="brand-lockup">
       <p class="eyebrow">AgentAction</p>
-      <h1>Intent observability</h1>
+      <h1>AgentAction Observability</h1>
       <p class="brand-description">Open-source intent contracts, execution controls, and immutable evidence for accountable agents.</p>
     </div>
     <div class="topbar-context">
       <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
       <div class="identity" aria-label="Authenticated context">
+        <label class="tenant-switcher" data-tenant-switcher hidden><span>Tenant</span><select data-tenant-select aria-label="Active tenant"></select></label>
         <span data-tenant>Tenant loading…</span>
         <span data-subject>Identity loading…</span>
       </div>
@@ -141,6 +148,7 @@ const SHELL_HTML = `<!doctype html>
       <a href="#activity" data-nav-activity>Activity</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
       <a href="#job-detail" data-nav-job-detail>Job detail</a>
+      <a href="#setup" data-nav-setup>Setup</a>
       <a href="#exceptions">Exceptions</a>
     </nav>
     <main id="main" tabindex="-1">
@@ -227,6 +235,72 @@ const SHELL_HTML = `<!doctype html>
             </li>
           </ol>
         </details>
+      </section>
+      <section id="setup" class="setup-panel" data-console-view="setup" aria-labelledby="setup-heading" tabindex="-1" hidden>
+        <header class="section-heading">
+          <div>
+            <p class="eyebrow">Tenant setup</p>
+            <h2 id="setup-heading">Connect agents to observability</h2>
+            <p>Create a tenant or join one by invitation, then configure a privacy-safe Hermes shadow source.</p>
+          </div>
+          <span class="role-badge" data-setup-role>Not provisioned</span>
+        </header>
+        <section class="setup-notice" data-setup-message role="status" aria-live="polite">
+          <h3 data-setup-message-title>Choose how to get started</h3>
+          <p data-setup-message-detail>Create a tenant for your team, or redeem an invitation from an owner.</p>
+        </section>
+        <div class="setup-grid" data-setup-onboarding>
+          <form class="setup-card" data-create-tenant-form>
+            <p class="eyebrow">New workspace</p>
+            <h3>Create a tenant</h3>
+            <label><span>Tenant ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
+            <label><span>Display name</span><input name="display_name" data-create-display-name required maxlength="120" placeholder="Acme Support"></label>
+            <label><span>Hermes source ID</span><input name="source_id" data-create-source-id required maxlength="128" value="hermes-production" autocomplete="off"></label>
+            <label><span>Agent ID</span><input name="agent_id" data-create-agent-id required maxlength="128" value="hermes-agent" autocomplete="off"></label>
+            <button class="primary-button" type="submit">Create tenant</button>
+          </form>
+          <form class="setup-card" data-redeem-invite-form>
+            <p class="eyebrow">Existing workspace</p>
+            <h3>Redeem an invitation</h3>
+            <label><span>Invitation code</span><input name="code" data-invite-code required maxlength="300" autocomplete="off" spellcheck="false" placeholder="invite_….aa_inv_…"></label>
+            <p>Invitation codes are email-bound, expire after seven days, and can be used once.</p>
+            <button class="primary-button" type="submit">Join tenant</button>
+          </form>
+        </div>
+        <section class="secret-panel" data-secret-panel hidden aria-labelledby="secret-title">
+          <div><p class="eyebrow">Shown once</p><h3 id="secret-title">Save this source token now</h3><p>AgentAction stores only its digest. This token cannot be displayed again; rotate the source if it is lost.</p></div>
+          <div class="secret-value"><code data-source-token></code><button class="text-button" type="button" data-copy-source-token>Copy token</button></div>
+          <div class="config-snippet"><strong>Environment</strong><pre data-hermes-environment></pre><button class="text-button" type="button" data-copy-hermes-environment>Copy</button></div>
+          <div class="config-snippet"><strong>Hermes configuration</strong><pre data-hermes-yaml></pre><button class="text-button" type="button" data-copy-hermes-yaml>Copy</button></div>
+          <button class="text-button" type="button" data-dismiss-secret>I saved the token</button>
+        </section>
+        <section data-tenant-setup hidden>
+          <div class="setup-grid setup-summary-grid">
+            <article class="setup-card"><p class="eyebrow">Ingestion</p><h3 data-ingestion-title>Waiting for activity</h3><p data-ingestion-detail>Send one Hermes action to verify the connection.</p><a class="text-link" href="#activity" data-open-activity>Open activity</a></article>
+            <article class="setup-card"><p class="eyebrow">Access</p><h3 data-access-title>Viewer</h3><p data-access-detail>Your role determines which setup controls are available.</p></article>
+          </div>
+          <div class="setup-grid">
+            <section class="setup-card setup-wide">
+              <div class="setup-card-heading"><div><p class="eyebrow">Sources</p><h3>Agent connections</h3></div></div>
+              <div class="source-list" data-source-list></div>
+              <form class="inline-setup-form" data-create-source-form hidden>
+                <label><span>Source ID</span><input data-source-id required maxlength="128" placeholder="hermes-staging" autocomplete="off"></label>
+                <label><span>Agent ID</span><input data-source-agent-id required maxlength="128" placeholder="support-agent" autocomplete="off"></label>
+                <button class="primary-button" type="submit">Add source</button>
+              </form>
+            </section>
+            <section class="setup-card setup-wide" data-invite-members-card hidden>
+              <p class="eyebrow">Team</p><h3>Invite a member</h3>
+              <form class="inline-setup-form" data-create-invite-form>
+                <label><span>Email</span><input type="email" data-member-email required maxlength="254" autocomplete="email"></label>
+                <label><span>Role</span><select data-member-role><option value="viewer">Viewer</option><option value="operator">Operator</option></select></label>
+                <button class="primary-button" type="submit">Create invitation</button>
+              </form>
+              <div class="invitation-result" data-invitation-result hidden><strong>Invitation code (shown once)</strong><code data-created-invitation-code></code><button class="text-button" type="button" data-copy-invitation>Copy code</button></div>
+              <h4>Members</h4><ul class="member-list" data-member-list></ul>
+            </section>
+          </div>
+        </section>
       </section>
       <section id="overview" class="overview-panel" data-console-view="overview" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
@@ -683,7 +757,7 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
   .topbar-context { gap: 10px; }
   .brand-description { max-width: 52vw; }
   .layout { display: block; }
-  .section-nav { position: static; grid-template-columns: repeat(4, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .section-nav { position: static; grid-template-columns: repeat(6, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .section-nav a { border-left: 0; border-bottom: 2px solid transparent; }
   main { padding: 16px; }
   .intro { grid-template-columns: 1fr; gap: 12px; padding: 16px 18px; }
@@ -979,6 +1053,46 @@ button { cursor: pointer; }
 .detail-findings { grid-template-columns: minmax(170px, 0.35fr) minmax(0, 1fr); }
 .future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
+.tenant-switcher { display: flex; align-items: center; justify-content: flex-end; gap: 7px; color: var(--muted); font-size: 0.68rem; font-weight: 800; }
+.tenant-switcher select { max-width: 220px; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
+.setup-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
+.setup-panel > .section-heading { margin-bottom: 14px; }
+.role-badge { align-self: start; padding: 5px 9px; border: 1px solid var(--green); border-radius: 999px; color: var(--green); font-size: 0.67rem; font-weight: 900; text-transform: capitalize; }
+.setup-notice { margin-bottom: 14px; padding: 13px 15px; border-left: 3px solid var(--green); background: var(--green-soft); }
+.setup-notice h3 { margin: 0 0 3px; font-size: 0.85rem; }
+.setup-notice p, .setup-card > p { color: var(--muted); font-size: 0.75rem; }
+.setup-notice[data-state="error"] { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, white); }
+.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.setup-grid + .setup-grid { margin-top: 12px; }
+.setup-summary-grid { margin-bottom: 12px; }
+.setup-card { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.setup-card h3 { margin: 0 0 10px; font-size: 0.95rem; }
+.setup-card h4 { margin: 18px 0 8px; font-size: 0.76rem; }
+.setup-card label, .inline-setup-form label { display: grid; gap: 4px; margin: 10px 0; color: var(--muted); font-size: 0.7rem; font-weight: 800; }
+.setup-card input, .setup-card select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
+.setup-card .primary-button { margin-top: 6px; }
+.setup-wide { grid-column: 1 / -1; }
+.setup-card-heading { display: flex; justify-content: space-between; gap: 12px; }
+.inline-setup-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.inline-setup-form label { margin: 0; }
+.source-list { display: grid; gap: 7px; }
+.source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.source-row:last-child { border-bottom: 0; }
+.source-row strong, .source-row code { display: block; overflow-wrap: anywhere; }
+.source-row code, .source-row small { color: var(--muted); font-size: 0.65rem; }
+.source-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.source-actions button { min-height: 34px; padding: 6px 9px; }
+.secret-panel { display: grid; gap: 12px; margin-bottom: 14px; padding: 17px; border: 2px solid var(--amber); border-radius: 6px; background: #fff8e8; }
+.secret-panel p { color: #675637; font-size: 0.75rem; }
+.secret-value { display: flex; gap: 8px; align-items: center; }
+.secret-value code { flex: 1; padding: 10px; border-radius: 4px; background: #201d17; color: #fff8e8; overflow-wrap: anywhere; }
+.config-snippet { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: start; }
+.config-snippet strong { grid-column: 1 / -1; font-size: 0.7rem; }
+.config-snippet pre { min-width: 0; max-height: 220px; margin: 0; padding: 10px; overflow: auto; border: 1px solid #d5c69f; border-radius: 4px; background: #fffdf7; font-size: 0.68rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.member-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.member-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 0.7rem; }
+.invitation-result { display: grid; gap: 7px; margin-top: 12px; padding: 10px; border: 1px solid var(--amber); background: #fff8e8; }
+.invitation-result code { overflow-wrap: anywhere; font-size: 0.67rem; }
 @media (max-width: 1050px) {
   .intro { grid-template-columns: 1fr; gap: 12px; }
   .intro dl { min-width: 0; }
@@ -992,6 +1106,8 @@ button { cursor: pointer; }
   .predicate-grid,
   .detail-lower-grid { grid-template-columns: 1fr; }
   .future-grid { grid-template-columns: 1fr; }
+  .setup-grid { grid-template-columns: 1fr; }
+  .setup-wide { grid-column: auto; }
 }
 @media (max-width: 760px) {
   .lifecycle-disclosure summary { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
@@ -1035,6 +1151,9 @@ button { cursor: pointer; }
   .summary-totals { grid-template-columns: repeat(2, 1fr); }
   .filter-actions { align-items: flex-start; flex-wrap: wrap; }
   .filter-actions p { flex-basis: 100%; margin-left: 0; text-align: left; }
+  .inline-setup-form { grid-template-columns: 1fr; }
+  .source-row { grid-template-columns: 1fr; }
+  .source-actions { justify-content: flex-start; }
 }
 @media (max-width: 520px) {
   .filter-grid,
@@ -1045,6 +1164,7 @@ button { cursor: pointer; }
   .overview-panel,
   .jobs-panel,
   .job-detail-panel { padding: 16px; }
+  .setup-panel { padding: 16px; }
   .detail-heading-actions { justify-items: start; }
   .detail-identity,
   .detail-section-heading { display: grid; }
@@ -1081,8 +1201,9 @@ export type ConsoleAppController = {
   loadActivity(cursor?: string): Promise<void>;
   loadJobs(cursor?: string): Promise<void>;
   loadOverview(): Promise<void>;
+  loadSetup(): Promise<void>;
   ready: Promise<void>;
-  showView(view: "activity" | "job-detail" | "jobs" | "overview"): void;
+  showView(view: "activity" | "job-detail" | "jobs" | "overview" | "setup"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
@@ -1096,6 +1217,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const statusTitle = required<HTMLElement>("[data-status-title]");
   const statusDetail = required<HTMLElement>("[data-status-detail]");
   const tenantLabel = required<HTMLElement>("[data-tenant]");
+  const tenantSwitcher = required<HTMLElement>("[data-tenant-switcher]");
+  const tenantSelect = required<HTMLSelectElement>("[data-tenant-select]");
   const subjectLabel = required<HTMLElement>("[data-subject]");
   const refreshButton = required<HTMLButtonElement>("[data-refresh]");
   const filterForm = required<HTMLFormElement>("[data-overview-filters]");
@@ -1120,13 +1243,53 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const activityPanel = required<HTMLElement>("[data-console-view='activity']");
   const jobsPanel = required<HTMLElement>("[data-console-view='jobs']");
   const jobDetailPanel = required<HTMLElement>("[data-console-view='job-detail']");
+  const setupPanel = required<HTMLElement>("[data-console-view='setup']");
   const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
   const lifecyclePanel = required<HTMLElement>("[data-overview-context='lifecycle']");
   const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
   const activityNav = required<HTMLAnchorElement>("[data-nav-activity]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
   const jobDetailNav = required<HTMLAnchorElement>("[data-nav-job-detail]");
+  const setupNav = required<HTMLAnchorElement>("[data-nav-setup]");
   const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
+  const createTenantForm = required<HTMLFormElement>("[data-create-tenant-form]");
+  const createTenantId = required<HTMLInputElement>("[data-create-tenant-id]");
+  const createDisplayName = required<HTMLInputElement>("[data-create-display-name]");
+  const createSourceId = required<HTMLInputElement>("[data-create-source-id]");
+  const createAgentId = required<HTMLInputElement>("[data-create-agent-id]");
+  const redeemInviteForm = required<HTMLFormElement>("[data-redeem-invite-form]");
+  const inviteCode = required<HTMLInputElement>("[data-invite-code]");
+  const setupOnboarding = required<HTMLElement>("[data-setup-onboarding]");
+  const tenantSetup = required<HTMLElement>("[data-tenant-setup]");
+  const setupRole = required<HTMLElement>("[data-setup-role]");
+  const setupMessage = required<HTMLElement>("[data-setup-message]");
+  const setupMessageTitle = required<HTMLElement>("[data-setup-message-title]");
+  const setupMessageDetail = required<HTMLElement>("[data-setup-message-detail]");
+  const ingestionTitle = required<HTMLElement>("[data-ingestion-title]");
+  const ingestionDetail = required<HTMLElement>("[data-ingestion-detail]");
+  const accessTitle = required<HTMLElement>("[data-access-title]");
+  const accessDetail = required<HTMLElement>("[data-access-detail]");
+  const sourceList = required<HTMLElement>("[data-source-list]");
+  const createSourceForm = required<HTMLFormElement>("[data-create-source-form]");
+  const sourceIdInput = required<HTMLInputElement>("[data-source-id]");
+  const sourceAgentIdInput = required<HTMLInputElement>("[data-source-agent-id]");
+  const inviteMembersCard = required<HTMLElement>("[data-invite-members-card]");
+  const createInviteForm = required<HTMLFormElement>("[data-create-invite-form]");
+  const memberEmail = required<HTMLInputElement>("[data-member-email]");
+  const memberRole = required<HTMLSelectElement>("[data-member-role]");
+  const memberList = required<HTMLElement>("[data-member-list]");
+  const invitationResult = required<HTMLElement>("[data-invitation-result]");
+  const createdInvitationCode = required<HTMLElement>("[data-created-invitation-code]");
+  const copyInvitation = required<HTMLButtonElement>("[data-copy-invitation]");
+  const secretPanel = required<HTMLElement>("[data-secret-panel]");
+  const sourceToken = required<HTMLElement>("[data-source-token]");
+  const hermesEnvironment = required<HTMLElement>("[data-hermes-environment]");
+  const hermesYaml = required<HTMLElement>("[data-hermes-yaml]");
+  const copySourceToken = required<HTMLButtonElement>("[data-copy-source-token]");
+  const copyHermesEnvironment = required<HTMLButtonElement>("[data-copy-hermes-environment]");
+  const copyHermesYaml = required<HTMLButtonElement>("[data-copy-hermes-yaml]");
+  const dismissSecret = required<HTMLButtonElement>("[data-dismiss-secret]");
+  const openActivity = required<HTMLAnchorElement>("[data-open-activity]");
   const activityFilterForm = required<HTMLFormElement>("[data-activity-filters]");
   const resetActivityButton = required<HTMLButtonElement>("[data-reset-activity-filters]");
   const activityWindowFilter = required<HTMLSelectElement>("[data-activity-filter-window]");
@@ -1204,12 +1367,17 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     unavailable: ["Console data is unavailable", "The private AgentAction gateway cannot be reached. Try again or contact an operator."],
   };
   let tenantId = "";
-  let activeView: "activity" | "job-detail" | "jobs" | "overview" = runtime.location.hash === "#activity"
+  let tenantMemberships: Array<{ membership: Record<string, any>; tenant: Record<string, any> }> = [];
+  let activeRole: TenantRole | "" = "";
+  let publicDemo = false;
+  let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = runtime.location.hash === "#activity"
     ? "activity"
     : runtime.location.hash === "#jobs"
       ? "jobs"
       : runtime.location.hash === "#job-detail"
         ? "job-detail"
+        : runtime.location.hash === "#setup"
+          ? "setup"
         : "overview";
   let currentActivityCursor = "";
   let nextActivityCursor = "";
@@ -1309,8 +1477,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   }
 
   function failureMessage(body: unknown, fallback: string): string {
-    const error = record(record(body).error);
-    return safeText(error.message, fallback);
+    const rawError = record(body).error;
+    if (typeof rawError === "string") return safeText(rawError, fallback);
+    return safeText(record(rawError).message, fallback);
   }
 
   async function read(path: string): Promise<{ body: any; response: Response }> {
@@ -1325,6 +1494,218 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       body = {};
     }
     return { response, body };
+  }
+
+  async function write(path: string, method: "DELETE" | "POST", body?: Record<string, unknown>): Promise<{ body: any; response: Response }> {
+    const response = await runtime.fetch(path, {
+      method,
+      headers: { accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
+      credentials: "same-origin",
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    let payload: any = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+    return { response, body: payload };
+  }
+
+  function setSetupMessage(state: "error" | "ready", title: string, detail: string): void {
+    setupMessage.dataset.state = state;
+    setupMessageTitle.textContent = title;
+    setupMessageDetail.textContent = detail;
+  }
+
+  function membershipEntries(value: unknown): Array<{ membership: Record<string, any>; tenant: Record<string, any> }> {
+    return Array.isArray(value)
+      ? value.map(record).filter((entry) => safeText(record(entry.tenant).tenant_id, "") !== "").map((entry) => ({
+        membership: record(entry.membership),
+        tenant: record(entry.tenant),
+      }))
+      : [];
+  }
+
+  function applySession(body: Record<string, any>, preferredTenant = ""): void {
+    publicDemo = body.public_demo === true;
+    setupNav.hidden = publicDemo;
+    if (publicDemo && activeView === "setup") showView("overview");
+    tenantMemberships = membershipEntries(body.memberships);
+    tenantSelect.replaceChildren();
+    for (const entry of tenantMemberships) {
+      const option = doc.createElement("option");
+      option.value = safeText(entry.tenant.tenant_id, "");
+      option.textContent = `${safeText(entry.tenant.display_name, option.value)} · ${safeText(entry.membership.role, "viewer")}`;
+      tenantSelect.append(option);
+    }
+    const defaultTenant = preferredTenant || safeText(body.tenant_id, "") || safeText(tenantMemberships[0]?.tenant.tenant_id, "");
+    selectTenant(defaultTenant);
+    tenantSwitcher.hidden = tenantMemberships.length < 2;
+    tenantLabel.hidden = tenantMemberships.length > 1;
+  }
+
+  function selectTenant(selected: string): void {
+    tenantId = selected;
+    const entry = tenantMemberships.find((candidate) => safeText(candidate.tenant.tenant_id, "") === tenantId);
+    const role = safeText(entry?.membership.role, "");
+    activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "";
+    tenantSelect.value = tenantId;
+    tenantLabel.textContent = tenantId ? `Tenant: ${tenantId}` : "No tenant yet";
+    setupRole.textContent = activeRole || "Not provisioned";
+  }
+
+  async function refreshSession(preferredTenant = ""): Promise<boolean> {
+    const session = await read("/api/console/session");
+    if (!session.response.ok) {
+      const state = failureState(session.response.status);
+      const detail = failureMessage(session.body, statusMessages[state][1]);
+      setStatus(state, detail);
+      setOverviewState(state, statusMessages[state][0], detail);
+      setActivityState(state, statusMessages[state][0], detail);
+      setJobsState(state, statusMessages[state][0], detail);
+      setJobDetailState(state, statusMessages[state][0], detail);
+      return false;
+    }
+    applySession(record(session.body), preferredTenant);
+    subjectLabel.textContent = safeText(session.body.email || session.body.subject, "Authenticated operator");
+    return true;
+  }
+
+  function showOneTimeSecret(body: Record<string, any>): void {
+    const token = safeText(body.source_token, "");
+    if (!token) return;
+    const hermes = record(body.hermes);
+    sourceToken.textContent = token;
+    hermesEnvironment.textContent = safeText(hermes.environment, "AGENTACTION_INGEST_TOKEN=<one-time-token>").replace("<one-time-token>", token);
+    hermesYaml.textContent = safeText(hermes.yaml, "");
+    secretPanel.hidden = false;
+  }
+
+  function clearOneTimeSecret(): void {
+    sourceToken.textContent = "";
+    hermesEnvironment.textContent = "";
+    hermesYaml.textContent = "";
+    secretPanel.hidden = true;
+  }
+
+  function clearInvitationSecret(): void {
+    createdInvitationCode.textContent = "";
+    invitationResult.hidden = true;
+  }
+
+  async function copyText(value: string, button: HTMLButtonElement): Promise<void> {
+    const clipboard = doc.defaultView?.navigator.clipboard;
+    if (!clipboard || !value) return;
+    await clipboard.writeText(value);
+    const original = button.textContent;
+    button.textContent = "Copied";
+    doc.defaultView?.setTimeout(() => { button.textContent = original; }, 1_200);
+  }
+
+  function renderMembers(value: unknown): void {
+    memberList.replaceChildren();
+    const members = Array.isArray(value) ? value.map(record) : [];
+    if (members.length === 0) {
+      memberList.append(create("li", undefined, "No directory members yet."));
+      return;
+    }
+    for (const member of members) {
+      const item = create("li");
+      item.append(create("span", undefined, safeText(member.email, safeText(member.subject, "Member"))), create("strong", undefined, safeText(member.role, "viewer")));
+      memberList.append(item);
+    }
+  }
+
+  function renderSources(value: unknown, canManage: boolean): void {
+    sourceList.replaceChildren();
+    const sources = Array.isArray(value) ? value.map(record) : [];
+    if (sources.length === 0) {
+      sourceList.append(create("p", undefined, "No sources configured."));
+      return;
+    }
+    for (const source of sources) {
+      const sourceId = safeText(source.source_id, "");
+      const row = create("div", "source-row");
+      const details = create("div");
+      details.append(
+        create("strong", undefined, sourceId),
+        create("code", undefined, (Array.isArray(source.agent_ids) ? source.agent_ids.join(", ") : "No agents")),
+        create("small", undefined, source.enabled === true ? "Enabled" : "Disabled"),
+      );
+      row.append(details);
+      if (canManage) {
+        const actions = create("div", "source-actions");
+        const rotate = create("button", "text-button", "Rotate token") as HTMLButtonElement;
+        rotate.type = "button";
+        rotate.disabled = source.enabled !== true;
+        rotate.addEventListener("click", async () => {
+          const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(sourceId)}/rotate`, "POST", {});
+          if (!result.response.ok) return setSetupMessage("error", "Token rotation failed", failureMessage(result.body, "The source token could not be rotated."));
+          showOneTimeSecret(record(result.body));
+          setSetupMessage("ready", "Source token rotated", "The previous token is no longer valid. Save the replacement now.");
+          await loadSetup();
+        });
+        const disable = create("button", "text-button", "Disable") as HTMLButtonElement;
+        disable.type = "button";
+        disable.disabled = source.enabled !== true;
+        disable.addEventListener("click", async () => {
+          const confirmed = doc.defaultView?.confirm ? doc.defaultView.confirm(`Disable source ${sourceId}?`) : true;
+          if (!confirmed) return;
+          const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(sourceId)}`, "DELETE");
+          if (!result.response.ok) return setSetupMessage("error", "Source update failed", failureMessage(result.body, "The source could not be disabled."));
+          setSetupMessage("ready", "Source disabled", `${sourceId} can no longer submit activity.`);
+          await loadSetup();
+        });
+        actions.append(rotate, disable);
+        row.append(actions);
+      }
+      sourceList.append(row);
+    }
+  }
+
+  async function loadSetup(): Promise<void> {
+    showView("setup");
+    if (!tenantId) {
+      setupOnboarding.hidden = false;
+      tenantSetup.hidden = true;
+      setupRole.textContent = "Not provisioned";
+      setStatus("ready", "Signed in. Create a tenant or redeem an invitation to begin.");
+      setSetupMessage("ready", "Choose how to get started", "Create a tenant for your team, or redeem an invitation from an owner.");
+      return;
+    }
+    setStatus("loading", "Loading tenant setup and ingestion health.");
+    const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/setup`);
+    if (!result.response.ok) {
+      const detail = failureMessage(result.body, "Tenant setup is unavailable.");
+      setSetupMessage("error", "Tenant setup unavailable", detail);
+      setStatus(failureState(result.response.status), detail);
+      return;
+    }
+    const body = record(result.body);
+    const membership = record(body.membership);
+    const role = safeText(membership.role, activeRole || "viewer");
+    activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "viewer";
+    setupRole.textContent = activeRole;
+    setupOnboarding.hidden = true;
+    tenantSetup.hidden = false;
+    const ingestion = record(body.ingestion);
+    if (ingestion.observed === true) {
+      ingestionTitle.textContent = "Activity received";
+      ingestionDetail.textContent = `Last seen ${safeText(ingestion.last_observed_at)} · ${safeText(ingestion.last_agent_id)} · ${safeText(ingestion.last_event_type)}`;
+    } else {
+      ingestionTitle.textContent = "Waiting for activity";
+      ingestionDetail.textContent = "Install the Hermes plugin and send one agent action to verify the connection.";
+    }
+    accessTitle.textContent = activeRole[0].toUpperCase() + activeRole.slice(1);
+    accessDetail.textContent = activeRole === "owner" ? "Manage sources, invitations, and members." : activeRole === "operator" ? "Manage source credentials and inspect activity." : "Inspect tenant activity and setup health.";
+    const canManageSources = activeRole === "owner" || activeRole === "operator";
+    createSourceForm.hidden = !canManageSources;
+    inviteMembersCard.hidden = activeRole !== "owner";
+    renderSources(body.sources, canManageSources);
+    renderMembers(body.members);
+    setSetupMessage("ready", "Tenant setup ready", ingestion.observed === true ? "Agent activity is flowing into this tenant." : "Finish the Hermes configuration, then verify the first event here.");
+    setStatus("ready", `Tenant ${tenantId} is ready.`);
   }
 
   function restoreFilters(): void {
@@ -1567,18 +1948,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     nextJobsCursor = "";
   }
 
-  function showView(view: "activity" | "job-detail" | "jobs" | "overview"): void {
+  function showView(view: "activity" | "job-detail" | "jobs" | "overview" | "setup"): void {
     activeView = view;
     overviewPanel.hidden = view !== "overview";
     activityPanel.hidden = view !== "activity";
     jobsPanel.hidden = view !== "jobs";
     jobDetailPanel.hidden = view !== "job-detail";
+    setupPanel.hidden = view !== "setup";
     qualityIntro.hidden = view !== "overview";
     lifecyclePanel.hidden = view !== "overview";
     overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
     activityNav.setAttribute("aria-current", view === "activity" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
     jobDetailNav.setAttribute("aria-current", view === "job-detail" ? "page" : "false");
+    setupNav.setAttribute("aria-current", view === "setup" ? "page" : "false");
   }
 
   function appendDefinition(list: HTMLElement, term: string, value: string): void {
@@ -2579,33 +2962,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     buildJobsQuery();
     showView(activeView);
     try {
-      const session = await read("/api/console/session");
-      if (!session.response.ok) {
-        const state = failureState(session.response.status);
-        const detail = failureMessage(session.body, statusMessages[state][1]);
-        setStatus(state, detail);
-        setOverviewState(state, statusMessages[state][0], detail);
-        setActivityState(state, statusMessages[state][0], detail);
-        setJobsState(state, statusMessages[state][0], detail);
-        setJobDetailState(state, statusMessages[state][0], detail);
-        return;
-      }
-      tenantId = safeText(session.body.tenant_id, "");
-      if (!tenantId) throw new Error("Console tenant is missing.");
-      tenantLabel.textContent = `Tenant: ${tenantId}`;
-      subjectLabel.textContent = safeText(session.body.email || session.body.subject, "Authenticated operator");
-      const health = await read("/api/console/health");
-      if (!health.response.ok) {
-        const state = failureState(health.response.status);
-        const detail = failureMessage(health.body, statusMessages[state][1]);
-        setStatus(state, detail);
-        setOverviewState(state, statusMessages[state][0], detail);
-        setActivityState(state, statusMessages[state][0], detail);
-        setJobsState(state, statusMessages[state][0], detail);
-        setJobDetailState(state, statusMessages[state][0], detail);
-        return;
-      }
-      if (activeView === "activity") await loadActivity();
+      if (!await refreshSession()) return;
+      if (!tenantId) await loadSetup();
+      else if (activeView === "setup") await loadSetup();
+      else if (activeView === "activity") await loadActivity();
       else if (activeView === "jobs") await loadJobs();
       else if (activeView === "job-detail") await loadJobDetail();
       else await loadOverview();
@@ -2684,9 +3044,83 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView("jobs");
     void loadJobs("");
   });
+  setupNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    void loadSetup();
+  });
+  openActivity.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView("activity");
+    void loadActivity();
+  });
+  tenantSelect.addEventListener("change", () => {
+    clearOneTimeSecret();
+    clearInvitationSecret();
+    selectTenant(tenantSelect.value);
+    if (activeView === "setup") void loadSetup();
+    else if (activeView === "activity") void loadActivity("");
+    else if (activeView === "jobs") void loadJobs("");
+    else if (activeView === "job-detail") void loadJobDetail();
+    else void loadOverview();
+  });
+  createTenantForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setSetupMessage("ready", "Creating tenant", "Provisioning an isolated tenant and first Hermes source.");
+    const result = await write("/api/console/onboarding/tenants", "POST", {
+      tenant_id: createTenantId.value.trim(),
+      display_name: createDisplayName.value.trim(),
+      source_id: createSourceId.value.trim(),
+      agent_id: createAgentId.value.trim(),
+    });
+    if (!result.response.ok) return setSetupMessage("error", "Tenant creation failed", failureMessage(result.body, "The tenant could not be created."));
+    const createdTenant = safeText(record(result.body.tenant).tenant_id, createTenantId.value.trim());
+    showOneTimeSecret(record(result.body));
+    await refreshSession(createdTenant);
+    await loadSetup();
+  });
+  redeemInviteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const result = await write("/api/console/onboarding/invitations/redeem", "POST", { code: inviteCode.value.trim() });
+    if (!result.response.ok) return setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Check the code and signed-in email."));
+    const joinedTenant = safeText(record(result.body.membership).tenant_id, "");
+    inviteCode.value = "";
+    await refreshSession(joinedTenant);
+    await loadSetup();
+  });
+  createSourceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources`, "POST", {
+      source_id: sourceIdInput.value.trim(),
+      agent_id: sourceAgentIdInput.value.trim(),
+    });
+    if (!result.response.ok) return setSetupMessage("error", "Source creation failed", failureMessage(result.body, "The source could not be created."));
+    sourceIdInput.value = "";
+    sourceAgentIdInput.value = "";
+    showOneTimeSecret(record(result.body));
+    setSetupMessage("ready", "Source created", "Save its token before leaving this page.");
+    await loadSetup();
+  });
+  createInviteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/invitations`, "POST", {
+      email: memberEmail.value.trim(),
+      role: memberRole.value,
+    });
+    if (!result.response.ok) return setSetupMessage("error", "Invitation creation failed", failureMessage(result.body, "The invitation could not be created."));
+    const code = safeText(result.body.invitation_code, "");
+    createdInvitationCode.textContent = code;
+    invitationResult.hidden = !code;
+    memberEmail.value = "";
+    setSetupMessage("ready", "Invitation created", "Share the one-time code with the invited member through a secure channel.");
+  });
+  copySourceToken.addEventListener("click", () => { void copyText(sourceToken.textContent || "", copySourceToken); });
+  copyHermesEnvironment.addEventListener("click", () => { void copyText(hermesEnvironment.textContent || "", copyHermesEnvironment); });
+  copyHermesYaml.addEventListener("click", () => { void copyText(hermesYaml.textContent || "", copyHermesYaml); });
+  copyInvitation.addEventListener("click", () => { void copyText(createdInvitationCode.textContent || "", copyInvitation); });
+  dismissSecret.addEventListener("click", clearOneTimeSecret);
 
   const ready = start();
-  return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadJobDetail, loadJobs, loadOverview, ready, showView };
+  return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
 
 const APP_JS = `(${consoleApp.toString()})(window);`;
@@ -2712,18 +3146,22 @@ export default {
         return assetResponse(APP_JS, "text/javascript; charset=utf-8");
       }
       if (request.method === "GET" && url.pathname === "/api/console/session") {
-        return jsonResponse({
-          authenticated: true,
-          tenant_id: identity.tenantId,
-          subject: identity.subject,
-          ...(identity.email ? { email: identity.email } : {}),
-        });
+        return await consoleSession(identity, env);
       }
       if (request.method === "GET" && url.pathname === "/api/console/health") {
         return await consoleHealth(identity, env);
       }
+      if (url.pathname.startsWith("/api/console/onboarding/")) {
+        if (env.CONSOLE_PUBLIC_DEMO === "true") {
+          throw new ConsoleError(404, "public_demo_route_not_found", "This route is not available in the public demo.");
+        }
+        const controlPath = parseOnboardingRoute(url, request.method);
+        return await callControlPlane(request, controlPath, identity, env);
+      }
       if (url.pathname.startsWith("/api/console/tenants/")) {
-        const route = parseGatewayRoute(url, identity);
+        const routeTenant = routeTenantId(url);
+        await requireTenantAccess(identity, routeTenant, env);
+        const route = parseGatewayRoute(url, routeTenant);
         if (request.method !== "GET") {
           return problemResponse(request, new ConsoleError(405, "method_not_allowed", "Console gateway routes are read only."));
         }
@@ -2776,6 +3214,7 @@ async function authenticateConsoleRequest(request: Request, env: Env): Promise<C
     const subject = requiredString(env.CONSOLE_MOCK_SUBJECT, "CONSOLE_MOCK_SUBJECT is required for mock identity");
     return {
       tenantId,
+      role: "owner",
       subject,
       issuer: "agentpass:local-development",
       ...(env.CONSOLE_MOCK_EMAIL ? { email: env.CONSOLE_MOCK_EMAIL } : {}),
@@ -2805,10 +3244,13 @@ async function authenticateConsoleRequest(request: Request, env: Env): Promise<C
     throw new ConsoleError(401, "access_subject_missing", "Cloudflare Access token subject is missing.", "unauthorized");
   }
   const tenantClaim = env.ACCESS_TENANT_CLAIM?.trim() || "custom.tenant_id";
+  const roleClaim = env.ACCESS_ROLE_CLAIM?.trim() || "custom.tenant_role";
   const configuredTenant = env.CONSOLE_STATIC_TENANT_ID?.trim();
-  let tenantId: string;
+  let tenantId: string | undefined;
+  let role: TenantRole | undefined;
   if (configuredTenant) {
     tenantId = validateTenantId(configuredTenant, "configured console tenant");
+    role = validateTenantRole(env.CONSOLE_STATIC_TENANT_ROLE || readClaim(claims, roleClaim) || "owner", "configured console role");
     const tenantClaimValue = readClaim(claims, tenantClaim);
     if (tenantClaimValue !== undefined && tenantClaimValue !== null && tenantClaimValue !== "") {
       const claimedTenant = validateTenantId(tenantClaimValue, `Access claim ${tenantClaim}`);
@@ -2822,12 +3264,17 @@ async function authenticateConsoleRequest(request: Request, env: Env): Promise<C
       }
     }
   } else {
-    tenantId = validateTenantId(readClaim(claims, tenantClaim), `Access claim ${tenantClaim}`);
+    const tenantClaimValue = readClaim(claims, tenantClaim);
+    if (tenantClaimValue !== undefined && tenantClaimValue !== null && tenantClaimValue !== "") {
+      tenantId = validateTenantId(tenantClaimValue, `Access claim ${tenantClaim}`);
+      role = validateTenantRole(readClaim(claims, roleClaim) || "viewer", `Access claim ${roleClaim}`);
+    }
   }
   return {
-    tenantId,
     subject,
     issuer: String(claims.iss),
+    ...(tenantId ? { tenantId } : {}),
+    ...(role ? { role } : {}),
     ...(typeof claims.email === "string" && claims.email ? { email: claims.email } : {}),
   };
 }
@@ -2940,16 +3387,18 @@ async function loadJwks(jwksUrl: string, forceRefresh = false): Promise<CachedJw
   return keys;
 }
 
-function parseGatewayRoute(url: URL, identity: ConsoleIdentity): GatewayRoute {
+function routeTenantId(url: URL): string {
   const rawParts = url.pathname.split("/").filter(Boolean);
   if (rawParts.length < 5 || rawParts[0] !== "api" || rawParts[1] !== "console" || rawParts[2] !== "tenants") {
     throw new ConsoleError(404, "gateway_route_not_found", "Console gateway route not found.");
   }
   const parts = rawParts.map(decodePathSegment);
-  const routeTenant = validateTenantId(parts[3], "route tenant");
-  if (routeTenant !== identity.tenantId) {
-    throw new ConsoleError(403, "tenant_mismatch", "Authenticated tenant does not match the requested route.", "forbidden");
-  }
+  return validateTenantId(parts[3], "route tenant");
+}
+
+function parseGatewayRoute(url: URL, tenantId: string): GatewayRoute {
+  const rawParts = url.pathname.split("/").filter(Boolean);
+  const parts = rawParts.map(decodePathSegment);
   for (const forbidden of ["tenant", "tenant_id", "route_tenant_id"]) {
     if (url.searchParams.has(forbidden)) {
       throw new ConsoleError(400, "tenant_override_not_allowed", "Tenant selection is derived from Cloudflare Access.");
@@ -2986,10 +3435,171 @@ function parseGatewayRoute(url: URL, identity: ConsoleIdentity): GatewayRoute {
     }
   }
   return {
-    tenantId: identity.tenantId,
+    tenantId,
     allowedQuery,
-    gatewayPath: `/tenants/${encodeURIComponent(identity.tenantId)}/${suffix.map(encodeURIComponent).join("/")}`,
+    gatewayPath: `/tenants/${encodeURIComponent(tenantId)}/${suffix.map(encodeURIComponent).join("/")}`,
   };
+}
+
+async function consoleSession(identity: ConsoleIdentity, env: Env): Promise<Response> {
+  if (env.CONSOLE_PUBLIC_DEMO === "true") {
+    return jsonResponse({ authenticated: true, public_demo: true, tenant_id: identity.tenantId, subject: identity.subject });
+  }
+  let memberships: unknown[] = [];
+  if ((env.CONSOLE_STATIC_TENANT_ID || env.CONSOLE_ENABLE_MOCK_IDENTITY === "true") && identity.tenantId) {
+    memberships = [{
+      tenant: { tenant_id: identity.tenantId, display_name: identity.tenantId },
+      membership: { tenant_id: identity.tenantId, role: identity.role || "owner", source: "signed_claim" },
+    }];
+  } else {
+    const upstream = await callControlPlane(
+      new Request("https://console.internal/api/console/onboarding/session", { method: "GET" }),
+      "/control-plane/session",
+      identity,
+      env,
+    );
+    if (!upstream.ok) return upstream;
+    const body = await upstream.json() as { memberships?: unknown[] };
+    memberships = Array.isArray(body.memberships) ? body.memberships : [];
+  }
+  if (identity.tenantId && !memberships.some((entry) => membershipTenantId(entry) === identity.tenantId)) {
+    memberships.unshift({
+      tenant: { tenant_id: identity.tenantId, display_name: identity.tenantId },
+      membership: { tenant_id: identity.tenantId, role: identity.role || "viewer", source: "signed_claim" },
+    });
+  }
+  if (identity.tenantId) memberships = memberships.filter((entry) => membershipTenantId(entry) === identity.tenantId);
+  const defaultTenant = identity.tenantId || (memberships.length === 1 ? membershipTenantId(memberships[0]) : undefined);
+  return jsonResponse({
+    authenticated: true,
+    tenant_id: defaultTenant || null,
+    memberships,
+    subject: identity.subject,
+    ...(identity.email ? { email: identity.email } : {}),
+  });
+}
+
+function membershipTenantId(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const tenant = (value as Record<string, unknown>).tenant;
+  if (!tenant || typeof tenant !== "object" || Array.isArray(tenant)) return undefined;
+  const tenantId = (tenant as Record<string, unknown>).tenant_id;
+  return typeof tenantId === "string" && tenantId ? tenantId : undefined;
+}
+
+async function requireTenantAccess(identity: ConsoleIdentity, tenantId: string, env: Env): Promise<void> {
+  if (identity.tenantId) {
+    if (identity.tenantId !== tenantId) {
+      throw new ConsoleError(403, "tenant_mismatch", "Authenticated tenant does not match the requested route.", "forbidden");
+    }
+    return;
+  }
+  const response = await callControlPlane(
+    new Request("https://console.internal/authorize", { method: "GET" }),
+    `/control-plane/tenants/${encodeURIComponent(tenantId)}/authorize`,
+    identity,
+    env,
+  );
+  if (response.ok) return;
+  const payload = await response.json().catch(() => ({})) as { error?: string };
+  throw new ConsoleError(
+    response.status === 404 ? 404 : 403,
+    response.status === 404 ? "tenant_not_found" : "tenant_membership_required",
+    typeof payload.error === "string" ? payload.error : "Tenant membership is required.",
+    "forbidden",
+  );
+}
+
+function parseOnboardingRoute(url: URL, method: string): string {
+  if ([...url.searchParams.keys()].length > 0) {
+    throw new ConsoleError(400, "onboarding_query_not_allowed", "Onboarding routes do not accept query parameters.");
+  }
+  const raw = url.pathname.split("/").filter(Boolean).map(decodePathSegment);
+  if (raw[0] !== "api" || raw[1] !== "console" || raw[2] !== "onboarding") {
+    throw new ConsoleError(404, "onboarding_route_not_found", "Onboarding route not found.");
+  }
+  const suffix = raw.slice(3);
+  if (method === "GET" && sameSegments(suffix, ["session"])) return "/control-plane/session";
+  if (method === "POST" && sameSegments(suffix, ["tenants"])) return "/control-plane/tenants";
+  if (method === "POST" && sameSegments(suffix, ["invitations", "redeem"])) return "/control-plane/invitations/redeem";
+  if (suffix[0] !== "tenants" || suffix.length < 3) {
+    throw new ConsoleError(404, "onboarding_route_not_found", "Onboarding route not found.");
+  }
+  const tenantId = validateTenantId(suffix[1], "route tenant");
+  const tail = suffix.slice(2);
+  if (method === "GET" && sameSegments(tail, ["setup"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/setup`;
+  if (method === "POST" && sameSegments(tail, ["invitations"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/invitations`;
+  if (method === "GET" && sameSegments(tail, ["members"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/members`;
+  if (method === "POST" && sameSegments(tail, ["sources"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/sources`;
+  if (tail[0] === "sources" && tail.length === 2 && method === "DELETE") {
+    validateResourceSegment(tail[1]);
+    return `/control-plane/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(tail[1])}`;
+  }
+  if (tail[0] === "sources" && tail.length === 3 && tail[2] === "rotate" && method === "POST") {
+    validateResourceSegment(tail[1]);
+    return `/control-plane/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(tail[1])}/rotate`;
+  }
+  throw new ConsoleError(404, "onboarding_route_not_found", "Onboarding route not found.");
+}
+
+async function callControlPlane(
+  request: Request,
+  path: string,
+  identity: ConsoleIdentity,
+  env: Env,
+): Promise<Response> {
+  if (!env.AGENTID_GATEWAY) {
+    throw new ConsoleError(503, "gateway_binding_unavailable", "AgentAction gateway is unavailable.", "unavailable");
+  }
+  const token = gatewayServiceToken(env);
+  if (!token) {
+    throw new ConsoleError(500, "gateway_credential_missing", "AgentAction gateway credential is not configured.", "unavailable");
+  }
+  const headers = new Headers({
+    accept: "application/json",
+    authorization: `Bearer ${token}`,
+    "user-agent": "agentaction-observability-console/0.1",
+    "x-agentaction-console-issuer": identity.issuer,
+    "x-agentaction-console-subject": identity.subject,
+  });
+  if (identity.email) headers.set("x-agentaction-console-email", identity.email);
+  if (identity.tenantId) headers.set("x-agentaction-console-tenant-id", identity.tenantId);
+  if (identity.role) headers.set("x-agentaction-console-role", identity.role);
+
+  let body: ArrayBuffer | undefined;
+  if (request.method === "POST") {
+    const contentType = request.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().startsWith("application/json")) {
+      throw new ConsoleError(415, "content_type_invalid", "Onboarding requests must use application/json.");
+    }
+    const declaredLength = Number(request.headers.get("content-length") || "0");
+    if (Number.isFinite(declaredLength) && declaredLength > 32_768) {
+      throw new ConsoleError(413, "request_too_large", "Onboarding request exceeds 32 KiB.");
+    }
+    body = await request.arrayBuffer();
+    if (body.byteLength > 32_768) throw new ConsoleError(413, "request_too_large", "Onboarding request exceeds 32 KiB.");
+    headers.set("content-type", "application/json");
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await env.AGENTID_GATEWAY.fetch(new Request(`https://agentpass-gateway.internal${path}`, {
+      method: request.method,
+      headers,
+      ...(body ? { body } : {}),
+    }));
+  } catch {
+    throw new ConsoleError(503, "gateway_unavailable", "AgentAction gateway is unavailable.", "unavailable");
+  }
+  const contentType = upstream.headers.get("content-type") || "";
+  if (upstream.status !== 204 && !contentType.toLowerCase().includes("application/json")) {
+    throw new ConsoleError(502, "gateway_response_invalid", "AgentAction gateway returned an invalid response.", "unavailable");
+  }
+  if (upstream.status >= 500) {
+    throw new ConsoleError(503, "gateway_unavailable", "AgentAction gateway is unavailable.", "unavailable");
+  }
+  const responseHeaders = secureHeaders("application/json; charset=utf-8");
+  return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
 }
 
 async function forwardGateway(request: Request, url: URL, route: GatewayRoute, env: Env): Promise<Response> {
@@ -3004,6 +3614,9 @@ async function forwardGateway(request: Request, url: URL, route: GatewayRoute, e
 }
 
 async function consoleHealth(identity: ConsoleIdentity, env: Env): Promise<Response> {
+  if (!identity.tenantId) {
+    throw new ConsoleError(409, "tenant_selection_required", "Select or create a tenant before checking console health.");
+  }
   const response = await callGateway(
     `/tenants/${encodeURIComponent(identity.tenantId)}/health`,
     new URLSearchParams(),
@@ -3033,7 +3646,8 @@ async function callGateway(path: string, query: URLSearchParams, env: Env): Prom
   if (!env.AGENTID_GATEWAY) {
     throw new ConsoleError(503, "gateway_binding_unavailable", "AgentAction gateway is unavailable.", "unavailable");
   }
-  if (consoleEnvironment(env) === "production" && !env.AGENTID_GATEWAY_TOKEN) {
+  const gatewayToken = gatewayServiceToken(env);
+  if (consoleEnvironment(env) === "production" && !gatewayToken) {
     throw new ConsoleError(500, "gateway_credential_missing", "AgentAction gateway credential is not configured.", "unavailable");
   }
   const target = new URL(`https://agentpass-gateway.internal${path}`);
@@ -3042,7 +3656,7 @@ async function callGateway(path: string, query: URLSearchParams, env: Env): Prom
     accept: "application/json",
     "user-agent": "agentaction-observability-console/0.1",
   });
-  if (env.AGENTID_GATEWAY_TOKEN) headers.set("authorization", `Bearer ${env.AGENTID_GATEWAY_TOKEN}`);
+  if (gatewayToken) headers.set("authorization", `Bearer ${gatewayToken}`);
 
   let upstream: Response;
   try {
@@ -3077,6 +3691,10 @@ async function callGateway(path: string, query: URLSearchParams, env: Env): Prom
     headersOut.set("x-agentpass-console-data-age-seconds", String(freshness.ageSeconds));
   }
   return new Response(upstream.body, { status: upstream.status, headers: headersOut });
+}
+
+function gatewayServiceToken(env: Env): string {
+  return env.AGENTID_INTERNAL_SERVICE_TOKEN?.trim() || env.AGENTID_GATEWAY_TOKEN?.trim() || "";
 }
 
 function upstreamFreshness(headers: Headers, env: Env): UpstreamFreshness {
@@ -3191,6 +3809,11 @@ function validateTenantId(value: unknown, source: string): string {
     throw new ConsoleError(403, "tenant_claim_invalid", `${source} is invalid.`, "forbidden");
   }
   return tenantId;
+}
+
+function validateTenantRole(value: unknown, source: string): TenantRole {
+  if (value === "owner" || value === "operator" || value === "viewer") return value;
+  throw new ConsoleError(403, "tenant_role_invalid", `${source} is invalid.`, "forbidden");
 }
 
 function validateResourceSegment(value: string): void {

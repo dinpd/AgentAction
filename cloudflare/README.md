@@ -28,6 +28,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /intent-quality/jobs/:job_id` | Read one finalized job's immutable boundary, evaluation summaries, evidence counts, and allowlisted timeline |
 | `POST /tenants/<tenant-id>/activity/batches` | Ingest a privacy-safe observer batch using a tenant/source-scoped write-only credential |
 | `GET /tenants/<tenant-id>/activity/events` | Read tenant activity with bounded time, agent, event, tool, decision, execution, and intent-binding filters |
+| `/control-plane/*` | Private console-only tenant directory, invitation, setup, member, and activity-source lifecycle API |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -87,6 +88,37 @@ Intent linkage is an optional evidence dimension on an activity event. A
 `bound` event must carry both an explicit `intent_id` and `intent_digest`;
 otherwise it is stored as `unbound`. The activity API does not infer intent or
 replace contract registration, trusted outcome evidence, or final evaluation.
+
+## Private tenant control plane
+
+The hosted console uses `/control-plane/*` to onboard tenants without asking
+each customer to deploy a dashboard. These routes require the exact
+`AGENTID_INTERNAL_SERVICE_TOKEN`; the public API key and tenant source tokens
+are rejected. The console supplies only identity fields it derived from a
+verified Cloudflare Access JWT over the private service binding.
+
+The directory is stored in a dedicated, consistently named Durable Object and
+keeps tenant records, subject memberships, and expiring single-use invitations.
+Tenant manifests and source-token digests remain in `AGENTID_MANIFESTS` KV.
+Tenant creation provisions a non-enforcing shadow-observability manifest and
+returns the first source token once. Source rotation invalidates the prior token
+immediately; disabling a source stops new ingestion without deleting retained
+events.
+
+For the SaaS topology, configure both bindings in `wrangler.toml`, then put the
+same high-entropy internal token on the gateway and console Workers:
+
+```bash
+cd cloudflare
+npx wrangler secret put AGENTID_INTERNAL_SERVICE_TOKEN
+
+cd ../console
+npx wrangler secret put AGENTID_INTERNAL_SERVICE_TOKEN
+```
+
+Do not reuse `AGENTID_API_KEY`, an activity source token, or an Access token for
+this service credential. The cleartext source and invitation secrets are never
+persisted by the control plane.
 
 ## Versioned intent profiles
 

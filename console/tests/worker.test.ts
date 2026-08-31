@@ -83,6 +83,11 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(response.headers.get("content-security-policy") || "", /default-src 'self'/);
   assert.match(body, /Skip to main content/);
   assert.match(body, /aria-label="Console sections"/);
+  assert.match(body, /<h1>AgentAction Observability<\/h1>/);
+  assert.doesNotMatch(body, /<h1>Intent observability<\/h1>/);
+  assert.match(body, /data-console-view="setup"/);
+  assert.match(body, /Create a tenant/);
+  assert.match(body, /Redeem an invitation/);
   assert.match(body, /data-overview-filters/);
   assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
   assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentAction"/);
@@ -191,7 +196,65 @@ test("supports a fail-closed single-tenant console without requiring a custom Ac
   assert.equal(calls.length, 0);
 });
 
-test("rejects a route tenant mismatch before calling the gateway", async () => {
+test("provisions a tenant through the authenticated control-plane BFF without trusting browser identity headers", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer browser-token",
+        "x-agentaction-console-subject": "mallory",
+        "x-agentaction-console-email": "mallory@example.com",
+        "x-agentaction-console-tenant-id": "tenant-evil",
+      },
+      body: JSON.stringify({
+        tenant_id: "acme",
+        display_name: "Acme Support",
+        source_id: "hermes-production",
+        agent_id: "support-agent",
+      }),
+    }, { custom: {} }),
+    baseEnv(calls, () => json({ tenant: { tenant_id: "acme" }, source_token: "aa_src_once" }, 201)),
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal((await response.json() as any).source_token, "aa_src_once");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://agentpass-gateway.internal/control-plane/tenants");
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].headers.get("authorization"), "Bearer gateway-secret");
+  assert.equal(calls[0].headers.get("x-agentaction-console-subject"), "operator-123");
+  assert.equal(calls[0].headers.get("x-agentaction-console-email"), "operator@example.com");
+  assert.equal(calls[0].headers.get("x-agentaction-console-tenant-id"), null);
+});
+
+test("authorizes a directory tenant before forwarding its read-only data route", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest("/api/console/tenants/acme/activity/events?limit=10", {}, { custom: {} }),
+    baseEnv(calls, (request) => {
+      const url = new URL(request.url);
+      if (url.pathname === "/control-plane/tenants/acme/authorize") return json({ membership: { role: "viewer" } });
+      return json({ events: [], count: 0 });
+    }),
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 2);
+  assert.equal(new URL(calls[0].url).pathname, "/control-plane/tenants/acme/authorize");
+  assert.equal(new URL(calls[1].url).pathname, "/tenants/acme/activity/events");
+
+  const deniedCalls: GatewayCall[] = [];
+  const denied = await worker.fetch(
+    accessRequest("/api/console/tenants/other/activity/events", {}, { custom: {} }),
+    baseEnv(deniedCalls, () => json({ error: "membership not found" }, 403)),
+  );
+  assert.equal(denied.status, 403);
+  assert.equal(deniedCalls.length, 1);
+});
+
+test("rejects a claimed cross-tenant route before calling the gateway", async () => {
   const calls: GatewayCall[] = [];
   const response = await worker.fetch(
     accessRequest("/api/console/tenants/tenant-beta/intent-quality/rollups?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z"),
@@ -461,13 +524,13 @@ test("allows mock identity only in an explicitly configured development environm
   assert.equal((await ambiguousEnvironment.json() as any).error.code, "console_environment_invalid");
 });
 
-test("fails closed when the tenant claim or Access signing keys are unavailable", async () => {
+test("allows authenticated unprovisioned operators while failing closed when Access signing keys are unavailable", async () => {
   const missingTenant = await worker.fetch(
     accessRequest("/api/console/session", {}, { custom: {} }),
     baseEnv([]),
   );
-  assert.equal(missingTenant.status, 403);
-  assert.equal((await missingTenant.json() as any).error.code, "tenant_claim_missing");
+  assert.equal(missingTenant.status, 200);
+  assert.equal((await missingTenant.json() as any).tenant_id, null);
 
   const keysUnavailable = await worker.fetch(
     accessRequest("/api/console/session"),
