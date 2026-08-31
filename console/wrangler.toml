@@ -11,7 +11,7 @@ CONSOLE_ENVIRONMENT = "production"
 ACCESS_TEAM_DOMAIN = "https://upperhandteam.cloudflareaccess.com"
 ACCESS_AUD = "5290e8fbe89e673417d9d8a317ccb28f86c7bfb125d50f03c969dd351f6033c5"
 ACCESS_TENANT_CLAIM = "custom.tenant_id"
-CONSOLE_STATIC_TENANT_ID = "refund-demo-agent"
+ACCESS_ROLE_CLAIM = "custom.tenant_role"
 CONSOLE_STALE_AFTER_SECONDS = "300"
 
 [[services]]

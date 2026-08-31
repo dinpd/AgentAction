@@ -4,6 +4,38 @@
 
 No changes yet.
 
+## 0.7.0 - 2026-08-31
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.7.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- Existing enforcement, shadow Activity, intent assurance, signed tenant
+  claims, and versioned `agentpass.*` protocol identifiers remain compatible.
+  Existing single-tenant consoles can keep `CONSOLE_STATIC_TENANT_ID`; SaaS
+  deployments omit it and use directory-backed memberships.
+- The console's service credential should now match the gateway's separate
+  `AGENTID_INTERNAL_SERVICE_TOKEN`. `AGENTID_GATEWAY_TOKEN` remains a console
+  compatibility alias. npm packages retain their independent versions.
+
+### Self-service observability SaaS
+
+- Added a durable tenant directory with isolated tenant records, owner,
+  operator, and viewer memberships, email-bound expiring single-use
+  invitations, and signed-claim compatibility.
+- Added private internal-service-only tenant provisioning and activity-source
+  lifecycle APIs. Tenant creation returns the first source secret once;
+  rotation invalidates the prior token, disabling stops new ingestion, and only
+  SHA-256 secret digests are persisted.
+- Added an Access-authenticated Setup view for tenant creation, invitation
+  redemption, tenant switching, Hermes configuration, ingestion-health checks,
+  role-aware source controls, invitations, and members. The public demo cannot
+  call any onboarding route.
+- Renamed the general console chrome to **AgentAction Observability**. Activity
+  remains the operational surface, while intent contracts and finalized Jobs
+  remain the explicit intent-relative assurance surfaces.
+
 ## 0.6.0 - 2026-08-31
 
 ### Upgrade and compatibility

@@ -1,9 +1,10 @@
 # AgentAction Observability Console
 
-This directory contains the Cloudflare-hosted UI/BFF, profile-scoped Fleet
-Overview, privacy-safe Activity stream, finalized Jobs explorer, and finalized Job detail for the AgentAction
-intent observability console. It is intentionally read only. Exception views
-build on this boundary in later slices.
+This directory contains the Cloudflare-hosted UI/BFF for AgentAction
+Observability. It combines self-service tenant setup, privacy-safe Activity,
+profile-scoped Fleet Overview, finalized Jobs, and Job detail. Observability
+reads remain read only; authenticated owners and operators can manage only
+tenant onboarding, invitations, and source credentials.
 
 ## Hosted surfaces
 
@@ -12,7 +13,7 @@ AgentAction publishes two deliberately separate console deployments:
 | Surface | URL | Data and access boundary |
 | --- | --- | --- |
 | Public demo | [agentaction-observability-demo.drisw.workers.dev](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Unauthenticated, synthetic repository fixtures only, including synthetic Activity; no production binding, credential, tenant selection, audit routes, or approval routes. |
-| Operator console | [agentpass-observability-console.drisw.workers.dev](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant evidence through a private, read-only gateway binding. |
+| Operator console | [agentpass-observability-console.drisw.workers.dev](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant onboarding and evidence through a private gateway binding. |
 
 The public demo reuses the production interface and interaction model but its
 Worker entry point constructs an in-memory fixture service. It cannot read
@@ -29,11 +30,14 @@ The browser talks only to the console Worker's same-origin
    Cloudflare Access account JWKS;
 2. validates the Access team issuer, application audience, token type, and
    time claims;
-3. derives the tenant from a configured, signed Access claim;
-4. rejects a mismatched route tenant before invoking the gateway;
-5. reconstructs a read-only, allowlisted request with a server-owned gateway
+3. accepts a signed-in identity without requiring a tenant claim, so a new
+   operator can create a tenant or redeem an email-bound invitation;
+4. treats an optional signed tenant/role claim as an authoritative legacy
+   membership and otherwise checks the durable tenant directory server-side;
+5. rejects any data route without a verified claim or directory membership;
+6. reconstructs allowlisted requests with a server-owned internal service
    credential; and
-6. calls the AgentAction gateway through a Worker service binding.
+7. calls the AgentAction gateway through a Worker service binding.
 
 Browser-provided authorization, tenant, Cloudflare, and forwarding headers are
 not copied to the gateway request. Gateway credentials, Access service details,
@@ -48,6 +52,27 @@ normal key rotation does not require a deploy:
 - [Validate Access JWTs](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 - [Access application token claims](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)
 - [Workers service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/)
+
+## Tenant onboarding
+
+Cloudflare Access remains the login and account-verification surface. After
+login, an operator with no membership sees Setup instead of an error. They can:
+
+- create an isolated tenant and its first Hermes source;
+- redeem a seven-day, single-use invitation bound to their signed-in email;
+- switch among directory memberships;
+- see whether the tenant has received its first activity event;
+- create, rotate, or disable sources as an `owner` or `operator`; and
+- create viewer/operator invitations and inspect members as an `owner`.
+
+Source tokens and invitation codes are displayed only in the response that
+creates them. Only SHA-256 source-token digests and invitation-secret digests
+are stored. The browser keeps a returned secret only in page memory, never in a
+URL or browser storage, and clears it when dismissed or when tenants change.
+
+Roles are ordered `viewer < operator < owner`. Viewers can inspect data and
+setup health. Operators can also manage source credentials. Owners can also
+invite members and read the member list. Invitations cannot grant `owner`.
 
 ## BFF routes
 
@@ -65,9 +90,11 @@ All gateway routes are `GET` only and tenant-prefixed:
 | `/api/console/tenants/:tenant/audit/events` | same tenant path | audit filters and pagination |
 | `/api/console/tenants/:tenant/approvals[/:id]` | same tenant path | list filters and pagination |
 
-`/api/console/session` returns only the authenticated subject, optional email,
-and derived tenant. `/api/console/health` checks the private gateway binding but
-returns a sanitized readiness result rather than the gateway response.
+`/api/console/session` returns the authenticated subject, optional email,
+safe membership summaries, and a default tenant only when one can be chosen
+unambiguously. `/api/console/onboarding/*` is an explicit allowlist for tenant,
+invitation, setup, member, and source lifecycle operations. The public demo
+returns `404` for every onboarding route and has no control-plane credential.
 
 Responses are `private, no-store`. The BFF marks upstream data as `fresh`,
 `stale`, or `unknown` in `X-AgentAction-Console-Data-State` using the upstream
@@ -167,11 +194,13 @@ Deploy the `cloudflare/` gateway first. Then create a Cloudflare Access
 self-hosted application for the console Worker URL and an allow policy for the
 operator population.
 
-Configure the identity provider to include a small, single-valued `tenant_id`
-custom claim. Access places custom IdP claims under the signed `custom` object,
-so the default Worker mapping is `custom.tenant_id`. The Worker fails closed if
-the claim is missing, ambiguous, or not a safe tenant identifier. Keep this
-claim required and small; Cloudflare may trim oversized custom claim sets.
+For self-service SaaS onboarding, do not set `CONSOLE_STATIC_TENANT_ID` and do
+not require a tenant claim in the Access policy. Access proves the person; the
+AgentAction directory supplies tenant membership. Existing deployments may
+continue to include a small `tenant_id` claim under the signed `custom` object.
+The default mapping is `custom.tenant_id`, and `custom.tenant_role` can carry
+`viewer`, `operator`, or `owner`. A claimed tenant without a valid role defaults
+to `viewer`; it never gains source-management authority implicitly.
 
 Set the following Worker variables in Wrangler or the Cloudflare dashboard:
 
@@ -181,26 +210,34 @@ Set the following Worker variables in Wrangler or the Cloudflare dashboard:
 | `ACCESS_TEAM_DOMAIN` | yes | Exact Access team origin, such as `https://example.cloudflareaccess.com`. |
 | `ACCESS_AUD` | yes | Access application audience tag; comma-separated tags are accepted during migration. |
 | `ACCESS_TENANT_CLAIM` | no | Dotted signed claim path; defaults to `custom.tenant_id`. |
+| `ACCESS_ROLE_CLAIM` | no | Dotted signed role path; defaults to `custom.tenant_role`. |
 | `ACCESS_JWKS_URL` | no | HTTPS JWKS override; defaults to the team Access certs endpoint. |
 | `CONSOLE_STALE_AFTER_SECONDS` | no | Upstream freshness threshold; defaults to 300 and is capped at one day. |
+| `CONSOLE_STATIC_TENANT_ID` | no | Legacy single-tenant mode. Omit for self-service SaaS onboarding. |
+| `CONSOLE_STATIC_TENANT_ROLE` | no | Role for legacy static-tenant mode; defaults to `owner`. |
 
 `keep_vars = true` preserves the dashboard-managed Access variables during CI
 deploys. Keep the non-secret defaults in `wrangler.toml` and treat the dashboard
 as the source for the account-specific `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
 
-Store the gateway API key only as a Worker secret. It must match the gateway's
-`AGENTID_API_KEY`:
+Generate one high-entropy internal service token and store the same value as
+`AGENTID_INTERNAL_SERVICE_TOKEN` on both the gateway and console Workers. It is
+separate from `AGENTID_API_KEY` and every tenant source token:
 
 ```bash
+cd cloudflare
+npx wrangler secret put AGENTID_INTERNAL_SERVICE_TOKEN
+
 cd console
 npm ci
-npx wrangler secret put AGENTID_GATEWAY_TOKEN
+npx wrangler secret put AGENTID_INTERNAL_SERVICE_TOKEN
 npm run deploy
 ```
 
-Do not put `AGENTID_GATEWAY_TOKEN` in `wrangler.toml`, GitHub variables, browser
-storage, or client JavaScript. Production requests fail closed when this secret
-or the `AGENTID_GATEWAY` service binding is unavailable.
+`AGENTID_GATEWAY_TOKEN` remains a compatibility alias for older console
+deployments. Do not put either secret in `wrangler.toml`, browser storage, or
+client JavaScript. Production requests fail closed when the internal secret or
+the `AGENTID_GATEWAY` service binding is unavailable.
 
 `workers_dev` is enabled for the initial hosted URL and preview URLs are
 disabled. Protect the exact `*.workers.dev` hostname with Access before use. A

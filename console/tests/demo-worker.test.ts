@@ -26,6 +26,7 @@ test("uses an explicitly synthetic public session and health source", async () =
   assert.equal(session.status, 200);
   assert.deepEqual(await session.json(), {
     authenticated: true,
+    public_demo: true,
     tenant_id: "acme",
     subject: "public-demo",
   });
@@ -72,6 +73,19 @@ test("does not expose operator-only gateway routes", async () => {
     "/api/console/tenants/acme/approvals",
   ]) {
     const response = await demoWorker.fetch(demoRequest(path));
+    assert.equal(response.status, 404, path);
+    assert.equal((await response.json() as any).error.code, "public_demo_route_not_found");
+  }
+});
+
+test("does not expose tenant onboarding or source lifecycle routes", async () => {
+  for (const [path, method] of [
+    ["/api/console/onboarding/session", "GET"],
+    ["/api/console/onboarding/tenants", "POST"],
+    ["/api/console/onboarding/tenants/acme/setup", "GET"],
+    ["/api/console/onboarding/tenants/acme/sources", "POST"],
+  ] as const) {
+    const response = await demoWorker.fetch(demoRequest(path, { method }));
     assert.equal(response.status, 404, path);
     assert.equal((await response.json() as any).error.code, "public_demo_route_not_found");
   }

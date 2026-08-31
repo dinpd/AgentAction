@@ -44,6 +44,18 @@ class MemoryNamespace {
   }
 }
 
+class MemoryManifests {
+  values = new Map<string, string>();
+
+  async get(key: string): Promise<string | null> {
+    return this.values.get(key) ?? null;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    this.values.set(key, value);
+  }
+}
+
 class TestContext {
   promises: Promise<unknown>[] = [];
 
@@ -2634,6 +2646,214 @@ test("activity ingestion rejects wrong credentials, tenant drift, raw fields, an
   assert.equal(conflicted.status, 409);
   assert.equal(conflicted.body.error_code, "activity_event_conflict");
 });
+
+test("control plane creates an isolated tenant and returns source secrets only once", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "public-api-key",
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const alice = controlHeaders("alice-subject", "alice@example.com");
+
+  const denied = await call(env, ctx, "GET", "/control-plane/session");
+  assert.equal(denied.status, 403);
+  const publicKeyDenied = await call(env, ctx, "GET", "/control-plane/session", undefined, {
+    authorization: "Bearer public-api-key",
+    "x-agentaction-console-subject": "alice-subject",
+    "x-agentaction-console-issuer": "https://access.example.com",
+  });
+  assert.equal(publicKeyDenied.status, 403);
+  const created = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Acme Support",
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+  }, alice);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.membership.role, "owner");
+  assert.match(created.body.source_token, /^aa_src_/);
+  assert.match(created.body.hermes.yaml, /tenant_id: acme/);
+  assert.equal(created.body.hermes.yaml.includes(created.body.source_token), false);
+
+  const manifest = JSON.parse(String(await manifests.get("acme")));
+  const storedSource = manifest.observability.ingestion.sources["hermes-production"];
+  assert.match(storedSource.token_sha256, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(manifest).includes(created.body.source_token), false);
+
+  const setup = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, alice);
+  assert.equal(setup.status, 200);
+  assert.equal(setup.body.membership.role, "owner");
+  assert.equal(setup.body.sources[0].source_id, "hermes-production");
+  assert.equal(JSON.stringify(setup.body).includes("token_sha256"), false);
+  assert.equal(JSON.stringify(setup.body).includes(created.body.source_token), false);
+  assert.equal(setup.body.ingestion.observed, false);
+
+  const session = await call(env, ctx, "GET", "/control-plane/session", undefined, alice);
+  assert.equal(session.status, 200);
+  assert.deepEqual(session.body.memberships.map((entry: any) => entry.tenant.tenant_id), ["acme"]);
+});
+
+test("control plane enforces roles, single-use invitations, source rotation, and tenant isolation", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const alice = controlHeaders("alice-subject", "alice@example.com");
+  const bob = controlHeaders("bob-subject", "bob@example.com");
+  const eve = controlHeaders("eve-subject", "eve@example.com");
+  const mallory = controlHeaders("mallory-subject", "mallory@example.com");
+  const provisioned = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Acme",
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+  }, alice);
+
+  const expiredInvitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "bob@example.com",
+    role: "viewer",
+  }, alice);
+  const expiredInvitationId = String(expiredInvitation.body.invitation_code).split(".")[0];
+  const directoryStore = namespace.stores.get("__agentaction_tenant_directory__")!;
+  const expiredRecord = structuredClone(directoryStore.get(`directory:invitation:${expiredInvitationId}`) as Record<string, unknown>);
+  expiredRecord.expires_at = "2020-01-01T00:00:00.000Z";
+  directoryStore.set(`directory:invitation:${expiredInvitationId}`, expiredRecord);
+  const expired = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: expiredInvitation.body.invitation_code,
+  }, bob);
+  assert.equal(expired.status, 410);
+
+  const invitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "bob@example.com",
+    role: "viewer",
+  }, alice);
+  assert.equal(invitation.status, 201);
+  assert.match(invitation.body.invitation_code, /^invite_[a-f0-9]+\.aa_inv_/);
+  assert.equal(JSON.stringify(invitation.body.invitation).includes("secret"), false);
+
+  const wrongEmail = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+  }, eve);
+  assert.equal(wrongEmail.status, 403);
+  const claimedElsewhere = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+  }, controlHeaders("bob-subject", "bob@example.com", "legacy-tenant", "viewer"));
+  assert.equal(claimedElsewhere.status, 403);
+  assert.equal(claimedElsewhere.body.error_code, "claimed_tenant_fixed");
+
+  const redeemed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+  }, bob);
+  assert.equal(redeemed.status, 201);
+  assert.equal(redeemed.body.membership.role, "viewer");
+  const replay = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+  }, bob);
+  assert.equal(replay.status, 409);
+
+  const viewerSetup = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, bob);
+  assert.equal(viewerSetup.status, 200);
+  const viewerInvitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "mallory@example.com",
+    role: "viewer",
+  }, bob);
+  assert.equal(viewerInvitation.status, 403);
+  const viewerSource = await call(env, ctx, "POST", "/control-plane/tenants/acme/sources", {
+    source_id: "bob-source",
+    agent_id: "bob-agent",
+  }, bob);
+  assert.equal(viewerSource.status, 403);
+  const crossTenant = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, mallory);
+  assert.equal(crossTenant.status, 403);
+
+  const rotated = await call(env, ctx, "POST", "/control-plane/tenants/acme/sources/hermes-production/rotate", {}, alice);
+  assert.equal(rotated.status, 200);
+  assert.match(rotated.body.source_token, /^aa_src_/);
+  const rotatedManifest = JSON.parse(String(await manifests.get("acme")));
+  assert.equal(JSON.stringify(rotatedManifest).includes(rotated.body.source_token), false);
+  const oldTokenBatch = activityBatch("acme", "obs_old_token");
+  oldTokenBatch.events[0].agent_id = "support-agent";
+  const oldToken = await call(env, ctx, "POST", "/tenants/acme/activity/batches", oldTokenBatch, {
+    authorization: `Bearer ${provisioned.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  });
+  assert.equal(oldToken.status, 401);
+  const newTokenBatch = activityBatch("acme", "obs_new_token");
+  newTokenBatch.events[0].agent_id = "support-agent";
+  const newToken = await call(env, ctx, "POST", "/tenants/acme/activity/batches", newTokenBatch, {
+    authorization: `Bearer ${rotated.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  });
+  assert.equal(newToken.status, 202, JSON.stringify(newToken.body));
+  const revoked = await call(env, ctx, "DELETE", "/control-plane/tenants/acme/sources/hermes-production", undefined, alice);
+  assert.equal(revoked.status, 200);
+  assert.equal(revoked.body.source.enabled, false);
+});
+
+test("signed tenant claims remain authoritative virtual memberships", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  await manifests.put("legacy-tenant", JSON.stringify(activityManifest("legacy-source-token")));
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const claimed = controlHeaders("legacy-user", "legacy@example.com", "legacy-tenant", "viewer");
+  const session = await call(env, ctx, "GET", "/control-plane/session", undefined, claimed);
+  assert.equal(session.status, 200);
+  assert.equal(session.body.memberships[0].tenant.tenant_id, "legacy-tenant");
+  assert.equal(session.body.memberships[0].membership.role, "viewer");
+  const setup = await call(env, ctx, "GET", "/control-plane/tenants/legacy-tenant/setup", undefined, claimed);
+  assert.equal(setup.status, 200);
+  const denied = await call(env, ctx, "POST", "/control-plane/tenants/legacy-tenant/sources", {
+    source_id: "new-source",
+    agent_id: "new-agent",
+  }, claimed);
+  assert.equal(denied.status, 403);
+  const anotherTenant = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "another-tenant",
+    display_name: "Another tenant",
+  }, claimed);
+  assert.equal(anotherTenant.status, 403);
+  assert.equal(anotherTenant.body.error_code, "claimed_tenant_fixed");
+
+  const missingManifest = await call(
+    env,
+    ctx,
+    "GET",
+    "/control-plane/tenants/missing-tenant/setup",
+    undefined,
+    controlHeaders("missing-user", "missing@example.com", "missing-tenant", "owner"),
+  );
+  assert.equal(missingManifest.status, 404);
+  assert.equal(missingManifest.body.error, "tenant manifest not found");
+});
+
+function controlHeaders(
+  subject: string,
+  email: string,
+  tenantId?: string,
+  role?: "owner" | "operator" | "viewer",
+): Record<string, string> {
+  return {
+    authorization: "Bearer console-service-secret",
+    "x-agentaction-console-subject": subject,
+    "x-agentaction-console-email": email,
+    "x-agentaction-console-issuer": "https://access.example.com",
+    ...(tenantId ? { "x-agentaction-console-tenant-id": tenantId } : {}),
+    ...(role ? { "x-agentaction-console-role": role } : {}),
+  };
+}
 
 async function call(
   env: Record<string, unknown>,

@@ -175,6 +175,8 @@ class FakeDocument {
       "[data-status-title]",
       "[data-status-detail]",
       "[data-tenant]",
+      "[data-tenant-switcher]",
+      "[data-tenant-select]",
       "[data-subject]",
       "[data-refresh]",
       "[data-overview-filters]",
@@ -199,13 +201,53 @@ class FakeDocument {
       "[data-console-view='activity']",
       "[data-console-view='jobs']",
       "[data-console-view='job-detail']",
+      "[data-console-view='setup']",
       "[data-overview-context='boundaries']",
       "[data-overview-context='lifecycle']",
       "[data-nav-overview]",
       "[data-nav-activity]",
       "[data-nav-jobs]",
       "[data-nav-job-detail]",
+      "[data-nav-setup]",
       "[data-job-detail-back]",
+      "[data-create-tenant-form]",
+      "[data-create-tenant-id]",
+      "[data-create-display-name]",
+      "[data-create-source-id]",
+      "[data-create-agent-id]",
+      "[data-redeem-invite-form]",
+      "[data-invite-code]",
+      "[data-setup-onboarding]",
+      "[data-tenant-setup]",
+      "[data-setup-role]",
+      "[data-setup-message]",
+      "[data-setup-message-title]",
+      "[data-setup-message-detail]",
+      "[data-ingestion-title]",
+      "[data-ingestion-detail]",
+      "[data-access-title]",
+      "[data-access-detail]",
+      "[data-source-list]",
+      "[data-create-source-form]",
+      "[data-source-id]",
+      "[data-source-agent-id]",
+      "[data-invite-members-card]",
+      "[data-create-invite-form]",
+      "[data-member-email]",
+      "[data-member-role]",
+      "[data-member-list]",
+      "[data-invitation-result]",
+      "[data-created-invitation-code]",
+      "[data-copy-invitation]",
+      "[data-secret-panel]",
+      "[data-source-token]",
+      "[data-hermes-environment]",
+      "[data-hermes-yaml]",
+      "[data-copy-source-token]",
+      "[data-copy-hermes-environment]",
+      "[data-copy-hermes-yaml]",
+      "[data-dismiss-secret]",
+      "[data-open-activity]",
       "[data-activity-filters]",
       "[data-reset-activity-filters]",
       "[data-activity-filter-window]",
@@ -283,6 +325,7 @@ class FakeDocument {
     this.get("[data-console-view='jobs']").hidden = true;
     this.get("[data-console-view='activity']").hidden = true;
     this.get("[data-console-view='job-detail']").hidden = true;
+    this.get("[data-console-view='setup']").hidden = true;
     this.get("[data-jobs-content]").hidden = true;
     this.get("[data-activity-content]").hidden = true;
     this.get("[data-job-detail-content]").hidden = true;
@@ -317,6 +360,9 @@ type RuntimeOptions = {
   rollupStatus?: number;
   search?: string;
   sessionStatus?: number;
+  sessionPayload?: Record<string, any>;
+  setupPayload?: Record<string, any>;
+  startUnprovisioned?: boolean;
 };
 
 function makeRuntime(options: RuntimeOptions = {}) {
@@ -327,6 +373,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
   const activityPayload = structuredClone(options.activityPayload || ACTIVITY_FIXTURE);
   const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
+  let provisioned = options.startUnprovisioned !== true;
   const runtime = {
     Date: FixedDate,
     document,
@@ -343,10 +390,30 @@ function makeRuntime(options: RuntimeOptions = {}) {
         const status = options.sessionStatus || 200;
         return response(
           status === 200
-            ? { authenticated: true, tenant_id: "acme", subject: "operator-1", email: "operator@example.com" }
+            ? options.sessionPayload || (provisioned
+              ? { authenticated: true, tenant_id: "acme", subject: "operator-1", email: "operator@example.com", memberships: [{ tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } }] }
+              : { authenticated: true, tenant_id: null, subject: "operator-1", email: "operator@example.com", memberships: [] })
             : { error: { code: "access_token_missing", message: "Authentication is required." } },
           status,
         );
+      }
+      if (path === "/api/console/onboarding/tenants") {
+        provisioned = true;
+        return response({
+          tenant: { tenant_id: "acme", display_name: "Acme" },
+          membership: { tenant_id: "acme", role: "owner" },
+          source_token: "aa_src_shown_once",
+          hermes: { environment: "AGENTACTION_INGEST_TOKEN=<one-time-token>", yaml: "tenant_id: acme\nsource_id: hermes-production" },
+        }, 201);
+      }
+      if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/setup$/.test(path)) {
+        const role = path.includes("/beta/") ? "viewer" : "owner";
+        return response(options.setupPayload || {
+          membership: { tenant_id: path.includes("/beta/") ? "beta" : "acme", role },
+          sources: [{ source_id: "hermes-production", enabled: true, agent_ids: ["support-agent"] }],
+          members: [{ email: "operator@example.com", role: "owner" }],
+          ingestion: { observed: false, last_observed_at: null },
+        });
       }
       if (path === "/api/console/health") {
         return response({ ok: true, data_state: options.dataState || "fresh" });
@@ -555,6 +622,69 @@ test("treats API strings as text and preserves accessible shell controls", async
   assert.match(SHELL_HTML, /<button class="primary-button" type="submit">Apply filters<\/button>/);
   assert.match(SHELL_HTML, /aria-live="polite"/);
   assert.doesNotMatch(SHELL_HTML, /gateway-secret|AGENTID_GATEWAY_TOKEN/);
+});
+
+test("renders role-aware tenant setup and Hermes ingestion health", async () => {
+  const { controller, document, requests } = makeRuntime({ hash: "#setup" });
+  await controller.ready;
+
+  assert.equal(document.get("[data-console-view='setup']").hidden, false);
+  assert.equal(document.get("[data-setup-role]").textContent, "owner");
+  assert.equal(document.get("[data-tenant-setup]").hidden, false);
+  assert.equal(document.get("[data-create-source-form]").hidden, false);
+  assert.equal(document.get("[data-invite-members-card]").hidden, false);
+  assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent Enabled/);
+  assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
+  assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("switches only among the authenticated session memberships", async () => {
+  const { controller, document, requests } = makeRuntime({
+    hash: "#setup",
+    sessionPayload: {
+      authenticated: true,
+      tenant_id: "acme",
+      subject: "operator-1",
+      memberships: [
+        { tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } },
+        { tenant: { tenant_id: "beta", display_name: "Beta" }, membership: { tenant_id: "beta", role: "viewer" } },
+      ],
+    },
+  });
+  await controller.ready;
+  assert.equal(document.get("[data-tenant-switcher]").hidden, false);
+  assert.equal(document.get("[data-tenant-select]").children.length, 2);
+
+  document.get("[data-tenant-select]").value = "beta";
+  await document.get("[data-tenant-select]").dispatch("change");
+  assert.ok(requests.includes("/api/console/onboarding/tenants/beta/setup"));
+  assert.equal(document.get("[data-tenant-select]").value, "beta");
+  assert.equal(document.get("[data-create-source-form]").hidden, true);
+  assert.equal(document.get("[data-invite-members-card]").hidden, true);
+});
+
+test("creates an unprovisioned tenant and shows its source secret only in memory", async () => {
+  const { controller, document, requests } = makeRuntime({ hash: "#overview", startUnprovisioned: true });
+  await controller.ready;
+  assert.equal(document.get("[data-console-view='setup']").hidden, false);
+  assert.equal(document.get("[data-tenant-setup]").hidden, true);
+
+  document.get("[data-create-tenant-id]").value = "acme";
+  document.get("[data-create-display-name]").value = "Acme";
+  document.get("[data-create-source-id]").value = "hermes-production";
+  document.get("[data-create-agent-id]").value = "support-agent";
+  await document.get("[data-create-tenant-form]").dispatch("submit");
+
+  assert.equal(document.get("[data-secret-panel]").hidden, false);
+  assert.equal(document.get("[data-source-token]").textContent, "aa_src_shown_once");
+  assert.match(document.get("[data-hermes-environment]").textContent, /aa_src_shown_once/);
+  assert.equal(document.get("[data-tenant-setup]").hidden, false);
+  assert.ok(requests.includes("/api/console/onboarding/tenants"));
+  assert.equal(requests.some((request) => request.includes("aa_src_shown_once")), false);
+
+  await document.get("[data-dismiss-secret]").dispatch("click");
+  assert.equal(document.get("[data-source-token]").textContent, "");
+  assert.equal(document.get("[data-secret-panel]").hidden, true);
 });
 
 test("loads Jobs as a functional second view with URL-persisted allowlisted filters", async () => {

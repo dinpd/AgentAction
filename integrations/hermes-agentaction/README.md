@@ -39,8 +39,25 @@ Restart the Hermes gateway after enabling or changing the plugin.
 
 ## Hosted onboarding
 
-An AgentAction operator provisions one tenant record and one source credential;
-the Hermes operator does not deploy a separate dashboard:
+The Hermes operator does not deploy a separate dashboard. Sign in to the hosted
+AgentAction Observability operator console through Cloudflare Access, open
+**Setup**, and:
+
+1. Create a tenant, or redeem an invitation from its owner.
+2. Name the first source and Hermes agent. The console displays its source
+   token once, plus the matching environment variable and YAML.
+3. Store the token as `AGENTACTION_INGEST_TOKEN`, install and enable the plugin,
+   and copy the tenant/source/agent values into the Hermes configuration.
+4. Restart Hermes and perform one action. Setup changes from **Waiting for
+   activity** to **Activity received**, and the event appears in Activity.
+
+Owners and operators can create a source per environment, rotate a compromised
+or lost token, and disable a retired source in the same screen. Only token
+digests are retained. Viewers can inspect connection health and activity but
+cannot change credentials.
+
+For a self-hosted or manually managed deployment, provision one tenant record
+and one source credential directly:
 
 1. Generate a high-entropy token and give it only to the Hermes deployment as
    `AGENTACTION_INGEST_TOKEN`.
