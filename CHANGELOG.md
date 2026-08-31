@@ -4,6 +4,42 @@
 
 No changes yet.
 
+## 0.6.0 - 2026-08-31
+
+### Upgrade and compatibility
+
+- The canonical GitHub and Python distribution version is `0.6.0`; install the
+  wheel attached to the GitHub release until trusted PyPI publishing is
+  configured.
+- Existing enforcement, MCP observe mode, intent assurance, operator-console
+  authentication, and versioned `agentpass.*` protocol identifiers remain
+  compatible. No migration is required.
+- npm packages retain their independent versions and are not republished by
+  this repository release.
+
+### Hermes shadow observer
+
+- Added a native Hermes plugin with fail-open model, tool, API, and subagent
+  lifecycle hooks, stable Hermes correlations, counterfactual tool decisions,
+  bounded asynchronous batching, and a profile-scoped retry spool.
+- Excluded prompts, messages, tool arguments, terminal commands, tool results,
+  provider bodies, and subagent goals/summaries from the exported schema.
+- Added optional explicit intent ID/digest binding. Unbound traffic stays named
+  as unbound; prompt text and model-generated goals are never promoted into
+  authoritative intent.
+
+### Multi-tenant activity observability
+
+- Added tenant- and source-scoped hashed ingestion credentials, strict batch
+  and event validation, bounded payloads and retention, idempotent replay, and
+  conflict rejection in tenant-isolated durable stores.
+- Added a tenant-scoped Activity API and an Access-protected Activity console
+  with bounded agent, event, tool, shadow-decision, execution, and explicit
+  intent-binding filters.
+- Kept browser routes read only and ingestion credentials server-side. The
+  public console demonstrates Activity with synthetic fixtures only and has no
+  live gateway binding or credential.
+
 ## 0.5.0 - 2026-08-30
 
 ### Upgrade and compatibility

@@ -1,7 +1,7 @@
 # AgentAction Observability Console
 
 This directory contains the Cloudflare-hosted UI/BFF, profile-scoped Fleet
-Overview, finalized Jobs explorer, and finalized Job detail for the AgentAction
+Overview, privacy-safe Activity stream, finalized Jobs explorer, and finalized Job detail for the AgentAction
 intent observability console. It is intentionally read only. Exception views
 build on this boundary in later slices.
 
@@ -11,13 +11,13 @@ AgentAction publishes two deliberately separate console deployments:
 
 | Surface | URL | Data and access boundary |
 | --- | --- | --- |
-| Public demo | [agentaction-observability-demo.drisw.workers.dev](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Unauthenticated, synthetic repository fixtures only; no production binding, credential, tenant selection, audit routes, or approval routes. |
+| Public demo | [agentaction-observability-demo.drisw.workers.dev](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Unauthenticated, synthetic repository fixtures only, including synthetic Activity; no production binding, credential, tenant selection, audit routes, or approval routes. |
 | Operator console | [agentpass-observability-console.drisw.workers.dev](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant evidence through a private, read-only gateway binding. |
 
 The public demo reuses the production interface and interaction model but its
 Worker entry point constructs an in-memory fixture service. It cannot read
 runtime bindings supplied by a deployment environment. Requests outside health,
-Fleet Overview, finalized Jobs, and Job detail receive a not-found response.
+Fleet Overview, synthetic Activity, finalized Jobs, and Job detail receive a not-found response.
 Never connect this public Worker to a gateway service binding or secret.
 
 ## Security model
@@ -59,6 +59,7 @@ All gateway routes are `GET` only and tenant-prefixed:
 | `/api/console/tenants/:tenant/intent-quality/rollups` | same tenant path | rollup filters, limit, cursor |
 | `/api/console/tenants/:tenant/intent-quality/jobs` | same tenant path | bounded time, profile, agent, verdict, constraint, confidence, exact job/intent IDs, limit, cursor |
 | `/api/console/tenants/:tenant/intent-quality/jobs/:job_id` | same tenant path | none |
+| `/api/console/tenants/:tenant/activity/events` | same tenant path | bounded time, agent, event, tool, shadow decision, execution state, intent binding, limit, cursor |
 | `/api/console/tenants/:tenant/intent-profiles[/:id]` | same tenant path | list pagination only |
 | `/api/console/tenants/:tenant/intent-contracts[/:id]` | same tenant path | job/profile filters and pagination on lists |
 | `/api/console/tenants/:tenant/audit/events` | same tenant path | audit filters and pagination |
@@ -75,6 +76,19 @@ Responses are `private, no-store`. The BFF marks upstream data as `fresh`,
 `X-AgentAction-Console-Generated-At` and
 `X-AgentAction-Console-Data-Age-Seconds` so the browser can communicate staleness
 without receiving arbitrary upstream headers.
+
+## Activity
+
+Activity is the operational shadow-mode view. It reads only the tenant derived
+from the verified Access identity and shows privacy-safe lifecycle metadata,
+counterfactual policy decisions, actual execution status, Hermes correlation
+IDs, and explicit intent binding state. It never displays raw prompts, messages,
+tool arguments, commands, results, or provider bodies.
+
+`Explicitly bound` means the observer supplied both a known intent ID and
+digest. `Unbound` means it supplied neither. The UI does not infer intent from
+session names, model output, or prompts. Outcome evaluation remains in the
+immutable intent-contract and Jobs surfaces.
 
 ## Fleet Overview
 

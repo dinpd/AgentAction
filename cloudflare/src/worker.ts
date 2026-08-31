@@ -57,7 +57,45 @@ type AgentIdManifest = {
   job_boundary?: Record<string, unknown>;
   jit_authorization?: Record<string, unknown>;
   intent_assurance?: Record<string, unknown>;
+  observability?: Record<string, unknown>;
 };
+
+type ActivityEvent = {
+  schema_version: "agentaction.hermes-observation.v1";
+  event_id: string;
+  event_type: string;
+  observed_at: string;
+  source_id: string;
+  agent_id: string;
+  correlation: Record<string, string>;
+  intent: {
+    binding_status: "bound" | "unbound";
+    intent_id?: string;
+    intent_digest?: string;
+  };
+  tool?: { name: string; action: string };
+  evaluation?: {
+    status: string;
+    counterfactual_decision: "allow" | "deny" | "challenge_required" | null;
+    findings: string[];
+  };
+  execution?: { status: string; duration_ms?: number | null; error_type?: string };
+  model?: Record<string, string>;
+  request?: Record<string, number | null>;
+  usage?: Record<string, number>;
+  subagent?: { role: string; status: string; duration_ms?: number };
+};
+
+type ActivityBatch = {
+  schema_version: "agentaction.observation-batch.v1";
+  batch_id: string;
+  tenant_id: string;
+  source_id: string;
+  sent_at: string;
+  events: ActivityEvent[];
+};
+
+type StoredActivityEvent = { digest: string; event: ActivityEvent };
 
 type ToolEvent = Record<string, unknown>;
 type AuthContext = {
@@ -452,6 +490,30 @@ export default {
       }
 
       const manifest = await loadManifest(env, route.tenantId);
+      const isActivityIngestion = request.method === "POST" &&
+        route.endpoint === "activity" && route.resourceId === "batches" && !route.action;
+      if (isActivityIngestion) {
+        if (!route.tenantId) return json({ error: "activity ingestion requires a tenant route" }, 400);
+        const sourceAuthentication = await authenticateActivitySource(request, manifest);
+        if (!sourceAuthentication.ok) {
+          return json({ error: sourceAuthentication.error }, sourceAuthentication.status);
+        }
+        const submitted = await readBoundedActivityBatch(request);
+        const batch = validateActivityBatch(
+          submitted,
+          route.tenantId,
+          sourceAuthentication.sourceId,
+          sourceAuthentication.agentIds,
+        );
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request("https://agentid.local/activity/batches", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(batch),
+          }),
+        );
+        return json(await stored.json(), stored.status);
+      }
       const authentication = await authenticate(request, env, manifest, route.tenantId, route.endpoint);
       const isObservationIngestion = request.method === "POST" &&
         route.endpoint === "intent-contracts" && Boolean(route.resourceId) && route.action === "observations";
@@ -478,6 +540,20 @@ export default {
         const search = new URLSearchParams(url.searchParams);
         const stored = await auditStore(env).fetch(new Request(`https://agentid.local/audit-events?${search.toString()}`));
         const body = await stored.json() as Record<string, unknown>;
+        body.tenant_id = route.tenantId;
+        body.auth = auth.context;
+        return json(body, stored.status);
+      }
+
+      if (request.method === "GET" && route.endpoint === "activity" && route.resourceId === "events" && !route.action) {
+        const invalidQuery = [...url.searchParams.keys()].find((key) => !ACTIVITY_QUERY_FIELDS.has(key));
+        if (invalidQuery) return json({ error: `unsupported activity query parameter: ${invalidQuery}` }, 400);
+        const search = new URLSearchParams(url.searchParams);
+        const stored = await authorizationStore(env, route.tenantId, manifest).fetch(
+          new Request(`https://agentid.local/activity/events?${search.toString()}`),
+        );
+        const body = await stored.json() as Record<string, unknown>;
+        body.tenant_id = route.tenantId;
         body.auth = auth.context;
         return json(body, stored.status);
       }
@@ -1260,6 +1336,7 @@ export class AgentIdJitGrants {
       get<T = unknown>(key: string): Promise<T | undefined>;
       put<T = unknown>(key: string, value: T): Promise<void>;
       put(entries: Record<string, unknown>): Promise<void>;
+      delete(key: string): Promise<boolean>;
     };
   };
   private intentFinalizationQueues = new Map<string, Promise<void>>();
@@ -1308,6 +1385,47 @@ export class AgentIdJitGrants {
         if (events.length >= limit) break;
       }
       return json({ events, count: events.length });
+    }
+
+    if (request.method === "POST" && url.pathname === "/activity/batches") {
+      const batch = payload as ActivityBatch;
+      const records: Array<{ key: string; digest: string; event: ActivityEvent }> = [];
+      let duplicates = 0;
+      for (const event of batch.events) {
+        const key = `activity:event:${event.event_id}`;
+        const digest = await canonicalDigest(event);
+        const existing = await this.state.storage.get<StoredActivityEvent>(key);
+        if (existing) {
+          if (existing.digest !== digest) {
+            return json({
+              error: `activity event ID conflicts with stored content: ${event.event_id}`,
+              error_code: "activity_event_conflict",
+            }, 409);
+          }
+          duplicates += 1;
+          continue;
+        }
+        records.push({ key, digest, event });
+      }
+      const priorIndex = await this.state.storage.get<string[]>("activity:index") || [];
+      const newIds = records.map(({ event }) => event.event_id);
+      const nextIndex = [...newIds.reverse(), ...priorIndex.filter((id) => !newIds.includes(id))].slice(0, 2_000);
+      for (const record of records) {
+        await this.state.storage.put(record.key, { digest: record.digest, event: record.event } satisfies StoredActivityEvent);
+      }
+      await this.state.storage.put("activity:index", nextIndex);
+      const expired = priorIndex.filter((id) => !nextIndex.includes(id));
+      for (const id of expired) await this.state.storage.delete(`activity:event:${id}`);
+      return json({
+        schema_version: "agentaction.activity-ingest-result.v1",
+        batch_id: batch.batch_id,
+        accepted: records.length,
+        duplicates,
+      }, 202);
+    }
+
+    if (request.method === "GET" && url.pathname === "/activity/events") {
+      return this.activityEvents(url);
     }
 
     if (request.method === "GET" && url.pathname === "/intent-quality/rollups") {
@@ -1743,6 +1861,49 @@ export class AgentIdJitGrants {
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async activityEvents(url: URL): Promise<Response> {
+    const limitValue = Number(url.searchParams.get("limit") || "50");
+    if (!Number.isInteger(limitValue) || limitValue < 1 || limitValue > 100) {
+      return json({ error: "activity limit must be an integer from 1 to 100" }, 400);
+    }
+    const from = activityDateFilter(url.searchParams.get("from"), "from");
+    if (from.error) return json({ error: from.error }, 400);
+    const to = activityDateFilter(url.searchParams.get("to"), "to");
+    if (to.error) return json({ error: to.error }, 400);
+    const index = await this.state.storage.get<string[]>("activity:index") || [];
+    const cursor = url.searchParams.get("cursor") || "";
+    const start = cursor ? index.indexOf(cursor) + 1 : 0;
+    if (cursor && start === 0) return json({ error: "activity cursor is invalid" }, 400);
+    const filters = {
+      agent_id: url.searchParams.get("agent_id") || "",
+      event_type: url.searchParams.get("event_type") || "",
+      tool: url.searchParams.get("tool") || "",
+      decision: url.searchParams.get("decision") || "",
+      execution_status: url.searchParams.get("execution_status") || "",
+      intent_binding: url.searchParams.get("intent_binding") || "",
+    };
+    const events: ActivityEvent[] = [];
+    let lastVisited = "";
+    let hasMore = false;
+    for (let position = start; position < index.length; position += 1) {
+      const id = index[position];
+      lastVisited = id;
+      const stored = await this.state.storage.get<StoredActivityEvent>(`activity:event:${id}`);
+      if (!stored || !activityMatches(stored.event, filters, from.value, to.value)) continue;
+      events.push(stored.event);
+      if (events.length >= limitValue) {
+        hasMore = position < index.length - 1;
+        break;
+      }
+    }
+    return json({
+      schema_version: "agentaction.activity-page.v1",
+      events,
+      count: events.length,
+      next_cursor: hasMore ? lastVisited : null,
+    });
   }
 
   async resolveIntentRecord(
@@ -4810,6 +4971,269 @@ function findingsFromPayload(payload: Record<string, unknown>): string[] {
   if (Array.isArray(findings)) return findings.map(String);
   if (typeof findings === "string") return [findings];
   return [];
+}
+
+const ACTIVITY_QUERY_FIELDS = new Set([
+  "from",
+  "to",
+  "agent_id",
+  "event_type",
+  "tool",
+  "decision",
+  "execution_status",
+  "intent_binding",
+  "limit",
+  "cursor",
+]);
+const ACTIVITY_EVENT_TYPES = new Set([
+  "tool_action",
+  "model_request_started",
+  "model_request_completed",
+  "subagent_started",
+  "subagent_completed",
+]);
+const ACTIVITY_EXECUTION_STATUSES = new Set(["ok", "error", "blocked", "cancelled", "unknown", "running"]);
+const ACTIVITY_DECISIONS = new Set(["allow", "deny", "challenge_required"]);
+const ACTIVITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+
+async function authenticateActivitySource(
+  request: Request,
+  manifest: AgentIdManifest,
+): Promise<
+  | { ok: true; sourceId: string; agentIds: string[] }
+  | { ok: false; status: number; error: string }
+> {
+  const sourceId = request.headers.get("x-agentaction-source-id") || "";
+  const authorization = request.headers.get("authorization") || "";
+  if (!ACTIVITY_ID.test(sourceId) || !authorization.startsWith("Bearer ")) {
+    return { ok: false, status: 401, error: "unauthorized activity source" };
+  }
+  const sources = recordValue(recordValue(recordValue(manifest.observability).ingestion).sources);
+  if (!Object.prototype.hasOwnProperty.call(sources, sourceId)) {
+    return { ok: false, status: 401, error: "unauthorized activity source" };
+  }
+  const source = recordValue(sources[sourceId]);
+  if (source.enabled !== true) return { ok: false, status: 401, error: "unauthorized activity source" };
+  const configuredDigest = optionalString(source.token_sha256)?.replace(/^sha256:/, "") || "";
+  if (!/^[a-f0-9]{64}$/.test(configuredDigest)) {
+    return { ok: false, status: 500, error: "activity source credentials are not configured" };
+  }
+  const submittedDigest = await sha256Hex(authorization.slice("Bearer ".length));
+  if (!constantTimeEqual(configuredDigest, submittedDigest)) {
+    return { ok: false, status: 401, error: "unauthorized activity source" };
+  }
+  if (source.agent_ids !== undefined && !Array.isArray(source.agent_ids)) {
+    return { ok: false, status: 500, error: "activity source agent allowlist is invalid" };
+  }
+  const configuredAgentIds = Array.isArray(source.agent_ids) ? source.agent_ids : [];
+  const agentIds = configuredAgentIds.map(String).filter((value) => ACTIVITY_ID.test(value));
+  if (agentIds.length !== configuredAgentIds.length) {
+    return { ok: false, status: 500, error: "activity source agent allowlist is invalid" };
+  }
+  return { ok: true, sourceId, agentIds };
+}
+
+async function readBoundedActivityBatch(request: Request): Promise<unknown> {
+  if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) {
+    throw new Error("activity batch content-type must be application/json");
+  }
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (declared > 262_144) throw new Error("activity batch exceeds 256 KiB");
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("activity batch body is required");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    if (total > 262_144) {
+      await reader.cancel();
+      throw new Error("activity batch exceeds 256 KiB");
+    }
+    chunks.push(part.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const textBody = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  try {
+    return JSON.parse(textBody);
+  } catch {
+    throw new Error("activity batch must be valid JSON");
+  }
+}
+
+function validateActivityBatch(
+  submitted: unknown,
+  tenantId: string,
+  sourceId: string,
+  allowedAgentIds: string[],
+): ActivityBatch {
+  const batch = strictRecord(submitted, ["schema_version", "batch_id", "tenant_id", "source_id", "sent_at", "events"], "activity batch");
+  if (batch.schema_version !== "agentaction.observation-batch.v1") throw new Error("activity batch schema_version is unsupported");
+  requiredActivityId(batch.batch_id, "batch_id");
+  if (batch.tenant_id !== tenantId) throw new Error("activity batch tenant_id does not match route tenant");
+  if (batch.source_id !== sourceId) throw new Error("activity batch source_id does not match authenticated source");
+  requiredActivityDate(batch.sent_at, "sent_at");
+  if (!Array.isArray(batch.events) || batch.events.length < 1 || batch.events.length > 100) {
+    throw new Error("activity batch events must contain 1 to 100 entries");
+  }
+  const seen = new Set<string>();
+  const events = batch.events.map((value, index) => {
+    const event = validateActivityEvent(value, sourceId, allowedAgentIds, index);
+    if (seen.has(event.event_id)) throw new Error(`activity event ID is duplicated in batch: ${event.event_id}`);
+    seen.add(event.event_id);
+    return event;
+  });
+  return { ...batch, events } as ActivityBatch;
+}
+
+function validateActivityEvent(
+  value: unknown,
+  sourceId: string,
+  allowedAgentIds: string[],
+  index: number,
+): ActivityEvent {
+  const label = `activity event ${index}`;
+  const event = strictRecord(value, [
+    "schema_version", "event_id", "event_type", "observed_at", "source_id", "agent_id", "correlation", "intent",
+    "tool", "evaluation", "execution", "model", "request", "usage", "subagent",
+  ], label);
+  if (event.schema_version !== "agentaction.hermes-observation.v1") throw new Error(`${label} schema_version is unsupported`);
+  requiredActivityId(event.event_id, `${label} event_id`);
+  if (typeof event.event_type !== "string" || !ACTIVITY_EVENT_TYPES.has(event.event_type)) throw new Error(`${label} event_type is unsupported`);
+  requiredActivityDate(event.observed_at, `${label} observed_at`);
+  if (event.source_id !== sourceId) throw new Error(`${label} source_id does not match authenticated source`);
+  requiredActivityId(event.agent_id, `${label} agent_id`);
+  if (allowedAgentIds.length > 0 && !allowedAgentIds.includes(String(event.agent_id))) throw new Error(`${label} agent_id is not allowed for source`);
+
+  const correlation = strictRecord(event.correlation, [
+    "session_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "parent_session_id", "child_session_id",
+    "parent_turn_id", "child_subagent_id",
+  ], `${label} correlation`);
+  for (const [key, entry] of Object.entries(correlation)) requiredActivityId(entry, `${label} correlation.${key}`);
+  const intent = strictRecord(event.intent, ["binding_status", "intent_id", "intent_digest"], `${label} intent`);
+  if (intent.binding_status !== "bound" && intent.binding_status !== "unbound") throw new Error(`${label} intent binding_status is invalid`);
+  const hasIntentId = typeof intent.intent_id === "string" && intent.intent_id.length > 0;
+  const hasIntentDigest = typeof intent.intent_digest === "string" && intent.intent_digest.length > 0;
+  if (intent.binding_status === "bound" && (!hasIntentId || !hasIntentDigest)) throw new Error(`${label} bound intent requires intent_id and intent_digest`);
+  if (intent.binding_status === "unbound" && (hasIntentId || hasIntentDigest)) throw new Error(`${label} unbound intent cannot include intent identifiers`);
+  if (hasIntentId) requiredBoundedString(intent.intent_id, 160, `${label} intent_id`);
+  if (hasIntentDigest) requiredBoundedString(intent.intent_digest, 160, `${label} intent_digest`);
+
+  if (event.tool !== undefined) {
+    const tool = strictRecord(event.tool, ["name", "action"], `${label} tool`);
+    requiredBoundedString(tool.name, 160, `${label} tool.name`);
+    requiredActivityId(tool.action, `${label} tool.action`);
+  }
+  if (event.evaluation !== undefined) {
+    const evaluation = strictRecord(event.evaluation, ["status", "counterfactual_decision", "findings"], `${label} evaluation`);
+    requiredActivityId(evaluation.status, `${label} evaluation.status`);
+    if (evaluation.counterfactual_decision !== null && !ACTIVITY_DECISIONS.has(String(evaluation.counterfactual_decision))) {
+      throw new Error(`${label} counterfactual_decision is invalid`);
+    }
+    if (!Array.isArray(evaluation.findings) || evaluation.findings.length > 20) throw new Error(`${label} evaluation findings are invalid`);
+    for (const finding of evaluation.findings) requiredActivityId(finding, `${label} evaluation finding`);
+  }
+  if (event.execution !== undefined) {
+    const execution = strictRecord(event.execution, ["status", "duration_ms", "error_type"], `${label} execution`);
+    if (!ACTIVITY_EXECUTION_STATUSES.has(String(execution.status))) throw new Error(`${label} execution status is invalid`);
+    optionalNonnegativeNumber(execution.duration_ms, `${label} execution.duration_ms`);
+    if (execution.error_type !== undefined) requiredActivityId(execution.error_type, `${label} execution.error_type`);
+  }
+  validateStringRecord(event.model, ["model", "provider", "api_mode", "platform"], `${label} model`, 160);
+  validateNumberRecord(event.request, ["api_call_count", "approx_input_tokens", "tool_count"], `${label} request`, true);
+  validateNumberRecord(event.usage, ["input_tokens", "output_tokens", "total_tokens"], `${label} usage`, false);
+  if (event.subagent !== undefined) {
+    const subagent = strictRecord(event.subagent, ["role", "status", "duration_ms"], `${label} subagent`);
+    requiredBoundedString(subagent.role, 80, `${label} subagent.role`);
+    requiredActivityId(subagent.status, `${label} subagent.status`);
+    optionalNonnegativeNumber(subagent.duration_ms, `${label} subagent.duration_ms`);
+  }
+  if (event.event_type === "tool_action" && (!event.tool || !event.evaluation || !event.execution)) {
+    throw new Error(`${label} tool_action requires tool, evaluation, and execution metadata`);
+  }
+  return event as unknown as ActivityEvent;
+}
+
+function strictRecord(value: unknown, allowedKeys: string[], label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
+  const record = value as Record<string, unknown>;
+  const unsupported = Object.keys(record).find((key) => !allowedKeys.includes(key));
+  if (unsupported) throw new Error(`${label} contains unsupported field: ${unsupported}`);
+  return record;
+}
+
+function requiredActivityId(value: unknown, label: string): void {
+  if (typeof value !== "string" || !ACTIVITY_ID.test(value)) throw new Error(`${label} is invalid`);
+}
+
+function requiredBoundedString(value: unknown, maximum: number, label: string): void {
+  if (typeof value !== "string" || value.length < 1 || value.length > maximum) throw new Error(`${label} is invalid`);
+}
+
+function requiredActivityDate(value: unknown, label: string): void {
+  if (typeof value !== "string" || value.length > 40 || !Number.isFinite(Date.parse(value))) throw new Error(`${label} must be a valid date-time`);
+}
+
+function optionalNonnegativeNumber(value: unknown, label: string): void {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw new Error(`${label} is invalid`);
+}
+
+function validateStringRecord(value: unknown, fields: string[], label: string, maximum: number): void {
+  if (value === undefined) return;
+  const record = strictRecord(value, fields, label);
+  for (const [key, entry] of Object.entries(record)) requiredBoundedString(entry, maximum, `${label}.${key}`);
+}
+
+function validateNumberRecord(value: unknown, fields: string[], label: string, allowNull: boolean): void {
+  if (value === undefined) return;
+  const record = strictRecord(value, fields, label);
+  for (const [key, entry] of Object.entries(record)) {
+    if (allowNull && entry === null) continue;
+    if (typeof entry !== "number" || !Number.isInteger(entry) || entry < 0) throw new Error(`${label}.${key} is invalid`);
+  }
+}
+
+function activityDateFilter(value: string | null, label: string): { value?: number; error?: string } {
+  if (!value) return {};
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? { value: parsed } : { error: `activity ${label} must be a valid date-time` };
+}
+
+function activityMatches(
+  event: ActivityEvent,
+  filters: Record<string, string>,
+  from?: number,
+  to?: number,
+): boolean {
+  const observedAt = Date.parse(event.observed_at);
+  if (from !== undefined && observedAt < from) return false;
+  if (to !== undefined && observedAt > to) return false;
+  if (filters.agent_id && event.agent_id !== filters.agent_id) return false;
+  if (filters.event_type && event.event_type !== filters.event_type) return false;
+  if (filters.tool && event.tool?.name !== filters.tool) return false;
+  if (filters.decision && event.evaluation?.counterfactual_decision !== filters.decision) return false;
+  if (filters.execution_status && event.execution?.status !== filters.execution_status) return false;
+  if (filters.intent_binding && event.intent.binding_status !== filters.intent_binding) return false;
+  return true;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((entry) => entry.toString(16).padStart(2, "0")).join("");
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  return difference === 0;
 }
 
 function authenticateAuditWebhook(request: Request, env: Env): { ok: true } | { ok: false; status: number; error: string } {

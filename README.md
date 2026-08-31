@@ -43,6 +43,28 @@ boundary from the authenticated identity.
 
 ## Quick Start
 
+### Hermes Agent: Native Shadow Observer
+
+Install the repository plugin without adding a proxy or changing Hermes tool
+execution:
+
+```bash
+hermes plugins install dinpd/AgentAction/integrations/hermes-agentaction --no-enable
+hermes plugins enable agentaction
+```
+
+Configure the hosted endpoint, tenant, source, agent, and tool policies once;
+the plugin then exports privacy-safe lifecycle metadata asynchronously. It is
+fail open and returns no behavior-changing hook directives. Add both an
+explicit `intent_id` and `intent_digest` when a run already has an AgentAction
+contract; otherwise events are correctly labeled `unbound` rather than having
+intent inferred from prompts or model output.
+
+See the [Hermes onboarding guide](integrations/hermes-agentaction/) for the
+complete plugin and tenant-manifest configuration. The hosted operator console
+derives tenant access from Cloudflare Access, while each Hermes source uses a
+separate write-only token whose hash is stored in that tenant's manifest.
+
 ### Recommended: Observe An MCP Workflow
 
 Run the self-contained observer from a fresh clone:

@@ -1,0 +1,32 @@
+name: agentaction
+version: 0.6.0
+manifest_version: 2
+api_version: 1
+description: Fail-open AgentAction shadow observability for Hermes Agent
+license: Apache-2.0
+homepage: https://agentaction.dev/
+tags: [observability, security, shadow-mode, agentaction]
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call
+  - pre_api_request
+  - post_api_request
+  - api_request_error
+  - subagent_start
+  - subagent_stop
+requires_env:
+  - name: AGENTACTION_INGEST_TOKEN
+    description: Tenant- and source-scoped AgentAction observation token
+    secret: true
+config_schema:
+  endpoint: {type: str, default: "https://gateway.agentaction.dev", description: "AgentAction hosted gateway origin"}
+  tenant_id: {type: str, default: "", description: "Assigned AgentAction tenant ID", required: true}
+  source_id: {type: str, default: "hermes", description: "Registered observation source ID"}
+  agent_id: {type: str, default: "hermes-agent", description: "Stable agent identity shown in Activity"}
+  intent_id: {type: str, default: "", description: "Optional explicit AgentAction intent contract ID"}
+  intent_digest: {type: str, default: "", description: "Digest for the explicit intent contract"}
+  tool_policies: {type: dict, default: {}, description: "Counterfactual tool mappings and shadow policy"}
+  batch_size: {type: int, default: 25, description: "Events per export batch"}
+  flush_interval_seconds: {type: float, default: 2.0, description: "Maximum export delay"}
+  queue_capacity: {type: int, default: 1000, description: "Bounded in-memory event queue"}
+  spool_capacity: {type: int, default: 500, description: "Bounded retry spool in Hermes plugin state"}
