@@ -177,6 +177,8 @@ class FakeDocument {
       "[data-tenant]",
       "[data-tenant-switcher]",
       "[data-tenant-select]",
+      "[data-workspace-mode]",
+      "[data-workspace-manage]",
       "[data-subject]",
       "[data-refresh]",
       "[data-overview-filters]",
@@ -213,6 +215,8 @@ class FakeDocument {
       "[data-create-tenant-form]",
       "[data-create-tenant-id]",
       "[data-create-display-name]",
+      "[data-create-integration]",
+      "[data-create-integration-fields]",
       "[data-create-source-id]",
       "[data-create-agent-id]",
       "[data-redeem-invite-form]",
@@ -223,12 +227,15 @@ class FakeDocument {
       "[data-setup-message]",
       "[data-setup-message-title]",
       "[data-setup-message-detail]",
+      "[data-workspace-migration]",
+      "[data-enable-workspace-switching]",
       "[data-ingestion-title]",
       "[data-ingestion-detail]",
       "[data-access-title]",
       "[data-access-detail]",
       "[data-source-list]",
       "[data-create-source-form]",
+      "[data-source-integration]",
       "[data-source-id]",
       "[data-source-agent-id]",
       "[data-invite-members-card]",
@@ -243,6 +250,7 @@ class FakeDocument {
       "[data-source-token]",
       "[data-hermes-environment]",
       "[data-hermes-yaml]",
+      "[data-setup-config-label]",
       "[data-copy-source-token]",
       "[data-copy-hermes-environment]",
       "[data-copy-hermes-yaml]",
@@ -311,6 +319,8 @@ class FakeDocument {
       this.nodes.set(selector, new FakeElement(selector.includes("filters") ? "form" : "div"));
     }
     this.get("[data-filter-window]").value = "7";
+    this.get("[data-create-integration]").value = "none";
+    this.get("[data-source-integration]").value = "hermes";
     this.get("[data-filter-verdict]").value = "";
     this.get("[data-filter-constraint]").value = "";
     this.get("[data-jobs-filter-window]").value = "7";
@@ -326,6 +336,9 @@ class FakeDocument {
     this.get("[data-console-view='activity']").hidden = true;
     this.get("[data-console-view='job-detail']").hidden = true;
     this.get("[data-console-view='setup']").hidden = true;
+    this.get("[data-create-integration-fields]").hidden = true;
+    this.get("[data-setup-onboarding]").hidden = true;
+    this.get("[data-workspace-migration]").hidden = true;
     this.get("[data-jobs-content]").hidden = true;
     this.get("[data-activity-content]").hidden = true;
     this.get("[data-job-detail-content]").hidden = true;
@@ -362,6 +375,7 @@ type RuntimeOptions = {
   sessionStatus?: number;
   sessionPayload?: Record<string, any>;
   setupPayload?: Record<string, any>;
+  startSsoFixed?: boolean;
   startUnprovisioned?: boolean;
 };
 
@@ -374,6 +388,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const activityPayload = structuredClone(options.activityPayload || ACTIVITY_FIXTURE);
   const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
   let provisioned = options.startUnprovisioned !== true;
+  let workspaceMigrated = false;
   const runtime = {
     Date: FixedDate,
     document,
@@ -391,8 +406,8 @@ function makeRuntime(options: RuntimeOptions = {}) {
         return response(
           status === 200
             ? options.sessionPayload || (provisioned
-              ? { authenticated: true, tenant_id: "acme", subject: "operator-1", email: "operator@example.com", memberships: [{ tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } }] }
-              : { authenticated: true, tenant_id: null, subject: "operator-1", email: "operator@example.com", memberships: [] })
+              ? { authenticated: true, workspace_mode: options.startSsoFixed && !workspaceMigrated ? "sso_fixed" : "directory", tenant_id: "acme", subject: "operator-1", email: "operator@example.com", memberships: [{ tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } }] }
+              : { authenticated: true, workspace_mode: "directory", tenant_id: null, subject: "operator-1", email: "operator@example.com", memberships: [] })
             : { error: { code: "access_token_missing", message: "Authentication is required." } },
           status,
         );
@@ -406,11 +421,15 @@ function makeRuntime(options: RuntimeOptions = {}) {
           hermes: { environment: "AGENTACTION_INGEST_TOKEN=<one-time-token>", yaml: "tenant_id: acme\nsource_id: hermes-production" },
         }, 201);
       }
+      if (path === "/api/console/onboarding/tenants/acme/migrate") {
+        workspaceMigrated = true;
+        return response({ workspace_mode: "directory", membership: { tenant_id: "acme", role: "owner" } }, 201);
+      }
       if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/setup$/.test(path)) {
         const role = path.includes("/beta/") ? "viewer" : "owner";
         return response(options.setupPayload || {
           membership: { tenant_id: path.includes("/beta/") ? "beta" : "acme", role },
-          sources: [{ source_id: "hermes-production", enabled: true, agent_ids: ["support-agent"] }],
+          sources: [{ source_id: "hermes-production", integration: "hermes", enabled: true, agent_ids: ["support-agent"] }],
           members: [{ email: "operator@example.com", role: "owner" }],
           ingestion: { observed: false, last_observed_at: null },
         });
@@ -633,9 +652,41 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.equal(document.get("[data-tenant-setup]").hidden, false);
   assert.equal(document.get("[data-create-source-form]").hidden, false);
   assert.equal(document.get("[data-invite-members-card]").hidden, false);
-  assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent Enabled/);
+  assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent hermes · Enabled/);
   assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("adopts an SSO-managed workspace and reveals directory workspace actions", async () => {
+  const { controller, document, requests } = makeRuntime({ hash: "#setup", startSsoFixed: true });
+  await controller.ready;
+
+  assert.equal(document.get("[data-tenant-switcher]").hidden, false);
+  assert.equal((document.get("[data-tenant-select]") as any).disabled, true);
+  assert.equal(document.get("[data-workspace-mode]").textContent, "Managed by SSO");
+  assert.equal(document.get("[data-workspace-migration]").hidden, false);
+  assert.equal(document.get("[data-setup-onboarding]").hidden, true);
+
+  await document.get("[data-enable-workspace-switching]").dispatch("click");
+
+  assert.ok(requests.includes("/api/console/onboarding/tenants/acme/migrate"));
+  assert.equal(document.get("[data-workspace-mode]").textContent, "1 workspace");
+  assert.equal(document.get("[data-workspace-migration]").hidden, true);
+  assert.equal(document.get("[data-setup-onboarding]").hidden, false);
+  assert.match(document.get("[data-setup-message-title]").textContent, /switching enabled/);
+});
+
+test("keeps generic workspace creation separate from integration setup", async () => {
+  const { controller, document } = makeRuntime({ hash: "#setup", startUnprovisioned: true });
+  await controller.ready;
+
+  assert.equal(document.get("[data-create-integration]").value, "none");
+  assert.equal(document.get("[data-create-integration-fields]").hidden, true);
+  document.get("[data-create-integration]").value = "hermes";
+  await document.get("[data-create-integration]").dispatch("change");
+  assert.equal(document.get("[data-create-integration-fields]").hidden, false);
+  assert.match(SHELL_HTML, /Custom AgentAction source/);
+  assert.doesNotMatch(SHELL_HTML, /value="hermes-production"/);
 });
 
 test("switches only among the authenticated session memberships", async () => {
@@ -643,6 +694,7 @@ test("switches only among the authenticated session memberships", async () => {
     hash: "#setup",
     sessionPayload: {
       authenticated: true,
+      workspace_mode: "directory",
       tenant_id: "acme",
       subject: "operator-1",
       memberships: [
@@ -671,6 +723,7 @@ test("creates an unprovisioned tenant and shows its source secret only in memory
 
   document.get("[data-create-tenant-id]").value = "acme";
   document.get("[data-create-display-name]").value = "Acme";
+  document.get("[data-create-integration]").value = "hermes";
   document.get("[data-create-source-id]").value = "hermes-production";
   document.get("[data-create-agent-id]").value = "support-agent";
   await document.get("[data-create-tenant-form]").dispatch("submit");

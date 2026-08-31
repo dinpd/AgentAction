@@ -86,7 +86,9 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /<h1>AgentAction Observability<\/h1>/);
   assert.doesNotMatch(body, /<h1>Intent observability<\/h1>/);
   assert.match(body, /data-console-view="setup"/);
-  assert.match(body, /Create a tenant/);
+  assert.match(body, /Create a workspace/);
+  assert.match(body, /Enable workspace switching/);
+  assert.match(body, /Custom AgentAction source/);
   assert.match(body, /Redeem an invitation/);
   assert.match(body, /data-overview-filters/);
   assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
@@ -175,6 +177,27 @@ test("derives tenant identity only from the verified Access claim", async () => 
   assert.equal(JSON.stringify(body).includes("tenant-evil"), false);
 });
 
+test("exposes all server-authorized memberships after owner workspace adoption", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest("/api/console/session", {}, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
+    baseEnv(calls, () => json({
+      workspace_mode: "directory",
+      memberships: [
+        { tenant: { tenant_id: "tenant-alpha", display_name: "Alpha" }, membership: { role: "owner" } },
+        { tenant: { tenant_id: "tenant-beta", display_name: "Beta" }, membership: { role: "operator" } },
+      ],
+    })),
+  );
+  const body = await response.json() as any;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.workspace_mode, "directory");
+  assert.equal(body.tenant_id, null);
+  assert.deepEqual(body.memberships.map((entry: any) => entry.tenant.tenant_id), ["tenant-alpha", "tenant-beta"]);
+  assert.equal(calls.length, 1);
+});
+
 test("supports a fail-closed single-tenant console without requiring a custom Access claim", async () => {
   const calls: GatewayCall[] = [];
   const env = { ...baseEnv(calls), CONSOLE_STATIC_TENANT_ID: "refund-demo-agent" };
@@ -229,6 +252,29 @@ test("provisions a tenant through the authenticated control-plane BFF without tr
   assert.equal(calls[0].headers.get("x-agentaction-console-tenant-id"), null);
 });
 
+test("forwards owner workspace migration with only verified Access identity", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants/tenant-alpha/migrate", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-agentaction-console-subject": "browser-forged",
+        "x-agentaction-console-role": "viewer",
+      },
+      body: "{}",
+    }, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
+    baseEnv(calls, () => json({ workspace_mode: "directory", membership: { role: "owner" } }, 201)),
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal(calls.length, 1);
+  assert.equal(new URL(calls[0].url).pathname, "/control-plane/tenants/tenant-alpha/migrate");
+  assert.equal(calls[0].headers.get("x-agentaction-console-subject"), "operator-123");
+  assert.equal(calls[0].headers.get("x-agentaction-console-role"), "owner");
+  assert.equal(calls[0].headers.get("x-agentaction-console-tenant-id"), "tenant-alpha");
+});
+
 test("authorizes a directory tenant before forwarding its read-only data route", async () => {
   const calls: GatewayCall[] = [];
   const response = await worker.fetch(
@@ -254,16 +300,19 @@ test("authorizes a directory tenant before forwarding its read-only data route",
   assert.equal(deniedCalls.length, 1);
 });
 
-test("rejects a claimed cross-tenant route before calling the gateway", async () => {
+test("rejects an unmigrated claimed cross-workspace route through directory authorization", async () => {
   const calls: GatewayCall[] = [];
   const response = await worker.fetch(
     accessRequest("/api/console/tenants/tenant-beta/intent-quality/rollups?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z"),
-    baseEnv(calls),
+    baseEnv(calls, (request) => new URL(request.url).pathname.endsWith("/authorize")
+      ? json({ error: "tenant membership does not permit this operation" }, 403)
+      : json({ groups: [] })),
   );
 
   assert.equal(response.status, 403);
-  assert.equal((await response.json() as any).error.code, "tenant_mismatch");
-  assert.equal(calls.length, 0);
+  assert.equal((await response.json() as any).error.code, "tenant_membership_required");
+  assert.equal(calls.length, 1);
+  assert.equal(new URL(calls[0].url).pathname, "/control-plane/tenants/tenant-beta/authorize");
 });
 
 test("reconstructs an allowlisted gateway request and strips browser-controlled headers", async () => {
@@ -289,8 +338,9 @@ test("reconstructs an allowlisted gateway request and strips browser-controlled 
   assert.match(response.headers.get("x-agentpass-console-generated-at") || "", /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(Number.isFinite(Number(response.headers.get("x-agentpass-console-data-age-seconds"))), true);
   assert.deepEqual(await response.json(), { groups: [], sample_size: 0 });
-  assert.equal(calls.length, 1);
-  const call = calls[0];
+  assert.equal(calls.length, 2);
+  assert.equal(new URL(calls[0].url).pathname, "/control-plane/tenants/tenant-alpha/authorize");
+  const call = calls[1];
   assert.equal(call.method, "GET");
   assert.equal(
     call.url,
@@ -313,9 +363,9 @@ test("forwards only allowlisted finalized Jobs explorer filters", async () => {
   );
 
   assert.equal(response.status, 200);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
   assert.equal(
-    calls[0].url,
+    calls[1].url,
     "https://agentpass-gateway.internal/tenants/tenant-alpha/intent-quality/jobs?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z&profile_key=support_refund.v1&confidence=low&job_id=job-1&intent_id=intent-1&limit=25&cursor=opaque",
   );
   const rejected = await worker.fetch(
@@ -324,7 +374,7 @@ test("forwards only allowlisted finalized Jobs explorer filters", async () => {
   );
   assert.equal(rejected.status, 400);
   assert.equal((await rejected.json() as any).error.code, "query_parameter_not_allowed");
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });
 
 test("forwards only allowlisted tenant activity filters and never exposes ingestion", async () => {
@@ -336,9 +386,9 @@ test("forwards only allowlisted tenant activity filters and never exposes ingest
     baseEnv(calls, () => json({ schema_version: "agentaction.activity-page.v1", events: [] })),
   );
   assert.equal(response.status, 200);
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /\/tenants\/tenant-alpha\/activity\/events\?/);
-  assert.match(calls[0].url, /intent_binding=bound/);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].url, /\/tenants\/tenant-alpha\/activity\/events\?/);
+  assert.match(calls[1].url, /intent_binding=bound/);
 
   const raw = await worker.fetch(
     accessRequest("/api/console/tenants/tenant-alpha/activity/events?include_raw=true"),
@@ -350,7 +400,7 @@ test("forwards only allowlisted tenant activity filters and never exposes ingest
     baseEnv(calls),
   );
   assert.equal(ingestion.status, 404);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });
 
 test("forwards one exact read-only Job detail path without query parameters", async () => {
@@ -360,9 +410,9 @@ test("forwards one exact read-only Job detail path without query parameters", as
     baseEnv(calls, () => json({ schema_version: "agentpass.intent-quality-job-detail.v1" })),
   );
   assert.equal(response.status, 200);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
   assert.equal(
-    calls[0].url,
+    calls[1].url,
     "https://agentpass-gateway.internal/tenants/tenant-alpha/intent-quality/jobs/job-detail-1",
   );
 
@@ -383,7 +433,7 @@ test("forwards one exact read-only Job detail path without query parameters", as
     baseEnv(calls),
   );
   assert.equal(write.status, 405);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });
 
 test("rejects tenant query overrides and unknown query parameters before forwarding", async () => {
@@ -442,8 +492,8 @@ test("exposes only the planned read-side extension routes", async () => {
     const response = await worker.fetch(accessRequest(path), baseEnv(calls));
     assert.equal(response.status, 200, path);
   }
-  assert.equal(calls.length, paths.length);
-  assert.deepEqual(calls.map((call) => new URL(call.url).pathname), [
+  assert.equal(calls.length, paths.length * 2);
+  assert.deepEqual(calls.filter((_, index) => index % 2 === 1).map((call) => new URL(call.url).pathname), [
     "/tenants/tenant-alpha/health",
     "/tenants/tenant-alpha/intent-quality/jobs",
     "/tenants/tenant-alpha/intent-quality/jobs/job-1",

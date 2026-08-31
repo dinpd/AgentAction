@@ -43,8 +43,9 @@ The Hermes operator does not deploy a separate dashboard. Sign in to the hosted
 AgentAction Observability operator console through Cloudflare Access, open
 **Setup**, and:
 
-1. Create a tenant, or redeem an invitation from its owner.
-2. Name the first source and Hermes agent. The console displays its source
+1. Create or select a workspace, or redeem an invitation from its owner.
+2. Under **Agent connections**, choose **Hermes Agent**, then name the source
+   and agent. The console displays its source
    token once, plus the matching environment variable and YAML.
 3. Store the token as `AGENTACTION_INGEST_TOKEN`, install and enable the plugin,
    and copy the tenant/source/agent values into the Hermes configuration.
