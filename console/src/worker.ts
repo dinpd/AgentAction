@@ -136,14 +136,17 @@ const SHELL_HTML = `<!doctype html>
     </div>
     <div class="topbar-context">
       <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
-      <div class="identity" aria-label="Authenticated context">
+      <div class="account-context" aria-label="Workspace and account">
         <div class="workspace-control" data-tenant-switcher hidden>
-          <label><span>Workspace</span><select data-tenant-select aria-label="Active workspace"></select></label>
-          <small data-workspace-mode>Loading access…</small>
-          <a href="#setup" data-workspace-manage>Manage</a>
+          <div class="workspace-heading"><span>Workspace</span><small data-workspace-mode>Loading access…</small></div>
+          <div class="workspace-actions"><select data-tenant-select aria-label="Active workspace"></select><a href="#setup" data-workspace-manage>Manage</a></div>
         </div>
-        <span data-tenant>Workspace loading…</span>
-        <span data-subject>Identity loading…</span>
+        <div class="identity" aria-label="Authenticated identity">
+          <small data-identity-label>Signed in as</small>
+          <strong data-subject>Identity loading…</strong>
+          <span data-tenant>Workspace loading…</span>
+          <a class="logout-link" href="/cdn-cgi/access/logout" data-logout hidden>Log out</a>
+        </div>
       </div>
     </div>
   </header>
@@ -717,11 +720,16 @@ h2 { font-size: 1rem; line-height: 1.3; }
 .eyebrow { margin-bottom: 3px; color: var(--muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
 .brand-lockup { min-width: 0; }
 .brand-description { max-width: 660px; color: var(--muted); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar-context { display: flex; align-items: center; gap: 20px; }
+.topbar-context { display: flex; align-items: center; gap: 16px; }
 .repo-link { padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--green); font-size: 0.7rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
 .repo-link:hover, .repo-link:focus-visible { background: var(--green-soft); outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
-.identity { display: grid; gap: 2px; text-align: right; color: var(--muted); font-size: 0.75rem; }
+.account-context { display: flex; align-items: stretch; gap: 14px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
+.identity { display: grid; align-content: center; gap: 1px; min-width: 150px; padding-left: 14px; border-left: 1px solid var(--line); color: var(--muted); font-size: 0.7rem; text-align: left; }
+.identity small, .workspace-heading span { color: var(--muted); font-size: 0.61rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.identity strong { max-width: 220px; color: var(--ink); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identity [data-tenant] { color: var(--ink); font-weight: 800; }
+.logout-link { justify-self: start; margin-top: 2px; color: var(--green); font-size: 0.65rem; font-weight: 900; text-underline-offset: 3px; }
+.logout-link:hover, .logout-link:focus-visible { outline: 2px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
 .section-nav { position: sticky; top: 0; align-self: start; display: grid; gap: 4px; padding: 28px 18px; }
 .section-nav a { padding: 9px 11px; border-left: 2px solid transparent; color: var(--muted); font-size: 0.82rem; font-weight: 700; text-decoration: none; }
@@ -774,10 +782,14 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
 .card-index { color: var(--green); font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; }
 .phase { padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
 footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 0.72rem; }
+@media (max-width: 1050px) {
+  .topbar { display: grid; align-items: flex-start; padding: 15px 18px; }
+  .topbar-context { display: grid; justify-content: stretch; width: 100%; }
+  .account-context { width: 100%; }
+  .repo-link { justify-self: start; }
+  .brand-description { max-width: none; white-space: normal; }
+}
 @media (max-width: 820px) {
-  .topbar { align-items: flex-start; padding: 15px 18px; }
-  .topbar-context { gap: 10px; }
-  .brand-description { max-width: 52vw; }
   .layout { display: block; }
   .section-nav { position: static; grid-template-columns: repeat(6, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .section-nav a { border-left: 0; border-bottom: 2px solid transparent; }
@@ -787,12 +799,10 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
   .section-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
-  .topbar { display: grid; }
   .topbar-context { display: grid; justify-content: stretch; }
-  .identity { width: 100%; max-width: none; text-align: left; }
-  .workspace-control { grid-template-columns: minmax(0, 1fr) auto; justify-content: stretch; }
+  .account-context { display: grid; gap: 10px; width: 100%; }
+  .identity { min-width: 0; padding: 9px 0 0; border-top: 1px solid var(--line); border-left: 0; }
   .repo-link { justify-self: start; }
-  .brand-description { max-width: none; white-space: normal; }
   .placeholder-card { grid-template-columns: auto minmax(0, 1fr); }
   .phase { grid-column: 2; justify-self: start; }
 }
@@ -1077,11 +1087,13 @@ button { cursor: pointer; }
 .detail-findings { grid-template-columns: minmax(170px, 0.35fr) minmax(0, 1fr); }
 .future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .future-grid .placeholder-card { min-height: 130px; }
-.workspace-control { display: grid; grid-template-columns: minmax(150px, 220px) auto; gap: 2px 9px; align-items: end; justify-content: end; text-align: left; }
-.workspace-control label { display: grid; grid-row: 1 / span 2; gap: 2px; color: var(--muted); font-size: 0.64rem; font-weight: 800; }
-.workspace-control select { width: 100%; padding: 5px 24px 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
-.workspace-control small { align-self: end; color: var(--muted); font-size: 0.61rem; white-space: nowrap; }
-.workspace-control a { align-self: start; color: var(--green); font-size: 0.64rem; font-weight: 900; text-decoration: none; }
+.workspace-control { display: grid; align-content: center; gap: 5px; min-width: min(330px, 42vw); text-align: left; }
+.workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.workspace-heading small { color: var(--muted); font-size: 0.61rem; white-space: nowrap; }
+.workspace-actions { display: grid; grid-template-columns: minmax(150px, 1fr) auto; gap: 7px; align-items: stretch; }
+.workspace-control select { min-width: 0; width: 100%; padding: 6px 24px 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.workspace-control a { display: grid; place-items: center; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--green); font-size: 0.64rem; font-weight: 900; text-decoration: none; }
+.workspace-control a:hover, .workspace-control a:focus-visible { background: var(--green-soft); outline: 2px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 1px; }
 .migration-card { margin-bottom: 14px; border-color: var(--amber); background: #fff8e8; }
 .setup-panel { margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
 .setup-panel > .section-heading { margin-bottom: 14px; }
@@ -1187,6 +1199,8 @@ button { cursor: pointer; }
   .source-actions { justify-content: flex-start; }
 }
 @media (max-width: 520px) {
+  .workspace-control { min-width: 0; width: 100%; }
+  .workspace-actions { grid-template-columns: minmax(0, 1fr) auto; }
   .filter-grid,
   .metric-grid,
   .jobs-filter-grid { grid-template-columns: 1fr; }
@@ -1252,7 +1266,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const tenantSelect = required<HTMLSelectElement>("[data-tenant-select]");
   const workspaceModeLabel = required<HTMLElement>("[data-workspace-mode]");
   const workspaceManage = required<HTMLAnchorElement>("[data-workspace-manage]");
+  const identityLabel = required<HTMLElement>("[data-identity-label]");
   const subjectLabel = required<HTMLElement>("[data-subject]");
+  const logoutLink = required<HTMLAnchorElement>("[data-logout]");
   const refreshButton = required<HTMLButtonElement>("[data-refresh]");
   const filterForm = required<HTMLFormElement>("[data-overview-filters]");
   const resetButton = required<HTMLButtonElement>("[data-reset-filters]");
@@ -1589,6 +1605,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     publicDemo = body.public_demo === true;
     workspaceMode = body.workspace_mode === "sso_fixed" ? "sso_fixed" : "directory";
     setupNav.hidden = publicDemo;
+    logoutLink.hidden = publicDemo;
+    identityLabel.textContent = publicDemo ? "Viewing as" : "Signed in as";
     if (publicDemo && activeView === "setup") showView("overview");
     tenantMemberships = membershipEntries(body.memberships);
     const canCreateWorkspace = tenantMemberships.length === 0 || tenantMemberships.some((entry) => safeText(entry.membership.role, "") === "owner");

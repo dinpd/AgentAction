@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.9.1 - 2026-08-31
+
+### Console account controls
+
+- Added a same-origin Cloudflare Access logout action for operators who need to
+  authenticate with another identity; the public demo keeps it hidden.
+- Grouped workspace count, selection, management, identity, and session actions
+  into a responsive account panel while keeping repository navigation separate.
+
 ## 0.9.0 - 2026-08-31
 
 ### Workspace invitation onboarding

@@ -94,6 +94,9 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
   assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentAction"/);
   assert.match(body, />GitHub repository <span aria-hidden="true">↗<\/span><\/a>/);
+  assert.match(body, /class="account-context" aria-label="Workspace and account"/);
+  assert.match(body, /data-identity-label>Signed in as<\/small>/);
+  assert.match(body, /href="\/cdn-cgi\/access\/logout" data-logout hidden>Log out<\/a>/);
   assert.match(body, /<h2 id="overview-title">Execution quality<\/h2>/);
   assert.match(body, /aria-label="Fleet quality boundaries"/);
   assert.match(body, /Profile-scoped immutable final receipts/);

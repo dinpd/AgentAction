@@ -180,7 +180,9 @@ class FakeDocument {
       "[data-tenant-select]",
       "[data-workspace-mode]",
       "[data-workspace-manage]",
+      "[data-identity-label]",
       "[data-subject]",
+      "[data-logout]",
       "[data-refresh]",
       "[data-overview-filters]",
       "[data-reset-filters]",
@@ -461,7 +463,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
       if (path === "/api/console/health") {
         return response({ ok: true, data_state: options.dataState || "fresh" });
       }
-      if (path.startsWith("/api/console/tenants/acme/intent-quality/rollups?")) {
+      if (/^\/api\/console\/tenants\/(?:acme|synthetic)\/intent-quality\/rollups\?/.test(path)) {
         const status = options.rollupStatus || 200;
         if (status !== 200) {
           return response(
@@ -679,6 +681,28 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent hermes · Enabled/);
   assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("shows a Cloudflare Access logout for authenticated identities and hides it in the public demo", async () => {
+  const authenticated = makeRuntime();
+  await authenticated.controller.ready;
+  assert.equal(authenticated.document.get("[data-identity-label]").textContent, "Signed in as");
+  assert.equal(authenticated.document.get("[data-subject]").textContent, "operator@example.com");
+  assert.equal(authenticated.document.get("[data-logout]").hidden, false);
+
+  const publicDemo = makeRuntime({
+    sessionPayload: {
+      authenticated: true,
+      public_demo: true,
+      workspace_mode: "directory",
+      tenant_id: "synthetic",
+      subject: "public-demo",
+      memberships: [],
+    },
+  });
+  await publicDemo.controller.ready;
+  assert.equal(publicDemo.document.get("[data-identity-label]").textContent, "Viewing as");
+  assert.equal(publicDemo.document.get("[data-logout]").hidden, true);
 });
 
 test("changes connection instructions with the selected integration", async () => {
