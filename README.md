@@ -36,8 +36,10 @@ Prefer to start without blocking an existing workflow? Run the passive MCP
 observer quick start below, inspect the counterfactual policy decisions, and
 enable enforcement only after the boundary matches your intent. Use the public
 observability demo to inspect the interface without signing in. The separate
-operator console remains protected by Cloudflare Access. Operators can create,
-join, and switch workspaces after login; every selected workspace is
+operator console remains protected by Cloudflare Access. A new identity can
+create its first workspace; workspace owners can create additional ones and
+invite viewers or operators by email. Protected invitation links redeem
+automatically for the exact signed-in email, and every selected workspace is
 re-authorized server-side before its data is read.
 
 [![AgentAction public observability console showing synthetic outcome, constraint, confidence, execution, and data-quality metrics](website/public/observability-console.png)](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview)
@@ -64,7 +66,8 @@ intent inferred from prompts or model output.
 See the [Hermes onboarding guide](integrations/hermes-agentaction/) for the
 complete flow. The hosted operator console creates a framework-neutral
 workspace, then provisions a selected Hermes or generic AgentAction source,
-displays its token once, and verifies the first event. Each
+displays its token once, shows integration-specific connection steps, and
+verifies the first event. Each
 Hermes source still uses a separate write-only token whose hash is stored in
 that tenant's manifest.
 

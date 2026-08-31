@@ -108,6 +108,26 @@ rotation invalidates the prior token
 immediately; disabling a source stops new ingestion without deleting retained
 events.
 
+Workspace invitations use the `INVITATION_EMAIL` native Email Service binding.
+Set `AGENTACTION_CONSOLE_URL` to the Access-protected console and
+`AGENTACTION_INVITATION_FROM_EMAIL` to an allowed sender on an onboarded domain.
+The email includes an email-bound auto-redeem link whose secret is carried only
+in the URL fragment, plus a manual fallback code. A delivery error does not
+invalidate or delete the invitation; the owner can securely share that code.
+
+```toml
+[vars]
+AGENTACTION_CONSOLE_URL = "https://console.example.com/"
+AGENTACTION_INVITATION_FROM_EMAIL = "invites@example.com"
+
+[[send_email]]
+name = "INVITATION_EMAIL"
+allowed_sender_addresses = ["invites@example.com"]
+```
+
+The console Access policy must permit the invitee's exact email to authenticate
+before the gateway can verify and redeem the invitation.
+
 For the SaaS topology, configure both bindings in `wrangler.toml`, then put the
 same high-entropy internal token on the gateway and console Workers:
 
