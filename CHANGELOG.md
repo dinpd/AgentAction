@@ -4,6 +4,16 @@
 
 No changes yet.
 
+## 0.8.1 - 2026-08-31
+
+### Workspace adoption
+
+- Persist directory-mode state on the adopted principal membership so a fresh
+  production session reliably enables workspace switching after adoption.
+- Upgrade an already-adopted owner membership idempotently when the owner
+  repeats the action; the mode remains scoped to the exact Access issuer and
+  subject.
+
 ## 0.8.0 - 2026-08-31
 
 ### Upgrade and compatibility

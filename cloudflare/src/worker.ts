@@ -132,6 +132,7 @@ type TenantMembership = {
   role: TenantRole;
   created_at: string;
   created_by: string;
+  workspace_mode?: "directory";
 };
 type TenantInvitation = {
   schema_version: "agentaction.tenant-invitation.v1";
@@ -1999,15 +2000,16 @@ export class AgentIdJitGrants {
       const existingMembership = await this.state.storage.get<TenantMembership>(
         await directoryMembershipKey(identity.issuer, identity.subject, tenantId),
       );
-      const membership: TenantMembership = existingMembership?.role === "owner" ? existingMembership : {
+      const membership: TenantMembership = {
         schema_version: "agentaction.tenant-membership.v1",
         tenant_id: tenantId,
         subject: identity.subject,
         issuer: identity.issuer,
-        ...(identity.email ? { email: identity.email } : {}),
+        ...((identity.email || existingMembership?.email) ? { email: identity.email || existingMembership?.email } : {}),
         role: "owner",
-        created_at: createdAt,
-        created_by: "signed-access-owner-migration",
+        created_at: existingMembership?.created_at || createdAt,
+        created_by: existingMembership?.created_by || "signed-access-owner-migration",
+        workspace_mode: "directory",
       };
       if (!existingTenant) await this.state.storage.put(`directory:tenant:${tenantId}`, tenant);
       await this.persistDirectoryMembership(membership);
@@ -2153,7 +2155,11 @@ export class AgentIdJitGrants {
   async directoryWorkspaceMode(identity: ControlIdentity): Promise<"directory" | "sso_fixed"> {
     if (!identity.claimed_tenant_id) return "directory";
     const subjectKey = await directorySubjectKey(identity.issuer, identity.subject);
-    return await this.state.storage.get<string>(`${subjectKey}:workspace-mode`) === "directory" ? "directory" : "sso_fixed";
+    if (await this.state.storage.get<string>(`${subjectKey}:workspace-mode`) === "directory") return "directory";
+    const membership = await this.state.storage.get<TenantMembership>(
+      await directoryMembershipKey(identity.issuer, identity.subject, identity.claimed_tenant_id),
+    );
+    return membership?.workspace_mode === "directory" ? "directory" : "sso_fixed";
   }
 
   async persistDirectoryMembership(membership: TenantMembership): Promise<void> {
