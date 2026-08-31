@@ -93,7 +93,7 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /data-overview-filters/);
   assert.match(body, /Open-source intent contracts, execution controls, and immutable evidence/);
   assert.match(body, /href="https:\/\/github\.com\/dinpd\/AgentAction"/);
-  assert.match(body, />GitHub repository <span aria-hidden="true">↗<\/span><\/a>/);
+  assert.match(body, /class="repo-label-long">GitHub repository<\/span><span class="repo-label-short">GitHub<\/span>/);
   assert.match(body, /class="account-context" aria-label="Workspace and account"/);
   assert.match(body, /data-identity-label>Signed in as<\/small>/);
   assert.match(body, /href="\/cdn-cgi\/access\/logout" data-logout hidden>Log out<\/a>/);
@@ -154,6 +154,9 @@ test("serves responsive and focus-visible lifecycle disclosure styles", async ()
   assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.lifecycle-track \{ grid-template-columns: 1fr;/);
   assert.match(body, /\.lifecycle-track li \{[^}]*min-width: 0;/);
   assert.match(body, /\.repo-link:hover, \.repo-link:focus-visible/);
+  assert.match(body, /@media \(max-width: 1050px\)[\s\S]*\.brand-description \{ display: none; \}/);
+  assert.match(body, /@media \(max-width: 620px\)[\s\S]*\.topbar-context \{ display: contents; \}/);
+  assert.match(body, /@media \(max-width: 380px\)[\s\S]*\.account-context \{ display: grid;/);
   assert.match(body, /\.jobs-table td::before \{[^}]*content: attr\(data-label\);/);
   assert.match(body, /@media \(max-width: 760px\)[\s\S]*\.jobs-table,[\s\S]*\.jobs-table tbody/);
   assert.match(body, /\.evidence-timeline/);

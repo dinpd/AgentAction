@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.9.2 - 2026-08-31
+
+### Compact responsive header
+
+- Keep the console brand, compact GitHub link, and account controls on one row
+  at laptop and tablet widths instead of stacking the entire header.
+- Use a two-row phone treatment and reserve full account stacking for very
+  narrow screens, substantially reducing the space before console content.
+
 ## 0.9.1 - 2026-08-31
 
 ### Console account controls

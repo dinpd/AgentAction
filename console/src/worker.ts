@@ -135,7 +135,7 @@ const SHELL_HTML = `<!doctype html>
       <p class="brand-description">Open-source intent contracts, execution controls, and immutable evidence for accountable agents.</p>
     </div>
     <div class="topbar-context">
-      <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer">GitHub repository <span aria-hidden="true">↗</span></a>
+      <a class="repo-link" href="https://github.com/dinpd/AgentAction" target="_blank" rel="noreferrer"><span class="repo-label-long">GitHub repository</span><span class="repo-label-short">GitHub</span> <span aria-hidden="true">↗</span></a>
       <div class="account-context" aria-label="Workspace and account">
         <div class="workspace-control" data-tenant-switcher hidden>
           <div class="workspace-heading"><span>Workspace</span><small data-workspace-mode>Loading access…</small></div>
@@ -722,6 +722,7 @@ h2 { font-size: 1rem; line-height: 1.3; }
 .brand-description { max-width: 660px; color: var(--muted); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-context { display: flex; align-items: center; gap: 16px; }
 .repo-link { padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--green); font-size: 0.7rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.repo-label-short { display: none; }
 .repo-link:hover, .repo-link:focus-visible { background: var(--green-soft); outline: 3px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .account-context { display: flex; align-items: stretch; gap: 14px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
 .identity { display: grid; align-content: center; gap: 1px; min-width: 150px; padding-left: 14px; border-left: 1px solid var(--line); color: var(--muted); font-size: 0.7rem; text-align: left; }
@@ -782,13 +783,6 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
 .card-index { color: var(--green); font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; }
 .phase { padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
 footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 0.72rem; }
-@media (max-width: 1050px) {
-  .topbar { display: grid; align-items: flex-start; padding: 15px 18px; }
-  .topbar-context { display: grid; justify-content: stretch; width: 100%; }
-  .account-context { width: 100%; }
-  .repo-link { justify-self: start; }
-  .brand-description { max-width: none; white-space: normal; }
-}
 @media (max-width: 820px) {
   .layout { display: block; }
   .section-nav { position: static; grid-template-columns: repeat(6, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
@@ -799,10 +793,6 @@ footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--mut
   .section-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
-  .topbar-context { display: grid; justify-content: stretch; }
-  .account-context { display: grid; gap: 10px; width: 100%; }
-  .identity { min-width: 0; padding: 9px 0 0; border-top: 1px solid var(--line); border-left: 0; }
-  .repo-link { justify-self: start; }
   .placeholder-card { grid-template-columns: auto minmax(0, 1fr); }
   .phase { grid-column: 2; justify-self: start; }
 }
@@ -1137,6 +1127,18 @@ button { cursor: pointer; }
 .invitation-result { display: grid; gap: 7px; margin-top: 12px; padding: 10px; border: 1px solid var(--amber); background: #fff8e8; }
 .invitation-result code { overflow-wrap: anywhere; font-size: 0.67rem; }
 @media (max-width: 1050px) {
+  .topbar { gap: 12px; min-height: 0; padding: 9px 18px; }
+  .brand-lockup { flex: 1 1 auto; }
+  .brand-lockup .eyebrow { margin-bottom: 0; font-size: 0.6rem; }
+  .topbar h1 { font-size: 1.45rem; white-space: nowrap; }
+  .brand-description { display: none; }
+  .topbar-context { flex: 0 1 auto; gap: 8px; }
+  .repo-label-long { display: none; }
+  .repo-label-short { display: inline; }
+  .repo-link { padding: 6px 7px; }
+  .account-context { gap: 10px; padding: 7px 9px; }
+  .workspace-control { min-width: 250px; }
+  .identity { min-width: 125px; padding-left: 10px; }
   .intro { grid-template-columns: 1fr; gap: 12px; }
   .intro dl { min-width: 0; }
   .lifecycle-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1198,9 +1200,16 @@ button { cursor: pointer; }
   .source-row { grid-template-columns: 1fr; }
   .source-actions { justify-content: flex-start; }
 }
-@media (max-width: 520px) {
-  .workspace-control { min-width: 0; width: 100%; }
+@media (max-width: 620px) {
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 9px 12px; }
+  .topbar-context { display: contents; }
+  .repo-link { grid-column: 2; grid-row: 1; align-self: center; }
+  .account-context { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .workspace-control { flex: 1 1 auto; min-width: 0; }
   .workspace-actions { grid-template-columns: minmax(0, 1fr) auto; }
+  .identity { flex: 0 1 130px; min-width: 0; }
+}
+@media (max-width: 520px) {
   .filter-grid,
   .metric-grid,
   .jobs-filter-grid { grid-template-columns: 1fr; }
@@ -1227,6 +1236,10 @@ button { cursor: pointer; }
   .profile-header { padding: 16px; }
   .distribution,
   .discipline { overflow-x: auto; }
+}
+@media (max-width: 380px) {
+  .account-context { display: grid; gap: 8px; }
+  .identity { padding: 7px 0 0; border-top: 1px solid var(--line); border-left: 0; }
 }
 `;
 
