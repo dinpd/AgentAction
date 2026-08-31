@@ -179,15 +179,20 @@ test("derives tenant identity only from the verified Access claim", async () => 
 
 test("exposes all server-authorized memberships after owner workspace adoption", async () => {
   const calls: GatewayCall[] = [];
-  const response = await worker.fetch(
-    accessRequest("/api/console/session", {}, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
-    baseEnv(calls, () => json({
+  const env = {
+    ...baseEnv(calls, () => json({
       workspace_mode: "directory",
       memberships: [
         { tenant: { tenant_id: "tenant-alpha", display_name: "Alpha" }, membership: { role: "owner" } },
         { tenant: { tenant_id: "tenant-beta", display_name: "Beta" }, membership: { role: "operator" } },
       ],
     })),
+    CONSOLE_DIRECTORY_MODE: "true",
+    CONSOLE_STATIC_TENANT_ID: "tenant-alpha",
+  };
+  const response = await worker.fetch(
+    accessRequest("/api/console/session", {}, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
+    env,
   );
   const body = await response.json() as any;
 

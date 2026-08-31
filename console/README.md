@@ -217,6 +217,7 @@ Set the following Worker variables in Wrangler or the Cloudflare dashboard:
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `CONSOLE_ENVIRONMENT=production` | yes | Enables production fail-closed behavior. |
+| `CONSOLE_DIRECTORY_MODE=true` | yes for SaaS | Makes directory memberships authoritative even if a legacy static-tenant variable is still preserved by the deployment. |
 | `ACCESS_TEAM_DOMAIN` | yes | Exact Access team origin, such as `https://example.cloudflareaccess.com`. |
 | `ACCESS_AUD` | yes | Access application audience tag; comma-separated tags are accepted during migration. |
 | `ACCESS_TENANT_CLAIM` | no | Dotted signed claim path; defaults to `custom.tenant_id`. |
@@ -229,6 +230,9 @@ Set the following Worker variables in Wrangler or the Cloudflare dashboard:
 `keep_vars = true` preserves the dashboard-managed Access variables during CI
 deploys. Keep the non-secret defaults in `wrangler.toml` and treat the dashboard
 as the source for the account-specific `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
+The checked-in SaaS deployment sets `CONSOLE_DIRECTORY_MODE=true`, which
+explicitly overrides any stale `CONSOLE_STATIC_TENANT_ID` retained by
+`keep_vars`.
 
 Generate one high-entropy internal service token and store the same value as
 `AGENTID_INTERNAL_SERVICE_TOKEN` on both the gateway and console Workers. It is
