@@ -63,6 +63,8 @@ login, an operator sees an always-available workspace control. They can:
 - follow an emailed, seven-day, single-use invitation that redeems
   automatically for their exact signed-in email, or enter its fallback code;
 - switch among server-authorized directory memberships;
+- end the current Cloudflare Access session from the account control when they
+  need to authenticate with another identity;
 - adopt an existing SSO-pinned workspace as an owner without changing its data
   or credentials;
 - see whether the tenant has received its first activity event;
@@ -92,6 +94,12 @@ invite members, read the member list, and create additional workspaces.
 Identities with no memberships may create their first workspace; identities
 with only viewer/operator memberships may not create another. Invitations
 cannot grant `owner`.
+
+The header's **Log out** action uses the same-origin
+`/cdn-cgi/access/logout` endpoint documented by Cloudflare Access. It revokes
+the Access session and clears the application authorization cookie; it does not
+claim to sign the user out of their upstream identity provider. The public demo
+does not display this action.
 
 ## BFF routes
 
