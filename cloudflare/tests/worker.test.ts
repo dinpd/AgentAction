@@ -2863,9 +2863,27 @@ test("signed owners can adopt a workspace and then use directory memberships", a
   assert.equal(migrated.status, 201);
   assert.equal(migrated.body.workspace_mode, "directory");
   assert.equal(migrated.body.membership.role, "owner");
+  assert.equal(migrated.body.membership.workspace_mode, "directory");
   assert.equal(await manifests.get("legacy-tenant"), legacyManifest);
+
+  const directoryStore = namespace.stores.get("__agentaction_tenant_directory__")!;
+  const ownerPrincipal = `directory:principal:${createHash("sha256")
+    .update("https://access.example.com\u0000legacy-owner")
+    .digest("hex")}`;
+  directoryStore.delete(`${ownerPrincipal}:workspace-mode`);
+  const membershipKey = `${ownerPrincipal}:membership:legacy-tenant`;
+  const adoptedMembership = directoryStore.get(membershipKey) as Record<string, unknown>;
+  assert.equal((await call(env, ctx, "GET", "/control-plane/session", undefined, owner)).body.workspace_mode, "directory");
+
+  directoryStore.set(membershipKey, Object.fromEntries(
+    Object.entries(adoptedMembership).filter(([key]) => key !== "workspace_mode"),
+  ));
+  assert.equal((await call(env, ctx, "GET", "/control-plane/session", undefined, owner)).body.workspace_mode, "sso_fixed");
   const repeated = await call(env, ctx, "POST", "/control-plane/tenants/legacy-tenant/migrate", {}, owner);
   assert.equal(repeated.status, 200);
+  assert.equal(repeated.body.membership.workspace_mode, "directory");
+  directoryStore.delete(`${ownerPrincipal}:workspace-mode`);
+  assert.equal((await call(env, ctx, "GET", "/control-plane/session", undefined, owner)).body.workspace_mode, "directory");
 
   const beta = await call(env, ctx, "POST", "/control-plane/tenants", {
     tenant_id: "beta",
