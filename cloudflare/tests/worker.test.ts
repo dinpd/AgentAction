@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import { validateDecisionBasis } from "../src/decision-basis.ts";
@@ -31,6 +32,9 @@ class MemoryNamespace {
               return;
             }
             for (const [key, entry] of Object.entries(keyOrEntries)) values.set(key, entry);
+          },
+          async delete(key: string): Promise<boolean> {
+            return values.delete(key);
           },
         },
       });
@@ -2541,6 +2545,96 @@ test("hosted PII egress enforces fields domains approval and exact scope", async
   assert.ok(changedField.body.findings.includes("event[0]: field is blocked by flow: ssn"));
 });
 
+test("activity ingestion authenticates a tenant source and stores privacy-safe idempotent events", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const batch = activityBatch("acme", "obs_tool_1");
+
+  const accepted = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, headers);
+  assert.equal(accepted.status, 202);
+  assert.equal(accepted.body.accepted, 1);
+  assert.equal(accepted.body.duplicates, 0);
+
+  const replayed = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, headers);
+  assert.equal(replayed.status, 202);
+  assert.equal(replayed.body.accepted, 0);
+  assert.equal(replayed.body.duplicates, 1);
+
+  const page = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/activity/events?tool=browser.open&intent_binding=bound",
+    undefined,
+    { authorization: "Bearer dashboard-secret" },
+  );
+  assert.equal(page.status, 200);
+  assert.equal(page.body.count, 1);
+  assert.equal(page.body.events[0].intent.intent_id, "intent-123");
+  assert.equal(page.body.events[0].evaluation.counterfactual_decision, "challenge_required");
+  assert.equal(JSON.stringify(page.body.events).includes("args"), false);
+  assert.equal(JSON.stringify(page.body.events).includes("result"), false);
+
+  const otherTenant = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/beta/activity/events",
+    undefined,
+    { authorization: "Bearer dashboard-secret" },
+  );
+  assert.equal(otherTenant.status, 200);
+  assert.equal(otherTenant.body.count, 0);
+});
+
+test("activity ingestion rejects wrong credentials, tenant drift, raw fields, and conflicting replays", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const batch = activityBatch("acme", "obs_tool_2");
+
+  const wrongToken = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, {
+    ...headers,
+    authorization: "Bearer wrong",
+  });
+  assert.equal(wrongToken.status, 401);
+  const tenantDrift = await call(env, ctx, "POST", "/tenants/beta/activity/batches", batch, headers);
+  assert.equal(tenantDrift.status, 400);
+  const rawField = structuredClone(batch);
+  (rawField.events as Array<Record<string, unknown>>)[0].args = { password: "private" };
+  const rawRejected = await call(env, ctx, "POST", "/tenants/acme/activity/batches", rawField, headers);
+  assert.equal(rawRejected.status, 400);
+  assert.match(String(rawRejected.body.error), /unsupported field: args/);
+
+  const accepted = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, headers);
+  assert.equal(accepted.status, 202);
+  const conflict = structuredClone(batch);
+  const event = (conflict.events as Array<Record<string, any>>)[0];
+  event.execution.status = "error";
+  const conflicted = await call(env, ctx, "POST", "/tenants/acme/activity/batches", conflict, headers);
+  assert.equal(conflicted.status, 409);
+  assert.equal(conflicted.body.error_code, "activity_event_conflict");
+});
+
 async function call(
   env: Record<string, unknown>,
   ctx: TestContext,
@@ -3233,5 +3327,60 @@ function piiManifest(): Record<string, unknown> {
       },
     ],
     runtime: { enforce_manifest: true },
+  };
+}
+
+function activityManifest(token: string): Record<string, unknown> {
+  return {
+    agent: { id: "hermes-support", environment: "production" },
+    observability: {
+      ingestion: {
+        sources: {
+          "hermes-production": {
+            enabled: true,
+            token_sha256: `sha256:${createHash("sha256").update(token).digest("hex")}`,
+            agent_ids: ["hermes-support"],
+          },
+        },
+      },
+    },
+  };
+}
+
+function activityBatch(tenantId: string, eventId: string): Record<string, any> {
+  return {
+    schema_version: "agentaction.observation-batch.v1",
+    batch_id: `batch_${eventId}`,
+    tenant_id: tenantId,
+    source_id: "hermes-production",
+    sent_at: "2026-08-31T18:00:01.000Z",
+    events: [
+      {
+        schema_version: "agentaction.hermes-observation.v1",
+        event_id: eventId,
+        event_type: "tool_action",
+        observed_at: "2026-08-31T18:00:00.000Z",
+        source_id: "hermes-production",
+        agent_id: "hermes-support",
+        correlation: {
+          session_id: "session-1",
+          task_id: "task-1",
+          turn_id: "turn-1",
+          tool_call_id: eventId,
+        },
+        intent: {
+          binding_status: "bound",
+          intent_id: "intent-123",
+          intent_digest: "digest-123",
+        },
+        tool: { name: "browser.open", action: "read" },
+        evaluation: {
+          status: "evaluated",
+          counterfactual_decision: "challenge_required",
+          findings: ["approval_required"],
+        },
+        execution: { status: "ok", duration_ms: 42 },
+      },
+    ],
   };
 }

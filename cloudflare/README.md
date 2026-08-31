@@ -26,6 +26,8 @@ allow/deny/JIT decisions before tool execution:
 | `GET /intent-quality/rollups` | Aggregate finalized receipts into profile-scoped quality groups for a bounded time window |
 | `GET /intent-quality/jobs` | List tenant-scoped finalized jobs with bounded filters and opaque cursor pagination |
 | `GET /intent-quality/jobs/:job_id` | Read one finalized job's immutable boundary, evaluation summaries, evidence counts, and allowlisted timeline |
+| `POST /tenants/<tenant-id>/activity/batches` | Ingest a privacy-safe observer batch using a tenant/source-scoped write-only credential |
+| `GET /tenants/<tenant-id>/activity/events` | Read tenant activity with bounded time, agent, event, tool, decision, execution, and intent-binding filters |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -50,6 +52,41 @@ Intent profiles, issued contracts, bound decision events, execution receipts,
 observations, job evidence, and evaluation receipts use the same tenant-scoped
 durable store. All API routes in the table can be prefixed with
 `/tenants/<tenant-id>`.
+
+## Shadow activity ingestion
+
+Observer credentials are separate from gateway and console credentials. Store
+only a SHA-256 digest in the tenant manifest and give the cleartext token only
+to that observer source:
+
+```yaml
+observability:
+  ingestion:
+    sources:
+      hermes-production:
+        enabled: true
+        token_sha256: sha256:<64-lowercase-hex-digest>
+        agent_ids:
+          - customer-support-hermes
+```
+
+The source posts to
+`POST /tenants/acme/activity/batches` with `Authorization: Bearer <token>` and
+`X-AgentAction-Source-Id: hermes-production`. Generic API keys and console
+credentials do not authorize this write path. The route rejects tenant/source
+drift, unapproved agents, batches over 256 KiB or 100 events, unknown fields,
+changed replay content under an existing event ID, and payload-bearing fields
+outside the strict privacy-safe schema.
+
+Each tenant uses its own Durable Object name. The newest 2,000 events remain
+queryable, exact retries are counted as duplicates, and an event ID reused for
+different content returns `409`. `GET /tenants/:tenant/activity/events` uses
+normal gateway authentication and never returns source credentials.
+
+Intent linkage is an optional evidence dimension on an activity event. A
+`bound` event must carry both an explicit `intent_id` and `intent_digest`;
+otherwise it is stored as `unbound`. The activity API does not infer intent or
+replace contract registration, trusted outcome evidence, or final evaluation.
 
 ## Versioned intent profiles
 

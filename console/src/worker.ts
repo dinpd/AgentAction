@@ -95,6 +95,18 @@ const AUDIT_QUERY = new Set([
   "cursor",
 ]);
 const APPROVAL_QUERY = new Set(["status", "agent_id", "limit", "cursor"]);
+const ACTIVITY_QUERY = new Set([
+  "from",
+  "to",
+  "agent_id",
+  "event_type",
+  "tool",
+  "decision",
+  "execution_status",
+  "intent_binding",
+  "limit",
+  "cursor",
+]);
 const NO_QUERY = new Set<string>();
 
 const SHELL_HTML = `<!doctype html>
@@ -126,6 +138,7 @@ const SHELL_HTML = `<!doctype html>
   <div class="layout">
     <nav class="section-nav" aria-label="Console sections">
       <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
+      <a href="#activity" data-nav-activity>Activity</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
       <a href="#job-detail" data-nav-job-detail>Job detail</a>
       <a href="#exceptions">Exceptions</a>
@@ -299,6 +312,61 @@ const SHELL_HTML = `<!doctype html>
             <ul data-overview-findings-list></ul>
           </section>
           <div class="rollup-list" data-rollup-list aria-live="polite"></div>
+        </section>
+      </section>
+      <section id="activity" class="jobs-panel" data-console-view="activity" aria-labelledby="activity-heading" tabindex="-1" hidden>
+        <header class="section-heading">
+          <div>
+            <p class="eyebrow">Shadow activity</p>
+            <h2 id="activity-heading">Agent execution stream</h2>
+            <p>Privacy-safe Hermes actions and counterfactual AgentAction decisions. Intent is shown only when the integration supplied an explicit ID and digest.</p>
+          </div>
+          <span class="read-only-badge">Read only</span>
+        </header>
+        <form class="filter-form" data-activity-filters>
+          <fieldset>
+            <legend>Filter observed activity</legend>
+            <div class="filter-grid jobs-filter-grid">
+              <label>
+                <span>Time window</span>
+                <select data-activity-filter-window>
+                  <option value="1">Last 24 hours</option>
+                  <option value="7" selected>Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+              </label>
+              <label><span>Agent</span><input data-activity-filter-agent type="text" maxlength="160" autocomplete="off" placeholder="hermes-support"></label>
+              <label><span>Event</span><select data-activity-filter-event><option value="">All events</option><option value="tool_action">Tool action</option><option value="model_request_started">Model request started</option><option value="model_request_completed">Model request completed</option><option value="subagent_started">Subagent started</option><option value="subagent_completed">Subagent completed</option></select></label>
+              <label><span>Tool</span><input data-activity-filter-tool type="text" maxlength="160" autocomplete="off" placeholder="browser.open"></label>
+              <label><span>Shadow decision</span><select data-activity-filter-decision><option value="">All decisions</option><option value="allow">Allow</option><option value="challenge_required">Challenge required</option><option value="deny">Deny</option></select></label>
+              <label><span>Execution</span><select data-activity-filter-execution><option value="">All states</option><option value="ok">OK</option><option value="error">Error</option><option value="blocked">Blocked</option><option value="cancelled">Cancelled</option><option value="unknown">Unknown</option></select></label>
+              <label><span>Intent binding</span><select data-activity-filter-intent><option value="">Bound and unbound</option><option value="bound">Explicitly bound</option><option value="unbound">Unbound</option></select></label>
+            </div>
+            <div class="filter-actions">
+              <button class="primary-button" type="submit">Apply filters</button>
+              <button class="text-button" type="button" data-reset-activity-filters>Reset</button>
+              <p data-activity-window-summary>Preparing the bounded UTC window…</p>
+            </div>
+          </fieldset>
+        </form>
+        <section class="overview-state" data-activity-message data-state="loading" role="status" aria-live="polite" aria-atomic="true">
+          <div class="state-mark" aria-hidden="true">↻</div>
+          <div><h3 data-activity-message-title>Loading observed activity</h3><p data-activity-message-detail>Reading privacy-safe events through the tenant-scoped BFF.</p></div>
+        </section>
+        <section class="jobs-content" data-activity-content hidden>
+          <div class="jobs-summary">
+            <div><p class="eyebrow">Observation coverage</p><h3 data-activity-summary>Waiting for agent activity.</h3></div>
+            <p class="window-note">Shadow decisions never change Hermes execution.</p>
+          </div>
+          <div class="jobs-table-wrap">
+            <table class="jobs-table">
+              <caption>Privacy-safe agent activity</caption>
+              <thead><tr><th scope="col">Observed</th><th scope="col">Agent / event</th><th scope="col">Tool</th><th scope="col">Shadow decision</th><th scope="col">Actual execution</th><th scope="col">Intent</th><th scope="col">Correlation</th></tr></thead>
+              <tbody data-activity-list></tbody>
+            </table>
+          </div>
+          <div class="jobs-pagination"><p data-activity-page-summary>Showing the first page.</p><button class="text-button" type="button" data-activity-next hidden>Show next page</button></div>
         </section>
       </section>
       <section id="jobs" class="jobs-panel" data-console-view="jobs" aria-labelledby="jobs-heading" tabindex="-1" hidden>
@@ -1006,13 +1074,15 @@ export type ConsoleAppRuntime = {
 };
 
 export type ConsoleAppController = {
+  buildActivityQuery(cursor?: string): URLSearchParams;
   buildJobsQuery(cursor?: string): URLSearchParams;
   buildQualityQuery(): URLSearchParams;
   loadJobDetail(jobId?: string): Promise<void>;
+  loadActivity(cursor?: string): Promise<void>;
   loadJobs(cursor?: string): Promise<void>;
   loadOverview(): Promise<void>;
   ready: Promise<void>;
-  showView(view: "job-detail" | "jobs" | "overview"): void;
+  showView(view: "activity" | "job-detail" | "jobs" | "overview"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
@@ -1047,14 +1117,34 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const overviewFindingsList = required<HTMLElement>("[data-overview-findings-list]");
   const rollupList = required<HTMLElement>("[data-rollup-list]");
   const overviewPanel = required<HTMLElement>("[data-console-view='overview']");
+  const activityPanel = required<HTMLElement>("[data-console-view='activity']");
   const jobsPanel = required<HTMLElement>("[data-console-view='jobs']");
   const jobDetailPanel = required<HTMLElement>("[data-console-view='job-detail']");
   const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
   const lifecyclePanel = required<HTMLElement>("[data-overview-context='lifecycle']");
   const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
+  const activityNav = required<HTMLAnchorElement>("[data-nav-activity]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
   const jobDetailNav = required<HTMLAnchorElement>("[data-nav-job-detail]");
   const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
+  const activityFilterForm = required<HTMLFormElement>("[data-activity-filters]");
+  const resetActivityButton = required<HTMLButtonElement>("[data-reset-activity-filters]");
+  const activityWindowFilter = required<HTMLSelectElement>("[data-activity-filter-window]");
+  const activityAgentFilter = required<HTMLInputElement>("[data-activity-filter-agent]");
+  const activityEventFilter = required<HTMLSelectElement>("[data-activity-filter-event]");
+  const activityToolFilter = required<HTMLInputElement>("[data-activity-filter-tool]");
+  const activityDecisionFilter = required<HTMLSelectElement>("[data-activity-filter-decision]");
+  const activityExecutionFilter = required<HTMLSelectElement>("[data-activity-filter-execution]");
+  const activityIntentFilter = required<HTMLSelectElement>("[data-activity-filter-intent]");
+  const activityWindowSummary = required<HTMLElement>("[data-activity-window-summary]");
+  const activityMessage = required<HTMLElement>("[data-activity-message]");
+  const activityMessageTitle = required<HTMLElement>("[data-activity-message-title]");
+  const activityMessageDetail = required<HTMLElement>("[data-activity-message-detail]");
+  const activityContent = required<HTMLElement>("[data-activity-content]");
+  const activitySummary = required<HTMLElement>("[data-activity-summary]");
+  const activityList = required<HTMLElement>("[data-activity-list]");
+  const activityPageSummary = required<HTMLElement>("[data-activity-page-summary]");
+  const activityNextButton = required<HTMLButtonElement>("[data-activity-next]");
   const jobsFilterForm = required<HTMLFormElement>("[data-jobs-filters]");
   const resetJobsButton = required<HTMLButtonElement>("[data-reset-jobs-filters]");
   const jobsWindowFilter = required<HTMLSelectElement>("[data-jobs-filter-window]");
@@ -1100,6 +1190,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const allowedVerdicts = new Set(["", "completed", "partial", "failed", "indeterminate"]);
   const allowedConstraints = new Set(["", "pass", "fail", "indeterminate"]);
   const allowedConfidence = new Set(["", "low", "medium", "high"]);
+  const allowedActivityEvents = new Set(["", "tool_action", "model_request_started", "model_request_completed", "subagent_started", "subagent_completed"]);
+  const allowedActivityDecisions = new Set(["", "allow", "deny", "challenge_required"]);
+  const allowedActivityExecutions = new Set(["", "ok", "error", "blocked", "cancelled", "unknown"]);
+  const allowedIntentBindings = new Set(["", "bound", "unbound"]);
   const statusMessages: Record<string, [string, string]> = {
     loading: ["Loading fleet quality", "Reading immutable final receipts through the tenant-scoped BFF."],
     ready: ["Fleet quality is current", "Finalized execution quality is grouped by immutable profile binding."],
@@ -1110,11 +1204,15 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     unavailable: ["Console data is unavailable", "The private AgentAction gateway cannot be reached. Try again or contact an operator."],
   };
   let tenantId = "";
-  let activeView: "job-detail" | "jobs" | "overview" = runtime.location.hash === "#jobs"
-    ? "jobs"
-    : runtime.location.hash === "#job-detail"
-      ? "job-detail"
-      : "overview";
+  let activeView: "activity" | "job-detail" | "jobs" | "overview" = runtime.location.hash === "#activity"
+    ? "activity"
+    : runtime.location.hash === "#jobs"
+      ? "jobs"
+      : runtime.location.hash === "#job-detail"
+        ? "job-detail"
+        : "overview";
+  let currentActivityCursor = "";
+  let nextActivityCursor = "";
   let currentJobId = "";
   let currentJobsCursor = "";
   let nextJobsCursor = "";
@@ -1190,6 +1288,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobsMessage.hidden = false;
   }
 
+  function setActivityState(state: string, title: string, detail: string): void {
+    activityMessage.dataset.state = state;
+    activityMessageTitle.textContent = title;
+    activityMessageDetail.textContent = detail;
+    activityMessage.hidden = false;
+  }
+
   function setJobDetailState(state: string, title: string, detail: string): void {
     jobDetailMessage.dataset.state = state;
     jobDetailMessageTitle.textContent = title;
@@ -1253,6 +1358,23 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     currentJobsCursor = (query.get("cursor") || "").slice(0, 1_024);
   }
 
+  function restoreActivityFilters(): void {
+    const query = new URLSearchParams(runtime.location.search || "");
+    const windowValue = query.get("window") || "";
+    if (allowedWindows.has(windowValue)) activityWindowFilter.value = windowValue;
+    activityAgentFilter.value = (query.get("agent_id") || "").slice(0, 160);
+    activityToolFilter.value = (query.get("tool") || "").slice(0, 160);
+    const eventType = query.get("event_type") || "";
+    activityEventFilter.value = allowedActivityEvents.has(eventType) ? eventType : "";
+    const decision = query.get("decision") || "";
+    activityDecisionFilter.value = allowedActivityDecisions.has(decision) ? decision : "";
+    const execution = query.get("execution_status") || "";
+    activityExecutionFilter.value = allowedActivityExecutions.has(execution) ? execution : "";
+    const intent = query.get("intent_binding") || "";
+    activityIntentFilter.value = allowedIntentBindings.has(intent) ? intent : "";
+    currentActivityCursor = (query.get("cursor") || "").slice(0, 1_024);
+  }
+
   function restoreJobDetail(): void {
     const query = new URLSearchParams(runtime.location.search || "");
     currentJobId = (query.get("job_id") || "").trim().slice(0, 160);
@@ -1279,6 +1401,18 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobsIntentFilter.value = "";
     currentJobsCursor = "";
     nextJobsCursor = "";
+  }
+
+  function resetActivityFilters(): void {
+    activityWindowFilter.value = "7";
+    activityAgentFilter.value = "";
+    activityEventFilter.value = "";
+    activityToolFilter.value = "";
+    activityDecisionFilter.value = "";
+    activityExecutionFilter.value = "";
+    activityIntentFilter.value = "";
+    currentActivityCursor = "";
+    nextActivityCursor = "";
   }
 
   function appendTextFilter(query: URLSearchParams, name: string, value: string): void {
@@ -1316,6 +1450,24 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       query.set("constraint_compliance", constraintFilter.value);
     }
     windowSummary.textContent = `${window.days}-day UTC window · ${window.from.toISOString()} to ${window.to.toISOString()}`;
+    return query;
+  }
+
+  function buildActivityQuery(cursor = currentActivityCursor): URLSearchParams {
+    const window = queryWindowFor(activityWindowFilter);
+    const query = new URLSearchParams({
+      from: window.from.toISOString(),
+      to: window.to.toISOString(),
+      limit: "50",
+    });
+    appendTextFilter(query, "agent_id", activityAgentFilter.value);
+    appendTextFilter(query, "tool", activityToolFilter.value);
+    if (allowedActivityEvents.has(activityEventFilter.value) && activityEventFilter.value) query.set("event_type", activityEventFilter.value);
+    if (allowedActivityDecisions.has(activityDecisionFilter.value) && activityDecisionFilter.value) query.set("decision", activityDecisionFilter.value);
+    if (allowedActivityExecutions.has(activityExecutionFilter.value) && activityExecutionFilter.value) query.set("execution_status", activityExecutionFilter.value);
+    if (allowedIntentBindings.has(activityIntentFilter.value) && activityIntentFilter.value) query.set("intent_binding", activityIntentFilter.value);
+    if (cursor) query.set("cursor", cursor.slice(0, 1_024));
+    activityWindowSummary.textContent = `${window.days}-day UTC window · ${window.from.toISOString()} to ${window.to.toISOString()}`;
     return query;
   }
 
@@ -1383,6 +1535,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#jobs`);
   }
 
+  function syncActivityPageUrl(cursor = currentActivityCursor): void {
+    const pageQuery = new URLSearchParams();
+    pageQuery.set("window", allowedWindows.has(activityWindowFilter.value) ? activityWindowFilter.value : "7");
+    appendTextFilter(pageQuery, "agent_id", activityAgentFilter.value);
+    appendTextFilter(pageQuery, "tool", activityToolFilter.value);
+    if (allowedActivityEvents.has(activityEventFilter.value) && activityEventFilter.value) pageQuery.set("event_type", activityEventFilter.value);
+    if (allowedActivityDecisions.has(activityDecisionFilter.value) && activityDecisionFilter.value) pageQuery.set("decision", activityDecisionFilter.value);
+    if (allowedActivityExecutions.has(activityExecutionFilter.value) && activityExecutionFilter.value) pageQuery.set("execution_status", activityExecutionFilter.value);
+    if (allowedIntentBindings.has(activityIntentFilter.value) && activityIntentFilter.value) pageQuery.set("intent_binding", activityIntentFilter.value);
+    if (cursor) pageQuery.set("cursor", cursor.slice(0, 1_024));
+    const suffix = pageQuery.toString();
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#activity`);
+  }
+
   function syncJobDetailUrl(jobId = currentJobId): void {
     const query = new URLSearchParams();
     if (jobId) query.set("job_id", jobId.slice(0, 160));
@@ -1401,14 +1567,16 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     nextJobsCursor = "";
   }
 
-  function showView(view: "job-detail" | "jobs" | "overview"): void {
+  function showView(view: "activity" | "job-detail" | "jobs" | "overview"): void {
     activeView = view;
     overviewPanel.hidden = view !== "overview";
+    activityPanel.hidden = view !== "activity";
     jobsPanel.hidden = view !== "jobs";
     jobDetailPanel.hidden = view !== "job-detail";
     qualityIntro.hidden = view !== "overview";
     lifecyclePanel.hidden = view !== "overview";
     overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
+    activityNav.setAttribute("aria-current", view === "activity" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
     jobDetailNav.setAttribute("aria-current", view === "job-detail" ? "page" : "false");
   }
@@ -2204,6 +2372,99 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
   }
 
+  function isRenderableActivity(value: unknown): boolean {
+    const event = record(value);
+    const intent = record(event.intent);
+    return event.schema_version === "agentaction.hermes-observation.v1"
+      && typeof event.event_id === "string"
+      && typeof event.event_type === "string"
+      && validTimestamp(event.observed_at)
+      && typeof event.agent_id === "string"
+      && (intent.binding_status === "bound" || intent.binding_status === "unbound");
+  }
+
+  function renderActivityEvent(value: unknown): HTMLElement {
+    const event = record(value);
+    const tool = record(event.tool);
+    const evaluation = record(event.evaluation);
+    const execution = record(event.execution);
+    const intent = record(event.intent);
+    const correlation = record(event.correlation);
+    const row = create("tr");
+    const correlationValues = ["session_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "child_subagent_id"]
+      .map((key) => safeText(correlation[key], ""))
+      .filter(Boolean);
+    const intentCell = intent.binding_status === "bound"
+      ? cellStack(statusPill("Explicitly bound", "completed"), create("small", undefined, safeText(intent.intent_id)))
+      : cellStack(statusPill("Unbound", "indeterminate"), create("small", undefined, "No intent was inferred"));
+    const decision = safeText(evaluation.counterfactual_decision, "Not evaluated");
+    const executionStatus = safeText(execution.status, "Not applicable");
+    row.append(
+      tableCell("Observed", cellStack(create("time", undefined, formatTimestamp(event.observed_at)), create("small", undefined, safeText(event.event_id)))),
+      tableCell("Agent / event", cellStack(create("strong", undefined, safeText(event.agent_id)), create("small", undefined, safeText(event.event_type)))),
+      tableCell("Tool", cellStack(create("strong", undefined, safeText(tool.name, "Not a tool event")), create("small", undefined, safeText(tool.action, "—")))),
+      tableCell("Shadow decision", cellStack(statusPill(decision, decision), create("small", undefined, safeText(evaluation.status, "No evaluation")))),
+      tableCell("Actual execution", cellStack(statusPill(executionStatus, executionStatus), create("small", undefined, formatDuration(execution.duration_ms)))),
+      tableCell("Intent", intentCell),
+      tableCell("Correlation", cellStack(create("small", undefined, correlationValues.length > 0 ? correlationValues.join(" · ") : "No correlation IDs"))),
+    );
+    return row;
+  }
+
+  function renderActivity(payloadValue: unknown, response: Response): void {
+    const payload = record(payloadValue);
+    if (payload.schema_version !== "agentaction.activity-page.v1" || payload.tenant_id !== tenantId || !Array.isArray(payload.events)) {
+      throw new Error("Activity response is invalid.");
+    }
+    const events = payload.events.filter(isRenderableActivity);
+    if (payload.events.length > 0 && events.length === 0) throw new Error("Activity events are invalid.");
+    nextActivityCursor = typeof payload.next_cursor === "string" ? payload.next_cursor.slice(0, 1_024) : "";
+    activityNextButton.hidden = !nextActivityCursor;
+    activityList.replaceChildren(...events.map(renderActivityEvent));
+    activitySummary.textContent = `${events.length.toLocaleString("en-US")} privacy-safe event(s) on this page.`;
+    activityPageSummary.textContent = currentActivityCursor
+      ? `Showing a subsequent page of ${events.length.toLocaleString("en-US")} event(s).`
+      : `Showing the newest ${events.length.toLocaleString("en-US")} event(s).`;
+    activityContent.hidden = events.length === 0;
+    if (events.length === 0) {
+      setActivityState("empty", "No activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
+      setStatus("ready", "The Activity query completed with no matches.");
+      return;
+    }
+    activityMessage.hidden = true;
+    const freshness = responseFreshness(response);
+    if (freshness.state === "stale") {
+      setStatus("stale", "Observed activity may be older than the configured freshness threshold.");
+    } else {
+      setStatus("ready", "Privacy-safe shadow activity is current for this tenant.");
+    }
+  }
+
+  async function loadActivity(cursor = currentActivityCursor): Promise<void> {
+    if (!tenantId) return;
+    currentActivityCursor = cursor.slice(0, 1_024);
+    setStatus("loading", "Querying tenant-scoped agent activity.");
+    setActivityState("loading", "Loading observed activity", "Reading privacy-safe events through the tenant-scoped BFF.");
+    activityContent.hidden = true;
+    activityNextButton.hidden = true;
+    const query = buildActivityQuery(currentActivityCursor);
+    syncActivityPageUrl(currentActivityCursor);
+    try {
+      const result = await read(`/api/console/tenants/${encodeURIComponent(tenantId)}/activity/events?${query.toString()}`);
+      if (!result.response.ok) {
+        const state = failureState(result.response.status);
+        const detail = failureMessage(result.body, statusMessages[state][1]);
+        setStatus(state, detail);
+        setActivityState(state, statusMessages[state][0], detail);
+        return;
+      }
+      renderActivity(result.body, result.response);
+    } catch {
+      setStatus("unavailable");
+      setActivityState("unavailable", "Observed activity is unavailable", statusMessages.unavailable[1]);
+    }
+  }
+
   async function loadJobDetail(jobId = currentJobId): Promise<void> {
     currentJobId = jobId.trim().slice(0, 160);
     syncJobDetailUrl(currentJobId);
@@ -2310,9 +2571,11 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   async function start(): Promise<void> {
     setStatus("loading");
     restoreFilters();
+    restoreActivityFilters();
     restoreJobsFilters();
     restoreJobDetail();
     buildQualityQuery();
+    buildActivityQuery();
     buildJobsQuery();
     showView(activeView);
     try {
@@ -2322,6 +2585,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         const detail = failureMessage(session.body, statusMessages[state][1]);
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
+        setActivityState(state, statusMessages[state][0], detail);
         setJobsState(state, statusMessages[state][0], detail);
         setJobDetailState(state, statusMessages[state][0], detail);
         return;
@@ -2336,16 +2600,19 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         const detail = failureMessage(health.body, statusMessages[state][1]);
         setStatus(state, detail);
         setOverviewState(state, statusMessages[state][0], detail);
+        setActivityState(state, statusMessages[state][0], detail);
         setJobsState(state, statusMessages[state][0], detail);
         setJobDetailState(state, statusMessages[state][0], detail);
         return;
       }
-      if (activeView === "jobs") await loadJobs();
+      if (activeView === "activity") await loadActivity();
+      else if (activeView === "jobs") await loadJobs();
       else if (activeView === "job-detail") await loadJobDetail();
       else await loadOverview();
     } catch {
       setStatus("unavailable");
       setOverviewState("unavailable", statusMessages.unavailable[0], statusMessages.unavailable[1]);
+      setActivityState("unavailable", "Observed activity is unavailable", statusMessages.unavailable[1]);
       setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
       setJobDetailState("unavailable", "Finalized Job detail is unavailable", statusMessages.unavailable[1]);
     }
@@ -2360,7 +2627,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     void loadOverview();
   });
   refreshButton.addEventListener("click", () => {
-    if (activeView === "jobs") void loadJobs();
+    if (activeView === "activity") void loadActivity();
+    else if (activeView === "jobs") void loadJobs();
     else if (activeView === "job-detail") void loadJobDetail();
     else void loadOverview();
   });
@@ -2369,6 +2637,19 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     currentJobsCursor = "";
     nextJobsCursor = "";
     void loadJobs("");
+  });
+  activityFilterForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    currentActivityCursor = "";
+    nextActivityCursor = "";
+    void loadActivity("");
+  });
+  resetActivityButton.addEventListener("click", () => {
+    resetActivityFilters();
+    void loadActivity("");
+  });
+  activityNextButton.addEventListener("click", () => {
+    if (nextActivityCursor) void loadActivity(nextActivityCursor);
   });
   resetJobsButton.addEventListener("click", () => {
     resetJobsFilters();
@@ -2381,6 +2662,11 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     event.preventDefault();
     showView("overview");
     void loadOverview();
+  });
+  activityNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    showView("activity");
+    void loadActivity();
   });
   jobsNav.addEventListener("click", (event) => {
     event.preventDefault();
@@ -2400,7 +2686,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   });
 
   const ready = start();
-  return { buildJobsQuery, buildQualityQuery, loadJobDetail, loadJobs, loadOverview, ready, showView };
+  return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadJobDetail, loadJobs, loadOverview, ready, showView };
 }
 
 const APP_JS = `(${consoleApp.toString()})(window);`;
@@ -2686,6 +2972,8 @@ function parseGatewayRoute(url: URL, identity: ConsoleIdentity): GatewayRoute {
     allowedQuery = suffix.length === 1 ? CONTRACT_QUERY : NO_QUERY;
   } else if (sameSegments(suffix, ["audit", "events"])) {
     allowedQuery = AUDIT_QUERY;
+  } else if (sameSegments(suffix, ["activity", "events"])) {
+    allowedQuery = ACTIVITY_QUERY;
   } else if (suffix[0] === "approvals" && (suffix.length === 1 || suffix.length === 2)) {
     allowedQuery = suffix.length === 1 ? APPROVAL_QUERY : NO_QUERY;
   } else {

@@ -35,7 +35,7 @@ test("uses an explicitly synthetic public session and health source", async () =
   assert.equal((await health.json() as any).tenant_id, "acme");
 });
 
-test("serves only the synthetic overview, jobs, and job-detail records", async () => {
+test("serves only synthetic overview, activity, jobs, and job-detail records", async () => {
   const overview = await demoWorker.fetch(demoRequest(
     "/api/console/tenants/acme/intent-quality/rollups?from=2026-08-01T00%3A00%3A00Z&to=2026-08-08T00%3A00%3A00Z",
   ));
@@ -53,6 +53,15 @@ test("serves only the synthetic overview, jobs, and job-detail records", async (
   ));
   assert.equal(detail.status, 200);
   assert.equal((await detail.json() as any).job.job_id, "job-refund-partial");
+
+  const activity = await demoWorker.fetch(demoRequest(
+    "/api/console/tenants/acme/activity/events?intent_binding=bound&limit=50",
+  ));
+  assert.equal(activity.status, 200);
+  const activityBody = await activity.json() as any;
+  assert.equal(activityBody.events.length, 1);
+  assert.equal(activityBody.events[0].intent.binding_status, "bound");
+  assert.equal(JSON.stringify(activityBody).includes("raw_prompt"), false);
 });
 
 test("does not expose operator-only gateway routes", async () => {

@@ -264,6 +264,32 @@ test("forwards only allowlisted finalized Jobs explorer filters", async () => {
   assert.equal(calls.length, 1);
 });
 
+test("forwards only allowlisted tenant activity filters and never exposes ingestion", async () => {
+  const calls: GatewayCall[] = [];
+  const response = await worker.fetch(
+    accessRequest(
+      "/api/console/tenants/tenant-alpha/activity/events?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z&agent_id=agent-1&event_type=tool_action&tool=browser.open&decision=deny&execution_status=ok&intent_binding=bound&limit=50&cursor=opaque",
+    ),
+    baseEnv(calls, () => json({ schema_version: "agentaction.activity-page.v1", events: [] })),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/tenants\/tenant-alpha\/activity\/events\?/);
+  assert.match(calls[0].url, /intent_binding=bound/);
+
+  const raw = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/activity/events?include_raw=true"),
+    baseEnv(calls),
+  );
+  assert.equal(raw.status, 400);
+  const ingestion = await worker.fetch(
+    accessRequest("/api/console/tenants/tenant-alpha/activity/batches", { method: "POST" }),
+    baseEnv(calls),
+  );
+  assert.equal(ingestion.status, 404);
+  assert.equal(calls.length, 1);
+});
+
 test("forwards one exact read-only Job detail path without query parameters", async () => {
   const calls: GatewayCall[] = [];
   const response = await worker.fetch(
@@ -344,6 +370,7 @@ test("exposes only the planned read-side extension routes", async () => {
     "/api/console/tenants/tenant-alpha/intent-contracts?job_id=job-1",
     "/api/console/tenants/tenant-alpha/intent-contracts/intent-1",
     "/api/console/tenants/tenant-alpha/audit/events?intent_id=intent-1",
+    "/api/console/tenants/tenant-alpha/activity/events?intent_binding=bound",
     "/api/console/tenants/tenant-alpha/approvals?status=pending",
     "/api/console/tenants/tenant-alpha/approvals/approval-1",
   ];
@@ -362,6 +389,7 @@ test("exposes only the planned read-side extension routes", async () => {
     "/tenants/tenant-alpha/intent-contracts",
     "/tenants/tenant-alpha/intent-contracts/intent-1",
     "/tenants/tenant-alpha/audit/events",
+    "/tenants/tenant-alpha/activity/events",
     "/tenants/tenant-alpha/approvals",
     "/tenants/tenant-alpha/approvals/approval-1",
   ]);

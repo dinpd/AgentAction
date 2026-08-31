@@ -79,6 +79,55 @@ function jobsPayload(url: URL): FixtureRecord {
   return payload;
 }
 
+function activityPayload(url: URL): FixtureRecord {
+  const events: FixtureRecord[] = [
+    {
+      schema_version: "agentaction.hermes-observation.v1",
+      event_id: "obs_demo_tool_1",
+      event_type: "tool_action",
+      observed_at: "2026-08-31T18:00:00.000Z",
+      source_id: "hermes-demo",
+      agent_id: "refund-agent",
+      correlation: { session_id: "session-demo", task_id: "job-refund-partial", turn_id: "turn-4", tool_call_id: "tool-7" },
+      intent: { binding_status: "bound", intent_id: "intent-refund-partial", intent_digest: "synthetic-demo-digest" },
+      tool: { name: "stripe.create_refund", action: "write" },
+      evaluation: { status: "evaluated", counterfactual_decision: "challenge_required", findings: ["approval_required"] },
+      execution: { status: "ok", duration_ms: 184 },
+    },
+    {
+      schema_version: "agentaction.hermes-observation.v1",
+      event_id: "obs_demo_model_1",
+      event_type: "model_request_completed",
+      observed_at: "2026-08-31T17:59:58.000Z",
+      source_id: "hermes-demo",
+      agent_id: "refund-agent",
+      correlation: { session_id: "session-demo", task_id: "job-refund-partial", turn_id: "turn-4", api_request_id: "api-4" },
+      intent: { binding_status: "unbound" },
+      model: { provider: "synthetic", model: "demo-model" },
+      execution: { status: "ok", duration_ms: 920 },
+      usage: { input_tokens: 340, output_tokens: 88, total_tokens: 428 },
+    },
+  ];
+  const filtered = events.filter((event) => {
+    const checks = [
+      ["agent_id", event.agent_id],
+      ["event_type", event.event_type],
+      ["tool", event.tool?.name],
+      ["decision", event.evaluation?.counterfactual_decision],
+      ["execution_status", event.execution?.status],
+      ["intent_binding", event.intent?.binding_status],
+    ];
+    return checks.every(([name, actual]) => !url.searchParams.get(String(name)) || url.searchParams.get(String(name)) === actual);
+  });
+  return {
+    schema_version: "agentaction.activity-page.v1",
+    tenant_id: PUBLIC_DEMO_TENANT_ID,
+    events: filtered,
+    count: filtered.length,
+    next_cursor: null,
+  };
+}
+
 export function createPublicDemoEnv(options: { stale?: boolean } = {}): Env {
   return {
     CONSOLE_ENVIRONMENT: "development",
@@ -104,6 +153,9 @@ export function createPublicDemoEnv(options: { stale?: boolean } = {}): Env {
         }
         if (url.pathname === `${tenantPrefix}/intent-quality/jobs`) {
           return json(jobsPayload(url), 200, freshnessHeaders);
+        }
+        if (url.pathname === `${tenantPrefix}/activity/events`) {
+          return json(activityPayload(url), 200, freshnessHeaders);
         }
         const detailMatch = url.pathname.match(new RegExp(`^${tenantPrefix}/intent-quality/jobs/([^/]+)$`));
         if (detailMatch) {

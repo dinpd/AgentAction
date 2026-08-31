@@ -74,6 +74,39 @@ const JOBS_FIXTURE = {
   ],
   pagination: { limit: 25, returned_jobs: 2, next_cursor: "opaque-next" },
 };
+const ACTIVITY_FIXTURE = {
+  schema_version: "agentaction.activity-page.v1",
+  tenant_id: "acme",
+  events: [
+    {
+      schema_version: "agentaction.hermes-observation.v1",
+      event_id: "obs-ui-1",
+      event_type: "tool_action",
+      observed_at: "2026-07-25T11:59:00.000Z",
+      source_id: "hermes-production",
+      agent_id: "refund-agent",
+      correlation: { session_id: "session-1", task_id: "task-1", tool_call_id: "tool-1" },
+      intent: { binding_status: "bound", intent_id: "intent-safe", intent_digest: "digest-safe" },
+      tool: { name: "browser.open", action: "read" },
+      evaluation: { status: "evaluated", counterfactual_decision: "challenge_required", findings: ["approval_required"] },
+      execution: { status: "ok", duration_ms: 42 },
+    },
+    {
+      schema_version: "agentaction.hermes-observation.v1",
+      event_id: "obs-ui-2",
+      event_type: "model_request_completed",
+      observed_at: "2026-07-25T11:58:00.000Z",
+      source_id: "hermes-production",
+      agent_id: "refund-agent",
+      correlation: { session_id: "session-1", api_request_id: "api-1" },
+      intent: { binding_status: "unbound" },
+      model: { provider: "test", model: "model" },
+      execution: { status: "ok", duration_ms: 100 },
+    },
+  ],
+  count: 2,
+  next_cursor: "obs-ui-2",
+};
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
 const SHELL_HTML = await (
   await worker.fetch(new Request("https://console.test/"), {
@@ -163,14 +196,34 @@ class FakeDocument {
       "[data-overview-findings-list]",
       "[data-rollup-list]",
       "[data-console-view='overview']",
+      "[data-console-view='activity']",
       "[data-console-view='jobs']",
       "[data-console-view='job-detail']",
       "[data-overview-context='boundaries']",
       "[data-overview-context='lifecycle']",
       "[data-nav-overview]",
+      "[data-nav-activity]",
       "[data-nav-jobs]",
       "[data-nav-job-detail]",
       "[data-job-detail-back]",
+      "[data-activity-filters]",
+      "[data-reset-activity-filters]",
+      "[data-activity-filter-window]",
+      "[data-activity-filter-agent]",
+      "[data-activity-filter-event]",
+      "[data-activity-filter-tool]",
+      "[data-activity-filter-decision]",
+      "[data-activity-filter-execution]",
+      "[data-activity-filter-intent]",
+      "[data-activity-window-summary]",
+      "[data-activity-message]",
+      "[data-activity-message-title]",
+      "[data-activity-message-detail]",
+      "[data-activity-content]",
+      "[data-activity-summary]",
+      "[data-activity-list]",
+      "[data-activity-page-summary]",
+      "[data-activity-next]",
       "[data-jobs-filters]",
       "[data-reset-jobs-filters]",
       "[data-jobs-filter-window]",
@@ -219,12 +272,19 @@ class FakeDocument {
     this.get("[data-filter-verdict]").value = "";
     this.get("[data-filter-constraint]").value = "";
     this.get("[data-jobs-filter-window]").value = "7";
+    this.get("[data-activity-filter-window]").value = "7";
+    this.get("[data-activity-filter-event]").value = "";
+    this.get("[data-activity-filter-decision]").value = "";
+    this.get("[data-activity-filter-execution]").value = "";
+    this.get("[data-activity-filter-intent]").value = "";
     this.get("[data-jobs-filter-verdict]").value = "";
     this.get("[data-jobs-filter-constraint]").value = "";
     this.get("[data-jobs-filter-confidence]").value = "";
     this.get("[data-console-view='jobs']").hidden = true;
+    this.get("[data-console-view='activity']").hidden = true;
     this.get("[data-console-view='job-detail']").hidden = true;
     this.get("[data-jobs-content]").hidden = true;
+    this.get("[data-activity-content]").hidden = true;
     this.get("[data-job-detail-content]").hidden = true;
   }
 
@@ -245,6 +305,8 @@ class FakeDocument {
 }
 
 type RuntimeOptions = {
+  activityPayload?: Record<string, any>;
+  activityStatus?: number;
   dataState?: "fresh" | "stale";
   hash?: string;
   detailPayload?: Record<string, any>;
@@ -263,6 +325,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const pageUrls: string[] = [];
   const payload = structuredClone(options.payload || fixture);
   const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
+  const activityPayload = structuredClone(options.activityPayload || ACTIVITY_FIXTURE);
   const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
   const runtime = {
     Date: FixedDate,
@@ -299,6 +362,17 @@ function makeRuntime(options: RuntimeOptions = {}) {
         return response(payload, 200, {
           "x-agentpass-console-data-state": options.dataState || "fresh",
           "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
+          "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
+        });
+      }
+      if (path.startsWith("/api/console/tenants/acme/activity/events?")) {
+        const status = options.activityStatus || 200;
+        if (status !== 200) {
+          return response({ error: { code: "console_test_failure", message: "Activity unavailable." } }, status);
+        }
+        return response(activityPayload, 200, {
+          "x-agentpass-console-data-state": options.dataState || "fresh",
+          "x-agentpass-console-generated-at": "2026-07-25T11:59:00.000Z",
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
         });
       }
@@ -525,6 +599,39 @@ test("loads Jobs as a functional second view with URL-persisted allowlisted filt
   controller.showView("overview");
   assert.equal(document.get("[data-overview-context='boundaries']").hidden, false);
   assert.equal(document.get("[data-overview-context='lifecycle']").hidden, false);
+});
+
+test("loads tenant activity with allowlisted filters and explicit intent binding states", async () => {
+  const { controller, document, pageUrls, requests } = makeRuntime({ hash: "#activity" });
+  await controller.ready;
+  document.get("[data-activity-filter-window]").value = "1";
+  document.get("[data-activity-filter-agent]").value = "refund-agent";
+  document.get("[data-activity-filter-event]").value = "tool_action";
+  document.get("[data-activity-filter-tool]").value = "browser.open";
+  document.get("[data-activity-filter-decision]").value = "challenge_required";
+  document.get("[data-activity-filter-execution]").value = "ok";
+  document.get("[data-activity-filter-intent]").value = "bound";
+
+  const query = controller.buildActivityQuery();
+  assert.equal(query.get("agent_id"), "refund-agent");
+  assert.equal(query.get("event_type"), "tool_action");
+  assert.equal(query.get("tool"), "browser.open");
+  assert.equal(query.get("decision"), "challenge_required");
+  assert.equal(query.get("execution_status"), "ok");
+  assert.equal(query.get("intent_binding"), "bound");
+  await controller.loadActivity("");
+
+  assert.ok(requests.some((path) => path.includes("/activity/events?")));
+  assert.ok(pageUrls.at(-1)?.endsWith("#activity"));
+  const rows = document.get("[data-activity-list]");
+  assert.equal(rows.children.length, 2);
+  const text = textOf(rows);
+  assert.match(text, /Explicitly bound/);
+  assert.match(text, /intent-safe/);
+  assert.match(text, /No intent was inferred/);
+  assert.match(text, /challenge_required/);
+  assert.equal(document.get("[data-console-view='activity']").hidden, false);
+  assert.equal(document.get("[data-console-view='overview']").hidden, true);
 });
 
 test("renders finalized Jobs rows with explicit boundaries findings and stable detail targets", async () => {
