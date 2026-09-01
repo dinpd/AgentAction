@@ -58,7 +58,9 @@ hermes plugins enable agentaction
 
 Configure the hosted endpoint, tenant, source, agent, and tool policies once;
 the plugin then exports privacy-safe lifecycle metadata asynchronously. It is
-fail open and returns no behavior-changing hook directives. Add both an
+fail open. Hosted setup can explicitly enable bounded agent-declared intent
+capture; that adds per-turn model context and two self-attestation tools, and
+the console labels the result as untrusted agent provenance. Add both an
 explicit `intent_id` and `intent_digest` when a run already has an AgentAction
 contract; otherwise events are correctly labeled `unbound` rather than having
 intent inferred from prompts or model output.

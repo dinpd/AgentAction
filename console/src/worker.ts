@@ -1787,14 +1787,14 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const hermes = sourceIntegration.value === "hermes";
     integrationGuideTitle.textContent = hermes ? "Hermes Agent" : "Custom AgentAction source";
     integrationGuideDetail.textContent = hermes
-      ? "Install the maintained Hermes plugin and point it at this workspace's privacy-safe activity endpoint."
+      ? "Install the maintained Hermes plugin for privacy-safe activity plus explicitly labeled, agent-declared intent evaluations."
       : "Send allowlisted, privacy-safe AgentAction activity batches from your agent runtime.";
     const steps = hermes
       ? [
         "Add the source and save the token and generated configuration shown once.",
         "Install the AgentAction plugin in the Hermes environment and enable it.",
-        "Apply the generated environment and YAML values, then restart Hermes.",
-        "Run one agent action and confirm that it appears in Activity.",
+        "Apply the generated environment and YAML values. Intent capture adds bounded context and two self-attestation tools; it does not authorize actions.",
+        "Restart Hermes, run one agent action, then confirm Activity and the agent-declared evaluation in Jobs.",
       ]
       : [
         "Add the source and save the token and generated configuration shown once.",
@@ -2630,11 +2630,46 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && job.evidence_confidence <= 1
       && ["low", "medium", "high"].includes(job.confidence_band)
       && Number.isInteger(job.preview_count)
-      && job.preview_count >= 0;
+      && job.preview_count >= 0
+      && (!isAgentDeclaredIntentProfile(binding) || isRenderableIntentContext(job.intent_context));
   }
 
   function isObservedExecutionProfile(value: unknown): boolean {
     return record(value).key === "agentaction_observed_execution.v1";
+  }
+
+  function isAgentDeclaredIntentProfile(value: unknown): boolean {
+    return record(value).key === "agentaction_declared_intent.v1";
+  }
+
+  function isRenderableIntentContext(value: unknown): boolean {
+    const context = record(value);
+    const outcome = record(context.reported_outcome);
+    const boundedList = (candidate: unknown, minimum: number): boolean => Array.isArray(candidate)
+      && candidate.length >= minimum
+      && candidate.length <= 8
+      && candidate.every((item) => typeof item === "string" && Boolean(item) && item.length <= 240);
+    return context.kind === "agent_declared"
+      && context.trust === "self_attested"
+      && typeof context.goal === "string"
+      && Boolean(context.goal)
+      && context.goal.length <= 500
+      && boundedList(context.success_criteria, 1)
+      && boundedList(context.constraints, 0)
+      && typeof context.declaration_confidence === "number"
+      && context.declaration_confidence >= 0
+      && context.declaration_confidence <= 1
+      && (
+        context.reported_outcome === undefined
+        || (
+          ["achieved", "partial", "failed", "unknown"].includes(outcome.status)
+          && ["all", "some", "none", "unknown"].includes(outcome.success_criteria_met)
+          && ["pass", "fail", "unknown"].includes(outcome.constraints_respected)
+          && typeof outcome.confidence === "number"
+          && outcome.confidence >= 0
+          && outcome.confidence <= 1
+        )
+      );
   }
 
   function validTimestamp(value: unknown, nullable = false): boolean {
@@ -2863,11 +2898,16 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const entries = timeline.entries as Record<string, any>[];
     const quality = record(payload.data_quality);
     const observedExecution = isObservedExecutionProfile(job.profile_binding);
+    const agentDeclared = isAgentDeclaredIntentProfile(job.profile_binding);
+    const intentContext = record(job.intent_context);
+    const reportedOutcome = record(intentContext.reported_outcome);
 
     jobDetailTitle.textContent = safeText(job.job_id);
     jobDetailSubtitle.textContent = observedExecution
       ? `Observed Hermes run · ${safeText(job.agent_id, "Agent identity missing")} · no semantic intent inferred`
-      : `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
+      : agentDeclared
+        ? `Agent-declared intent · ${safeText(job.agent_id, "Agent identity missing")} · self-attested`
+        : `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
     jobDetailStatus.replaceChildren(statusPill("Finalized", "completed"));
     jobDetailBoundary.replaceChildren();
     appendDefinition(jobDetailBoundary, "Finalized at", formatTimestamp(boundary.finalized_at));
@@ -2877,9 +2917,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       "Profile",
       observedExecution
         ? `Observed execution · ${safeText(record(job.profile_binding).version)}`
+        : agentDeclared
+          ? `Agent-declared intent · ${safeText(record(job.profile_binding).version)}`
         : `${safeText(record(job.profile_binding).key)} · ${safeText(record(job.profile_binding).version)}`,
     );
     if (observedExecution) appendDefinition(jobDetailBoundary, "Intent meaning", "Lifecycle completion only; no semantic intent inferred");
+    if (agentDeclared) {
+      appendDefinition(jobDetailBoundary, "Intent meaning", "Self-attested agent claim; not trusted user intent");
+      appendDefinition(jobDetailBoundary, "Declared goal", safeText(intentContext.goal));
+      appendDefinition(jobDetailBoundary, "Declaration confidence", formatPercent(intentContext.declaration_confidence));
+      appendDefinition(jobDetailBoundary, "Reported outcome", safeText(reportedOutcome.status, "Not reported"));
+      if (typeof reportedOutcome.confidence === "number") {
+        appendDefinition(jobDetailBoundary, "Outcome confidence", formatPercent(reportedOutcome.confidence));
+      }
+    }
     appendDefinition(jobDetailBoundary, "Profile digest", safeText(record(job.profile_binding).digest));
     appendDefinition(jobDetailBoundary, "Intent digest", safeText(boundary.intent_digest));
     appendDefinition(jobDetailBoundary, "Snapshot", safeText(boundary.snapshot_id));
@@ -2888,9 +2939,17 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobDetailEvaluationId.textContent = `Evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
     jobDetailMetrics.replaceChildren(
       metricCard("Verdict", safeText(evaluation.verdict), evaluation.qualified_success ? "Qualified success" : "Not qualified"),
-      metricCard("Goal attainment", formatPercent(evaluation.goal_attainment), observedExecution ? "Lifecycle objective" : "Intent-relative"),
+      metricCard(
+        "Goal attainment",
+        formatPercent(evaluation.goal_attainment),
+        observedExecution ? "Lifecycle objective" : agentDeclared ? "Agent self-attestation" : "Intent-relative",
+      ),
       metricCard("Constraints", safeText(evaluation.constraint_compliance), `${(evaluation.constraints as any[]).length} evaluated`),
-      metricCard("Evidence", formatPercent(evaluation.evidence_confidence), `${safeText(evaluation.confidence_band)} confidence`),
+      metricCard(
+        "Evidence",
+        formatPercent(evaluation.evidence_confidence),
+        agentDeclared ? "Agent self-attestation" : `${safeText(evaluation.confidence_band)} confidence`,
+      ),
     );
     jobDetailOutcomes.replaceChildren(renderPredicateList(evaluation.outcomes, "No outcome predicates were recorded."));
     jobDetailConstraints.replaceChildren(renderPredicateList(evaluation.constraints, "No constraint predicates were recorded."));
@@ -3014,11 +3073,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       ...(agentIds.length === 0 ? [statusPill("Missing identity", "indeterminate")] : []),
     );
 
-    const profileCell = cellStack(
-      create("strong", undefined, isObservedExecutionProfile(binding) ? "Observed execution" : safeText(binding.key)),
-      create("small", undefined, isObservedExecutionProfile(binding) ? "System lifecycle profile · no inferred intent" : `Version ${safeText(binding.version)}`),
-      create("code", undefined, safeText(binding.digest)),
-    );
+    const declaredIntent = isAgentDeclaredIntentProfile(binding);
+    const intentContext = record(job.intent_context);
+    const profileCell = declaredIntent
+      ? cellStack(
+        create("strong", undefined, "Agent-declared intent"),
+        create("small", undefined, "Self-attested by agent · not trusted user intent"),
+        create("small", undefined, safeText(intentContext.goal)),
+        create("code", undefined, safeText(binding.digest)),
+      )
+      : cellStack(
+        create("strong", undefined, isObservedExecutionProfile(binding) ? "Observed execution" : safeText(binding.key)),
+        create("small", undefined, isObservedExecutionProfile(binding) ? "System lifecycle profile · no inferred intent" : `Version ${safeText(binding.version)}`),
+        create("code", undefined, safeText(binding.digest)),
+      );
     const outcomeCell = cellStack(
       statusPill(safeText(job.verdict), safeText(job.verdict, "indeterminate")),
       create("small", undefined, `Constraint ${safeText(job.constraint_compliance)}`),

@@ -21,8 +21,58 @@ from urllib import error, request
 SCHEMA_VERSION = "agentaction.hermes-observation.v1"
 BATCH_SCHEMA_VERSION = "agentaction.observation-batch.v1"
 JOB_SCHEMA_VERSION = "agentaction.activity-job.v1"
+DECLARED_INTENT_SCHEMA_VERSION = "agentaction.declared-intent.v1"
+REPORTED_OUTCOME_SCHEMA_VERSION = "agentaction.reported-outcome.v1"
 VALID_DECISIONS = {"allow", "deny", "challenge_required"}
 VALID_EXECUTION_STATUSES = {"ok", "error", "blocked", "cancelled", "unknown"}
+DECLARED_INTENT_CONTEXT = (
+    "AgentAction intent capture is enabled for observability only; it does not authorize actions. "
+    "Before substantive work, call agentaction_declare_intent once with a concise goal, measurable "
+    "success criteria, constraints, and confidence. Before the final answer, call "
+    "agentaction_report_outcome once with the terminal status and self-assessment. Never include "
+    "secrets, personal data, raw prompt text, tool arguments/results, or the final response."
+)
+
+DECLARE_INTENT_TOOL_SCHEMA = {
+    "name": "agentaction_declare_intent",
+    "description": "Declare a concise, non-authoritative intent summary for AgentAction observability.",
+    "parameters": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "goal": {"type": "string", "minLength": 1, "maxLength": 500},
+            "success_criteria": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {"type": "string", "minLength": 1, "maxLength": 240},
+            },
+            "constraints": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {"type": "string", "minLength": 1, "maxLength": 240},
+            },
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        },
+        "required": ["goal", "success_criteria", "constraints", "confidence"],
+    },
+}
+
+REPORT_OUTCOME_TOOL_SCHEMA = {
+    "name": "agentaction_report_outcome",
+    "description": "Report a non-authoritative, self-attested terminal outcome for the declared intent.",
+    "parameters": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "status": {"type": "string", "enum": ["achieved", "partial", "failed", "unknown"]},
+            "success_criteria_met": {"type": "string", "enum": ["all", "some", "none", "unknown"]},
+            "constraints_respected": {"type": "string", "enum": ["pass", "fail", "unknown"]},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        },
+        "required": ["status", "success_criteria_met", "constraints_respected", "confidence"],
+    },
+}
 
 
 class PluginState(Protocol):
@@ -44,6 +94,7 @@ class ObserverConfig:
     token: str
     intent_id: str = ""
     intent_digest: str = ""
+    capture_declared_intent: bool = False
     tool_policies: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     batch_size: int = 25
     flush_interval_seconds: float = 2.0
@@ -76,6 +127,7 @@ class ObserverConfig:
             token=token,
             intent_id=_bounded(intent_id, 160),
             intent_digest=_bounded(intent_digest, 160),
+            capture_declared_intent=_boolean(value.get("capture_declared_intent"), False),
             tool_policies={str(name): policy for name, policy in policies.items() if isinstance(policy, Mapping)},
             batch_size=_bounded_int(value.get("batch_size"), 25, 1, 100),
             flush_interval_seconds=_bounded_float(value.get("flush_interval_seconds"), 2.0, 0.1, 60.0),
@@ -137,7 +189,12 @@ class HermesShadowObserver:
         self.jobs: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=config.queue_capacity)
         self._pending: dict[str, dict[str, Any]] = {}
         self._run_started_at: dict[str, str] = {}
+        self._run_correlations: dict[str, dict[str, str]] = {}
+        self._active_runs: dict[tuple[str, str], str] = {}
         self._run_bindings: dict[str, dict[str, str]] = {}
+        self._declared_intents: dict[str, dict[str, Any]] = {}
+        self._reported_outcomes: dict[str, dict[str, Any]] = {}
+        self._declared_started_runs: set[str] = set()
         self._started_runs: set[str] = set()
         self._completed_runs: set[str] = set()
         self._finalized_sessions: set[str] = set()
@@ -304,7 +361,7 @@ class HermesShadowObserver:
             pass
         return None
 
-    def pre_llm_call(self, **kwargs: Any) -> None:
+    def pre_llm_call(self, **kwargs: Any) -> dict[str, str] | None:
         try:
             correlation = _run_correlation(kwargs)
             run_key = _run_key(correlation)
@@ -314,14 +371,61 @@ class HermesShadowObserver:
                     return None
                 self._started_runs.add(run_key)
                 self._run_started_at[run_key] = started_at
-            if not self.config.intent_id:
+                self._run_correlations[run_key] = dict(correlation)
+                self._active_runs[(correlation["session_id"], correlation.get("task_id", ""))] = run_key
+            if not self.config.intent_id and not self.config.capture_declared_intent:
                 self._submit_job(self._job_lifecycle("started", correlation, started_at))
             event = self._base_event("job_started", correlation)
             event["execution"] = {"status": "running"}
             self._submit(self._finish_event(event))
+            if self.config.capture_declared_intent and not self.config.intent_id:
+                return {"context": DECLARED_INTENT_CONTEXT}
         except Exception:
             pass
         return None
+
+    def declare_intent(self, args: Mapping[str, Any], **kwargs: Any) -> str:
+        """Capture the first bounded declaration for the active run without blocking Hermes."""
+        try:
+            declaration = _declared_intent(args)
+            run_key, correlation, started_at = self._active_run(kwargs)
+            with self._lock:
+                existing = self._declared_intents.get(run_key)
+                if existing is not None:
+                    if existing == declaration:
+                        return _tool_response("captured", "agent_declared", replayed=True)
+                    return _tool_response("rejected", error="intent_already_declared")
+                self._declared_intents[run_key] = declaration
+                self._declared_started_runs.add(run_key)
+            self._submit_job(
+                self._job_lifecycle(
+                    "started",
+                    correlation,
+                    started_at,
+                    declared_intent=declaration,
+                )
+            )
+            return _tool_response("captured", "agent_declared")
+        except Exception:
+            return _tool_response("rejected", error="invalid_declared_intent")
+
+    def report_outcome(self, args: Mapping[str, Any], **kwargs: Any) -> str:
+        """Capture the first bounded self-attested outcome for the active run."""
+        try:
+            outcome = _reported_outcome(args)
+            run_key, _correlation_value, _started_at = self._active_run(kwargs)
+            with self._lock:
+                if run_key not in self._declared_intents:
+                    return _tool_response("rejected", error="intent_not_declared")
+                existing = self._reported_outcomes.get(run_key)
+                if existing is not None:
+                    if existing == outcome:
+                        return _tool_response("captured", "agent_self_attested", replayed=True)
+                    return _tool_response("rejected", error="outcome_already_reported")
+                self._reported_outcomes[run_key] = outcome
+            return _tool_response("captured", "agent_self_attested")
+        except Exception:
+            return _tool_response("rejected", error="invalid_reported_outcome")
 
     def on_session_end(self, **kwargs: Any) -> None:
         self._complete_run(kwargs)
@@ -482,6 +586,9 @@ class HermesShadowObserver:
                     return
                 self._completed_runs.add(run_key)
                 started_at = self._run_started_at.get(run_key)
+                declaration = self._declared_intents.get(run_key)
+                outcome = self._reported_outcomes.get(run_key)
+                declared_started = run_key in self._declared_started_runs
             completed_at = _date_time(kwargs.get("completed_at")) or _now()
             started_at = started_at or _date_time(kwargs.get("started_at")) or completed_at
             interrupted = kwargs.get("interrupted") is True
@@ -490,7 +597,28 @@ class HermesShadowObserver:
             reason = _safe_code(kwargs.get("turn_exit_reason") or kwargs.get("reason"))
             status = "completed" if completed else "interrupted" if interrupted else "error" if failed else "incomplete"
             if not self.config.intent_id:
-                self._submit_job(self._job_lifecycle("completed", correlation, started_at, completed_at, status))
+                if self.config.capture_declared_intent and declaration is None:
+                    self._submit_job(self._job_lifecycle("started", correlation, started_at))
+                elif declaration is not None and not declared_started:
+                    self._submit_job(
+                        self._job_lifecycle(
+                            "started",
+                            correlation,
+                            started_at,
+                            declared_intent=declaration,
+                        )
+                    )
+                self._submit_job(
+                    self._job_lifecycle(
+                        "completed",
+                        correlation,
+                        started_at,
+                        completed_at,
+                        status,
+                        declared_intent=declaration,
+                        reported_outcome=outcome,
+                    )
+                )
             event = self._base_event("job_completed", correlation)
             event["execution"] = {
                 "status": "ok" if completed else "cancelled" if interrupted else "error" if status == "error" else "unknown",
@@ -508,6 +636,8 @@ class HermesShadowObserver:
         started_at: str,
         completed_at: str = "",
         status: str = "",
+        declared_intent: Mapping[str, Any] | None = None,
+        reported_outcome: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {
             "schema_version": JOB_SCHEMA_VERSION,
@@ -519,8 +649,30 @@ class HermesShadowObserver:
             **({"task_id": correlation["task_id"]} if correlation.get("task_id") else {}),
             **({"turn_id": correlation["turn_id"]} if correlation.get("turn_id") else {}),
             "started_at": started_at,
+            **({"declared_intent": dict(declared_intent)} if declared_intent is not None else {}),
+            **({"reported_outcome": dict(reported_outcome)} if reported_outcome is not None else {}),
             **({"completed_at": completed_at, "status": status} if phase == "completed" else {}),
         }
+
+    def _active_run(self, kwargs: Mapping[str, Any]) -> tuple[str, dict[str, str], str]:
+        session_id = _activity_id(kwargs.get("session_id"), "session_id")
+        task_id = _bounded(kwargs.get("task_id"), 160)
+        with self._lock:
+            run_key = self._active_runs.get((session_id, task_id))
+            if run_key is None and task_id:
+                run_key = self._active_runs.get((session_id, ""))
+            if run_key is None:
+                candidates = [
+                    key
+                    for key, correlation in self._run_correlations.items()
+                    if correlation["session_id"] == session_id
+                ]
+                run_key = candidates[-1] if len(candidates) == 1 else None
+            if run_key is None:
+                raise ValueError("active run is unavailable")
+            correlation = dict(self._run_correlations[run_key])
+            started_at = self._run_started_at[run_key]
+        return run_key, correlation, started_at
 
     def _remember_run_binding(self, lifecycle: Mapping[str, Any], response: Mapping[str, Any]) -> None:
         run_key = _run_key(_run_correlation(lifecycle))
@@ -598,7 +750,7 @@ class HermesShadowObserver:
             headers={
                 "authorization": f"Bearer {self.config.token}",
                 "content-type": "application/json",
-                "user-agent": "agentaction-hermes/0.7.0",
+                "user-agent": "agentaction-hermes/0.8.0",
                 "x-agentaction-source-id": self.config.source_id,
             },
         )
@@ -619,7 +771,7 @@ class HermesShadowObserver:
             headers={
                 "authorization": f"Bearer {self.config.token}",
                 "content-type": "application/json",
-                "user-agent": "agentaction-hermes/0.7.0",
+                "user-agent": "agentaction-hermes/0.8.0",
                 "x-agentaction-source-id": self.config.source_id,
             },
         )
@@ -636,6 +788,89 @@ class HermesShadowObserver:
                 return value
         except error.HTTPError as exc:
             raise RuntimeError(f"AgentAction job ingestion returned HTTP {exc.code}") from exc
+
+
+def _declared_intent(value: Any) -> dict[str, Any]:
+    fields = {"goal", "success_criteria", "constraints", "confidence"}
+    submitted = _strict_tool_args(value, fields)
+    return {
+        "schema_version": DECLARED_INTENT_SCHEMA_VERSION,
+        "goal": _required_text(submitted["goal"], 500),
+        "success_criteria": _text_list(submitted["success_criteria"], 8, 240, minimum=1),
+        "constraints": _text_list(submitted["constraints"], 8, 240),
+        "confidence": _confidence(submitted["confidence"]),
+    }
+
+
+def _reported_outcome(value: Any) -> dict[str, Any]:
+    fields = {"status", "success_criteria_met", "constraints_respected", "confidence"}
+    submitted = _strict_tool_args(value, fields)
+    status = _enum_value(submitted["status"], {"achieved", "partial", "failed", "unknown"})
+    criteria = _enum_value(submitted["success_criteria_met"], {"all", "some", "none", "unknown"})
+    constraints = _enum_value(submitted["constraints_respected"], {"pass", "fail", "unknown"})
+    return {
+        "schema_version": REPORTED_OUTCOME_SCHEMA_VERSION,
+        "status": status,
+        "success_criteria_met": criteria,
+        "constraints_respected": constraints,
+        "confidence": _confidence(submitted["confidence"]),
+    }
+
+
+def _strict_tool_args(value: Any, fields: set[str]) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise ValueError("tool arguments are invalid")
+    return value
+
+
+def _required_text(value: Any, maximum: int) -> str:
+    if not isinstance(value, str):
+        raise ValueError("text is invalid")
+    normalized = value.strip()
+    if not normalized or len(normalized) > maximum:
+        raise ValueError("text is invalid")
+    return normalized
+
+
+def _text_list(value: Any, maximum_items: int, maximum_length: int, minimum: int = 0) -> list[str]:
+    if not isinstance(value, list) or len(value) < minimum or len(value) > maximum_items:
+        raise ValueError("text list is invalid")
+    normalized = [_required_text(item, maximum_length) for item in value]
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("text list contains duplicates")
+    return normalized
+
+
+def _confidence(value: Any) -> float | int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("confidence is invalid")
+    number = float(value)
+    if number != number or number < 0 or number > 1:
+        raise ValueError("confidence is invalid")
+    return int(number) if number.is_integer() else number
+
+
+def _enum_value(value: Any, allowed: set[str]) -> str:
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError("enum is invalid")
+    return value
+
+
+def _tool_response(
+    status: str,
+    provenance: str = "",
+    *,
+    error: str = "",
+    replayed: bool = False,
+) -> str:
+    return _canonical_json(
+        {
+            "status": status,
+            **({"provenance": provenance} if provenance else {}),
+            **({"error": error} if error else {}),
+            **({"replayed": True} if replayed else {}),
+        }
+    )
 
 
 def _tool_key(tool_name: str, args: Any, correlation: Mapping[str, str]) -> str:
@@ -786,6 +1021,20 @@ def _bounded_float(value: Any, default: float, minimum: float, maximum: float) -
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(maximum, number))
+
+
+def _boolean(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    raise ValueError("boolean setting is invalid")
 
 
 def _optional_positive_int(value: Any) -> int | None:

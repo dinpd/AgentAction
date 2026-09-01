@@ -1211,6 +1211,59 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Lifecycle objective/);
 });
 
+test("labels agent-declared intent and terminal outcome as self-attested", async () => {
+  const declaredJobs = structuredClone(JOBS_FIXTURE);
+  declaredJobs.jobs = [{
+    ...declaredJobs.jobs[1],
+    job_id: "hermes-declared-job",
+    intent_id: "intent-declared-job",
+    agent_id: "hermes-smoke-agent",
+    agent_ids: ["hermes-smoke-agent"],
+    profile_binding: {
+      key: "agentaction_declared_intent.v1",
+      version: "v1",
+      digest: "c".repeat(64),
+    },
+    intent_context: {
+      kind: "agent_declared",
+      trust: "self_attested",
+      goal: "Calculate a product and explain it in one sentence.",
+      success_criteria: ["The numeric product is correct."],
+      constraints: ["Do not use network or files."],
+      declaration_confidence: 0.93,
+      reported_outcome: {
+        status: "achieved",
+        success_criteria_met: "all",
+        constraints_respected: "pass",
+        confidence: 0.88,
+      },
+    },
+  }];
+  declaredJobs.matched_records = 1;
+  declaredJobs.pagination.next_cursor = null;
+  const listRuntime = makeRuntime({ hash: "#jobs", jobsPayload: declaredJobs });
+  await listRuntime.controller.ready;
+  const rendered = textOf(listRuntime.document.get("[data-jobs-list]"));
+  assert.match(rendered, /Agent-declared intent/);
+  assert.match(rendered, /Self-attested by agent · not trusted user intent/);
+  assert.match(rendered, /Calculate a product/);
+
+  const declaredDetail = structuredClone(JOB_DETAIL_FIXTURE);
+  declaredDetail.job = declaredJobs.jobs[0];
+  declaredDetail.immutable_boundary.profile_digest = "c".repeat(64);
+  const detailRuntime = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=hermes-declared-job",
+    detailPayload: declaredDetail,
+  });
+  await detailRuntime.controller.ready;
+  assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /Agent-declared intent/);
+  const boundary = textOf(detailRuntime.document.get("[data-job-detail-boundary]"));
+  assert.match(boundary, /Self-attested agent claim; not trusted user intent/);
+  assert.match(boundary, /Calculate a product and explain it/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Agent self-attestation/);
+});
+
 test("renders explicit empty forbidden and unavailable Jobs states", async (context) => {
   const emptyPayload = structuredClone(JOBS_FIXTURE);
   emptyPayload.jobs = [];

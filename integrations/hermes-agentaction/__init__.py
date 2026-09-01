@@ -7,7 +7,13 @@ import logging
 import os
 from typing import Any
 
-from .observer import HermesShadowObserver, ObserverConfig, StateSpool
+from .observer import (
+    DECLARE_INTENT_TOOL_SCHEMA,
+    REPORT_OUTCOME_TOOL_SCHEMA,
+    HermesShadowObserver,
+    ObserverConfig,
+    StateSpool,
+)
 
 
 _observer: HermesShadowObserver | None = None
@@ -35,6 +41,7 @@ def register(ctx: Any) -> None:
             "agent_id": ctx.get_config("agent_id", default="hermes-agent"),
             "intent_id": ctx.get_config("intent_id", default=""),
             "intent_digest": ctx.get_config("intent_digest", default=""),
+            "capture_declared_intent": ctx.get_config("capture_declared_intent", default=False),
             "tool_policies": ctx.get_config("tool_policies", default={}),
             "batch_size": ctx.get_config("batch_size", default=25),
             "flush_interval_seconds": ctx.get_config("flush_interval_seconds", default=2.0),
@@ -62,6 +69,19 @@ def register(ctx: Any) -> None:
     ctx.register_hook("on_session_finalize", _observer.on_session_finalize)
     ctx.register_hook("subagent_start", _observer.subagent_start)
     ctx.register_hook("subagent_stop", _observer.subagent_stop)
+    if config.capture_declared_intent and not config.intent_id:
+        ctx.register_tool(
+            name="agentaction_declare_intent",
+            toolset="agentaction",
+            schema=DECLARE_INTENT_TOOL_SCHEMA,
+            handler=_observer.declare_intent,
+        )
+        ctx.register_tool(
+            name="agentaction_report_outcome",
+            toolset="agentaction",
+            schema=REPORT_OUTCOME_TOOL_SCHEMA,
+            handler=_observer.report_outcome,
+        )
 
 
 __all__ = ["register"]
