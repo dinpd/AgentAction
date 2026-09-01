@@ -100,15 +100,9 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /<h2 id="overview-title">Execution quality<\/h2>/);
   assert.match(body, /aria-label="Fleet quality boundaries"/);
   assert.match(body, /Profile-scoped immutable final receipts/);
-  assert.match(body, /<h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle<\/h2>/);
-  assert.match(body, /<details class="lifecycle-disclosure">/);
-  assert.doesNotMatch(body, /<details class="lifecycle-disclosure"[^>]*\sopen(?:\s|>)/);
-  assert.match(body, /<summary>[\s\S]*Show 9-stage flow[\s\S]*Hide 9-stage flow[\s\S]*<\/summary>/);
-  assert.match(body, /<details class="lifecycle-disclosure">[\s\S]*<ol class="lifecycle-track" aria-label="Synthetic execution lifecycle">/);
-  assert.match(body, /aria-label="Synthetic execution lifecycle"/);
-  assert.match(body, /Cloudflare Cron[\s\S]*Synthetic Agent Worker[\s\S]*AgentAction Gateway[\s\S]*Issue intent contract/);
-  assert.match(body, /Authorize calls \/ approvals[\s\S]*Execution receipts \+ signed observations[\s\S]*Finalize immutable receipt/);
-  assert.match(body, /Profile-scoped rollups[\s\S]*Observability Console/);
+  assert.doesNotMatch(body, /Synthetic run lifecycle/);
+  assert.doesNotMatch(body, /Show 9-stage flow/);
+  assert.doesNotMatch(body, /aria-label="Synthetic execution lifecycle"/);
   assert.match(body, /Finalized intent executions/);
   assert.match(body, /data-jobs-filters/);
   assert.match(body, /Finalized execution explorer/);

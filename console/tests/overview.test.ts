@@ -208,7 +208,6 @@ class FakeDocument {
       "[data-console-view='job-detail']",
       "[data-console-view='setup']",
       "[data-overview-context='boundaries']",
-      "[data-overview-context='lifecycle']",
       "[data-nav-overview]",
       "[data-nav-activity]",
       "[data-nav-jobs]",
@@ -932,7 +931,6 @@ test("loads Jobs as a functional second view with URL-persisted allowlisted filt
   assert.equal(document.get("[data-console-view='overview']").hidden, true);
   assert.equal(document.get("[data-console-view='jobs']").hidden, false);
   assert.equal(document.get("[data-overview-context='boundaries']").hidden, true);
-  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, true);
   assert.equal(document.get("[data-nav-jobs]").attributes.get("aria-current"), "page");
   const latestRequest = requests.at(-1) || "";
   assert.match(latestRequest, /^\/api\/console\/tenants\/acme\/intent-quality\/jobs\?/);
@@ -963,7 +961,6 @@ test("loads Jobs as a functional second view with URL-persisted allowlisted filt
   assert.match(pageUrls.at(-1) || "", /confidence=low/);
   controller.showView("overview");
   assert.equal(document.get("[data-overview-context='boundaries']").hidden, false);
-  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, false);
 });
 
 test("loads tenant activity with allowlisted filters and explicit intent binding states", async () => {
@@ -1081,7 +1078,6 @@ test("loads one finalized Job detail from a stable identifier-only URL", async (
   assert.equal(document.get("[data-console-view='jobs']").hidden, true);
   assert.equal(document.get("[data-console-view='job-detail']").hidden, false);
   assert.equal(document.get("[data-overview-context='boundaries']").hidden, true);
-  assert.equal(document.get("[data-overview-context='lifecycle']").hidden, true);
   assert.equal(document.get("[data-nav-job-detail]").attributes.get("aria-current"), "page");
   assert.equal(
     requests.at(-1),
