@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.9.3 - 2026-08-31
+
+### Reliable workspace invitation links
+
+- Carry only a random, non-secret invitation identifier through Cloudflare
+  Access so protected email links can auto-redeem after sign-in.
+- Remove the identifier from browser history before redemption, bind the join
+  to the exact verified invitee email, and preserve expiry and one-time use.
+- Keep secret-bearing manual codes and previously issued fragment links as
+  fallbacks.
+
 ## 0.9.2 - 2026-08-31
 
 ### Compact responsive header

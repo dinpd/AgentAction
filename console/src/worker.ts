@@ -1451,12 +1451,27 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     return value.length <= 300 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value) ? value : "";
   }
 
+  function invitationIdFromSearch(search: string): string {
+    const values = new URLSearchParams(search).getAll("invitation");
+    if (values.length !== 1) return "";
+    const value = values[0].trim();
+    return /^invite_[a-f0-9]{24}$/.test(value) ? value : "";
+  }
+
+  const invitationQueryPresent = new URLSearchParams(runtime.location.search).has("invitation");
+  let pendingInvitationId = invitationIdFromSearch(runtime.location.search);
   let pendingInvitationCode = invitationCodeFromHash(runtime.location.hash);
+  const invalidInvitationLink = invitationQueryPresent && !pendingInvitationId && !pendingInvitationCode;
+  if (invitationQueryPresent || pendingInvitationCode) {
+    const query = new URLSearchParams(runtime.location.search);
+    query.delete("invitation");
+    const cleanQuery = query.toString();
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${cleanQuery ? `?${cleanQuery}` : ""}#setup`);
+  }
   if (pendingInvitationCode) {
     inviteCode.value = pendingInvitationCode;
-    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${runtime.location.search || ""}#setup`);
   }
-  const initialHash = runtime.location.hash.split("?", 1)[0];
+  const initialHash = invitationQueryPresent || pendingInvitationCode ? "#setup" : runtime.location.hash.split("?", 1)[0];
   let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = initialHash === "#activity"
     ? "activity"
     : initialHash === "#jobs"
@@ -1728,18 +1743,22 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       : "https://github.com/dinpd/AgentAction#shadow-observability-quickstart";
   }
 
-  async function redeemInvitation(code: string, automatic = false): Promise<boolean> {
-    const normalized = code.trim();
-    if (!normalized) return false;
+  async function redeemInvitation(invitation: { code?: string; invitationId?: string }, automatic = false): Promise<boolean> {
+    const code = invitation.code?.trim() || "";
+    const invitationId = invitation.invitationId?.trim() || "";
+    if (Boolean(code) === Boolean(invitationId)) return false;
     showView("setup");
     setSetupMessage("ready", automatic ? "Joining your workspace" : "Redeeming invitation", "Confirming the signed-in email and one-time invitation.");
-    const result = await write("/api/console/onboarding/invitations/redeem", "POST", { code: normalized });
+    const result = await write("/api/console/onboarding/invitations/redeem", "POST", invitationId
+      ? { invitation_id: invitationId }
+      : { code });
     if (!result.response.ok) {
-      inviteCode.value = normalized;
-      setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Check the invitation and signed-in email."));
+      if (code) inviteCode.value = code;
+      setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Paste the fallback code from the invitation email, or check the signed-in email."));
       return false;
     }
     const joinedTenant = safeText(record(result.body.membership).tenant_id, "");
+    pendingInvitationId = "";
     pendingInvitationCode = "";
     inviteCode.value = "";
     await refreshSession(joinedTenant);
@@ -3125,7 +3144,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView(activeView);
     try {
       if (!await refreshSession()) return;
-      if (pendingInvitationCode) await redeemInvitation(pendingInvitationCode, true);
+      if (pendingInvitationId) await redeemInvitation({ invitationId: pendingInvitationId }, true);
+      else if (pendingInvitationCode) await redeemInvitation({ code: pendingInvitationCode }, true);
+      else if (invalidInvitationLink) {
+        await loadSetup();
+        setSetupMessage("error", "Invitation link is invalid", "Paste the fallback code from the invitation email to join the workspace.");
+      }
       else if (!tenantId) await loadSetup();
       else if (activeView === "setup") await loadSetup();
       else if (activeView === "activity") await loadActivity();
@@ -3273,7 +3297,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   });
   redeemInviteForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await redeemInvitation(inviteCode.value, false);
+    await redeemInvitation({ code: inviteCode.value }, false);
   });
   createSourceForm.addEventListener("submit", async (event) => {
     event.preventDefault();
