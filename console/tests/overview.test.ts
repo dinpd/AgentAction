@@ -130,6 +130,7 @@ class FakeElement {
   readonly listeners = new Map<string, Array<(event: { preventDefault(): void }) => unknown>>();
   readonly tagName: string;
   className = "";
+  disabled = false;
   hidden = false;
   href = "";
   id = "";
@@ -388,6 +389,7 @@ type RuntimeOptions = {
   sessionStatus?: number;
   sessionPayload?: Record<string, any>;
   setupPayload?: Record<string, any>;
+  betaSetupPayload?: Record<string, any>;
   invitationDelivery?: "failed" | "sent" | "unavailable";
   startSsoFixed?: boolean;
   startUnprovisioned?: boolean;
@@ -457,9 +459,10 @@ function makeRuntime(options: RuntimeOptions = {}) {
         }, 201);
       }
       if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/setup$/.test(path)) {
-        const role = path.includes("/beta/") ? "viewer" : "owner";
-        return response(options.setupPayload || {
-          membership: { tenant_id: path.includes("/beta/") ? "beta" : "acme", role },
+        const isBeta = path.includes("/beta/");
+        const role = isBeta ? "viewer" : "owner";
+        return response((isBeta ? options.betaSetupPayload : options.setupPayload) || {
+          membership: { tenant_id: isBeta ? "beta" : "acme", role },
           sources: [{ source_id: "hermes-production", integration: "hermes", enabled: true, agent_ids: ["support-agent"] }],
           members: [{ email: "operator@example.com", role: "owner" }],
           ingestion: { observed: false, last_observed_at: null },
@@ -482,12 +485,13 @@ function makeRuntime(options: RuntimeOptions = {}) {
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
         });
       }
-      if (path.startsWith("/api/console/tenants/acme/activity/events?")) {
+      if (/^\/api\/console\/tenants\/(?:acme|beta)\/activity\/events\?/.test(path)) {
         const status = options.activityStatus || 200;
         if (status !== 200) {
           return response({ error: { code: "console_test_failure", message: "Activity unavailable." } }, status);
         }
-        return response(activityPayload, 200, {
+        const tenant = path.includes("/beta/") ? "beta" : "acme";
+        return response({ ...activityPayload, tenant_id: tenant }, 200, {
           "x-agentpass-console-data-state": options.dataState || "fresh",
           "x-agentpass-console-generated-at": "2026-07-25T11:59:00.000Z",
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
@@ -688,9 +692,34 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.equal(document.get("[data-join-workspace-toggle]").hidden, false);
   assert.equal(document.get("[data-join-workspace-toggle]").attributes.get("aria-expanded"), "false");
   assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
-  assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent hermes · Enabled/);
+  assert.match(textOf(document.get("[data-source-list]")), /Source ID hermes-production Enabled Agent ID support-agent Integration hermes/);
   assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("makes disabled source credentials visually explicit and removes active source actions", async () => {
+  const { controller, document } = makeRuntime({
+    hash: "#setup",
+    setupPayload: {
+      membership: { tenant_id: "acme", role: "owner" },
+      sources: [
+        { source_id: "hermes-live", integration: "hermes", enabled: true, agent_ids: ["support-agent"] },
+        { source_id: "hermes-revoked", integration: "hermes", enabled: false, agent_ids: ["retired-agent"] },
+      ],
+      members: [],
+      ingestion: { observed: false },
+    },
+  });
+  await controller.ready;
+
+  const rows = document.get("[data-source-list]").children;
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].dataset.state, "enabled");
+  assert.equal(rows[1].dataset.state, "disabled");
+  assert.match(textOf(rows[0]), /Source ID hermes-live Enabled Agent ID support-agent/);
+  assert.match(textOf(rows[1]), /Source ID hermes-revoked Disabled Agent ID retired-agent Integration hermes Credential revoked/);
+  assert.equal(elementsByTag(rows[0], "button").length, 2);
+  assert.equal(elementsByTag(rows[1], "button").length, 0);
 });
 
 test("keeps connected workspace actions secondary and expands invitation redemption on demand", async () => {
@@ -967,7 +996,7 @@ test("loads tenant activity with allowlisted filters and explicit intent binding
   const { controller, document, pageUrls, requests } = makeRuntime({ hash: "#activity" });
   await controller.ready;
   document.get("[data-activity-filter-window]").value = "1";
-  document.get("[data-activity-filter-agent]").value = "refund-agent";
+  document.get("[data-activity-filter-agent]").value = "support-agent";
   document.get("[data-activity-filter-event]").value = "tool_action";
   document.get("[data-activity-filter-tool]").value = "browser.open";
   document.get("[data-activity-filter-decision]").value = "challenge_required";
@@ -975,7 +1004,7 @@ test("loads tenant activity with allowlisted filters and explicit intent binding
   document.get("[data-activity-filter-intent]").value = "bound";
 
   const query = controller.buildActivityQuery();
-  assert.equal(query.get("agent_id"), "refund-agent");
+  assert.equal(query.get("agent_id"), "support-agent");
   assert.equal(query.get("event_type"), "tool_action");
   assert.equal(query.get("tool"), "browser.open");
   assert.equal(query.get("decision"), "challenge_required");
@@ -994,6 +1023,71 @@ test("loads tenant activity with allowlisted filters and explicit intent binding
   assert.match(text, /challenge_required/);
   assert.equal(document.get("[data-console-view='activity']").hidden, false);
   assert.equal(document.get("[data-console-view='overview']").hidden, true);
+});
+
+test("offers workspace agent IDs in Activity without treating source IDs as agents", async () => {
+  const valid = makeRuntime({ hash: "#activity", search: "?window=7&agent_id=support-agent" });
+  await valid.controller.ready;
+
+  const validAgent = valid.document.get("[data-activity-filter-agent]");
+  assert.deepEqual(validAgent.children.map((option) => option.value), ["", "support-agent"]);
+  assert.equal(validAgent.children[0].textContent, "All agents");
+  assert.equal(validAgent.value, "support-agent");
+  assert.ok(valid.requests.some((path) => path.includes("agent_id=support-agent")));
+
+  const sourceId = makeRuntime({ hash: "#activity", search: "?window=7&agent_id=hermes-production" });
+  await sourceId.controller.ready;
+  assert.deepEqual(sourceId.document.get("[data-activity-filter-agent]").children.map((option) => option.value), ["", "support-agent"]);
+  assert.equal(sourceId.document.get("[data-activity-filter-agent]").value, "");
+  assert.equal(sourceId.requests.some((path) => path.includes("agent_id=hermes-production")), false);
+});
+
+test("refreshes Activity agent choices when the selected workspace changes", async () => {
+  const { controller, document, requests } = makeRuntime({
+    hash: "#activity",
+    sessionPayload: {
+      authenticated: true,
+      workspace_mode: "directory",
+      tenant_id: "acme",
+      subject: "operator-1",
+      memberships: [
+        { tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } },
+        { tenant: { tenant_id: "beta", display_name: "Beta" }, membership: { tenant_id: "beta", role: "viewer" } },
+      ],
+    },
+    betaSetupPayload: {
+      membership: { tenant_id: "beta", role: "viewer" },
+      sources: [{ source_id: "beta-source", integration: "custom", enabled: true, agent_ids: ["beta-agent"] }],
+      members: [],
+      ingestion: { observed: false },
+    },
+  });
+  await controller.ready;
+  assert.deepEqual(document.get("[data-activity-filter-agent]").children.map((option) => option.value), ["", "support-agent"]);
+
+  document.get("[data-activity-filter-agent]").value = "support-agent";
+  document.get("[data-tenant-select]").value = "beta";
+  await document.get("[data-tenant-select]").dispatch("change");
+
+  assert.deepEqual(document.get("[data-activity-filter-agent]").children.map((option) => option.value), ["", "beta-agent"]);
+  assert.equal(document.get("[data-activity-filter-agent]").value, "");
+  assert.ok(requests.some((path) => path === "/api/console/onboarding/tenants/beta/setup"));
+  assert.equal(requests.some((path) => path.includes("/tenants/beta/activity/events?") && path.includes("support-agent")), false);
+});
+
+test("labels Tool as optional, omits it when blank, and explains empty activity states", async () => {
+  assert.match(SHELL_HTML, /<span>Tool <small>\(optional\)<\/small><\/span>/);
+  const emptyPayload = { ...structuredClone(ACTIVITY_FIXTURE), events: [], count: 0, next_cursor: null };
+  const unfiltered = makeRuntime({ hash: "#activity", activityPayload: emptyPayload });
+  await unfiltered.controller.ready;
+  assert.equal(unfiltered.controller.buildActivityQuery().has("tool"), false);
+  assert.match(unfiltered.document.get("[data-activity-message-title]").textContent, /No activity received/);
+  assert.match(unfiltered.document.get("[data-activity-message-detail]").textContent, /source is enabled/i);
+
+  const filtered = makeRuntime({ hash: "#activity", search: "?window=7&tool=browser.open", activityPayload: emptyPayload });
+  await filtered.controller.ready;
+  assert.match(filtered.document.get("[data-activity-message-title]").textContent, /No activity matched/);
+  assert.match(filtered.document.get("[data-activity-message-detail]").textContent, /remove a filter/i);
 });
 
 test("renders finalized Jobs rows with explicit boundaries findings and stable detail targets", async () => {

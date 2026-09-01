@@ -445,9 +445,9 @@ const SHELL_HTML = `<!doctype html>
                   <option value="90">Last 90 days</option>
                 </select>
               </label>
-              <label><span>Agent</span><input data-activity-filter-agent type="text" maxlength="160" autocomplete="off" placeholder="hermes-support"></label>
+              <label><span>Agent</span><select data-activity-filter-agent><option value="">All agents</option></select></label>
               <label><span>Event</span><select data-activity-filter-event><option value="">All events</option><option value="tool_action">Tool action</option><option value="model_request_started">Model request started</option><option value="model_request_completed">Model request completed</option><option value="subagent_started">Subagent started</option><option value="subagent_completed">Subagent completed</option></select></label>
-              <label><span>Tool</span><input data-activity-filter-tool type="text" maxlength="160" autocomplete="off" placeholder="browser.open"></label>
+              <label><span>Tool <small>(optional)</small></span><input data-activity-filter-tool type="text" maxlength="160" autocomplete="off" placeholder="browser.open"></label>
               <label><span>Shadow decision</span><select data-activity-filter-decision><option value="">All decisions</option><option value="allow">Allow</option><option value="challenge_required">Challenge required</option><option value="deny">Deny</option></select></label>
               <label><span>Execution</span><select data-activity-filter-execution><option value="">All states</option><option value="ok">OK</option><option value="error">Error</option><option value="blocked">Blocked</option><option value="cancelled">Cancelled</option><option value="unknown">Unknown</option></select></label>
               <label><span>Intent binding</span><select data-activity-filter-intent><option value="">Bound and unbound</option><option value="bound">Explicitly bound</option><option value="unbound">Unbound</option></select></label>
@@ -1019,6 +1019,7 @@ button { cursor: pointer; }
 .status-pill[data-state="failed"],
 .status-pill[data-state="indeterminate"],
 .status-pill[data-state="low"] { background: #f8e7c5; color: #765013; }
+.status-pill[data-state="disabled"] { background: color-mix(in srgb, var(--red) 11%, white); color: var(--red); }
 .job-findings { margin: 2px 0 0; padding-left: 14px; color: #765013; font-size: 0.62rem; }
 .jobs-pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .jobs-pagination p { color: var(--muted); font-size: 0.72rem; }
@@ -1129,10 +1130,17 @@ button { cursor: pointer; }
 .integration-guide { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
 .integration-guide h4, .integration-guide p, .integration-guide ol { margin: 0; }
 .integration-guide ol { display: grid; gap: 5px; padding-left: 20px; color: var(--muted); }
-.source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.source-row:last-child { border-bottom: 0; }
-.source-row strong, .source-row code { display: block; overflow-wrap: anywhere; }
-.source-row code, .source-row small { color: var(--muted); font-size: 0.65rem; }
+.source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
+.source-row[data-state="disabled"] { border-color: color-mix(in srgb, var(--red) 24%, var(--line)); background: color-mix(in srgb, var(--red) 4%, var(--surface)); }
+.source-details { display: grid; gap: 8px; min-width: 0; }
+.source-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.source-heading > div { min-width: 0; }
+.source-heading strong, .source-metadata code { display: block; overflow-wrap: anywhere; }
+.source-field-label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 0.58rem; font-weight: 900; letter-spacing: 0.09em; text-transform: uppercase; }
+.source-metadata { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.source-metadata > span { min-width: 150px; }
+.source-metadata code, .source-metadata strong, .source-revoked { font-size: 0.68rem; }
+.source-revoked { color: var(--red); font-weight: 800; }
 .source-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .source-actions button { min-height: 34px; padding: 6px 9px; }
 .secret-panel { display: grid; gap: 12px; margin-bottom: 14px; padding: 17px; border: 2px solid var(--amber); border-radius: 6px; background: #fff8e8; }
@@ -1391,7 +1399,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const activityFilterForm = required<HTMLFormElement>("[data-activity-filters]");
   const resetActivityButton = required<HTMLButtonElement>("[data-reset-activity-filters]");
   const activityWindowFilter = required<HTMLSelectElement>("[data-activity-filter-window]");
-  const activityAgentFilter = required<HTMLInputElement>("[data-activity-filter-agent]");
+  const activityAgentFilter = required<HTMLSelectElement>("[data-activity-filter-agent]");
   const activityEventFilter = required<HTMLSelectElement>("[data-activity-filter-event]");
   const activityToolFilter = required<HTMLInputElement>("[data-activity-filter-tool]");
   const activityDecisionFilter = required<HTMLSelectElement>("[data-activity-filter-decision]");
@@ -1508,6 +1516,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         : "overview";
   let currentActivityCursor = "";
   let nextActivityCursor = "";
+  let requestedActivityAgentId = "";
+  let activityAgentOptionsTenantId = "";
   let currentJobId = "";
   let currentJobsCursor = "";
   let nextJobsCursor = "";
@@ -1703,7 +1713,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   }
 
   function selectTenant(selected: string): void {
+    const previousTenantId = tenantId;
     tenantId = selected;
+    if (previousTenantId && previousTenantId !== tenantId) {
+      requestedActivityAgentId = "";
+      activityAgentOptionsTenantId = "";
+      renderActivityAgentOptions([], false);
+    }
     const entry = tenantMemberships.find((candidate) => safeText(candidate.tenant.tenant_id, "") === tenantId);
     const role = safeText(entry?.membership.role, "");
     activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "";
@@ -1828,6 +1844,45 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
   }
 
+  function agentIdsFromSources(value: unknown): string[] {
+    const agentIds = new Set<string>();
+    for (const source of Array.isArray(value) ? value.map(record) : []) {
+      for (const value of Array.isArray(source.agent_ids) ? source.agent_ids : []) {
+        const agentId = safeText(value, "").slice(0, 160);
+        if (agentId) agentIds.add(agentId);
+      }
+    }
+    return [...agentIds].sort((left, right) => left.localeCompare(right));
+  }
+
+  function renderActivityAgentOptions(value: unknown, cacheForTenant = true): void {
+    const preferred = requestedActivityAgentId || String(activityAgentFilter.value || "");
+    const agentIds = agentIdsFromSources(value);
+    const allAgents = create("option", undefined, "All agents") as HTMLOptionElement;
+    allAgents.value = "";
+    const options = agentIds.map((agentId) => {
+      const option = create("option", undefined, agentId) as HTMLOptionElement;
+      option.value = agentId;
+      return option;
+    });
+    activityAgentFilter.replaceChildren(allAgents, ...options);
+    activityAgentFilter.value = agentIds.includes(preferred) ? preferred : "";
+    requestedActivityAgentId = "";
+    if (cacheForTenant) activityAgentOptionsTenantId = tenantId;
+  }
+
+  async function ensureActivityAgentOptions(): Promise<void> {
+    if (publicDemo || !tenantId || activityAgentOptionsTenantId === tenantId) return;
+    const requestedTenantId = tenantId;
+    try {
+      const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(requestedTenantId)}/setup`);
+      if (tenantId !== requestedTenantId) return;
+      renderActivityAgentOptions(result.response.ok ? record(result.body).sources : []);
+    } catch {
+      if (tenantId === requestedTenantId) renderActivityAgentOptions([]);
+    }
+  }
+
   function renderSources(value: unknown, canManage: boolean): void {
     sourceList.replaceChildren();
     const sources = Array.isArray(value) ? value.map(record) : [];
@@ -1838,35 +1893,46 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     for (const source of sources) {
       const sourceId = safeText(source.source_id, "");
       const row = create("div", "source-row");
-      const details = create("div");
-      details.append(
-        create("strong", undefined, sourceId),
-        create("code", undefined, (Array.isArray(source.agent_ids) ? source.agent_ids.join(", ") : "No agents")),
-        create("small", undefined, `${safeText(source.integration, "AgentAction")} · ${source.enabled === true ? "Enabled" : "Disabled"}`),
+      const enabled = source.enabled === true;
+      row.dataset.state = enabled ? "enabled" : "disabled";
+      const details = create("div", "source-details");
+      const heading = create("div", "source-heading");
+      const sourceIdentity = create("div");
+      sourceIdentity.append(create("small", "source-field-label", "Source ID"), create("strong", undefined, sourceId));
+      heading.append(sourceIdentity, statusPill(enabled ? "Enabled" : "Disabled", enabled ? "enabled" : "disabled"));
+      const metadata = create("div", "source-metadata");
+      const agents = create("span");
+      const agentIds = Array.isArray(source.agent_ids) ? source.agent_ids.map((value) => safeText(value, "")).filter(Boolean) : [];
+      agents.append(
+        create("small", "source-field-label", agentIds.length === 1 ? "Agent ID" : "Agent IDs"),
+        create("code", undefined, agentIds.length > 0 ? agentIds.join(", ") : "No agents"),
       );
+      const integration = create("span");
+      integration.append(create("small", "source-field-label", "Integration"), create("strong", undefined, safeText(source.integration, "AgentAction")));
+      metadata.append(agents, integration);
+      details.append(heading, metadata);
+      if (!enabled) details.append(create("small", "source-revoked", "Credential revoked · this source can no longer submit activity."));
       row.append(details);
-      if (canManage) {
+      if (canManage && enabled) {
         const actions = create("div", "source-actions");
         const rotate = create("button", "text-button", "Rotate token") as HTMLButtonElement;
         rotate.type = "button";
-        rotate.disabled = source.enabled !== true;
         rotate.addEventListener("click", async () => {
           const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(sourceId)}/rotate`, "POST", {});
           if (!result.response.ok) return setSetupMessage("error", "Token rotation failed", failureMessage(result.body, "The source token could not be rotated."));
+          await loadSetup();
           showOneTimeSecret(record(result.body));
           setSetupMessage("ready", "Source token rotated", "The previous token is no longer valid. Save the replacement now.");
-          await loadSetup();
         });
         const disable = create("button", "text-button", "Disable") as HTMLButtonElement;
         disable.type = "button";
-        disable.disabled = source.enabled !== true;
         disable.addEventListener("click", async () => {
           const confirmed = doc.defaultView?.confirm ? doc.defaultView.confirm(`Disable source ${sourceId}?`) : true;
           if (!confirmed) return;
           const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/sources/${encodeURIComponent(sourceId)}`, "DELETE");
           if (!result.response.ok) return setSetupMessage("error", "Source update failed", failureMessage(result.body, "The source could not be disabled."));
-          setSetupMessage("ready", "Source disabled", `${sourceId} can no longer submit activity.`);
           await loadSetup();
+          setSetupMessage("ready", "Source disabled", `${sourceId} can no longer submit activity.`);
         });
         actions.append(rotate, disable);
         row.append(actions);
@@ -1916,6 +1982,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     createSourceForm.hidden = !canManageSources;
     inviteMembersCard.hidden = activeRole !== "owner";
     renderSources(body.sources, canManageSources);
+    renderActivityAgentOptions(body.sources);
     renderMembers(body.members);
     if (workspaceMode === "sso_fixed") {
       setSetupMessage("ready", "Workspace managed by SSO", activeRole === "owner"
@@ -1962,7 +2029,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const query = new URLSearchParams(runtime.location.search || "");
     const windowValue = query.get("window") || "";
     if (allowedWindows.has(windowValue)) activityWindowFilter.value = windowValue;
-    activityAgentFilter.value = (query.get("agent_id") || "").slice(0, 160);
+    requestedActivityAgentId = (query.get("agent_id") || "").slice(0, 160);
+    activityAgentFilter.value = "";
     activityToolFilter.value = (query.get("tool") || "").slice(0, 160);
     const eventType = query.get("event_type") || "";
     activityEventFilter.value = allowedActivityEvents.has(eventType) ? eventType : "";
@@ -2013,6 +2081,17 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     activityIntentFilter.value = "";
     currentActivityCursor = "";
     nextActivityCursor = "";
+  }
+
+  function activityHasRestrictiveFilters(): boolean {
+    return Boolean(
+      String(activityAgentFilter.value || "").trim()
+      || activityEventFilter.value
+      || activityToolFilter.value.trim()
+      || activityDecisionFilter.value
+      || activityExecutionFilter.value
+      || activityIntentFilter.value,
+    );
   }
 
   function appendTextFilter(query: URLSearchParams, name: string, value: string): void {
@@ -3020,6 +3099,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
     const events = payload.events.filter(isRenderableActivity);
     if (payload.events.length > 0 && events.length === 0) throw new Error("Activity events are invalid.");
+    if (publicDemo && activityAgentOptionsTenantId !== tenantId) {
+      renderActivityAgentOptions([{ agent_ids: events.map((event) => safeText(record(event).agent_id, "")).filter(Boolean) }]);
+    }
     nextActivityCursor = typeof payload.next_cursor === "string" ? payload.next_cursor.slice(0, 1_024) : "";
     activityNextButton.hidden = !nextActivityCursor;
     activityList.replaceChildren(...events.map(renderActivityEvent));
@@ -3029,8 +3111,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       : `Showing the newest ${events.length.toLocaleString("en-US")} event(s).`;
     activityContent.hidden = events.length === 0;
     if (events.length === 0) {
-      setActivityState("empty", "No activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
-      setStatus("ready", "The Activity query completed with no matches.");
+      if (activityHasRestrictiveFilters()) {
+        setActivityState("empty", "No activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
+        setStatus("ready", "The Activity query completed with no matches.");
+      } else {
+        setActivityState("empty", "No activity received", "Verify that the source is enabled and the agent integration has its current token, then run one agent action. Raw prompts, arguments, and results are never part of this feed.");
+        setStatus("ready", "This workspace has not received agent activity in the selected window.");
+      }
       return;
     }
     activityMessage.hidden = true;
@@ -3049,6 +3136,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setActivityState("loading", "Loading observed activity", "Reading privacy-safe events through the tenant-scoped BFF.");
     activityContent.hidden = true;
     activityNextButton.hidden = true;
+    await ensureActivityAgentOptions();
     const query = buildActivityQuery(currentActivityCursor);
     syncActivityPageUrl(currentActivityCursor);
     try {
