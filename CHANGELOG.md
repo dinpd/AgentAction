@@ -4,6 +4,16 @@
 
 No changes yet.
 
+## 0.9.9 - 2026-08-31
+
+### Workspace-stable Job detail links
+
+- Preserve an authorized workspace across in-app Job navigation, reloads, and
+  shared Job-detail URLs without treating the client preference as authority.
+- Keep server-side membership authorization as the source of truth and fall
+  back safely when a requested workspace is not one of the signed-in user's
+  memberships.
+
 ## 0.9.8 - 2026-08-31
 
 ### Hermes runs in Jobs
