@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.9.6 - 2026-08-31
+
+### Workspace-aware activity filters
+
+- Make disabled agent sources visibly revoked and remove token actions that no
+  longer apply after disablement.
+- Populate the Activity agent filter from the selected workspace's configured
+  agent IDs, clearing selections that belong to another workspace or name a
+  source instead of an agent.
+- Label the exact-match Tool filter as optional and distinguish an unconnected
+  event stream from a filtered query with no matches.
+
 ## 0.9.5 - 2026-08-31
 
 ### Focused operator overview
