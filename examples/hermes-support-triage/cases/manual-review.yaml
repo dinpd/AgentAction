@@ -1,0 +1,12 @@
+schema_version: agentaction.hermes-support-triage-case.v1
+scenario: synthetic
+case_id: demo-case-manual-review-001
+order_id: demo-order-20817
+request_received_at: "2026-09-01"
+delivered_at: "2026-07-21"
+request_reason: intermittent_product_defect
+item_condition: opened
+final_sale: false
+prior_refund: false
+defect_evidence: missing
+case_note: The reported intermittent defect has no diagnostic attachment or inspection result.

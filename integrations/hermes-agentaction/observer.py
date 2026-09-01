@@ -201,6 +201,8 @@ class HermesShadowObserver:
         self._tool_counts: defaultdict[tuple[str, str], int] = defaultdict(int)
         self._fingerprint_counts: defaultdict[tuple[str, str, str], int] = defaultdict(int)
         self._lock = threading.Lock()
+        self._event_id_lock = threading.Lock()
+        self._event_sequence = 0
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._thread: threading.Thread | None = None
@@ -454,8 +456,9 @@ class HermesShadowObserver:
                 drained.append(self.events.get_nowait())
             except queue.Empty:
                 break
-        combined = (existing + drained)[: self.config.batch_size]
-        remainder = (existing + drained)[self.config.batch_size :]
+        pending = _deduplicate_events(existing + drained)
+        combined = pending[: self.config.batch_size]
+        remainder = pending[self.config.batch_size :]
         if not combined:
             return True
         bound = [self._bind_run_event(event) for event in combined]
@@ -470,7 +473,7 @@ class HermesShadowObserver:
         try:
             self.sender(payload)
         except Exception:
-            self.spool.save(existing + drained)
+            self.spool.save(pending)
             return False
         self.spool.save(remainder)
         return True
@@ -708,12 +711,16 @@ class HermesShadowObserver:
         }
 
     def _finish_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        with self._event_id_lock:
+            self._event_sequence += 1
+            sequence = self._event_sequence
         material = {
             "source_id": event["source_id"],
             "event_type": event["event_type"],
             "correlation": event["correlation"],
             "tool": event.get("tool"),
-            "observed_at": event["observed_at"] if not event["correlation"] else None,
+            "observed_at": event["observed_at"],
+            "sequence": sequence,
         }
         event["event_id"] = f"obs_{hashlib.sha256(_canonical_json(material).encode()).hexdigest()[:32]}"
         return event
@@ -940,6 +947,19 @@ def _usage_metadata(value: Any) -> dict[str, int]:
 def _batch_id(events: list[dict[str, Any]]) -> str:
     ids = [str(event.get("event_id") or "") for event in events]
     return f"batch_{hashlib.sha256(_canonical_json(ids).encode()).hexdigest()[:32]}"
+
+
+def _deduplicate_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for event in events:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in seen_ids:
+            continue
+        if event_id:
+            seen_ids.add(event_id)
+        result.append(event)
+    return result
 
 
 def _action_for(policy: Mapping[str, Any]) -> str:

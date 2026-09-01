@@ -1,0 +1,12 @@
+schema_version: agentaction.hermes-support-triage-case.v1
+scenario: synthetic
+case_id: demo-case-eligible-001
+order_id: demo-order-10482
+request_received_at: "2026-09-01"
+delivered_at: "2026-08-20"
+request_reason: changed_mind
+item_condition: unopened
+final_sale: false
+prior_refund: false
+defect_evidence: not_applicable
+case_note: Customer requests a return and has not asked the agent to execute a refund.

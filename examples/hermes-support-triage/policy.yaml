@@ -1,0 +1,25 @@
+schema_version: agentaction.hermes-support-triage-policy.v1
+scenario: synthetic
+as_of: "2026-09-01"
+currency: USD
+
+rules:
+  - id: REFUND-01
+    title: Standard return window
+    text: A physical item may be recommended for refund when the request is made within 30 calendar days of delivery.
+
+  - id: REFUND-02
+    title: Standard eligibility conditions
+    text: A within-window item is eligible only when it is unopened, is not final sale, and has not already been refunded.
+
+  - id: REFUND-03
+    title: Disqualifying conditions
+    text: A final-sale item or an order with a prior refund is ineligible for another refund.
+
+  - id: REFUND-04
+    title: Exception evidence
+    text: An out-of-window defect claim requires manual review when diagnostic evidence is missing or inconclusive; the agent must not guess eligibility.
+
+  - id: REFUND-05
+    title: Recommendation boundary
+    text: The triage agent may recommend a decision but must not issue a refund, change an order, contact a customer, or modify a ticket.
