@@ -1492,6 +1492,11 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   }
 
   const invitationQueryPresent = new URLSearchParams(runtime.location.search).has("invitation");
+  const workspacePreference = (() => {
+    const values = new URLSearchParams(runtime.location.search).getAll("workspace");
+    const value = values.length === 1 ? values[0].trim().slice(0, 128) : "";
+    return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : "";
+  })();
   let pendingInvitationId = invitationIdFromSearch(runtime.location.search);
   let pendingInvitationCode = invitationCodeFromHash(runtime.location.hash);
   const invalidInvitationLink = invitationQueryPresent && !pendingInvitationId && !pendingInvitationCode;
@@ -2099,6 +2104,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (normalized) query.set(name, normalized);
   }
 
+  function appendWorkspacePreference(query: URLSearchParams): void {
+    if (!publicDemo && workspaceMode === "directory" && tenantId) query.set("workspace", tenantId);
+  }
+
   function queryWindowFor(filter: HTMLSelectElement): { days: number; from: Date; to: Date } {
     const selected = allowedWindows.has(filter.value) ? filter.value : "7";
     const days = Number(selected);
@@ -2188,6 +2197,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (allowedConstraints.has(constraintFilter.value) && constraintFilter.value) {
       pageQuery.set("constraint_compliance", constraintFilter.value);
     }
+    appendWorkspacePreference(pageQuery);
     const suffix = pageQuery.toString();
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#overview`);
   }
@@ -2210,6 +2220,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     appendTextFilter(pageQuery, "job_id", jobsJobFilter.value);
     appendTextFilter(pageQuery, "intent_id", jobsIntentFilter.value);
     if (cursor) pageQuery.set("cursor", cursor.slice(0, 1_024));
+    appendWorkspacePreference(pageQuery);
     const suffix = pageQuery.toString();
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#jobs`);
   }
@@ -2224,6 +2235,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (allowedActivityExecutions.has(activityExecutionFilter.value) && activityExecutionFilter.value) pageQuery.set("execution_status", activityExecutionFilter.value);
     if (allowedIntentBindings.has(activityIntentFilter.value) && activityIntentFilter.value) pageQuery.set("intent_binding", activityIntentFilter.value);
     if (cursor) pageQuery.set("cursor", cursor.slice(0, 1_024));
+    appendWorkspacePreference(pageQuery);
     const suffix = pageQuery.toString();
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#activity`);
   }
@@ -2231,6 +2243,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   function syncJobDetailUrl(jobId = currentJobId): void {
     const query = new URLSearchParams();
     if (jobId) query.set("job_id", jobId.slice(0, 160));
+    appendWorkspacePreference(query);
     const suffix = query.toString();
     runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#job-detail`);
   }
@@ -2954,8 +2967,15 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
     const jobLink = create("a", "job-link", safeText(job.job_id));
     const detailQuery = new URLSearchParams({ job_id: safeText(job.job_id, "") });
+    appendWorkspacePreference(detailQuery);
     jobLink.setAttribute("href", `${runtime.location.pathname || "/"}?${detailQuery.toString()}#job-detail`);
     jobLink.setAttribute("aria-label", `Open finalized detail for job ${safeText(job.job_id)}`);
+    jobLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      currentJobId = safeText(job.job_id, "").slice(0, 160);
+      showView("job-detail");
+      void loadJobDetail();
+    });
     const idCell = cellStack(jobLink, create("code", undefined, `Intent ${safeText(job.intent_id)}`));
 
     const agentIds = Array.isArray(job.agent_ids)
@@ -3283,7 +3303,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     buildJobsQuery();
     showView(activeView);
     try {
-      if (!await refreshSession()) return;
+      if (!await refreshSession(workspacePreference)) return;
       if (pendingInvitationId) await redeemInvitation({ invitationId: pendingInvitationId }, true);
       else if (pendingInvitationCode) await redeemInvitation({ code: pendingInvitationCode }, true);
       else if (invalidInvitationLink) {

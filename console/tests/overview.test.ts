@@ -497,7 +497,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
         });
       }
-      if (path.startsWith("/api/console/tenants/acme/intent-quality/jobs/")) {
+      if (/^\/api\/console\/tenants\/(?:acme|beta)\/intent-quality\/jobs\//.test(path)) {
         const status = options.detailStatus || 200;
         if (status !== 200) {
           return response(
@@ -514,13 +514,18 @@ function makeRuntime(options: RuntimeOptions = {}) {
             status,
           );
         }
-        return response(detailPayload, 200, {
+        const tenant = path.includes("/beta/") ? "beta" : "acme";
+        return response({
+          ...detailPayload,
+          tenant_id: tenant,
+          job: { ...detailPayload.job, tenant_id: tenant },
+        }, 200, {
           "x-agentpass-console-data-state": options.dataState || "fresh",
           "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
         });
       }
-      if (path.startsWith("/api/console/tenants/acme/intent-quality/jobs?")) {
+      if (/^\/api\/console\/tenants\/(?:acme|beta)\/intent-quality\/jobs\?/.test(path)) {
         const status = options.jobsStatus || 200;
         if (status !== 200) {
           return response(
@@ -528,7 +533,8 @@ function makeRuntime(options: RuntimeOptions = {}) {
             status,
           );
         }
-        return response(jobsPayload, 200, {
+        const tenant = path.includes("/beta/") ? "beta" : "acme";
+        return response({ ...jobsPayload, tenant_id: tenant }, 200, {
           "x-agentpass-console-data-state": options.dataState || "fresh",
           "x-agentpass-console-generated-at": "2026-07-25T11:48:00.000Z",
           "x-agentpass-console-data-age-seconds": options.dataState === "stale" ? "720" : "20",
@@ -1110,7 +1116,7 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.equal(document.get("[data-jobs-next]").hidden, false);
   const links = elementsByTag(list, "a");
   assert.equal(links.length, 2);
-  assert.equal(links[0].attributes.get("href"), "/?job_id=job-indeterminate#job-detail");
+  assert.equal(links[0].attributes.get("href"), "/?job_id=job-indeterminate&workspace=acme#job-detail");
   assert.equal(links[0].attributes.get("href")?.includes("evidence"), false);
 
   await controller.loadJobs("opaque-next");
@@ -1204,7 +1210,7 @@ test("renders explicit empty forbidden and unavailable Jobs states", async (cont
   });
 });
 
-test("loads one finalized Job detail from a stable identifier-only URL", async () => {
+test("loads one finalized Job detail from a stable workspace-scoped identifier URL", async () => {
   const { controller, document, pageUrls, requests } = makeRuntime({
     hash: "#job-detail",
     search: "?job_id=job-refund-partial",
@@ -1222,7 +1228,7 @@ test("loads one finalized Job detail from a stable identifier-only URL", async (
   );
   assert.equal(requests.some((request) => request.includes("/intent-quality/rollups?")), false);
   assert.equal(requests.some((request) => request.includes("/intent-quality/jobs?")), false);
-  assert.equal(pageUrls.at(-1), "/?job_id=job-refund-partial#job-detail");
+  assert.equal(pageUrls.at(-1), "/?job_id=job-refund-partial&workspace=acme#job-detail");
   assert.equal(pageUrls.at(-1)?.includes("tenant"), false);
   assert.equal(pageUrls.at(-1)?.includes("evidence"), false);
 
@@ -1245,6 +1251,56 @@ test("loads one finalized Job detail from a stable identifier-only URL", async (
   assert.match(textOf(timeline), /Timestamp missing/);
   assert.match(textOf(document.get("[data-job-detail-findings-list]")), /timeline event lacks a valid timestamp/);
   assert.equal(document.get("[data-status-card]").dataset.state, "partial");
+});
+
+test("preserves an authorized workspace when a Job detail link is opened or reloaded", async () => {
+  const sessionPayload = {
+    authenticated: true,
+    workspace_mode: "directory",
+    tenant_id: null,
+    subject: "operator-1",
+    memberships: [
+      { tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "owner" } },
+      { tenant: { tenant_id: "beta", display_name: "Beta" }, membership: { tenant_id: "beta", role: "viewer" } },
+    ],
+  };
+  const direct = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial&workspace=beta",
+    sessionPayload,
+  });
+  await direct.controller.ready;
+  assert.equal(direct.document.get("[data-tenant-select]").value, "beta");
+  assert.equal(
+    direct.requests.at(-1),
+    "/api/console/tenants/beta/intent-quality/jobs/job-refund-partial",
+  );
+  assert.equal(direct.pageUrls.at(-1), "/?job_id=job-refund-partial&workspace=beta#job-detail");
+
+  const inApp = makeRuntime({ hash: "#jobs", sessionPayload });
+  await inApp.controller.ready;
+  inApp.document.get("[data-tenant-select]").value = "beta";
+  await inApp.document.get("[data-tenant-select]").dispatch("change");
+  const [jobLink] = elementsByTag(inApp.document.get("[data-jobs-list]"), "a");
+  await jobLink.dispatch("click");
+  assert.equal(inApp.document.get("[data-tenant-select]").value, "beta");
+  assert.equal(
+    inApp.requests.at(-1),
+    "/api/console/tenants/beta/intent-quality/jobs/job-indeterminate",
+  );
+  assert.equal(inApp.pageUrls.at(-1), "/?job_id=job-indeterminate&workspace=beta#job-detail");
+
+  const unauthorizedPreference = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial&workspace=not-a-membership",
+    sessionPayload: { ...sessionPayload, tenant_id: "acme" },
+  });
+  await unauthorizedPreference.controller.ready;
+  assert.equal(unauthorizedPreference.document.get("[data-tenant-select]").value, "acme");
+  assert.equal(
+    unauthorizedPreference.requests.at(-1),
+    "/api/console/tenants/acme/intent-quality/jobs/job-refund-partial",
+  );
 });
 
 test("renders Job detail API strings as text and rejects malformed detail contracts", async (context) => {
