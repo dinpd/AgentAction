@@ -181,6 +181,7 @@ const SHELL_HTML = `<!doctype html>
           <div><dt>Evidence</dt><dd>Final receipts only</dd></div>
         </dl>
       </section>
+      <!-- public-demo-lifecycle:start -->
       <section id="lifecycle" class="lifecycle-panel" data-overview-context="lifecycle" aria-labelledby="lifecycle-title">
         <h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle</h2>
         <details class="lifecycle-disclosure">
@@ -244,6 +245,7 @@ const SHELL_HTML = `<!doctype html>
           </ol>
         </details>
       </section>
+      <!-- public-demo-lifecycle:end -->
       <section id="setup" class="setup-panel" data-console-view="setup" aria-labelledby="setup-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
@@ -1325,7 +1327,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const jobDetailPanel = required<HTMLElement>("[data-console-view='job-detail']");
   const setupPanel = required<HTMLElement>("[data-console-view='setup']");
   const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
-  const lifecyclePanel = required<HTMLElement>("[data-overview-context='lifecycle']");
+  const lifecyclePanel = doc.querySelector<HTMLElement>("[data-overview-context='lifecycle']");
   const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
   const activityNav = required<HTMLAnchorElement>("[data-nav-activity]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
@@ -2173,7 +2175,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobDetailPanel.hidden = view !== "job-detail";
     setupPanel.hidden = view !== "setup";
     qualityIntro.hidden = view !== "overview";
-    lifecyclePanel.hidden = view !== "overview";
+    if (lifecyclePanel) lifecyclePanel.hidden = view !== "overview";
     overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
     activityNav.setAttribute("aria-current", view === "activity" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
@@ -3444,7 +3446,7 @@ export default {
 };
 
 function consoleShell(env: Env): string {
-  if (env.CONSOLE_PUBLIC_DEMO !== "true") return SHELL_HTML;
+  if (env.CONSOLE_PUBLIC_DEMO !== "true") return withoutPublicDemoLifecycle(SHELL_HTML);
   return SHELL_HTML
     .replace('aria-label="Authenticated context"', 'aria-label="Public demo context"')
     .replace("Authenticating console session", "Loading synthetic console data")
@@ -3462,6 +3464,15 @@ function consoleShell(env: Env): string {
       "Authenticated and tenant-scoped. No gateway credential is stored in browser JavaScript.",
       "Public synthetic demo. No production gateway credential or customer data is available to this Worker.",
     );
+}
+
+function withoutPublicDemoLifecycle(shell: string): string {
+  const startMarker = "<!-- public-demo-lifecycle:start -->";
+  const endMarker = "<!-- public-demo-lifecycle:end -->";
+  const start = shell.indexOf(startMarker);
+  const end = shell.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < 0) throw new Error("Public demo lifecycle markers are missing from the console shell.");
+  return shell.slice(0, start) + shell.slice(end + endMarker.length);
 }
 
 async function authenticateConsoleRequest(request: Request, env: Env): Promise<ConsoleIdentity> {

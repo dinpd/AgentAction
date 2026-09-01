@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.9.5 - 2026-08-31
+
+### Focused operator overview
+
+- Keep the synthetic nine-stage execution walkthrough in the public demo while
+  removing it from authenticated operator consoles.
+- Allow the shared console client to initialize and navigate when the optional
+  demo lifecycle panel is absent.
+
 ## 0.9.4 - 2026-08-31
 
 ### Connected workspace setup hierarchy

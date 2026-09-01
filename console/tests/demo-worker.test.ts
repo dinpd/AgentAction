@@ -17,6 +17,9 @@ test("serves the public console shell without an Access token", async () => {
   assert.match(body, /Loading synthetic console data/);
   assert.match(body, /Public synthetic fixtures/);
   assert.match(body, /Public synthetic demo/);
+  assert.match(body, /<h2 id="lifecycle-title" class="visually-hidden">Synthetic run lifecycle<\/h2>/);
+  assert.match(body, /<summary>[\s\S]*Show 9-stage flow[\s\S]*Hide 9-stage flow[\s\S]*<\/summary>/);
+  assert.match(body, /aria-label="Synthetic execution lifecycle"/);
   assert.doesNotMatch(body, /Cloudflare Access/);
   assert.doesNotMatch(body, /Authenticated and tenant-scoped/);
 });
