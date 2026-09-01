@@ -21,10 +21,23 @@ class MemoryNamespace {
     if (!object) {
       const values = new Map<string, unknown>();
       this.stores.set(id, values);
+      function memoryGet<T>(key: string): Promise<T | undefined>;
+      function memoryGet<T>(keys: string[]): Promise<Map<string, T>>;
+      async function memoryGet<T>(key: string | string[]): Promise<T | undefined | Map<string, T>> {
+        if (Array.isArray(key)) {
+          return new Map(key.flatMap((entry) => values.has(entry) ? [[entry, values.get(entry) as T]] : []));
+        }
+        return values.get(key) as T | undefined;
+      }
       object = new AgentIdJitGrants({
         storage: {
-          async get<T>(key: string): Promise<T | undefined> {
-            return values.get(key) as T | undefined;
+          get: memoryGet,
+          async list<T>(options?: { prefix?: string }): Promise<Map<string, T>> {
+            return new Map(
+              [...values.entries()]
+                .filter(([key]) => !options?.prefix || key.startsWith(options.prefix))
+                .map(([key, value]) => [key, value as T] as const),
+            );
           },
           async put<T>(keyOrEntries: string | Record<string, unknown>, value?: T): Promise<void> {
             if (typeof keyOrEntries === "string") {
@@ -2864,12 +2877,24 @@ test("control plane enforces roles, single-use invitations, source rotation, and
     agent_id: "support-agent",
   }, alice);
 
+  const directoryStore = namespace.stores.get("__agentaction_tenant_directory__")!;
+  directoryStore.set("directory:invitation:invite_legacy0123456789abcdef", {
+    schema_version: "agentaction.tenant-invitation.v1",
+    invitation_id: "invite_legacy0123456789abcdef",
+    tenant_id: "acme",
+    email: "legacy@example.com",
+    role: "operator",
+    secret_digest: "a".repeat(64),
+    created_at: "2026-07-24T12:00:00.000Z",
+    created_by: "alice-subject",
+    expires_at: "2099-01-01T00:00:00.000Z",
+  });
+
   const expiredInvitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
     email: "bob@example.com",
     role: "viewer",
   }, alice);
   const expiredInvitationId = String(expiredInvitation.body.invitation_code).split(".")[0];
-  const directoryStore = namespace.stores.get("__agentaction_tenant_directory__")!;
   const expiredRecord = structuredClone(directoryStore.get(`directory:invitation:${expiredInvitationId}`) as Record<string, unknown>);
   expiredRecord.expires_at = "2020-01-01T00:00:00.000Z";
   directoryStore.set(`directory:invitation:${expiredInvitationId}`, expiredRecord);
@@ -2886,6 +2911,17 @@ test("control plane enforces roles, single-use invitations, source rotation, and
   assert.match(invitation.body.invitation_code, /^invite_[a-f0-9]+\.aa_inv_/);
   assert.equal(JSON.stringify(invitation.body.invitation).includes("secret"), false);
   const invitationId = String(invitation.body.invitation.invitation_id);
+
+  const ownerSetupWithInvitations = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, alice);
+  assert.equal(ownerSetupWithInvitations.status, 200);
+  assert.deepEqual(
+    new Set(ownerSetupWithInvitations.body.invitations.map((entry: any) => entry.invitation_id)),
+    new Set(["invite_legacy0123456789abcdef", expiredInvitationId, invitationId]),
+  );
+  const listedInvitations = JSON.stringify(ownerSetupWithInvitations.body.invitations);
+  assert.equal(listedInvitations.includes("secret"), false);
+  assert.equal(listedInvitations.includes("digest"), false);
+  assert.equal(listedInvitations.includes("aa_inv_"), false);
 
   const malformed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
     invitation_id: "invite_bad",
@@ -2925,8 +2961,30 @@ test("control plane enforces roles, single-use invitations, source rotation, and
   }, bob);
   assert.equal(replay.status, 409);
 
+  const operatorInvitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+    email: "eve@example.com",
+    role: "operator",
+  }, alice);
+  const operatorInvitationId = String(operatorInvitation.body.invitation.invitation_id);
+  const operatorRedeemed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    invitation_id: operatorInvitationId,
+  }, eve);
+  assert.equal(operatorRedeemed.status, 201);
+  assert.equal(operatorRedeemed.body.membership.role, "operator");
+
   const viewerSetup = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, bob);
   assert.equal(viewerSetup.status, 200);
+  assert.deepEqual(viewerSetup.body.invitations, []);
+  assert.equal(JSON.stringify(viewerSetup.body).includes("legacy@example.com"), false);
+
+  const operatorSetup = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, eve);
+  assert.equal(operatorSetup.status, 200);
+  assert.deepEqual(operatorSetup.body.invitations, []);
+  assert.equal(JSON.stringify(operatorSetup.body).includes("legacy@example.com"), false);
+
+  const ownerSetupAfterRedemption = await call(env, ctx, "GET", "/control-plane/tenants/acme/setup", undefined, alice);
+  assert.equal(ownerSetupAfterRedemption.status, 200);
+  assert.equal(ownerSetupAfterRedemption.body.invitations.some((entry: any) => entry.invitation_id === invitationId), false);
   const viewerInvitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
     email: "mallory@example.com",
     role: "viewer",

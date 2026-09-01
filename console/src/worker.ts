@@ -303,7 +303,7 @@ const SHELL_HTML = `<!doctype html>
                 <button class="primary-button" type="submit">Create invitation</button>
               </form>
               <div class="invitation-result" data-invitation-result hidden><strong>Invitation code (shown once)</strong><small data-invitation-delivery></small><code data-created-invitation-code></code><button class="text-button" type="button" data-copy-invitation>Copy code</button></div>
-              <h4>Members</h4><ul class="member-list" data-member-list></ul>
+              <h4>Members and invitations</h4><ul class="member-list" data-member-list></ul>
             </section>
           </div>
         </section>
@@ -1151,7 +1151,14 @@ button { cursor: pointer; }
 .config-snippet strong { grid-column: 1 / -1; font-size: 0.7rem; }
 .config-snippet pre { min-width: 0; max-height: 220px; margin: 0; padding: 10px; overflow: auto; border: 1px solid #d5c69f; border-radius: 4px; background: #fffdf7; font-size: 0.68rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .member-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.member-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 0.7rem; }
+.member-list li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.7rem; }
+.member-identity, .member-access { display: grid; gap: 3px; }
+.member-identity { min-width: 0; }
+.member-identity strong { overflow-wrap: anywhere; }
+.member-identity small, .member-access small { color: var(--muted); }
+.member-access { justify-items: end; text-align: right; }
+.status-pill[data-state="pending"] { background: #f8e7c5; color: #765013; }
+.status-pill[data-state="expired"] { background: color-mix(in srgb, var(--red) 11%, white); color: var(--red); }
 .invitation-result { display: grid; gap: 7px; margin-top: 12px; padding: 10px; border: 1px solid var(--amber); background: #fff8e8; }
 .invitation-result code { overflow-wrap: anywhere; font-size: 0.67rem; }
 @media (max-width: 1050px) {
@@ -1835,16 +1842,37 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     doc.defaultView?.setTimeout(() => { button.textContent = original; }, 1_200);
   }
 
-  function renderMembers(value: unknown): void {
+  function renderMembers(value: unknown, invitationValue: unknown): void {
     memberList.replaceChildren();
     const members = Array.isArray(value) ? value.map(record) : [];
-    if (members.length === 0) {
-      memberList.append(create("li", undefined, "No directory members yet."));
+    const invitations = Array.isArray(invitationValue)
+      ? invitationValue.map(record).filter((invitation) => !invitation.redeemed_at)
+      : [];
+    if (members.length === 0 && invitations.length === 0) {
+      memberList.append(create("li", undefined, "No members or pending invitations yet."));
       return;
     }
     for (const member of members) {
       const item = create("li");
-      item.append(create("span", undefined, safeText(member.email, safeText(member.subject, "Member"))), create("strong", undefined, safeText(member.role, "viewer")));
+      const identity = create("span", "member-identity");
+      identity.append(create("strong", undefined, safeText(member.email, safeText(member.subject, "Member"))), create("small", undefined, "Member"));
+      const access = create("span", "member-access");
+      access.append(statusPill("Active", "completed"), create("small", undefined, safeText(member.role, "viewer")));
+      item.append(identity, access);
+      memberList.append(item);
+    }
+    for (const invitation of invitations) {
+      const expiresAt = safeText(invitation.expires_at, "");
+      const expired = !expiresAt || runtime.Date.parse(expiresAt) <= runtime.Date.now();
+      const item = create("li");
+      const identity = create("span", "member-identity");
+      identity.append(
+        create("strong", undefined, safeText(invitation.email, "Invited member")),
+        create("small", undefined, expiresAt ? `Expires ${formatTimestamp(expiresAt)}` : "Expiration unavailable"),
+      );
+      const access = create("span", "member-access");
+      access.append(statusPill(expired ? "Expired" : "Pending", expired ? "expired" : "pending"), create("small", undefined, safeText(invitation.role, "viewer")));
+      item.append(identity, access);
       memberList.append(item);
     }
   }
@@ -1988,7 +2016,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     inviteMembersCard.hidden = activeRole !== "owner";
     renderSources(body.sources, canManageSources);
     renderActivityAgentOptions(body.sources);
-    renderMembers(body.members);
+    renderMembers(body.members, body.invitations);
     if (workspaceMode === "sso_fixed") {
       setSetupMessage("ready", "Workspace managed by SSO", activeRole === "owner"
         ? "Enable workspace switching to create, join, and move among workspaces from this console."
@@ -3486,6 +3514,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (!result.response.ok) return setSetupMessage("error", "Invitation creation failed", failureMessage(result.body, "The invitation could not be created."));
     const code = safeText(result.body.invitation_code, "");
     const delivery = safeText(record(result.body.delivery).status, "unavailable");
+    await loadSetup();
     createdInvitationCode.textContent = code;
     invitationDelivery.textContent = delivery === "sent"
       ? "Invitation email sent. Keep this code as a one-time fallback."

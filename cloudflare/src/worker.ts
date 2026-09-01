@@ -1446,6 +1446,8 @@ export class AgentIdJitGrants {
   state: {
     storage: {
       get<T = unknown>(key: string): Promise<T | undefined>;
+      get<T = unknown>(keys: string[]): Promise<Map<string, T>>;
+      list<T = unknown>(options?: { prefix?: string }): Promise<Map<string, T>>;
       put<T = unknown>(key: string, value: T): Promise<void>;
       put(entries: Record<string, unknown>): Promise<void>;
       delete(key: string): Promise<boolean>;
@@ -2118,8 +2120,33 @@ export class AgentIdJitGrants {
         expires_at: new Date(expiresAt).toISOString(),
       };
       if (!/^[a-f0-9]{64}$/.test(record.secret_digest)) throw new Error("invitation secret digest is invalid");
-      await this.state.storage.put(`directory:invitation:${record.invitation_id}`, record);
+      const invitationIndexKey = `directory:tenant:${tenantId}:invitations`;
+      const invitationIds = await this.directoryInvitationIds(tenantId);
+      await this.state.storage.put({
+        [`directory:invitation:${record.invitation_id}`]: record,
+        [invitationIndexKey]: [...new Set([...invitationIds, record.invitation_id])],
+      });
       return json({ invitation: publicInvitation(record) }, 201);
+    }
+
+    const invitationListMatch = pathname.match(/^\/directory\/tenants\/([^/]+)\/invitations\/list$/);
+    if (method === "POST" && invitationListMatch) {
+      const tenantId = directoryId(decodeURIComponent(invitationListMatch[1]), "tenant_id");
+      const identity = directoryIdentity(payload.identity);
+      const membership = await this.directoryMembership(identity, tenantId);
+      if (!membership || membership.role !== "owner") {
+        return json({ error: "only tenant owners can list invitations", error_code: "tenant_role_forbidden" }, 403);
+      }
+      const invitationIds = await this.directoryInvitationIds(tenantId);
+      const invitationKeys = invitationIds.map((invitationId) => `directory:invitation:${invitationId}`);
+      const stored = invitationKeys.length > 0
+        ? await this.state.storage.get<TenantInvitation>(invitationKeys)
+        : new Map<string, TenantInvitation>();
+      const invitations = [...stored.values()]
+        .filter((invitation) => invitation.tenant_id === tenantId && !invitation.redeemed_at)
+        .sort((left, right) => right.created_at.localeCompare(left.created_at))
+        .map(publicInvitation);
+      return json({ invitations });
     }
 
     if (method === "POST" && pathname === "/directory/invitations/redeem") {
@@ -2190,6 +2217,18 @@ export class AgentIdJitGrants {
       };
     }
     return this.state.storage.get<TenantMembership>(await directoryMembershipKey(identity.issuer, identity.subject, tenantId));
+  }
+
+  async directoryInvitationIds(tenantId: string): Promise<string[]> {
+    const indexKey = `directory:tenant:${tenantId}:invitations`;
+    const indexed = await this.state.storage.get<string[]>(indexKey);
+    if (indexed) return indexed;
+    const legacyInvitations = await this.state.storage.list<TenantInvitation>({ prefix: "directory:invitation:" });
+    const invitationIds = [...legacyInvitations.values()]
+      .filter((invitation) => invitation.tenant_id === tenantId)
+      .map((invitation) => invitation.invitation_id);
+    await this.state.storage.put(indexKey, invitationIds);
+    return invitationIds;
   }
 
   async directoryMemberships(identity: ControlIdentity): Promise<Array<{ tenant: TenantRecord; membership: TenantMembership }>> {
@@ -4179,9 +4218,14 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
     const pageBody = await page.json() as { events?: ActivityEvent[] };
     const latest = Array.isArray(pageBody.events) ? pageBody.events[0] : undefined;
     let members: unknown[] = [];
+    let invitations: unknown[] = [];
     if (membership.role === "owner") {
-      const response = await directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/members`, { identity }));
-      if (response.ok) members = (await response.json() as { members?: unknown[] }).members || [];
+      const [membersResponse, invitationsResponse] = await Promise.all([
+        directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/members`, { identity })),
+        directory.fetch(directoryRequest(`/directory/tenants/${encodeURIComponent(tenantId)}/invitations/list`, { identity })),
+      ]);
+      if (membersResponse.ok) members = (await membersResponse.json() as { members?: unknown[] }).members || [];
+      if (invitationsResponse.ok) invitations = (await invitationsResponse.json() as { invitations?: unknown[] }).invitations || [];
     }
     return json({
       schema_version: "agentaction.tenant-setup.v1",
@@ -4189,6 +4233,7 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
       membership,
       sources: Object.entries(sources).map(([sourceId, source]) => publicActivitySource(sourceId, source)),
       members,
+      invitations,
       ingestion: {
         observed: Boolean(latest),
         last_observed_at: latest?.observed_at || null,

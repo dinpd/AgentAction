@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.9.10 - 2026-09-01
+
+### Pending workspace invitations
+
+- Show owners pending and expired workspace invitations alongside active Team
+  members, including the invited role and expiration state.
+- Keep invitation listings tenant-scoped and owner-only without returning
+  one-time codes or secret digests.
+- Backfill the tenant invitation index on first read so existing invitations
+  appear without being sent again.
+
 ## 0.9.9 - 2026-08-31
 
 ### Workspace-stable Job detail links
