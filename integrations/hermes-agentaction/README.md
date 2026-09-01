@@ -160,3 +160,12 @@ This makes intent a folded-in dimension of the Activity stream, not a second
 Hermes integration. It remains a distinct assurance surface: Activity explains
 what ran and what policy would have decided; intent contracts and final receipts
 evaluate whether the declared outcome was achieved within its constraints.
+
+## Meaningful demo workflow
+
+The [synthetic support-triage example](../../examples/hermes-support-triage/)
+provides a repeatable Hermes workflow with a bounded refund policy, eligible and
+manual-review cases, read-only constraints, expected decisions, and live
+AgentAction verification steps. Use it to demonstrate meaningful declared goals
+and honest non-qualified outcomes without introducing real customer data or
+external side effects.

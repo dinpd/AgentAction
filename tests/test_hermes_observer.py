@@ -566,6 +566,56 @@ def test_batch_retry_spool_is_bounded_and_reuses_deterministic_ids():
     assert sent[0]["source_id"] == "hermes-prod"
 
 
+def test_repeated_model_request_hooks_receive_unique_retry_stable_event_ids():
+    spool = observer.MemorySpool(capacity=10)
+    failures = {"remaining": 1}
+    sent = []
+
+    def sender(payload):
+        if failures["remaining"]:
+            failures["remaining"] -= 1
+            raise RuntimeError("offline")
+        sent.append(payload)
+
+    instance = observer.HermesShadowObserver(config(), spool=spool, sender=sender)
+    request = {
+        "session_id": "session-1",
+        "task_id": "task-1",
+        "turn_id": "turn-1",
+        "model": "gpt-test",
+        "provider": "test",
+        "api_call_count": 1,
+    }
+    instance.pre_api_request(**request)
+    instance.post_api_request(**request, api_duration=0.25)
+    instance.pre_api_request(**request)
+    instance.post_api_request(**request, api_duration=0.25)
+
+    assert instance.flush_once() is False
+    first_ids = [event["event_id"] for event in spool.events]
+    assert len(first_ids) == 4
+    assert len(set(first_ids)) == 4
+
+    assert instance.flush_once() is True
+    assert [event["event_id"] for event in sent[0]["events"]] == first_ids
+
+
+def test_flush_drops_legacy_conflicting_duplicate_event_ids():
+    sent = []
+    spool = observer.MemorySpool(capacity=10)
+    spool.events = [
+        {"event_id": "obs-reused", "event_type": "model_request_started", "marker": "first"},
+        {"event_id": "obs-reused", "event_type": "model_request_started", "marker": "conflict"},
+        {"event_id": "obs-distinct", "event_type": "model_request_completed"},
+    ]
+    instance = observer.HermesShadowObserver(config(), spool=spool, sender=sent.append)
+
+    assert instance.flush_once() is True
+    assert [event["event_id"] for event in sent[0]["events"]] == ["obs-reused", "obs-distinct"]
+    assert sent[0]["events"][0]["marker"] == "first"
+    assert spool.events == []
+
+
 def test_queue_overflow_is_counted_without_raising_or_blocking():
     instance = observer.HermesShadowObserver(config(queue_capacity=10))
     started = time.monotonic()

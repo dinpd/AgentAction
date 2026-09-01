@@ -1,0 +1,23 @@
+schema_version: agentaction.hermes-support-triage-expectations.v1
+
+cases:
+  demo-case-eligible-001:
+    case_file: cases/eligible.yaml
+    expected_decision: eligible
+    expected_rule_ids:
+      - REFUND-01
+      - REFUND-02
+      - REFUND-05
+    expected_job_verdict: completed
+    expected_constraint_compliance: pass
+    expected_qualified_success: true
+
+  demo-case-manual-review-001:
+    case_file: cases/manual-review.yaml
+    expected_decision: manual_review
+    expected_rule_ids:
+      - REFUND-04
+      - REFUND-05
+    expected_job_verdict: partial
+    expected_constraint_compliance: pass
+    expected_qualified_success: false

@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.10.1 - 2026-09-01
+
+### Reliable Hermes activity and support-triage demo
+
+- Give every emitted Hermes observation a unique, retry-stable event ID and
+  discard legacy conflicting duplicates so one poisoned record cannot block
+  the Activity retry spool.
+- Add a synthetic, read-only refund-triage workflow with eligible and
+  manual-review cases, bounded policy rules, expected outcomes, and fixture
+  validation for meaningful intent and eval demonstrations.
+- Preserve the existing Hermes observation schemas, gateway contract, privacy
+  boundary, and configuration; existing installations require no migration and
+  can update the AgentAction Hermes plugin in place.
+
 ## 0.10.0 - 2026-09-01
 
 ### Agent-declared intent for Hermes
