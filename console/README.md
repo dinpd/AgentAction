@@ -71,6 +71,11 @@ login, an operator sees an always-available workspace control. They can:
 - create, rotate, or disable sources as an `owner` or `operator`; and
 - create viewer/operator invitations and inspect members as an `owner`.
 
+For an identity without a workspace, create and join choices are shown as
+primary onboarding. Once connected, current-workspace setup appears first and
+invitation redemption moves below it into a collapsed **Join another
+workspace** control.
+
 Source tokens and invitation codes are displayed only in the response that
 creates them. Only SHA-256 source-token digests and invitation-secret digests
 are stored. Invitation links carry a random, non-secret invitation identifier

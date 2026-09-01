@@ -4,6 +4,16 @@
 
 No changes yet.
 
+## 0.9.4 - 2026-08-31
+
+### Connected workspace setup hierarchy
+
+- Put current-workspace connection, ingestion, and team setup ahead of actions
+  for creating or joining another workspace.
+- Collapse invitation redemption into a compact **Join another workspace**
+  control for connected identities while keeping full onboarding visible for
+  first-time users.
+
 ## 0.9.3 - 2026-08-31
 
 ### Reliable workspace invitation links

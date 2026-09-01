@@ -223,6 +223,10 @@ class FakeDocument {
       "[data-create-integration-fields]",
       "[data-create-source-id]",
       "[data-create-agent-id]",
+      "[data-join-workspace-card]",
+      "[data-join-workspace-intro]",
+      "[data-join-workspace-toggle]",
+      "[data-join-workspace-toggle-label]",
       "[data-redeem-invite-form]",
       "[data-invite-code]",
       "[data-setup-onboarding]",
@@ -681,9 +685,31 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.equal(document.get("[data-tenant-setup]").hidden, false);
   assert.equal(document.get("[data-create-source-form]").hidden, false);
   assert.equal(document.get("[data-invite-members-card]").hidden, false);
+  assert.equal(document.get("[data-join-workspace-card]").dataset.connected, "true");
+  assert.equal(document.get("[data-join-workspace-toggle]").hidden, false);
+  assert.equal(document.get("[data-join-workspace-toggle]").attributes.get("aria-expanded"), "false");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
   assert.match(textOf(document.get("[data-source-list]")), /hermes-production support-agent hermes · Enabled/);
   assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("keeps connected workspace actions secondary and expands invitation redemption on demand", async () => {
+  const { controller, document } = makeRuntime({ hash: "#setup" });
+  await controller.ready;
+
+  assert.ok(SHELL_HTML.indexOf("data-tenant-setup") < SHELL_HTML.indexOf("data-setup-onboarding"));
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
+  await document.get("[data-join-workspace-toggle]").dispatch("click");
+  assert.equal(document.get("[data-join-workspace-toggle]").attributes.get("aria-expanded"), "true");
+  assert.equal(document.get("[data-join-workspace-toggle-label]").textContent, "Close");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, false);
+
+  document.get("[data-invite-code]").value = "invite_test.aa_inv_secret";
+  await document.get("[data-redeem-invite-form]").dispatch("submit");
+  assert.equal(document.get("[data-tenant-select]").value, "beta");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
+  assert.equal(document.get("[data-join-workspace-toggle]").attributes.get("aria-expanded"), "false");
 });
 
 test("shows a Cloudflare Access logout for authenticated identities and hides it in the public demo", async () => {
@@ -734,6 +760,7 @@ test("auto-redeems a legacy fragment invitation after sign-in and scrubs its sec
   assert.equal(pageUrls.some((url) => url.includes(code)), false);
   assert.equal(document.get("[data-tenant-select]").value, "beta");
   assert.equal(document.get("[data-invite-code]").value, "");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
   assert.equal(document.get("[data-setup-message-title]").textContent, "Workspace joined");
 });
 
@@ -751,6 +778,7 @@ test("auto-redeems an Access-safe invitation ID and scrubs only its query parame
   assert.equal(pageUrls.some((url) => url.includes(invitationId)), false);
   assert.equal(document.get("[data-tenant-select]").value, "beta");
   assert.equal(document.get("[data-invite-code]").value, "");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, true);
   assert.equal(document.get("[data-setup-message-title]").textContent, "Workspace joined");
 });
 
@@ -763,6 +791,7 @@ test("rejects and scrubs a malformed invitation link without making a redemption
 
   assert.equal(requests.includes("/api/console/onboarding/invitations/redeem"), false);
   assert.equal(pageUrls[0], "/?window=7#setup");
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, false);
   assert.equal(document.get("[data-setup-message-title]").textContent, "Invitation link is invalid");
 });
 
@@ -804,6 +833,9 @@ test("keeps generic workspace creation separate from integration setup", async (
   await controller.ready;
 
   assert.equal(document.get("[data-create-integration]").value, "none");
+  assert.equal(document.get("[data-join-workspace-toggle]").hidden, true);
+  assert.equal(document.get("[data-join-workspace-intro]").hidden, false);
+  assert.equal(document.get("[data-redeem-invite-form]").hidden, false);
   assert.equal(document.get("[data-create-integration-fields]").hidden, true);
   document.get("[data-create-integration]").value = "hermes";
   await document.get("[data-create-integration]").dispatch("change");
