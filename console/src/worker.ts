@@ -263,27 +263,6 @@ const SHELL_HTML = `<!doctype html>
           <p>Your signed Access claim currently pins this workspace. Owners can adopt it into the workspace directory without moving data or changing agent credentials.</p>
           <button class="primary-button" type="button" data-enable-workspace-switching>Enable workspace switching</button>
         </section>
-        <div class="setup-grid" data-setup-onboarding hidden>
-          <form class="setup-card" data-create-tenant-form data-create-workspace-card>
-            <p class="eyebrow">New workspace</p>
-            <h3>Create a workspace</h3>
-            <label><span>Workspace ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
-            <label><span>Display name</span><input name="display_name" data-create-display-name required maxlength="120" placeholder="Acme Support"></label>
-            <label><span>First integration</span><select data-create-integration><option value="none" selected>Add later</option><option value="hermes">Hermes Agent</option><option value="agentaction">Custom AgentAction source</option></select></label>
-            <div data-create-integration-fields hidden>
-              <label><span>Source ID</span><input name="source_id" data-create-source-id maxlength="128" placeholder="production-agents" autocomplete="off"></label>
-              <label><span>Agent ID</span><input name="agent_id" data-create-agent-id maxlength="128" placeholder="support-agent" autocomplete="off"></label>
-            </div>
-            <button class="primary-button" type="submit">Create workspace</button>
-          </form>
-          <form class="setup-card" data-redeem-invite-form>
-            <p class="eyebrow">Existing workspace</p>
-            <h3>Redeem an invitation</h3>
-            <label><span>Invitation code</span><input name="code" data-invite-code required maxlength="300" autocomplete="off" spellcheck="false" placeholder="invite_….aa_inv_…"></label>
-            <p>Invitation codes are email-bound, expire after seven days, and can be used once.</p>
-            <button class="primary-button" type="submit">Join workspace</button>
-          </form>
-        </div>
         <section class="secret-panel" data-secret-panel hidden aria-labelledby="secret-title">
           <div><p class="eyebrow">Shown once</p><h3 id="secret-title">Save this source token now</h3><p>AgentAction stores only its digest. This token cannot be displayed again; rotate the source if it is lost.</p></div>
           <div class="secret-value"><code data-source-token></code><button class="text-button" type="button" data-copy-source-token>Copy token</button></div>
@@ -326,6 +305,35 @@ const SHELL_HTML = `<!doctype html>
             </section>
           </div>
         </section>
+        <div class="setup-grid workspace-actions" data-setup-onboarding hidden>
+          <form class="setup-card" data-create-tenant-form data-create-workspace-card>
+            <p class="eyebrow">New workspace</p>
+            <h3>Create a workspace</h3>
+            <label><span>Workspace ID</span><input name="tenant_id" data-create-tenant-id required maxlength="128" pattern="[A-Za-z0-9][A-Za-z0-9._:-]+" placeholder="acme-support" autocomplete="off"></label>
+            <label><span>Display name</span><input name="display_name" data-create-display-name required maxlength="120" placeholder="Acme Support"></label>
+            <label><span>First integration</span><select data-create-integration><option value="none" selected>Add later</option><option value="hermes">Hermes Agent</option><option value="agentaction">Custom AgentAction source</option></select></label>
+            <div data-create-integration-fields hidden>
+              <label><span>Source ID</span><input name="source_id" data-create-source-id maxlength="128" placeholder="production-agents" autocomplete="off"></label>
+              <label><span>Agent ID</span><input name="agent_id" data-create-agent-id maxlength="128" placeholder="support-agent" autocomplete="off"></label>
+            </div>
+            <button class="primary-button" type="submit">Create workspace</button>
+          </form>
+          <section class="setup-card join-workspace-card" data-join-workspace-card>
+            <div data-join-workspace-intro>
+              <p class="eyebrow">Existing workspace</p>
+              <h3>Redeem an invitation</h3>
+            </div>
+            <button class="join-workspace-toggle" type="button" data-join-workspace-toggle aria-expanded="false" aria-controls="join-workspace-form" hidden>
+              <span><strong>Join another workspace</strong><small>Use an invitation code</small></span>
+              <span data-join-workspace-toggle-label>Open</span>
+            </button>
+            <form id="join-workspace-form" class="join-workspace-form" data-redeem-invite-form>
+              <label><span>Invitation code</span><input name="code" data-invite-code required maxlength="300" autocomplete="off" spellcheck="false" placeholder="invite_….aa_inv_…"></label>
+              <p>Invitation codes are email-bound, expire after seven days, and can be used once.</p>
+              <button class="primary-button" type="submit">Join workspace</button>
+            </form>
+          </section>
+        </div>
       </section>
       <section id="overview" class="overview-panel" data-console-view="overview" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
@@ -1103,6 +1111,16 @@ button { cursor: pointer; }
 .setup-card .primary-button { margin-top: 6px; }
 .setup-wide { grid-column: 1 / -1; }
 .setup-card-heading { display: flex; justify-content: space-between; gap: 12px; }
+.workspace-actions { margin-top: 12px; }
+.join-workspace-card[data-connected="true"] { grid-column: 1 / -1; padding: 0; }
+.join-workspace-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.join-workspace-toggle:hover, .join-workspace-toggle:focus-visible { background: var(--green-soft); outline: 2px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 1px; }
+.join-workspace-toggle strong, .join-workspace-toggle small { display: block; }
+.join-workspace-toggle strong { font-size: 0.82rem; }
+.join-workspace-toggle small, .join-workspace-toggle > span:last-child { color: var(--muted); font-size: 0.67rem; font-weight: 800; }
+.join-workspace-form { display: grid; }
+.join-workspace-card[data-connected="true"] .join-workspace-form { padding: 0 17px 17px; border-top: 1px solid var(--line); }
+.join-workspace-form > p { color: var(--muted); font-size: 0.75rem; }
 .inline-setup-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .inline-setup-form label { margin: 0; }
 .source-list { display: grid; gap: 7px; }
@@ -1322,6 +1340,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const createIntegrationFields = required<HTMLElement>("[data-create-integration-fields]");
   const createSourceId = required<HTMLInputElement>("[data-create-source-id]");
   const createAgentId = required<HTMLInputElement>("[data-create-agent-id]");
+  const joinWorkspaceCard = required<HTMLElement>("[data-join-workspace-card]");
+  const joinWorkspaceIntro = required<HTMLElement>("[data-join-workspace-intro]");
+  const joinWorkspaceToggle = required<HTMLButtonElement>("[data-join-workspace-toggle]");
+  const joinWorkspaceToggleLabel = required<HTMLElement>("[data-join-workspace-toggle-label]");
   const redeemInviteForm = required<HTMLFormElement>("[data-redeem-invite-form]");
   const inviteCode = required<HTMLInputElement>("[data-invite-code]");
   const setupOnboarding = required<HTMLElement>("[data-setup-onboarding]");
@@ -1445,6 +1467,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   let activeRole: TenantRole | "" = "";
   let workspaceMode: "directory" | "sso_fixed" = "directory";
   let publicDemo = false;
+  let joinWorkspaceExpanded = false;
   function invitationCodeFromHash(hash: string): string {
     if (!hash.startsWith("#setup?")) return "";
     const value = new URLSearchParams(hash.slice("#setup?".length)).get("invite")?.trim() || "";
@@ -1620,6 +1643,17 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setupMessageDetail.textContent = detail;
   }
 
+  function setJoinWorkspaceExpanded(expanded: boolean): void {
+    const connected = Boolean(tenantId);
+    joinWorkspaceExpanded = connected ? expanded : true;
+    joinWorkspaceCard.dataset.connected = String(connected);
+    joinWorkspaceIntro.hidden = connected;
+    joinWorkspaceToggle.hidden = !connected;
+    joinWorkspaceToggle.setAttribute("aria-expanded", String(joinWorkspaceExpanded));
+    joinWorkspaceToggleLabel.textContent = joinWorkspaceExpanded ? "Close" : "Open";
+    redeemInviteForm.hidden = !joinWorkspaceExpanded;
+  }
+
   function membershipEntries(value: unknown): Array<{ membership: Record<string, any>; tenant: Record<string, any> }> {
     return Array.isArray(value)
       ? value.map(record).filter((entry) => safeText(record(entry.tenant).tenant_id, "") !== "").map((entry) => ({
@@ -1674,6 +1708,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     tenantSelect.value = tenantId;
     tenantLabel.textContent = tenantId ? `Workspace: ${tenantId}` : "No workspace yet";
     setupRole.textContent = activeRole || "Not provisioned";
+    setJoinWorkspaceExpanded(false);
   }
 
   async function refreshSession(preferredTenant = ""): Promise<boolean> {
@@ -1754,6 +1789,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       : { code });
     if (!result.response.ok) {
       if (code) inviteCode.value = code;
+      setJoinWorkspaceExpanded(true);
       setSetupMessage("error", "Invitation could not be redeemed", failureMessage(result.body, "Paste the fallback code from the invitation email, or check the signed-in email."));
       return false;
     }
@@ -3148,6 +3184,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       else if (pendingInvitationCode) await redeemInvitation({ code: pendingInvitationCode }, true);
       else if (invalidInvitationLink) {
         await loadSetup();
+        setJoinWorkspaceExpanded(true);
         setSetupMessage("error", "Invitation link is invalid", "Paste the fallback code from the invitation email to join the workspace.");
       }
       else if (!tenantId) await loadSetup();
@@ -3298,6 +3335,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   redeemInviteForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await redeemInvitation({ code: inviteCode.value }, false);
+  });
+  joinWorkspaceToggle.addEventListener("click", () => {
+    setJoinWorkspaceExpanded(!joinWorkspaceExpanded);
   });
   createSourceForm.addEventListener("submit", async (event) => {
     event.preventDefault();
