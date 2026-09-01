@@ -407,6 +407,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   let provisioned = options.startUnprovisioned !== true;
   let workspaceMigrated = false;
   let invitationJoined = false;
+  const createdInvitations: Array<Record<string, unknown>> = [];
   const runtime = {
     Date: FixedDate,
     document,
@@ -452,6 +453,15 @@ function makeRuntime(options: RuntimeOptions = {}) {
         return response({ membership: { tenant_id: "beta", role: "viewer" } }, 201);
       }
       if (path === "/api/console/onboarding/tenants/acme/invitations") {
+        createdInvitations.unshift({
+          invitation_id: "invite_test",
+          tenant_id: "acme",
+          email: "member@example.com",
+          role: "viewer",
+          created_at: "2026-07-25T12:00:00.000Z",
+          expires_at: "2026-08-01T12:00:00.000Z",
+          redeemed_at: null,
+        });
         return response({
           invitation: { invitation_id: "invite_test", email: "member@example.com", role: "viewer" },
           invitation_code: "invite_test.aa_inv_secret",
@@ -461,11 +471,16 @@ function makeRuntime(options: RuntimeOptions = {}) {
       if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/setup$/.test(path)) {
         const isBeta = path.includes("/beta/");
         const role = isBeta ? "viewer" : "owner";
-        return response((isBeta ? options.betaSetupPayload : options.setupPayload) || {
+        const setup = structuredClone((isBeta ? options.betaSetupPayload : options.setupPayload) || {
           membership: { tenant_id: isBeta ? "beta" : "acme", role },
           sources: [{ source_id: "hermes-production", integration: "hermes", enabled: true, agent_ids: ["support-agent"] }],
           members: [{ email: "operator@example.com", role: "owner" }],
+          invitations: [],
           ingestion: { observed: false, last_observed_at: null },
+        });
+        return response({
+          ...setup,
+          invitations: [...createdInvitations, ...(Array.isArray(setup.invitations) ? setup.invitations : [])],
         });
       }
       if (path === "/api/console/health") {
@@ -841,6 +856,34 @@ test("shows invitation delivery outcome while preserving a manual fallback code"
   assert.equal(document.get("[data-created-invitation-code]").textContent, "invite_test.aa_inv_secret");
   assert.match(document.get("[data-invitation-delivery]").textContent, /Email delivery failed/);
   assert.match(document.get("[data-setup-message-title]").textContent, /email not sent/);
+  assert.match(textOf(document.get("[data-member-list]")), /member@example\.com Expires .* Pending viewer/);
+
+  await controller.loadSetup();
+  assert.match(textOf(document.get("[data-member-list]")), /member@example\.com Expires .* Pending viewer/);
+});
+
+test("renders active, pending, and expired team access without duplicating redeemed invitations", async () => {
+  const { controller, document } = makeRuntime({
+    hash: "#setup",
+    setupPayload: {
+      membership: { tenant_id: "acme", role: "owner" },
+      sources: [],
+      members: [{ email: "active@example.com", role: "operator" }],
+      invitations: [
+        { email: "pending@example.com", role: "viewer", expires_at: "2026-08-01T12:00:00.000Z", redeemed_at: null },
+        { email: "expired@example.com", role: "operator", expires_at: "2026-07-24T12:00:00.000Z", redeemed_at: null },
+        { email: "redeemed@example.com", role: "viewer", expires_at: "2026-08-01T12:00:00.000Z", redeemed_at: "2026-07-25T11:00:00.000Z" },
+      ],
+      ingestion: { observed: false },
+    },
+  });
+  await controller.ready;
+
+  const team = textOf(document.get("[data-member-list]"));
+  assert.match(team, /active@example\.com Member Active operator/);
+  assert.match(team, /pending@example\.com Expires .* Pending viewer/);
+  assert.match(team, /expired@example\.com Expires .* Expired operator/);
+  assert.doesNotMatch(team, /redeemed@example\.com/);
 });
 
 test("adopts an SSO-managed workspace and reveals directory workspace actions", async () => {
