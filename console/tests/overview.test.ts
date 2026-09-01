@@ -1119,6 +1119,49 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(document.get("[data-jobs-page-summary]").textContent, /cursor-stable subsequent page/);
 });
 
+test("distinguishes observed-execution Jobs from inferred semantic intent", async () => {
+  const observedJobs = structuredClone(JOBS_FIXTURE);
+  observedJobs.jobs = [{
+    ...observedJobs.jobs[1],
+    job_id: "hermes-observed-job",
+    intent_id: "intent-observed-job",
+    agent_id: "hermes-smoke-agent",
+    agent_ids: ["hermes-smoke-agent"],
+    profile_binding: {
+      key: "agentaction_observed_execution.v1",
+      version: "v1",
+      digest: "b".repeat(64),
+    },
+  }];
+  observedJobs.matched_records = 1;
+  observedJobs.pagination.next_cursor = null;
+  const listRuntime = makeRuntime({ hash: "#jobs", jobsPayload: observedJobs });
+  await listRuntime.controller.ready;
+  const rendered = textOf(listRuntime.document.get("[data-jobs-list]"));
+  assert.match(rendered, /Observed execution/);
+  assert.match(rendered, /System lifecycle profile · no inferred intent/);
+
+  const observedDetail = structuredClone(JOB_DETAIL_FIXTURE);
+  observedDetail.job.job_id = "hermes-observed-job";
+  observedDetail.job.agent_id = "hermes-smoke-agent";
+  observedDetail.job.profile_binding = {
+    key: "agentaction_observed_execution.v1",
+    version: "v1",
+    digest: "b".repeat(64),
+  };
+  observedDetail.immutable_boundary.profile_digest = "b".repeat(64);
+  const detailRuntime = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=hermes-observed-job",
+    detailPayload: observedDetail,
+  });
+  await detailRuntime.controller.ready;
+  assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /Observed Hermes run/);
+  assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /no semantic intent inferred/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-boundary]")), /Lifecycle completion only/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Lifecycle objective/);
+});
+
 test("renders explicit empty forbidden and unavailable Jobs states", async (context) => {
   const emptyPayload = structuredClone(JOBS_FIXTURE);
   emptyPayload.jobs = [];

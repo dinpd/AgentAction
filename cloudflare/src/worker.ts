@@ -107,6 +107,20 @@ type ActivityBatch = {
   events: ActivityEvent[];
 };
 
+type ActivityJobLifecycle = {
+  schema_version: "agentaction.activity-job.v1";
+  phase: "started" | "completed";
+  tenant_id: string;
+  source_id: string;
+  agent_id: string;
+  session_id: string;
+  task_id?: string;
+  turn_id?: string;
+  started_at: string;
+  completed_at?: string;
+  status?: "completed" | "interrupted" | "incomplete" | "error";
+};
+
 type StoredActivityEvent = { digest: string; event: ActivityEvent };
 
 type ToolEvent = Record<string, unknown>;
@@ -560,11 +574,41 @@ export default {
       const manifest = await loadManifest(env, route.tenantId);
       const isActivityIngestion = request.method === "POST" &&
         route.endpoint === "activity" && route.resourceId === "batches" && !route.action;
-      if (isActivityIngestion) {
+      const isActivityJobLifecycle = request.method === "POST" &&
+        route.endpoint === "activity" && route.resourceId === "jobs" && !route.action;
+      if (isActivityIngestion || isActivityJobLifecycle) {
         if (!route.tenantId) return json({ error: "activity ingestion requires a tenant route" }, 400);
         const sourceAuthentication = await authenticateActivitySource(request, manifest);
         if (!sourceAuthentication.ok) {
           return json({ error: sourceAuthentication.error }, sourceAuthentication.status);
+        }
+        if (isActivityJobLifecycle) {
+          const submitted = await readBoundedActivityJob(request);
+          const lifecycle = validateActivityJob(
+            submitted,
+            route.tenantId,
+            sourceAuthentication.sourceId,
+            sourceAuthentication.agentIds,
+          );
+          const result = await storeObservedActivityJob(env, manifest, lifecycle);
+          if (result.response.ok) {
+            ctx.waitUntil(
+              emitAudit(env, {
+                type: lifecycle.phase === "started"
+                  ? "agentaction.activity.job.started"
+                  : "agentaction.activity.job.finalized",
+                tenant_id: lifecycle.tenant_id,
+                source_id: lifecycle.source_id,
+                agent_id: lifecycle.agent_id,
+                session_id: lifecycle.session_id,
+                job_id: stringValue(result.body.job_id),
+                intent_id: stringValue(result.body.intent_id),
+                replayed: result.body.replayed === true,
+                auth: { method: "activity_source" },
+              }),
+            );
+          }
+          return json(result.body, result.response.status);
         }
         const submitted = await readBoundedActivityBatch(request);
         const batch = validateActivityBatch(
@@ -5924,12 +5968,172 @@ const ACTIVITY_EVENT_TYPES = new Set([
   "tool_action",
   "model_request_started",
   "model_request_completed",
+  "session_started",
+  "session_completed",
+  "job_started",
+  "job_completed",
   "subagent_started",
   "subagent_completed",
 ]);
 const ACTIVITY_EXECUTION_STATUSES = new Set(["ok", "error", "blocked", "cancelled", "unknown", "running"]);
 const ACTIVITY_DECISIONS = new Set(["allow", "deny", "challenge_required"]);
 const ACTIVITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+const OBSERVED_EXECUTION_PROFILE: IntentProfile = {
+  schema_version: "agentpass.intent-profile.v1",
+  profile: "agentaction_observed_execution",
+  version: "v1",
+  issuer: "agentaction-gateway",
+  issued_at: "2026-01-01T00:00:00.000Z",
+  objective_template: "Observe one bounded agent run through a terminal lifecycle state.",
+  variables: {},
+  required_outcomes: [
+    {
+      id: "run-completed",
+      description: "The observed agent run reached a successful terminal state.",
+      source: "job",
+      assertion: { path: "status", operator: "equals", value: "completed" },
+    },
+  ],
+  hard_constraints: [],
+  evidence_requirements: ["job"],
+};
+
+async function storeObservedActivityJob(
+  env: Env,
+  manifest: AgentIdManifest,
+  lifecycle: ActivityJobLifecycle,
+): Promise<{ response: Response; body: Record<string, unknown> }> {
+  const store = authorizationStore(env, lifecycle.tenant_id, manifest);
+  const identityDigest = await canonicalDigest({
+    tenant_id: lifecycle.tenant_id,
+    source_id: lifecycle.source_id,
+    agent_id: lifecycle.agent_id,
+    session_id: lifecycle.session_id,
+    task_id: lifecycle.task_id || "",
+    turn_id: lifecycle.turn_id || "",
+  });
+  const jobId = `hermes_${identityDigest.slice(0, 24)}`;
+  const intentId = `intent_${identityDigest.slice(0, 24)}`;
+  const existing = await store.fetch(
+    new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(intentId)}`),
+  );
+  let contractBody: Record<string, unknown>;
+  let bindingReplayed = existing.ok;
+
+  if (existing.ok) {
+    contractBody = await existing.json() as Record<string, unknown>;
+  } else if (existing.status === 404) {
+    const profile = bindIntentProfile(OBSERVED_EXECUTION_PROFILE);
+    const registered = await store.fetch(
+      new Request("https://agentid.local/intent-profiles", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          tenant_id: lifecycle.tenant_id,
+          registered_by: `activity_source:${lifecycle.source_id}`,
+        }),
+      }),
+    );
+    if (!registered.ok) {
+      return { response: registered, body: await registered.json() as Record<string, unknown> };
+    }
+    const issued = await store.fetch(
+      new Request(
+        `https://agentid.local/intent-profiles/${encodeURIComponent(intentProfileKey(profile))}/issue`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            issuance: {
+              intent_id: intentId,
+              job_id: jobId,
+              variables: {},
+              issued_at: lifecycle.started_at,
+            } satisfies IntentProfileIssuanceInput,
+            tenant_id: lifecycle.tenant_id,
+            registered_by: `activity_source:${lifecycle.source_id}`,
+          }),
+        },
+      ),
+    );
+    if (!issued.ok) return { response: issued, body: await issued.json() as Record<string, unknown> };
+    contractBody = await issued.json() as Record<string, unknown>;
+    bindingReplayed = issued.status === 200;
+  } else {
+    return { response: existing, body: await existing.json() as Record<string, unknown> };
+  }
+
+  const contract = recordValue(contractBody.contract) as IntentContract;
+  const binding = {
+    schema_version: "agentaction.activity-job-result.v1",
+    phase: lifecycle.phase,
+    tenant_id: lifecycle.tenant_id,
+    source_id: lifecycle.source_id,
+    agent_id: lifecycle.agent_id,
+    session_id: lifecycle.session_id,
+    ...(lifecycle.task_id ? { task_id: lifecycle.task_id } : {}),
+    ...(lifecycle.turn_id ? { turn_id: lifecycle.turn_id } : {}),
+    job_id: jobId,
+    intent_id: intentId,
+    intent_digest: stringValue(contractBody.intent_digest || contract.intent_digest),
+    profile_key: intentProfileKey(OBSERVED_EXECUTION_PROFILE),
+    profile_kind: "observed_execution",
+  };
+  if (lifecycle.phase === "started") {
+    return {
+      response: new Response(null, { status: bindingReplayed ? 200 : 201 }),
+      body: { ...binding, replayed: bindingReplayed },
+    };
+  }
+
+  const history = await store.fetch(
+    new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(intentId)}/evaluations`),
+  );
+  if (history.ok) {
+    const historyBody = await history.json() as Record<string, unknown>;
+    const final = recordValue(historyBody.final);
+    if (Object.keys(final).length > 0) {
+      return {
+        response: new Response(null, { status: 200 }),
+        body: { ...binding, replayed: true, evaluation: final },
+      };
+    }
+  }
+
+  const finalized = await store.fetch(
+    new Request(`https://agentid.local/intent-contracts/${encodeURIComponent(intentId)}/finalize`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        job: {
+          tenant_id: lifecycle.tenant_id,
+          source_id: lifecycle.source_id,
+          agent_id: lifecycle.agent_id,
+          session_id: lifecycle.session_id,
+          ...(lifecycle.task_id ? { task_id: lifecycle.task_id } : {}),
+          ...(lifecycle.turn_id ? { turn_id: lifecycle.turn_id } : {}),
+          intent_id: intentId,
+          intent_digest: binding.intent_digest,
+          job_id: jobId,
+          started_at: lifecycle.started_at,
+          completed_at: lifecycle.completed_at,
+          status: lifecycle.status,
+        },
+      }),
+    }),
+  );
+  const finalBody = await finalized.json() as Record<string, unknown>;
+  return {
+    response: finalized,
+    body: {
+      ...binding,
+      replayed: finalBody.replayed === true,
+      ...(finalBody.evaluation ? { evaluation: finalBody.evaluation } : {}),
+      ...(finalBody.error ? { error: finalBody.error, error_code: finalBody.error_code } : {}),
+    },
+  };
+}
 
 async function authenticateActivitySource(
   request: Request,
@@ -5966,6 +6170,88 @@ async function authenticateActivitySource(
     return { ok: false, status: 500, error: "activity source agent allowlist is invalid" };
   }
   return { ok: true, sourceId, agentIds };
+}
+
+async function readBoundedActivityJob(request: Request): Promise<unknown> {
+  if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) {
+    throw new Error("activity job content-type must be application/json");
+  }
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (declared > 16_384) throw new Error("activity job exceeds 16 KiB");
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("activity job body is required");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    if (total > 16_384) {
+      await reader.cancel();
+      throw new Error("activity job exceeds 16 KiB");
+    }
+    chunks.push(part.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new Error("activity job must be valid JSON");
+  }
+}
+
+function validateActivityJob(
+  submitted: unknown,
+  tenantId: string,
+  sourceId: string,
+  allowedAgentIds: string[],
+): ActivityJobLifecycle {
+  const job = strictRecord(submitted, [
+    "schema_version",
+    "phase",
+    "tenant_id",
+    "source_id",
+    "agent_id",
+    "session_id",
+    "task_id",
+    "turn_id",
+    "started_at",
+    "completed_at",
+    "status",
+  ], "activity job");
+  if (job.schema_version !== "agentaction.activity-job.v1") {
+    throw new Error("activity job schema_version is unsupported");
+  }
+  if (job.phase !== "started" && job.phase !== "completed") throw new Error("activity job phase is invalid");
+  if (job.tenant_id !== tenantId) throw new Error("activity job tenant_id does not match route tenant");
+  if (job.source_id !== sourceId) throw new Error("activity job source_id does not match authenticated source");
+  requiredActivityId(job.agent_id, "activity job agent_id");
+  if (allowedAgentIds.length > 0 && !allowedAgentIds.includes(String(job.agent_id))) {
+    throw new Error("activity job agent_id is not allowed for source");
+  }
+  requiredActivityId(job.session_id, "activity job session_id");
+  if (job.task_id !== undefined) requiredActivityId(job.task_id, "activity job task_id");
+  if (job.turn_id !== undefined) requiredActivityId(job.turn_id, "activity job turn_id");
+  requiredActivityDate(job.started_at, "activity job started_at");
+  if (job.phase === "started") {
+    if (job.completed_at !== undefined || job.status !== undefined) {
+      throw new Error("started activity job cannot include terminal fields");
+    }
+  } else {
+    requiredActivityDate(job.completed_at, "activity job completed_at");
+    if (Date.parse(String(job.completed_at)) < Date.parse(String(job.started_at))) {
+      throw new Error("activity job completed_at cannot precede started_at");
+    }
+    if (!["completed", "interrupted", "incomplete", "error"].includes(String(job.status))) {
+      throw new Error("activity job status is invalid");
+    }
+  }
+  return job as ActivityJobLifecycle;
 }
 
 async function readBoundedActivityBatch(request: Request): Promise<unknown> {
@@ -6047,7 +6333,7 @@ function validateActivityEvent(
   if (allowedAgentIds.length > 0 && !allowedAgentIds.includes(String(event.agent_id))) throw new Error(`${label} agent_id is not allowed for source`);
 
   const correlation = strictRecord(event.correlation, [
-    "session_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "parent_session_id", "child_session_id",
+    "session_id", "job_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "parent_session_id", "child_session_id",
     "parent_turn_id", "child_subagent_id",
   ], `${label} correlation`);
   for (const [key, entry] of Object.entries(correlation)) requiredActivityId(entry, `${label} correlation.${key}`);

@@ -1,6 +1,6 @@
 # AgentAction for Hermes Agent
 
-This native Hermes plugin observes model, tool, and subagent lifecycles in
+This native Hermes plugin observes session, model, tool, and subagent lifecycles in
 fail-open shadow mode. It does not proxy MCP, return hook directives, change
 tool arguments, attach receipts, or make observability a runtime dependency.
 
@@ -56,8 +56,9 @@ AgentAction Observability operator console through Cloudflare Access, open
    token once, plus the matching environment variable and YAML.
 3. Store the token as `AGENTACTION_INGEST_TOKEN`, install the plugin, copy the
    tenant/source/agent values into the Hermes configuration, and enable it.
-4. Restart Hermes and perform one action. Setup changes from **Waiting for
-   activity** to **Activity received**, and the event appears in Activity.
+4. Restart Hermes and run one turn. Setup changes from **Waiting for
+   activity** to **Activity received**, lifecycle events appear in Activity,
+   and the completed turn appears in Jobs.
 
 Owners and operators can create a source per environment, rotate a compromised
 or lost token, and disable a retired source in the same screen. Only token
@@ -93,10 +94,11 @@ digest update plus an environment-secret update. Disabling a source immediately
 stops new batches without affecting Hermes execution or previously stored
 events.
 
-The ingestion endpoint accepts only the strict privacy-safe schema, caps each
-batch at 100 events and 256 KiB, treats exact retries as duplicates, and rejects
-an event ID reused for different content. Storage and reads use the route
-tenant's own durable namespace.
+The ingestion endpoints accept only strict privacy-safe schemas. Activity
+batches are capped at 100 events and 256 KiB. Run lifecycle writes are
+capped at 16 KiB, bound server-side to the authenticated tenant, source, and
+agent, and cannot carry an arbitrary intent profile or contract. Exact retries
+are idempotent. Storage and reads use the route tenant's own durable namespace.
 
 Until Hermes preserves Git metadata for subdirectory installs, update with a
 fresh install:
@@ -115,10 +117,17 @@ counterfactual duplicate-call budgets; that fingerprint is not exported.
 
 ## Intent binding
 
+Without an explicit intent binding, each completed Hermes turn/run is finalized
+under the server-owned `agentaction_observed_execution.v1` profile. This makes
+the run visible in **Jobs** and evaluates only whether the observed run
+reached a successful terminal lifecycle state. The console labels it **Observed
+execution** and states that no semantic intent was inferred.
+
 Set both `intent_id` and `intent_digest` only when the Hermes deployment is
-already operating under an explicit AgentAction contract. The plugin marks all
-other events `unbound`. It never converts prompt text, a Hermes session/task
-identifier, or a model-generated goal into authoritative intent.
+already operating under an explicit AgentAction contract. Explicit bindings
+take precedence over the built-in observed-execution job. The plugin never
+converts prompt text, a Hermes session/task/turn identifier, or a model-generated
+goal into authoritative semantic intent.
 
 Intent profiles, contract issuance, trusted outcome observations, immutable
 evidence snapshots, and final evaluation continue through the hosted
