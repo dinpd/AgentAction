@@ -10,11 +10,11 @@ Hermes supports repository subdirectory installs:
 
 ```bash
 hermes plugins install dinpd/AgentAction/integrations/hermes-agentaction --no-enable
-hermes plugins enable agentaction
 ```
 
-Set the tenant- and source-scoped token when prompted. Then configure the
-plugin under `plugins.entries.agentaction.settings` in `~/.hermes/config.yaml`:
+Store the tenant- and source-scoped token as `AGENTACTION_INGEST_TOKEN`, then
+configure the plugin under `plugins.entries.agentaction.settings` in
+`~/.hermes/config.yaml`:
 
 ```yaml
 plugins:
@@ -35,7 +35,14 @@ plugins:
             max_identical_calls_per_task: 1
 ```
 
-Restart the Hermes gateway after enabling or changing the plugin.
+Enable the configured plugin, then restart the Hermes gateway:
+
+```bash
+hermes plugins enable agentaction
+```
+
+An enabled plugin with missing connection settings stays inert so Hermes can
+continue running. Add the missing token and tenant ID, then restart Hermes.
 
 ## Hosted onboarding
 
@@ -47,8 +54,8 @@ AgentAction Observability operator console through Cloudflare Access, open
 2. Under **Agent connections**, choose **Hermes Agent**, then name the source
    and agent. The console displays its source
    token once, plus the matching environment variable and YAML.
-3. Store the token as `AGENTACTION_INGEST_TOKEN`, install and enable the plugin,
-   and copy the tenant/source/agent values into the Hermes configuration.
+3. Store the token as `AGENTACTION_INGEST_TOKEN`, install the plugin, copy the
+   tenant/source/agent values into the Hermes configuration, and enable it.
 4. Restart Hermes and perform one action. Setup changes from **Waiting for
    activity** to **Activity received**, and the event appears in Activity.
 

@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import time
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "integrations" / "hermes-agentaction"
@@ -19,7 +21,87 @@ def load_observer_module():
     return module
 
 
+def load_plugin_module():
+    spec = importlib.util.spec_from_file_location(
+        "agentaction_hermes_plugin",
+        PLUGIN / "__init__.py",
+        submodule_search_locations=[str(PLUGIN)],
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 observer = load_observer_module()
+
+
+def test_manifest_is_installable_by_current_hermes_release():
+    manifest = yaml.safe_load((PLUGIN / "plugin.yaml").read_text(encoding="utf-8"))
+
+    assert manifest["manifest_version"] == 1
+    assert manifest["api_version"] == 1
+
+
+def test_unconfigured_plugin_registration_is_inert(monkeypatch):
+    monkeypatch.delenv("AGENTACTION_INGEST_TOKEN", raising=False)
+    plugin = load_plugin_module()
+    registered_hooks = []
+
+    class Context:
+        def get_config(self, _key, default=None):
+            return default
+
+        def register_hook(self, name, callback):
+            registered_hooks.append((name, callback))
+
+    assert plugin.register(Context()) is None
+    assert registered_hooks == []
+    assert plugin._observer is None
+
+
+def test_configured_plugin_registers_observation_hooks(monkeypatch):
+    monkeypatch.setenv("AGENTACTION_INGEST_TOKEN", "source-token")
+    plugin = load_plugin_module()
+    registered_hooks = []
+
+    class State:
+        values = {}
+
+        def get(self, key, default=None):
+            return self.values.get(key, default)
+
+        def set(self, key, value):
+            self.values[key] = value
+
+    class Context:
+        state = State()
+        settings = {
+            "endpoint": "https://gateway.example.test",
+            "tenant_id": "tenant-a",
+            "source_id": "hermes-smoke",
+            "agent_id": "hermes-smoke-agent",
+        }
+
+        def get_config(self, key, default=None):
+            return self.settings.get(key, default)
+
+        def register_hook(self, name, callback):
+            registered_hooks.append((name, callback))
+
+    plugin.register(Context())
+    assert [name for name, _callback in registered_hooks] == [
+        "pre_tool_call",
+        "post_tool_call",
+        "pre_api_request",
+        "post_api_request",
+        "api_request_error",
+        "subagent_start",
+        "subagent_stop",
+    ]
+    assert plugin._observer is not None
+    plugin._observer.close()
 
 
 def config(**overrides):

@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.9.7 - 2026-08-31
+
+### Hermes plugin installation compatibility
+
+- Make the AgentAction native plugin installable by the current official
+  Hermes Agent release while preserving its v1 runtime hook contract.
+- Keep the existing fail-open, privacy-safe shadow observability behavior and
+  require no migration for existing deployments.
+
 ## 0.9.6 - 2026-08-31
 
 ### Workspace-aware activity filters
