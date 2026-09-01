@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.9.8 - 2026-08-31
+
+### Hermes runs in Jobs
+
+- Finalize completed Hermes turns/runs as immutable, source-scoped Jobs under a
+  server-owned observed-execution lifecycle profile.
+- Keep source credentials write-only and bound to their registered tenant,
+  source, and agent while making lifecycle retries deterministic.
+- Label observed-execution Jobs separately from explicit semantic intent in the
+  operator console and continue excluding prompts, arguments, and results.
+
 ## 0.9.7 - 2026-08-31
 
 ### Hermes plugin installation compatibility

@@ -1,5 +1,5 @@
 name: agentaction
-version: 0.6.1
+version: 0.7.0
 manifest_version: 1
 api_version: 1
 description: Fail-open AgentAction shadow observability for Hermes Agent
@@ -12,6 +12,10 @@ provides_hooks:
   - pre_api_request
   - post_api_request
   - api_request_error
+  - on_session_start
+  - pre_llm_call
+  - on_session_end
+  - on_session_finalize
   - subagent_start
   - subagent_stop
 requires_env:

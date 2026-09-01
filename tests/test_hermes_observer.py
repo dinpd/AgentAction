@@ -97,11 +97,133 @@ def test_configured_plugin_registers_observation_hooks(monkeypatch):
         "pre_api_request",
         "post_api_request",
         "api_request_error",
+        "on_session_start",
+        "pre_llm_call",
+        "on_session_end",
+        "on_session_finalize",
         "subagent_start",
         "subagent_stop",
     ]
     assert plugin._observer is not None
     plugin._observer.close()
+
+
+def test_session_lifecycle_creates_metadata_only_job_and_binds_activity():
+    activity_payloads = []
+    job_payloads = []
+
+    def send_job(payload):
+        job_payloads.append(payload)
+        return {
+            "job_id": "hermes_job_1",
+            "intent_id": "intent_job_1",
+            "intent_digest": "a" * 64,
+        }
+
+    instance = observer.HermesShadowObserver(
+        config(),
+        sender=activity_payloads.append,
+        job_sender=send_job,
+    )
+    assert instance.on_session_start(
+        session_id="session-1",
+        started_at="2026-08-31T18:00:00.000Z",
+        user_message="private prompt",
+    ) is None
+    assert instance.pre_llm_call(
+        session_id="session-1",
+        task_id="task-1",
+        turn_id="turn-1",
+        started_at="2026-08-31T18:00:00.000Z",
+        user_message="private prompt",
+    ) is None
+    # Hermes can invoke the LLM hook more than once inside one turn. The run
+    # still owns one immutable Job and one lifecycle-start Activity event.
+    assert instance.pre_llm_call(
+        session_id="session-1",
+        task_id="task-1",
+        turn_id="turn-1",
+        started_at="2026-08-31T18:00:01.000Z",
+    ) is None
+    assert instance.on_session_end(
+        session_id="session-1",
+        task_id="task-1",
+        turn_id="turn-1",
+        completed=True,
+        completed_at="2026-08-31T18:00:04.000Z",
+        assistant_response="private response",
+    ) is None
+    assert instance.on_session_finalize(session_id="session-1", reason="shutdown") is None
+
+    assert instance.flush_jobs_once() is True
+    assert [payload["phase"] for payload in job_payloads] == ["started", "completed"]
+    assert job_payloads[1]["status"] == "completed"
+    serialized_jobs = str(job_payloads)
+    assert "private prompt" not in serialized_jobs
+    assert "private response" not in serialized_jobs
+    assert instance.flush_once() is True
+
+    [batch] = activity_payloads
+    assert [event["event_type"] for event in batch["events"]] == [
+        "session_started",
+        "job_started",
+        "job_completed",
+        "session_completed",
+    ]
+    job_events = [event for event in batch["events"] if event["event_type"].startswith("job_")]
+    assert all(event["correlation"]["job_id"] == "hermes_job_1" for event in job_events)
+    assert all(event["intent"]["intent_id"] == "intent_job_1" for event in job_events)
+    assert job_events[1]["execution"] == {"status": "ok", "duration_ms": 4000.0}
+    assert "user_message" not in str(batch)
+    assert "assistant_response" not in str(batch)
+
+
+def test_session_job_delivery_retries_and_remains_fail_open():
+    attempts = []
+
+    def failing_sender(payload):
+        attempts.append(payload)
+        raise RuntimeError("offline")
+
+    instance = observer.HermesShadowObserver(config(), job_sender=failing_sender)
+    assert instance.pre_llm_call(session_id="session-retry", turn_id="turn-retry") is None
+    assert instance.flush_jobs_once() is False
+    assert len(instance.job_spool.load()) == 1
+
+    instance.job_sender = lambda payload: {
+        "job_id": "hermes_job_retry",
+        "intent_id": "intent_job_retry",
+        "intent_digest": "b" * 64,
+    }
+    assert instance.flush_jobs_once() is True
+    assert instance.job_spool.load() == []
+
+
+def test_explicit_semantic_intent_takes_precedence_over_observed_execution_job():
+    job_payloads = []
+    activity_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(intent_id="intent-explicit", intent_digest="c" * 64),
+        sender=activity_payloads.append,
+        job_sender=lambda payload: job_payloads.append(payload) or {},
+    )
+    instance.pre_llm_call(session_id="session-explicit", turn_id="turn-explicit")
+    instance.on_session_end(
+        session_id="session-explicit",
+        turn_id="turn-explicit",
+        completed=True,
+    )
+    assert instance.flush_jobs_once() is True
+    assert job_payloads == []
+    assert instance.flush_once() is True
+    assert all(
+        event["intent"] == {
+            "binding_status": "bound",
+            "intent_id": "intent-explicit",
+            "intent_digest": "c" * 64,
+        }
+        for event in activity_payloads[0]["events"]
+    )
 
 
 def config(**overrides):

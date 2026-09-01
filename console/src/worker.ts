@@ -446,7 +446,7 @@ const SHELL_HTML = `<!doctype html>
                 </select>
               </label>
               <label><span>Agent</span><select data-activity-filter-agent><option value="">All agents</option></select></label>
-              <label><span>Event</span><select data-activity-filter-event><option value="">All events</option><option value="tool_action">Tool action</option><option value="model_request_started">Model request started</option><option value="model_request_completed">Model request completed</option><option value="subagent_started">Subagent started</option><option value="subagent_completed">Subagent completed</option></select></label>
+              <label><span>Event</span><select data-activity-filter-event><option value="">All events</option><option value="session_started">Session started</option><option value="session_completed">Session completed</option><option value="job_started">Job started</option><option value="job_completed">Job completed</option><option value="tool_action">Tool action</option><option value="model_request_started">Model request started</option><option value="model_request_completed">Model request completed</option><option value="subagent_started">Subagent started</option><option value="subagent_completed">Subagent completed</option></select></label>
               <label><span>Tool <small>(optional)</small></span><input data-activity-filter-tool type="text" maxlength="160" autocomplete="off" placeholder="browser.open"></label>
               <label><span>Shadow decision</span><select data-activity-filter-decision><option value="">All decisions</option><option value="allow">Allow</option><option value="challenge_required">Challenge required</option><option value="deny">Deny</option></select></label>
               <label><span>Execution</span><select data-activity-filter-execution><option value="">All states</option><option value="ok">OK</option><option value="error">Error</option><option value="blocked">Blocked</option><option value="cancelled">Cancelled</option><option value="unknown">Unknown</option></select></label>
@@ -600,7 +600,7 @@ const SHELL_HTML = `<!doctype html>
           <div>
             <p class="eyebrow">Job detail</p>
             <h2 id="job-detail-heading">Finalized execution evidence</h2>
-            <p>One immutable intent receipt, its profile boundary, safe evaluation summaries, and the ordered evidence path that produced the final outcome.</p>
+            <p>One immutable job receipt, its profile boundary, safe evaluation summaries, and the ordered evidence path that produced the final outcome.</p>
           </div>
           <div class="detail-heading-actions">
             <span class="read-only-badge">Read only</span>
@@ -628,7 +628,7 @@ const SHELL_HTML = `<!doctype html>
             <div class="detail-section-heading">
               <div>
                 <p class="eyebrow">Final evaluation</p>
-                <h3 id="job-detail-outcome-title">Outcome against intent</h3>
+                <h3 id="job-detail-outcome-title">Outcome against profile</h3>
               </div>
               <p data-job-detail-evaluation-id></p>
             </div>
@@ -1459,7 +1459,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const allowedVerdicts = new Set(["", "completed", "partial", "failed", "indeterminate"]);
   const allowedConstraints = new Set(["", "pass", "fail", "indeterminate"]);
   const allowedConfidence = new Set(["", "low", "medium", "high"]);
-  const allowedActivityEvents = new Set(["", "tool_action", "model_request_started", "model_request_completed", "subagent_started", "subagent_completed"]);
+  const allowedActivityEvents = new Set(["", "session_started", "session_completed", "job_started", "job_completed", "tool_action", "model_request_started", "model_request_completed", "subagent_started", "subagent_completed"]);
   const allowedActivityDecisions = new Set(["", "allow", "deny", "challenge_required"]);
   const allowedActivityExecutions = new Set(["", "ok", "error", "blocked", "cancelled", "unknown"]);
   const allowedIntentBindings = new Set(["", "bound", "unbound"]);
@@ -2592,6 +2592,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && job.preview_count >= 0;
   }
 
+  function isObservedExecutionProfile(value: unknown): boolean {
+    return record(value).key === "agentaction_observed_execution.v1";
+  }
+
   function validTimestamp(value: unknown, nullable = false): boolean {
     return (nullable && value === null)
       || (typeof value === "string" && Number.isFinite(Date.parse(value)));
@@ -2817,14 +2821,24 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const timeline = record(payload.timeline);
     const entries = timeline.entries as Record<string, any>[];
     const quality = record(payload.data_quality);
+    const observedExecution = isObservedExecutionProfile(job.profile_binding);
 
     jobDetailTitle.textContent = safeText(job.job_id);
-    jobDetailSubtitle.textContent = `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
+    jobDetailSubtitle.textContent = observedExecution
+      ? `Observed Hermes run · ${safeText(job.agent_id, "Agent identity missing")} · no semantic intent inferred`
+      : `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
     jobDetailStatus.replaceChildren(statusPill("Finalized", "completed"));
     jobDetailBoundary.replaceChildren();
     appendDefinition(jobDetailBoundary, "Finalized at", formatTimestamp(boundary.finalized_at));
     appendDefinition(jobDetailBoundary, "Captured at", boundary.captured_at ? formatTimestamp(boundary.captured_at) : "Timestamp missing");
-    appendDefinition(jobDetailBoundary, "Profile", `${safeText(record(job.profile_binding).key)} · ${safeText(record(job.profile_binding).version)}`);
+    appendDefinition(
+      jobDetailBoundary,
+      "Profile",
+      observedExecution
+        ? `Observed execution · ${safeText(record(job.profile_binding).version)}`
+        : `${safeText(record(job.profile_binding).key)} · ${safeText(record(job.profile_binding).version)}`,
+    );
+    if (observedExecution) appendDefinition(jobDetailBoundary, "Intent meaning", "Lifecycle completion only; no semantic intent inferred");
     appendDefinition(jobDetailBoundary, "Profile digest", safeText(record(job.profile_binding).digest));
     appendDefinition(jobDetailBoundary, "Intent digest", safeText(boundary.intent_digest));
     appendDefinition(jobDetailBoundary, "Snapshot", safeText(boundary.snapshot_id));
@@ -2833,7 +2847,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobDetailEvaluationId.textContent = `Evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
     jobDetailMetrics.replaceChildren(
       metricCard("Verdict", safeText(evaluation.verdict), evaluation.qualified_success ? "Qualified success" : "Not qualified"),
-      metricCard("Goal attainment", formatPercent(evaluation.goal_attainment), "Intent-relative"),
+      metricCard("Goal attainment", formatPercent(evaluation.goal_attainment), observedExecution ? "Lifecycle objective" : "Intent-relative"),
       metricCard("Constraints", safeText(evaluation.constraint_compliance), `${(evaluation.constraints as any[]).length} evaluated`),
       metricCard("Evidence", formatPercent(evaluation.evidence_confidence), `${safeText(evaluation.confidence_band)} confidence`),
     );
@@ -2953,8 +2967,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     );
 
     const profileCell = cellStack(
-      create("strong", undefined, safeText(binding.key)),
-      create("small", undefined, `Version ${safeText(binding.version)}`),
+      create("strong", undefined, isObservedExecutionProfile(binding) ? "Observed execution" : safeText(binding.key)),
+      create("small", undefined, isObservedExecutionProfile(binding) ? "System lifecycle profile · no inferred intent" : `Version ${safeText(binding.version)}`),
       create("code", undefined, safeText(binding.digest)),
     );
     const outcomeCell = cellStack(
@@ -3072,7 +3086,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const intent = record(event.intent);
     const correlation = record(event.correlation);
     const row = create("tr");
-    const correlationValues = ["session_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "child_subagent_id"]
+    const correlationValues = ["session_id", "job_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "child_subagent_id"]
       .map((key) => safeText(correlation[key], ""))
       .filter(Boolean);
     const intentCell = intent.binding_status === "bound"

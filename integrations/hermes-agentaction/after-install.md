@@ -8,4 +8,5 @@
 
 The plugin is fail-open and metadata-only by default. An ingestion token grants
 write-only access to one registered tenant/source and cannot read dashboard
-data.
+data. Completed Hermes turns/runs appear in Jobs under the built-in **Observed
+execution** lifecycle profile; this does not infer semantic intent from prompts.

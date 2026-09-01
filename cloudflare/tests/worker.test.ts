@@ -2647,6 +2647,153 @@ test("activity ingestion rejects wrong credentials, tenant drift, raw fields, an
   assert.equal(conflicted.body.error_code, "activity_event_conflict");
 });
 
+test("activity source lifecycle creates one immutable observed-execution Job", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const started = activityJob("started");
+
+  const created = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", started, headers);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  assert.equal(created.body.phase, "started");
+  assert.equal(created.body.profile_key, "agentaction_observed_execution.v1");
+  assert.equal(created.body.profile_kind, "observed_execution");
+  assert.match(created.body.job_id, /^hermes_[a-f0-9]{24}$/);
+  assert.match(created.body.intent_id, /^intent_[a-f0-9]{24}$/);
+  assert.match(created.body.intent_digest, /^[a-f0-9]{64}$/);
+
+  const replayedStart = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    { ...started, started_at: "2026-08-31T18:00:02.000Z" },
+    headers,
+  );
+  assert.equal(replayedStart.status, 200);
+  assert.equal(replayedStart.body.replayed, true);
+  assert.equal(replayedStart.body.intent_digest, created.body.intent_digest);
+
+  const completed = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    activityJob("completed"),
+    headers,
+  );
+  assert.equal(completed.status, 201, JSON.stringify(completed.body));
+  assert.equal(completed.body.evaluation.verdict, "completed");
+  assert.equal(completed.body.evaluation.qualified_success, true);
+  assert.equal(completed.body.evaluation.profile, "agentaction_observed_execution.v1");
+
+  const replayedCompletion = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    { ...activityJob("completed"), completed_at: "2026-08-31T18:00:05.000Z", status: "error" },
+    headers,
+  );
+  assert.equal(replayedCompletion.status, 200);
+  assert.equal(replayedCompletion.body.replayed, true);
+  assert.deepEqual(replayedCompletion.body.evaluation, completed.body.evaluation);
+
+  const jobs = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&agent_id=hermes-support",
+    undefined,
+    { authorization: "Bearer dashboard-secret" },
+  );
+  assert.equal(jobs.status, 200);
+  assert.equal(jobs.body.matched_records, 1);
+  assert.equal(jobs.body.jobs[0].job_id, created.body.job_id);
+  assert.equal(jobs.body.jobs[0].profile_binding.key, "agentaction_observed_execution.v1");
+  assert.deepEqual(jobs.body.jobs[0].agent_ids, ["hermes-support"]);
+
+  const detail = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${created.body.job_id}`,
+    undefined,
+    { authorization: "Bearer dashboard-secret" },
+  );
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.job.job_id, created.body.job_id);
+  assert.equal(detail.body.job.profile_binding.key, "agentaction_observed_execution.v1");
+  assert.equal(JSON.stringify(detail.body).includes("prompt"), false);
+  assert.equal(JSON.stringify(detail.body).includes("result"), false);
+});
+
+test("activity source lifecycle stays tenant source and agent scoped", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const lifecycle = activityJob("started");
+
+  const tenantDrift = await call(env, ctx, "POST", "/tenants/beta/activity/jobs", lifecycle, headers);
+  assert.equal(tenantDrift.status, 400);
+  const sourceDrift = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    { ...lifecycle, source_id: "different-source" },
+    headers,
+  );
+  assert.equal(sourceDrift.status, 400);
+  const agentDrift = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    { ...lifecycle, agent_id: "different-agent" },
+    headers,
+  );
+  assert.equal(agentDrift.status, 400);
+  const rawField = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    { ...lifecycle, prompt: "private" },
+    headers,
+  );
+  assert.equal(rawField.status, 400);
+  assert.match(String(rawField.body.error), /unsupported field: prompt/);
+
+  const readDenied = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-01T00:00:00.000Z",
+    undefined,
+    headers,
+  );
+  assert.equal(readDenied.status, 401);
+});
+
 test("control plane creates an isolated tenant and returns source secrets only once", async () => {
   const namespace = new MemoryNamespace();
   const manifests = new MemoryManifests();
@@ -3790,5 +3937,22 @@ function activityBatch(tenantId: string, eventId: string): Record<string, any> {
         execution: { status: "ok", duration_ms: 42 },
       },
     ],
+  };
+}
+
+function activityJob(phase: "started" | "completed"): Record<string, unknown> {
+  return {
+    schema_version: "agentaction.activity-job.v1",
+    phase,
+    tenant_id: "acme",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+    session_id: "hermes-session-1",
+    task_id: "hermes-task-1",
+    turn_id: "hermes-turn-1",
+    started_at: "2026-08-31T18:00:00.000Z",
+    ...(phase === "completed"
+      ? { completed_at: "2026-08-31T18:00:04.000Z", status: "completed" }
+      : {}),
   };
 }

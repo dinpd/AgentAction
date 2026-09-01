@@ -43,7 +43,11 @@ def register(ctx: Any) -> None:
             "token": token,
         }
     )
-    _observer = HermesShadowObserver(config, spool=StateSpool(ctx.state, config.spool_capacity))
+    _observer = HermesShadowObserver(
+        config,
+        spool=StateSpool(ctx.state, config.spool_capacity),
+        job_spool=StateSpool(ctx.state, config.spool_capacity, key="job_retry_spool_v1"),
+    )
     _observer.start()
     atexit.register(_observer.close)
 
@@ -52,6 +56,10 @@ def register(ctx: Any) -> None:
     ctx.register_hook("pre_api_request", _observer.pre_api_request)
     ctx.register_hook("post_api_request", _observer.post_api_request)
     ctx.register_hook("api_request_error", _observer.api_request_error)
+    ctx.register_hook("on_session_start", _observer.on_session_start)
+    ctx.register_hook("pre_llm_call", _observer.pre_llm_call)
+    ctx.register_hook("on_session_end", _observer.on_session_end)
+    ctx.register_hook("on_session_finalize", _observer.on_session_finalize)
     ctx.register_hook("subagent_start", _observer.subagent_start)
     ctx.register_hook("subagent_stop", _observer.subagent_stop)
 

@@ -20,6 +20,7 @@ from urllib import error, request
 
 SCHEMA_VERSION = "agentaction.hermes-observation.v1"
 BATCH_SCHEMA_VERSION = "agentaction.observation-batch.v1"
+JOB_SCHEMA_VERSION = "agentaction.activity-job.v1"
 VALID_DECISIONS = {"allow", "deny", "challenge_required"}
 VALID_EXECUTION_STATUSES = {"ok", "error", "blocked", "cancelled", "unknown"}
 
@@ -124,12 +125,22 @@ class HermesShadowObserver:
         *,
         spool: Spool | None = None,
         sender: Callable[[dict[str, Any]], None] | None = None,
+        job_spool: Spool | None = None,
+        job_sender: Callable[[dict[str, Any]], Mapping[str, Any]] | None = None,
     ) -> None:
         self.config = config
         self.spool = spool or MemorySpool(config.spool_capacity)
         self.sender = sender or self._send_http
+        self.job_spool = job_spool or MemorySpool(config.spool_capacity)
+        self.job_sender = job_sender or self._send_job_http
         self.events: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=config.queue_capacity)
+        self.jobs: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=config.queue_capacity)
         self._pending: dict[str, dict[str, Any]] = {}
+        self._run_started_at: dict[str, str] = {}
+        self._run_bindings: dict[str, dict[str, str]] = {}
+        self._started_runs: set[str] = set()
+        self._completed_runs: set[str] = set()
+        self._finalized_sessions: set[str] = set()
         self._tool_counts: defaultdict[tuple[str, str], int] = defaultdict(int)
         self._fingerprint_counts: defaultdict[tuple[str, str, str], int] = defaultdict(int)
         self._lock = threading.Lock()
@@ -151,6 +162,13 @@ class HermesShadowObserver:
         if thread and thread.is_alive() and thread is not threading.current_thread():
             thread.join(timeout=min(2.0, self.config.flush_interval_seconds + 0.5))
         try:
+            pending_jobs = self.jobs.qsize() + len(self.job_spool.load())
+            maximum_job_flushes = max(1, pending_jobs)
+            for _ in range(maximum_job_flushes):
+                if not self.flush_jobs_once():
+                    break
+                if self.jobs.empty() and not self.job_spool.load():
+                    break
             pending_count = self.events.qsize() + len(self.spool.load())
             maximum_flushes = max(
                 1,
@@ -163,6 +181,13 @@ class HermesShadowObserver:
                     break
         except Exception:
             pass
+        pending_jobs = self.job_spool.load()
+        while True:
+            try:
+                pending_jobs.append(self.jobs.get_nowait())
+            except queue.Empty:
+                break
+        self.job_spool.save(pending_jobs)
         pending = self.spool.load()
         while True:
             try:
@@ -269,6 +294,54 @@ class HermesShadowObserver:
         self._subagent_event("subagent_completed", _safe_code(kwargs.get("child_status")) or "unknown", kwargs)
         return None
 
+    def on_session_start(self, **kwargs: Any) -> None:
+        try:
+            session_id = _activity_id(kwargs.get("session_id"), "session_id")
+            event = self._base_event("session_started", {"session_id": session_id})
+            event["execution"] = {"status": "running"}
+            self._submit(self._finish_event(event))
+        except Exception:
+            pass
+        return None
+
+    def pre_llm_call(self, **kwargs: Any) -> None:
+        try:
+            correlation = _run_correlation(kwargs)
+            run_key = _run_key(correlation)
+            started_at = _date_time(kwargs.get("started_at")) or _now()
+            with self._lock:
+                if run_key in self._started_runs:
+                    return None
+                self._started_runs.add(run_key)
+                self._run_started_at[run_key] = started_at
+            if not self.config.intent_id:
+                self._submit_job(self._job_lifecycle("started", correlation, started_at))
+            event = self._base_event("job_started", correlation)
+            event["execution"] = {"status": "running"}
+            self._submit(self._finish_event(event))
+        except Exception:
+            pass
+        return None
+
+    def on_session_end(self, **kwargs: Any) -> None:
+        self._complete_run(kwargs)
+        return None
+
+    def on_session_finalize(self, **kwargs: Any) -> None:
+        try:
+            session_id = _activity_id(kwargs.get("session_id"), "session_id")
+            with self._lock:
+                if session_id in self._finalized_sessions:
+                    return None
+                self._finalized_sessions.add(session_id)
+            event = self._base_event("session_completed", {"session_id": session_id})
+            event["execution"] = {"status": "ok"}
+            self._submit(self._finish_event(event))
+            self._wake.set()
+        except Exception:
+            pass
+        return None
+
     def flush_once(self) -> bool:
         existing = self.spool.load()
         drained: list[dict[str, Any]] = []
@@ -281,13 +354,14 @@ class HermesShadowObserver:
         remainder = (existing + drained)[self.config.batch_size :]
         if not combined:
             return True
+        bound = [self._bind_run_event(event) for event in combined]
         payload = {
             "schema_version": BATCH_SCHEMA_VERSION,
-            "batch_id": _batch_id(combined),
+            "batch_id": _batch_id(bound),
             "tenant_id": self.config.tenant_id,
             "source_id": self.config.source_id,
             "sent_at": _now(),
-            "events": combined,
+            "events": bound,
         }
         try:
             self.sender(payload)
@@ -297,15 +371,39 @@ class HermesShadowObserver:
         self.spool.save(remainder)
         return True
 
+    def flush_jobs_once(self) -> bool:
+        existing = self.job_spool.load()
+        drained: list[dict[str, Any]] = []
+        while len(drained) < self.config.batch_size:
+            try:
+                drained.append(self.jobs.get_nowait())
+            except queue.Empty:
+                break
+        combined = (existing + drained)[: self.config.batch_size]
+        remainder = (existing + drained)[self.config.batch_size :]
+        if not combined:
+            return True
+        for index, lifecycle in enumerate(combined):
+            try:
+                response = self.job_sender(lifecycle)
+                self._remember_run_binding(lifecycle, response)
+            except Exception:
+                self.job_spool.save(combined[index:] + remainder)
+                return False
+        self.job_spool.save(remainder)
+        return True
+
     def _worker(self) -> None:
         while not self._stop.is_set():
             self._wake.wait(self.config.flush_interval_seconds)
             self._wake.clear()
             try:
+                self.flush_jobs_once()
                 self.flush_once()
             except Exception:
                 pass
         try:
+            self.flush_jobs_once()
             self.flush_once()
         except Exception:
             pass
@@ -315,6 +413,13 @@ class HermesShadowObserver:
             self.events.put_nowait(event)
             if self.events.qsize() >= self.config.batch_size:
                 self._wake.set()
+        except queue.Full:
+            self.dropped_events += 1
+
+    def _submit_job(self, lifecycle: dict[str, Any]) -> None:
+        try:
+            self.jobs.put_nowait(lifecycle)
+            self._wake.set()
         except queue.Full:
             self.dropped_events += 1
 
@@ -368,6 +473,88 @@ class HermesShadowObserver:
             },
         }
 
+    def _complete_run(self, kwargs: Mapping[str, Any]) -> None:
+        try:
+            correlation = _run_correlation(kwargs)
+            run_key = _run_key(correlation)
+            with self._lock:
+                if run_key in self._completed_runs:
+                    return
+                self._completed_runs.add(run_key)
+                started_at = self._run_started_at.get(run_key)
+            completed_at = _date_time(kwargs.get("completed_at")) or _now()
+            started_at = started_at or _date_time(kwargs.get("started_at")) or completed_at
+            interrupted = kwargs.get("interrupted") is True
+            failed = kwargs.get("failed") is True
+            completed = kwargs.get("completed") is True and not interrupted and not failed
+            reason = _safe_code(kwargs.get("turn_exit_reason") or kwargs.get("reason"))
+            status = "completed" if completed else "interrupted" if interrupted else "error" if failed else "incomplete"
+            if not self.config.intent_id:
+                self._submit_job(self._job_lifecycle("completed", correlation, started_at, completed_at, status))
+            event = self._base_event("job_completed", correlation)
+            event["execution"] = {
+                "status": "ok" if completed else "cancelled" if interrupted else "error" if status == "error" else "unknown",
+                "duration_ms": _duration_ms(started_at, completed_at),
+                **({"error_type": reason} if reason else {}),
+            }
+            self._submit(self._finish_event(event))
+        except Exception:
+            pass
+
+    def _job_lifecycle(
+        self,
+        phase: str,
+        correlation: Mapping[str, str],
+        started_at: str,
+        completed_at: str = "",
+        status: str = "",
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": JOB_SCHEMA_VERSION,
+            "phase": phase,
+            "tenant_id": self.config.tenant_id,
+            "source_id": self.config.source_id,
+            "agent_id": self.config.agent_id,
+            "session_id": correlation["session_id"],
+            **({"task_id": correlation["task_id"]} if correlation.get("task_id") else {}),
+            **({"turn_id": correlation["turn_id"]} if correlation.get("turn_id") else {}),
+            "started_at": started_at,
+            **({"completed_at": completed_at, "status": status} if phase == "completed" else {}),
+        }
+
+    def _remember_run_binding(self, lifecycle: Mapping[str, Any], response: Mapping[str, Any]) -> None:
+        run_key = _run_key(_run_correlation(lifecycle))
+        binding = {
+            key: _bounded(response.get(key), 160)
+            for key in ("job_id", "intent_id", "intent_digest")
+        }
+        if run_key and all(binding.values()):
+            with self._lock:
+                self._run_bindings[run_key] = binding
+
+    def _bind_run_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        correlation = {
+            key: _bounded(value, 160)
+            for key, value in _mapping(event.get("correlation")).items()
+            if key in {"session_id", "task_id", "turn_id"} and _bounded(value, 160)
+        }
+        if not correlation.get("session_id"):
+            return event
+        run_key = _run_key(correlation)
+        with self._lock:
+            binding = dict(self._run_bindings.get(run_key, {}))
+        if not binding:
+            return event
+        return {
+            **event,
+            "correlation": {**_mapping(event.get("correlation")), "job_id": binding["job_id"]},
+            "intent": {
+                "binding_status": "bound",
+                "intent_id": binding["intent_id"],
+                "intent_digest": binding["intent_digest"],
+            },
+        }
+
     def _finish_event(self, event: dict[str, Any]) -> dict[str, Any]:
         material = {
             "source_id": event["source_id"],
@@ -411,7 +598,7 @@ class HermesShadowObserver:
             headers={
                 "authorization": f"Bearer {self.config.token}",
                 "content-type": "application/json",
-                "user-agent": "agentaction-hermes/0.6.1",
+                "user-agent": "agentaction-hermes/0.7.0",
                 "x-agentaction-source-id": self.config.source_id,
             },
         )
@@ -421,6 +608,34 @@ class HermesShadowObserver:
                     raise RuntimeError(f"AgentAction ingestion returned HTTP {response.status}")
         except error.HTTPError as exc:
             raise RuntimeError(f"AgentAction ingestion returned HTTP {exc.code}") from exc
+
+    def _send_job_http(self, payload: dict[str, Any]) -> Mapping[str, Any]:
+        body = _canonical_json(payload).encode("utf-8")
+        url = f"{self.config.endpoint}/tenants/{self.config.tenant_id}/activity/jobs"
+        req = request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={
+                "authorization": f"Bearer {self.config.token}",
+                "content-type": "application/json",
+                "user-agent": "agentaction-hermes/0.7.0",
+                "x-agentaction-source-id": self.config.source_id,
+            },
+        )
+        try:
+            with request.urlopen(req, timeout=5) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise RuntimeError(f"AgentAction job ingestion returned HTTP {response.status}")
+                response_body = response.read(16_385)
+                if len(response_body) > 16_384:
+                    raise RuntimeError("AgentAction job ingestion response exceeds 16 KiB")
+                value = json.loads(response_body.decode("utf-8"))
+                if not isinstance(value, Mapping):
+                    raise RuntimeError("AgentAction job ingestion returned an invalid response")
+                return value
+        except error.HTTPError as exc:
+            raise RuntimeError(f"AgentAction job ingestion returned HTTP {exc.code}") from exc
 
 
 def _tool_key(tool_name: str, args: Any, correlation: Mapping[str, str]) -> str:
@@ -443,6 +658,22 @@ def _correlation(value: Mapping[str, Any]) -> dict[str, str]:
         if normalized:
             result[key] = normalized
     return result
+
+
+def _run_correlation(value: Mapping[str, Any]) -> dict[str, str]:
+    correlation = _correlation(value)
+    session_id = _activity_id(correlation.get("session_id"), "session_id")
+    return {
+        "session_id": session_id,
+        **({"task_id": correlation["task_id"]} if correlation.get("task_id") else {}),
+        **({"turn_id": correlation["turn_id"]} if correlation.get("turn_id") else {}),
+    }
+
+
+def _run_key(correlation: Mapping[str, Any]) -> str:
+    session_id = _activity_id(correlation.get("session_id"), "session_id")
+    run_id = _bounded(correlation.get("turn_id") or correlation.get("task_id") or session_id, 160)
+    return f"{session_id}:{run_id}"
 
 
 def _model_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -491,6 +722,36 @@ def _canonical_json(value: Any) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _date_time(value: Any) -> str:
+    normalized = _bounded(value, 64)
+    if not normalized:
+        return ""
+    try:
+        datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    return normalized
+
+
+def _duration_ms(started_at: str, completed_at: str) -> float:
+    try:
+        started = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        completed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        return max(0.0, (completed - started).total_seconds() * 1000)
+    except ValueError:
+        return 0.0
+
+
+def _activity_id(value: Any, label: str) -> str:
+    normalized = _bounded(value, 160)
+    if not normalized or not normalized[0].isalnum() or any(
+        character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-"
+        for character in normalized
+    ):
+        raise ValueError(f"{label} is invalid")
+    return normalized
 
 
 def _identifier(value: Any, label: str) -> str:
