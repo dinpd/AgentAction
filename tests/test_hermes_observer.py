@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import time
@@ -108,6 +109,48 @@ def test_configured_plugin_registers_observation_hooks(monkeypatch):
     plugin._observer.close()
 
 
+def test_declared_intent_tools_are_registered_only_when_capture_is_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTACTION_INGEST_TOKEN", "source-token")
+    plugin = load_plugin_module()
+    registered_tools = []
+
+    class State:
+        values = {}
+
+        def get(self, key, default=None):
+            return self.values.get(key, default)
+
+        def set(self, key, value):
+            self.values[key] = value
+
+    class Context:
+        state = State()
+
+        def get_config(self, key, default=None):
+            return {
+                "tenant_id": "tenant-a",
+                "source_id": "hermes-smoke",
+                "agent_id": "hermes-smoke-agent",
+                "capture_declared_intent": True,
+            }.get(key, default)
+
+        def register_hook(self, _name, _callback):
+            pass
+
+        def register_tool(self, **definition):
+            registered_tools.append(definition)
+
+    plugin.register(Context())
+    assert [tool["name"] for tool in registered_tools] == [
+        "agentaction_declare_intent",
+        "agentaction_report_outcome",
+    ]
+    assert all(tool["toolset"] == "agentaction" for tool in registered_tools)
+    assert registered_tools[0]["schema"]["parameters"]["additionalProperties"] is False
+    assert plugin._observer is not None
+    plugin._observer.close()
+
+
 def test_session_lifecycle_creates_metadata_only_job_and_binds_activity():
     activity_payloads = []
     job_payloads = []
@@ -176,6 +219,116 @@ def test_session_lifecycle_creates_metadata_only_job_and_binds_activity():
     assert job_events[1]["execution"] == {"status": "ok", "duration_ms": 4000.0}
     assert "user_message" not in str(batch)
     assert "assistant_response" not in str(batch)
+
+
+def test_opt_in_declared_intent_capture_emits_bounded_self_attestation_job():
+    activity_payloads = []
+    job_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(capture_declared_intent=True),
+        sender=activity_payloads.append,
+        job_sender=lambda payload: job_payloads.append(payload) or {
+            "job_id": "hermes_declared_1",
+            "intent_id": "intent_declared_1",
+            "intent_digest": "d" * 64,
+        },
+    )
+
+    injected = instance.pre_llm_call(
+        session_id="session-declared",
+        task_id="task-declared",
+        turn_id="turn-declared",
+        user_message="raw private prompt must not be exported",
+    )
+    assert injected == {"context": observer.DECLARED_INTENT_CONTEXT}
+    assert "raw private prompt" not in str(injected)
+    assert instance.pre_llm_call(
+        session_id="session-declared",
+        task_id="task-declared",
+        turn_id="turn-declared",
+    ) is None
+
+    declaration = json.loads(instance.declare_intent(
+        {
+            "goal": "Calculate a product and explain it in one sentence.",
+            "success_criteria": ["The numeric product is correct.", "The explanation is one sentence."],
+            "constraints": ["Do not use network or files."],
+            "confidence": 0.93,
+        },
+        session_id="session-declared",
+        task_id="task-declared",
+        user_task="raw private prompt must not be exported",
+    ))
+    assert declaration == {"status": "captured", "provenance": "agent_declared"}
+    outcome = json.loads(instance.report_outcome(
+        {
+            "status": "achieved",
+            "success_criteria_met": "all",
+            "constraints_respected": "pass",
+            "confidence": 0.88,
+        },
+        session_id="session-declared",
+        task_id="task-declared",
+        user_task="raw private prompt must not be exported",
+    ))
+    assert outcome == {"status": "captured", "provenance": "agent_self_attested"}
+    instance.on_session_end(
+        session_id="session-declared",
+        task_id="task-declared",
+        turn_id="turn-declared",
+        completed=True,
+        assistant_response="raw private answer must not be exported",
+    )
+
+    assert instance.flush_jobs_once() is True
+    assert [payload["phase"] for payload in job_payloads] == ["started", "completed"]
+    assert job_payloads[0]["declared_intent"] == {
+        "schema_version": "agentaction.declared-intent.v1",
+        "goal": "Calculate a product and explain it in one sentence.",
+        "success_criteria": ["The numeric product is correct.", "The explanation is one sentence."],
+        "constraints": ["Do not use network or files."],
+        "confidence": 0.93,
+    }
+    assert job_payloads[1]["reported_outcome"] == {
+        "schema_version": "agentaction.reported-outcome.v1",
+        "status": "achieved",
+        "success_criteria_met": "all",
+        "constraints_respected": "pass",
+        "confidence": 0.88,
+    }
+    encoded = str(job_payloads)
+    assert "raw private prompt" not in encoded
+    assert "raw private answer" not in encoded
+
+
+def test_declared_intent_capture_falls_back_to_observed_job_and_rejects_unbounded_fields():
+    job_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(capture_declared_intent=True),
+        job_sender=lambda payload: job_payloads.append(payload) or {
+            "job_id": "hermes_fallback_1",
+            "intent_id": "intent_fallback_1",
+            "intent_digest": "e" * 64,
+        },
+    )
+    instance.pre_llm_call(session_id="session-fallback", task_id="task-fallback")
+    rejected = json.loads(instance.declare_intent(
+        {
+            "goal": "short goal",
+            "success_criteria": [],
+            "constraints": [],
+            "confidence": 0.8,
+            "raw_prompt": "must never be accepted",
+        },
+        session_id="session-fallback",
+        task_id="task-fallback",
+    ))
+    assert rejected["status"] == "rejected"
+    instance.on_session_end(session_id="session-fallback", task_id="task-fallback", completed=True)
+    assert instance.flush_jobs_once() is True
+    assert [payload["phase"] for payload in job_payloads] == ["started", "completed"]
+    assert all("declared_intent" not in payload for payload in job_payloads)
+    assert "must never be accepted" not in str(job_payloads)
 
 
 def test_session_job_delivery_retries_and_remains_fail_open():

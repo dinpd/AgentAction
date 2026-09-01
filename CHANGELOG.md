@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.10.0 - 2026-09-01
+
+### Agent-declared intent for Hermes
+
+- Add opt-in Hermes context injection and structured declaration/outcome tools
+  without exporting prompts, histories, tool arguments/results, or responses.
+- Evaluate bounded declarations under the server-owned
+  `agentaction_declared_intent.v1` profile while preserving observed-execution
+  fallback and fail-open agent behavior.
+- Label declarations and outcome reports as agent-generated self-attestation in
+  Jobs and Job detail rather than trusted user intent or independent evidence.
+
 ## 0.9.10 - 2026-09-01
 
 ### Pending workspace invitations

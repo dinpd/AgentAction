@@ -1,5 +1,5 @@
 name: agentaction
-version: 0.7.0
+version: 0.8.0
 manifest_version: 1
 api_version: 1
 description: Fail-open AgentAction shadow observability for Hermes Agent
@@ -29,6 +29,7 @@ config_schema:
   agent_id: {type: str, default: "hermes-agent", description: "Stable agent identity shown in Activity"}
   intent_id: {type: str, default: "", description: "Optional explicit AgentAction intent contract ID"}
   intent_digest: {type: str, default: "", description: "Digest for the explicit intent contract"}
+  capture_declared_intent: {type: bool, default: false, description: "Inject bounded intent-capture guidance and expose self-attestation tools"}
   tool_policies: {type: dict, default: {}, description: "Counterfactual tool mappings and shadow policy"}
   batch_size: {type: int, default: 25, description: "Events per export batch"}
   flush_interval_seconds: {type: float, default: 2.0, description: "Maximum export delay"}

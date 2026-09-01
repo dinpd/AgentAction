@@ -119,6 +119,34 @@ type ActivityJobLifecycle = {
   started_at: string;
   completed_at?: string;
   status?: "completed" | "interrupted" | "incomplete" | "error";
+  declared_intent?: AgentDeclaredIntent;
+  reported_outcome?: AgentReportedOutcome;
+};
+
+type AgentDeclaredIntent = {
+  schema_version: "agentaction.declared-intent.v1";
+  goal: string;
+  success_criteria: string[];
+  constraints: string[];
+  confidence: number;
+};
+
+type AgentReportedOutcome = {
+  schema_version: "agentaction.reported-outcome.v1";
+  status: "achieved" | "partial" | "failed" | "unknown";
+  success_criteria_met: "all" | "some" | "none" | "unknown";
+  constraints_respected: "pass" | "fail" | "unknown";
+  confidence: number;
+};
+
+type AgentDeclaredIntentContext = {
+  kind: "agent_declared";
+  trust: "self_attested";
+  goal: string;
+  success_criteria: string[];
+  constraints: string[];
+  declaration_confidence: number;
+  reported_outcome?: Omit<AgentReportedOutcome, "schema_version">;
 };
 
 type StoredActivityEvent = { digest: string; event: ActivityEvent };
@@ -397,6 +425,7 @@ type IntentQualityRecord = {
   agent_ids: string[];
   finalized_at: string;
   evaluation: HostedIntentEvaluationReceipt;
+  intent_context?: AgentDeclaredIntentContext;
 };
 type IntentQualityFilters = {
   from: string;
@@ -590,7 +619,7 @@ export default {
             sourceAuthentication.sourceId,
             sourceAuthentication.agentIds,
           );
-          const result = await storeObservedActivityJob(env, manifest, lifecycle);
+          const result = await storeActivityJob(env, manifest, lifecycle);
           if (result.response.ok) {
             ctx.waitUntil(
               emitAudit(env, {
@@ -4463,6 +4492,7 @@ function hermesSetup(tenantId: string, sourceId: string, agentId: string): Recor
       `        tenant_id: ${tenantId}`,
       `        source_id: ${sourceId}`,
       `        agent_id: ${agentId}`,
+      "        capture_declared_intent: true",
     ].join("\n"),
   };
 }
@@ -5070,6 +5100,10 @@ function intentQualityRecord(value: unknown): {
     !evaluation.profile.endsWith(`.${evaluation.profile_version}`) ||
     !/^[a-f0-9]{64}$/.test(evaluation.profile_digest)
   ) return { error: "invalid_final_receipt" };
+  const intentContext = intentQualityDeclaredContext(snapshot.evidence.job, evaluation.profile);
+  if (evaluation.profile === "agentaction_declared_intent.v1" && !intentContext) {
+    return { error: "invalid_final_receipt" };
+  }
   const agentIds = new Set<string>();
   const jobAgent = optionalString(recordValue(snapshot.evidence.job).agent_id);
   if (jobAgent) agentIds.add(jobAgent);
@@ -5093,8 +5127,77 @@ function intentQualityRecord(value: unknown): {
       agent_ids: [...agentIds].sort(),
       finalized_at: new Date(finalization.finalized_at).toISOString(),
       evaluation,
+      ...(intentContext ? { intent_context: intentContext } : {}),
     },
   };
+}
+
+function intentQualityDeclaredContext(
+  jobValue: unknown,
+  profileKey: string,
+): AgentDeclaredIntentContext | undefined {
+  if (profileKey !== "agentaction_declared_intent.v1") return undefined;
+  const job = recordValue(jobValue);
+  const declaration = recordValue(job.declared_intent);
+  if (
+    declaration.schema_version !== "agentaction.declared-intent.v1" ||
+    declaration.provenance !== "agent_declared"
+  ) return undefined;
+  const goal = optionalString(declaration.goal);
+  const criteria = intentQualityBoundedTextList(declaration.success_criteria, 1, 8, 240);
+  const constraints = intentQualityBoundedTextList(declaration.constraints, 0, 8, 240);
+  const declarationConfidence = declaration.confidence;
+  if (
+    !goal || goal !== goal.trim() || goal.length > 500 ||
+    !criteria || !constraints ||
+    typeof declarationConfidence !== "number" ||
+    !Number.isFinite(declarationConfidence) ||
+    declarationConfidence < 0 || declarationConfidence > 1
+  ) return undefined;
+
+  const outcome = recordValue(job.reported_outcome);
+  let reportedOutcome: AgentDeclaredIntentContext["reported_outcome"];
+  if (Object.keys(outcome).length > 0) {
+    if (
+      outcome.schema_version !== "agentaction.reported-outcome.v1" ||
+      outcome.provenance !== "agent_self_attested" ||
+      !["achieved", "partial", "failed", "unknown"].includes(String(outcome.status)) ||
+      !["all", "some", "none", "unknown"].includes(String(outcome.success_criteria_met)) ||
+      !["pass", "fail", "unknown"].includes(String(outcome.constraints_respected)) ||
+      typeof outcome.confidence !== "number" ||
+      !Number.isFinite(outcome.confidence) ||
+      outcome.confidence < 0 || outcome.confidence > 1
+    ) return undefined;
+    reportedOutcome = {
+      status: outcome.status as AgentReportedOutcome["status"],
+      success_criteria_met: outcome.success_criteria_met as AgentReportedOutcome["success_criteria_met"],
+      constraints_respected: outcome.constraints_respected as AgentReportedOutcome["constraints_respected"],
+      confidence: outcome.confidence,
+    };
+  }
+  return {
+    kind: "agent_declared",
+    trust: "self_attested",
+    goal,
+    success_criteria: criteria,
+    constraints,
+    declaration_confidence: declarationConfidence,
+    ...(reportedOutcome ? { reported_outcome: reportedOutcome } : {}),
+  };
+}
+
+function intentQualityBoundedTextList(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  maximumLength: number,
+): string[] | undefined {
+  if (!Array.isArray(value) || value.length < minimum || value.length > maximum) return undefined;
+  const result = value.filter((item): item is string => (
+    typeof item === "string" && Boolean(item) && item === item.trim() && item.length <= maximumLength
+  ));
+  if (result.length !== value.length || new Set(result).size !== result.length) return undefined;
+  return result;
 }
 
 function intentQualityGroupKey(record: IntentQualityRecord): string {
@@ -5187,6 +5290,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
       version: record.profile_version,
       digest: record.profile_digest,
     },
+    ...(record.intent_context ? { intent_context: record.intent_context } : {}),
     verdict: record.evaluation.verdict,
     qualified_success: record.evaluation.qualified_success,
     constraint_compliance: record.evaluation.constraint_compliance,
@@ -6043,12 +6147,60 @@ const OBSERVED_EXECUTION_PROFILE: IntentProfile = {
   evidence_requirements: ["job"],
 };
 
-async function storeObservedActivityJob(
+const AGENT_DECLARED_INTENT_PROFILE: IntentProfile = {
+  schema_version: "agentpass.intent-profile.v1",
+  profile: "agentaction_declared_intent",
+  version: "v1",
+  issuer: "agentaction-gateway",
+  issued_at: "2026-01-01T00:00:00.000Z",
+  objective_template: "{{goal}}",
+  variables: {
+    goal: {
+      type: "string",
+      required: true,
+      description: "Concise goal declared by the agent; not trusted user intent.",
+    },
+  },
+  required_outcomes: [
+    {
+      id: "run-completed",
+      description: "The observed agent run reached a successful terminal state.",
+      source: "job",
+      assertion: { path: "status", operator: "equals", value: "completed" },
+    },
+    {
+      id: "agent-reported-achieved",
+      description: "The agent self-attested that the declared goal was achieved.",
+      source: "job",
+      assertion: { path: "reported_outcome.status", operator: "equals", value: "achieved" },
+    },
+    {
+      id: "agent-reported-criteria-met",
+      description: "The agent self-attested that all declared success criteria were met.",
+      source: "job",
+      assertion: { path: "reported_outcome.success_criteria_met", operator: "equals", value: "all" },
+    },
+  ],
+  hard_constraints: [
+    {
+      id: "agent-reported-constraints-respected",
+      description: "The agent self-attested that the declared constraints were respected.",
+      source: "job",
+      assertion: { path: "reported_outcome.constraints_respected", operator: "equals", value: "pass" },
+    },
+  ],
+  evidence_requirements: ["job"],
+};
+
+async function storeActivityJob(
   env: Env,
   manifest: AgentIdManifest,
   lifecycle: ActivityJobLifecycle,
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
   const store = authorizationStore(env, lifecycle.tenant_id, manifest);
+  const profile = lifecycle.declared_intent ? AGENT_DECLARED_INTENT_PROFILE : OBSERVED_EXECUTION_PROFILE;
+  const profileKey = intentProfileKey(profile);
+  const profileVariables = lifecycle.declared_intent ? { goal: lifecycle.declared_intent.goal } : {};
   const identityDigest = await canonicalDigest({
     tenant_id: lifecycle.tenant_id,
     source_id: lifecycle.source_id,
@@ -6068,13 +6220,13 @@ async function storeObservedActivityJob(
   if (existing.ok) {
     contractBody = await existing.json() as Record<string, unknown>;
   } else if (existing.status === 404) {
-    const profile = bindIntentProfile(OBSERVED_EXECUTION_PROFILE);
+    const boundProfile = bindIntentProfile(profile);
     const registered = await store.fetch(
       new Request("https://agentid.local/intent-profiles", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          profile,
+          profile: boundProfile,
           tenant_id: lifecycle.tenant_id,
           registered_by: `activity_source:${lifecycle.source_id}`,
         }),
@@ -6085,7 +6237,7 @@ async function storeObservedActivityJob(
     }
     const issued = await store.fetch(
       new Request(
-        `https://agentid.local/intent-profiles/${encodeURIComponent(intentProfileKey(profile))}/issue`,
+        `https://agentid.local/intent-profiles/${encodeURIComponent(intentProfileKey(boundProfile))}/issue`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -6093,7 +6245,7 @@ async function storeObservedActivityJob(
             issuance: {
               intent_id: intentId,
               job_id: jobId,
-              variables: {},
+              variables: profileVariables,
               issued_at: lifecycle.started_at,
             } satisfies IntentProfileIssuanceInput,
             tenant_id: lifecycle.tenant_id,
@@ -6110,6 +6262,19 @@ async function storeObservedActivityJob(
   }
 
   const contract = recordValue(contractBody.contract) as IntentContract;
+  const contractGoal = optionalString(recordValue(contract.profile_variables).goal);
+  if (
+    contract.profile !== profileKey ||
+    (lifecycle.declared_intent ? contractGoal !== lifecycle.declared_intent.goal : contractGoal !== undefined)
+  ) {
+    return {
+      response: new Response(null, { status: 409 }),
+      body: {
+        error: "activity job intent declaration conflicts with the immutable contract",
+        error_code: "activity_job_intent_conflict",
+      },
+    };
+  }
   const binding = {
     schema_version: "agentaction.activity-job-result.v1",
     phase: lifecycle.phase,
@@ -6122,8 +6287,8 @@ async function storeObservedActivityJob(
     job_id: jobId,
     intent_id: intentId,
     intent_digest: stringValue(contractBody.intent_digest || contract.intent_digest),
-    profile_key: intentProfileKey(OBSERVED_EXECUTION_PROFILE),
-    profile_kind: "observed_execution",
+    profile_key: profileKey,
+    profile_kind: lifecycle.declared_intent ? "agent_declared" : "observed_execution",
   };
   if (lifecycle.phase === "started") {
     return {
@@ -6164,6 +6329,18 @@ async function storeObservedActivityJob(
           started_at: lifecycle.started_at,
           completed_at: lifecycle.completed_at,
           status: lifecycle.status,
+          ...(lifecycle.declared_intent ? {
+            declared_intent: {
+              ...lifecycle.declared_intent,
+              provenance: "agent_declared",
+            },
+          } : {}),
+          ...(lifecycle.reported_outcome ? {
+            reported_outcome: {
+              ...lifecycle.reported_outcome,
+              provenance: "agent_self_attested",
+            },
+          } : {}),
         },
       }),
     }),
@@ -6268,6 +6445,8 @@ function validateActivityJob(
     "started_at",
     "completed_at",
     "status",
+    "declared_intent",
+    "reported_outcome",
   ], "activity job");
   if (job.schema_version !== "agentaction.activity-job.v1") {
     throw new Error("activity job schema_version is unsupported");
@@ -6283,8 +6462,17 @@ function validateActivityJob(
   if (job.task_id !== undefined) requiredActivityId(job.task_id, "activity job task_id");
   if (job.turn_id !== undefined) requiredActivityId(job.turn_id, "activity job turn_id");
   requiredActivityDate(job.started_at, "activity job started_at");
+  const declaredIntent = job.declared_intent === undefined
+    ? undefined
+    : validateDeclaredIntent(job.declared_intent);
+  const reportedOutcome = job.reported_outcome === undefined
+    ? undefined
+    : validateReportedOutcome(job.reported_outcome);
+  if (reportedOutcome && !declaredIntent) {
+    throw new Error("activity job reported_outcome requires declared_intent");
+  }
   if (job.phase === "started") {
-    if (job.completed_at !== undefined || job.status !== undefined) {
+    if (job.completed_at !== undefined || job.status !== undefined || reportedOutcome !== undefined) {
       throw new Error("started activity job cannot include terminal fields");
     }
   } else {
@@ -6296,7 +6484,101 @@ function validateActivityJob(
       throw new Error("activity job status is invalid");
     }
   }
-  return job as ActivityJobLifecycle;
+  return {
+    ...job,
+    ...(declaredIntent ? { declared_intent: declaredIntent } : {}),
+    ...(reportedOutcome ? { reported_outcome: reportedOutcome } : {}),
+  } as ActivityJobLifecycle;
+}
+
+function validateDeclaredIntent(value: unknown): AgentDeclaredIntent {
+  const declared = strictRecord(value, [
+    "schema_version",
+    "goal",
+    "success_criteria",
+    "constraints",
+    "confidence",
+  ], "activity job declared_intent");
+  if (declared.schema_version !== "agentaction.declared-intent.v1") {
+    throw new Error("activity job declared_intent schema_version is unsupported");
+  }
+  return {
+    schema_version: "agentaction.declared-intent.v1",
+    goal: requiredActivityText(declared.goal, "activity job declared_intent goal", 500),
+    success_criteria: requiredActivityTextList(
+      declared.success_criteria,
+      "activity job declared_intent success_criteria",
+      1,
+      8,
+      240,
+    ),
+    constraints: requiredActivityTextList(
+      declared.constraints,
+      "activity job declared_intent constraints",
+      0,
+      8,
+      240,
+    ),
+    confidence: requiredActivityConfidence(declared.confidence, "activity job declared_intent confidence"),
+  };
+}
+
+function validateReportedOutcome(value: unknown): AgentReportedOutcome {
+  const outcome = strictRecord(value, [
+    "schema_version",
+    "status",
+    "success_criteria_met",
+    "constraints_respected",
+    "confidence",
+  ], "activity job reported_outcome");
+  if (outcome.schema_version !== "agentaction.reported-outcome.v1") {
+    throw new Error("activity job reported_outcome schema_version is unsupported");
+  }
+  if (!["achieved", "partial", "failed", "unknown"].includes(String(outcome.status))) {
+    throw new Error("activity job reported_outcome status is invalid");
+  }
+  if (!["all", "some", "none", "unknown"].includes(String(outcome.success_criteria_met))) {
+    throw new Error("activity job reported_outcome success_criteria_met is invalid");
+  }
+  if (!["pass", "fail", "unknown"].includes(String(outcome.constraints_respected))) {
+    throw new Error("activity job reported_outcome constraints_respected is invalid");
+  }
+  return {
+    schema_version: "agentaction.reported-outcome.v1",
+    status: outcome.status as AgentReportedOutcome["status"],
+    success_criteria_met: outcome.success_criteria_met as AgentReportedOutcome["success_criteria_met"],
+    constraints_respected: outcome.constraints_respected as AgentReportedOutcome["constraints_respected"],
+    confidence: requiredActivityConfidence(outcome.confidence, "activity job reported_outcome confidence"),
+  };
+}
+
+function requiredActivityText(value: unknown, label: string, maximum: number): string {
+  if (typeof value !== "string" || !value.trim() || value !== value.trim() || value.length > maximum) {
+    throw new Error(`${label} is invalid`);
+  }
+  return value;
+}
+
+function requiredActivityTextList(
+  value: unknown,
+  label: string,
+  minimum: number,
+  maximum: number,
+  maximumLength: number,
+): string[] {
+  if (!Array.isArray(value) || value.length < minimum || value.length > maximum) {
+    throw new Error(`${label} is invalid`);
+  }
+  const result = value.map((item, index) => requiredActivityText(item, `${label}[${index}]`, maximumLength));
+  if (new Set(result).size !== result.length) throw new Error(`${label} contains duplicates`);
+  return result;
+}
+
+function requiredActivityConfidence(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${label} is invalid`);
+  }
+  return value;
 }
 
 async function readBoundedActivityBatch(request: Request): Promise<unknown> {

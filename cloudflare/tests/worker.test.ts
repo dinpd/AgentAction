@@ -2750,6 +2750,139 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   assert.equal(JSON.stringify(detail.body).includes("result"), false);
 });
 
+test("activity source lifecycle evaluates bounded agent-declared intent as self-attestation", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const declaredIntent = {
+    schema_version: "agentaction.declared-intent.v1",
+    goal: "Calculate a product and explain it in one sentence.",
+    success_criteria: ["The numeric product is correct.", "The explanation is one sentence."],
+    constraints: ["Do not use network or files."],
+    confidence: 0.93,
+  };
+  const started = { ...activityJob("started"), declared_intent: declaredIntent };
+  const created = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", started, headers);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  assert.equal(created.body.profile_key, "agentaction_declared_intent.v1");
+  assert.equal(created.body.profile_kind, "agent_declared");
+
+  const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("completed"),
+    declared_intent: declaredIntent,
+    reported_outcome: {
+      schema_version: "agentaction.reported-outcome.v1",
+      status: "achieved",
+      success_criteria_met: "all",
+      constraints_respected: "pass",
+      confidence: 0.88,
+    },
+  }, headers);
+  assert.equal(completed.status, 201, JSON.stringify(completed.body));
+  assert.equal(completed.body.evaluation.verdict, "completed");
+  assert.equal(completed.body.evaluation.qualified_success, true);
+  assert.equal(completed.body.evaluation.profile, "agentaction_declared_intent.v1");
+
+  const jobs = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&agent_id=hermes-support",
+    undefined,
+    { authorization: "Bearer dashboard-secret" },
+  );
+  assert.equal(jobs.status, 200);
+  assert.equal(jobs.body.jobs[0].intent_context.kind, "agent_declared");
+  assert.equal(jobs.body.jobs[0].intent_context.trust, "self_attested");
+  assert.equal(jobs.body.jobs[0].intent_context.goal, declaredIntent.goal);
+  assert.equal(jobs.body.jobs[0].intent_context.reported_outcome.status, "achieved");
+  assert.equal(JSON.stringify(jobs.body).includes("raw_prompt"), false);
+
+  const conflictingReplay = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...started,
+    declared_intent: { ...declaredIntent, goal: "A different mutable goal." },
+  }, headers);
+  assert.equal(conflictingReplay.status, 409);
+  assert.equal(conflictingReplay.body.error_code, "activity_job_intent_conflict");
+
+  const partialRun = {
+    ...activityJob("started"),
+    session_id: "hermes-session-partial",
+    task_id: "hermes-task-partial",
+    turn_id: "hermes-turn-partial",
+    declared_intent: declaredIntent,
+  };
+  const partialStarted = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", partialRun, headers);
+  assert.equal(partialStarted.status, 201, JSON.stringify(partialStarted.body));
+  const partialCompleted = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...partialRun,
+    phase: "completed",
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+    reported_outcome: {
+      schema_version: "agentaction.reported-outcome.v1",
+      status: "partial",
+      success_criteria_met: "some",
+      constraints_respected: "fail",
+      confidence: 0.72,
+    },
+  }, headers);
+  assert.equal(partialCompleted.status, 201, JSON.stringify(partialCompleted.body));
+  assert.equal(partialCompleted.body.evaluation.qualified_success, false);
+  assert.equal(partialCompleted.body.evaluation.constraint_compliance, "fail");
+});
+
+test("activity source lifecycle rejects raw and unbounded declared-intent fields", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const lifecycle = activityJob("started");
+  const rawNested = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...lifecycle,
+    declared_intent: {
+      schema_version: "agentaction.declared-intent.v1",
+      goal: "Safe summary.",
+      success_criteria: [],
+      constraints: [],
+      confidence: 0.8,
+      raw_prompt: "private",
+    },
+  }, headers);
+  assert.equal(rawNested.status, 400);
+  assert.match(String(rawNested.body.error), /unsupported field: raw_prompt/);
+
+  const tooLong = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...lifecycle,
+    declared_intent: {
+      schema_version: "agentaction.declared-intent.v1",
+      goal: "x".repeat(501),
+      success_criteria: [],
+      constraints: [],
+      confidence: 0.8,
+    },
+  }, headers);
+  assert.equal(tooLong.status, 400);
+  assert.match(String(tooLong.body.error), /goal/);
+});
+
 test("activity source lifecycle stays tenant source and agent scoped", async () => {
   const namespace = new MemoryNamespace();
   const token = "hermes-source-secret";
@@ -2837,6 +2970,7 @@ test("control plane creates an isolated tenant and returns source secrets only o
   assert.equal(created.body.membership.role, "owner");
   assert.match(created.body.source_token, /^aa_src_/);
   assert.match(created.body.hermes.yaml, /tenant_id: acme/);
+  assert.match(created.body.hermes.yaml, /capture_declared_intent: true/);
   assert.equal(created.body.hermes.yaml.includes(created.body.source_token), false);
 
   const manifest = JSON.parse(String(await manifests.get("acme")));
