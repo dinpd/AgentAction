@@ -2081,10 +2081,14 @@ export class AgentIdJitGrants {
     if (method === "POST" && pathname === "/directory/invitations/redeem") {
       const identity = directoryIdentity(payload.identity);
       if (!identity.email) return json({ error: "a verified Access email is required to redeem invitations" }, 403);
-      const invitationId = directoryId(payload.invitation_id, "invitation_id");
+      const invitationId = directoryInvitationId(payload.invitation_id);
+      const redemptionMethod = stringValue(payload.redemption_method);
+      if (redemptionMethod !== "code" && redemptionMethod !== "email_link") {
+        return json({ error: "invitation redemption method is invalid", error_code: "invitation_invalid" }, 400);
+      }
       const secretDigest = stringValue(payload.secret_digest);
       const invitation = await this.state.storage.get<TenantInvitation>(`directory:invitation:${invitationId}`);
-      if (!invitation || !constantTimeEqual(invitation.secret_digest, secretDigest)) {
+      if (!invitation || (redemptionMethod === "code" && !constantTimeEqual(invitation.secret_digest, secretDigest))) {
         return json({ error: "invitation is invalid", error_code: "invitation_invalid" }, 404);
       }
       if (await this.directoryWorkspaceMode(identity) !== "directory" && identity.claimed_tenant_id !== invitation.tenant_id) {
@@ -4073,15 +4077,29 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
 
   if (request.method === "POST" && url.pathname === "/control-plane/invitations/redeem") {
     const input = await readControlJson(request);
-    const code = stringValue(input.code).trim();
-    const separator = code.indexOf(".");
-    if (separator < 1 || separator === code.length - 1 || code.length > 300) return json({ error: "invitation code is invalid" }, 400);
-    const invitationId = directoryId(code.slice(0, separator), "invitation_id");
-    const secretDigest = await sha256Hex(code.slice(separator + 1));
+    const code = optionalString(input.code)?.trim() || "";
+    const linkedInvitationId = optionalString(input.invitation_id)?.trim() || "";
+    if (Boolean(code) === Boolean(linkedInvitationId)) {
+      return json({ error: "provide exactly one invitation code or invitation ID" }, 400);
+    }
+    let invitationId: string;
+    let redemptionMethod: "code" | "email_link";
+    let secretDigest: string | undefined;
+    if (code) {
+      const separator = code.indexOf(".");
+      if (separator < 1 || separator === code.length - 1 || code.length > 300) return json({ error: "invitation code is invalid" }, 400);
+      invitationId = directoryInvitationId(code.slice(0, separator));
+      secretDigest = await sha256Hex(code.slice(separator + 1));
+      redemptionMethod = "code";
+    } else {
+      invitationId = directoryInvitationId(linkedInvitationId);
+      redemptionMethod = "email_link";
+    }
     const redeemed = await directory.fetch(directoryRequest("/directory/invitations/redeem", {
       identity,
       invitation_id: invitationId,
-      secret_digest: secretDigest,
+      redemption_method: redemptionMethod,
+      ...(secretDigest ? { secret_digest: secretDigest } : {}),
     }));
     return json(await redeemed.json(), redeemed.status);
   }
@@ -4164,6 +4182,7 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
       code: invitationCode,
       email,
       expiresAt,
+      invitationId,
       inviter: identity.email || "an AgentAction workspace owner",
       role,
       workspaceName,
@@ -4365,6 +4384,7 @@ async function deliverWorkspaceInvitation(
     code: string;
     email: string;
     expiresAt: string;
+    invitationId: string;
     inviter: string;
     role: Exclude<TenantRole, "owner">;
     workspaceName: string;
@@ -4384,7 +4404,11 @@ async function deliverWorkspaceInvitation(
     return { status: "unavailable" };
   }
 
-  const inviteUrl = `${baseUrl.origin}${baseUrl.pathname || "/"}#setup?invite=${encodeURIComponent(invitation.code)}`;
+  baseUrl.search = "";
+  baseUrl.hash = "";
+  baseUrl.searchParams.set("invitation", invitation.invitationId);
+  baseUrl.hash = "setup";
+  const inviteUrl = baseUrl.toString();
   const roleLabel = invitation.role === "operator" ? "Operator" : "Viewer";
   const text = [
     `You have been invited to ${invitation.workspaceName} in AgentAction Observability.`,
@@ -4537,6 +4561,12 @@ function directoryIdentity(value: unknown): ControlIdentity {
 function directoryId(value: unknown, label: string): string {
   const id = stringValue(value).trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$/.test(id)) throw new Error(`${label} is invalid`);
+  return id;
+}
+
+function directoryInvitationId(value: unknown): string {
+  const id = stringValue(value).trim();
+  if (!/^invite_[a-f0-9]{24}$/.test(id)) throw new Error("invitation_id is invalid");
   return id;
 }
 

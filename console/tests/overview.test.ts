@@ -393,6 +393,7 @@ type RuntimeOptions = {
 function makeRuntime(options: RuntimeOptions = {}) {
   const document = new FakeDocument();
   const requests: string[] = [];
+  const requestBodies: Array<{ body: Record<string, unknown>; path: string }> = [];
   const pageUrls: string[] = [];
   const payload = structuredClone(options.payload || fixture);
   const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
@@ -410,9 +411,10 @@ function makeRuntime(options: RuntimeOptions = {}) {
         pageUrls.push(String(url || ""));
       },
     },
-    async fetch(input: string | URL | Request): Promise<Response> {
+    async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
       const path = input instanceof Request ? input.url : String(input);
       requests.push(path);
+      if (typeof init?.body === "string") requestBodies.push({ path, body: JSON.parse(init.body) });
       if (path === "/api/console/session") {
         const status = options.sessionStatus || 200;
         return response(
@@ -532,6 +534,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
     controller: consoleApp(runtime as any),
     document,
     pageUrls,
+    requestBodies,
     requests,
   };
 }
@@ -720,17 +723,47 @@ test("changes connection instructions with the selected integration", async () =
   assert.match(document.get("[data-integration-guide-link]").href, /shadow-observability-quickstart/);
 });
 
-test("auto-redeems an email invitation after sign-in and scrubs its secret from the URL", async () => {
+test("auto-redeems a legacy fragment invitation after sign-in and scrubs its secret from the URL", async () => {
   const code = "invite_test.aa_inv_secret";
-  const { controller, document, pageUrls, requests } = makeRuntime({ hash: `#setup?invite=${code}` });
+  const { controller, document, pageUrls, requestBodies, requests } = makeRuntime({ hash: `#setup?invite=${code}` });
   await controller.ready;
 
   assert.ok(requests.includes("/api/console/onboarding/invitations/redeem"));
+  assert.deepEqual(requestBodies.find((request) => request.path.endsWith("/invitations/redeem"))?.body, { code });
   assert.equal(pageUrls[0], "/#setup");
   assert.equal(pageUrls.some((url) => url.includes(code)), false);
   assert.equal(document.get("[data-tenant-select]").value, "beta");
   assert.equal(document.get("[data-invite-code]").value, "");
   assert.equal(document.get("[data-setup-message-title]").textContent, "Workspace joined");
+});
+
+test("auto-redeems an Access-safe invitation ID and scrubs only its query parameter", async () => {
+  const invitationId = "invite_0123456789abcdef01234567";
+  const { controller, document, pageUrls, requestBodies, requests } = makeRuntime({
+    hash: "#activity",
+    search: `?window=7&invitation=${invitationId}`,
+  });
+  await controller.ready;
+
+  assert.ok(requests.includes("/api/console/onboarding/invitations/redeem"));
+  assert.deepEqual(requestBodies.find((request) => request.path.endsWith("/invitations/redeem"))?.body, { invitation_id: invitationId });
+  assert.equal(pageUrls[0], "/?window=7#setup");
+  assert.equal(pageUrls.some((url) => url.includes(invitationId)), false);
+  assert.equal(document.get("[data-tenant-select]").value, "beta");
+  assert.equal(document.get("[data-invite-code]").value, "");
+  assert.equal(document.get("[data-setup-message-title]").textContent, "Workspace joined");
+});
+
+test("rejects and scrubs a malformed invitation link without making a redemption request", async () => {
+  const { controller, document, pageUrls, requests } = makeRuntime({
+    hash: "#overview",
+    search: "?window=7&invitation=not-an-invitation",
+  });
+  await controller.ready;
+
+  assert.equal(requests.includes("/api/console/onboarding/invitations/redeem"), false);
+  assert.equal(pageUrls[0], "/?window=7#setup");
+  assert.equal(document.get("[data-setup-message-title]").textContent, "Invitation link is invalid");
 });
 
 test("shows invitation delivery outcome while preserving a manual fallback code", async () => {

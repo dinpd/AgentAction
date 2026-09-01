@@ -2727,7 +2727,7 @@ test("control plane enforces roles, single-use invitations, source rotation, and
   expiredRecord.expires_at = "2020-01-01T00:00:00.000Z";
   directoryStore.set(`directory:invitation:${expiredInvitationId}`, expiredRecord);
   const expired = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
-    code: expiredInvitation.body.invitation_code,
+    invitation_id: expiredInvitationId,
   }, bob);
   assert.equal(expired.status, 410);
 
@@ -2738,24 +2738,43 @@ test("control plane enforces roles, single-use invitations, source rotation, and
   assert.equal(invitation.status, 201);
   assert.match(invitation.body.invitation_code, /^invite_[a-f0-9]+\.aa_inv_/);
   assert.equal(JSON.stringify(invitation.body.invitation).includes("secret"), false);
+  const invitationId = String(invitation.body.invitation.invitation_id);
+
+  const malformed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    invitation_id: "invite_bad",
+  }, bob);
+  assert.equal(malformed.status, 400);
+  const missing = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    invitation_id: "invite_0123456789abcdef01234567",
+  }, bob);
+  assert.equal(missing.status, 404);
+  const ambiguous = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: invitation.body.invitation_code,
+    invitation_id: invitationId,
+  }, bob);
+  assert.equal(ambiguous.status, 400);
+  const wrongSecret = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+    code: `${invitationId}.aa_inv_wrong`,
+  }, bob);
+  assert.equal(wrongSecret.status, 404);
 
   const wrongEmail = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
-    code: invitation.body.invitation_code,
+    invitation_id: invitationId,
   }, eve);
   assert.equal(wrongEmail.status, 403);
   const claimedElsewhere = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
-    code: invitation.body.invitation_code,
+    invitation_id: invitationId,
   }, controlHeaders("bob-subject", "bob@example.com", "legacy-tenant", "viewer"));
   assert.equal(claimedElsewhere.status, 403);
   assert.equal(claimedElsewhere.body.error_code, "claimed_tenant_fixed");
 
   const redeemed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
-    code: invitation.body.invitation_code,
+    invitation_id: invitationId,
   }, bob);
   assert.equal(redeemed.status, 201);
   assert.equal(redeemed.body.membership.role, "viewer");
   const replay = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
-    code: invitation.body.invitation_code,
+    invitation_id: invitationId,
   }, bob);
   assert.equal(replay.status, 409);
 
@@ -2846,9 +2865,11 @@ test("emails protected auto-redeem invitations and preserves fallback redemption
   assert.match(messages[0].html, /Acme &amp; Partners/);
   assert.doesNotMatch(messages[0].html, /<h1>Join Acme & Partners/);
   const invitationCode = String(invitation.body.invitation_code);
+  const invitationId = String(invitation.body.invitation.invitation_id);
   const link = String(messages[0].text).split("\n").find((line) => line.startsWith("https://")) || "";
-  assert.equal(link, `https://console.agentaction.dev/#setup?invite=${encodeURIComponent(invitationCode)}`);
-  assert.equal(link.slice(0, link.indexOf("#")).includes(invitationCode), false);
+  assert.equal(link, `https://console.agentaction.dev/?invitation=${invitationId}#setup`);
+  assert.equal(link.includes(invitationCode), false);
+  assert.doesNotMatch(link, /aa_inv_/);
   const storedDirectory = JSON.stringify([...namespace.stores.get("__agentaction_tenant_directory__")!.entries()]);
   assert.equal(storedDirectory.includes(invitationCode), false);
 

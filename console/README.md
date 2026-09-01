@@ -73,10 +73,13 @@ login, an operator sees an always-available workspace control. They can:
 
 Source tokens and invitation codes are displayed only in the response that
 creates them. Only SHA-256 source-token digests and invitation-secret digests
-are stored. Invitation links carry the secret in the URL fragment, which is
-removed before the browser makes the authenticated redemption request and is
-not sent in HTTP requests. The one-time code remains available as a manual
-fallback when email delivery or automatic redemption fails.
+are stored. Invitation links carry a random, non-secret invitation identifier
+in the query string so it survives Cloudflare Access authentication. The
+console removes that identifier from browser history before asking the gateway
+to redeem it for the exact verified email. The one-time secret-bearing code
+never appears in the link and remains available as a manual fallback when email
+delivery or automatic redemption fails. Previously issued fragment links are
+still accepted and scrubbed before redemption.
 
 Unmigrated signed claims remain visibly **Managed by SSO** and fixed to their
 claimed workspace. Owner adoption is one-way, idempotent, and scoped to the

@@ -111,9 +111,13 @@ events.
 Workspace invitations use the `INVITATION_EMAIL` native Email Service binding.
 Set `AGENTACTION_CONSOLE_URL` to the Access-protected console and
 `AGENTACTION_INVITATION_FROM_EMAIL` to an allowed sender on an onboarded domain.
-The email includes an email-bound auto-redeem link whose secret is carried only
-in the URL fragment, plus a manual fallback code. A delivery error does not
-invalidate or delete the invitation; the owner can securely share that code.
+The email includes an email-bound auto-redeem link whose query string carries
+only a random, non-secret invitation identifier so it survives Cloudflare
+Access authentication. The console removes that identifier from browser
+history before redemption, and the gateway requires the exact verified invitee
+email. The secret-bearing one-time code appears only as a manual fallback. A
+delivery error does not invalidate or delete the invitation; the owner can
+securely share that code.
 
 ```toml
 [vars]
