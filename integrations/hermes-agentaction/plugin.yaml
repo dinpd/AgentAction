@@ -1,6 +1,6 @@
 name: agentaction
-version: 0.6.0
-manifest_version: 2
+version: 0.6.1
+manifest_version: 1
 api_version: 1
 description: Fail-open AgentAction shadow observability for Hermes Agent
 license: Apache-2.0

@@ -411,7 +411,7 @@ class HermesShadowObserver:
             headers={
                 "authorization": f"Bearer {self.config.token}",
                 "content-type": "application/json",
-                "user-agent": "agentaction-hermes/0.6.0",
+                "user-agent": "agentaction-hermes/0.6.1",
                 "x-agentaction-source-id": self.config.source_id,
             },
         )
