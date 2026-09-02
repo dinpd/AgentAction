@@ -367,8 +367,11 @@ skips.
 Each `agentpass.intent-quality-job.v1` includes the tenant, job/intent IDs,
 agent identities, immutable profile binding, outcome, confidence, preview
 count, retry/replay/runtime summary, data-quality findings, and `finalized`
-status. Raw snapshots, decisions, execution receipts, observations, and
-evidence payloads are deliberately absent.
+status. Hermes lifecycle Jobs may also include a bounded `model_usage` summary:
+request and coverage counts, optional provider-reported input/output/total
+tokens, and up to 20 provider/model groups. Missing usage is omitted rather
+than represented as zero. Raw snapshots, decisions, execution receipts,
+observations, and evidence payloads are deliberately absent.
 
 Read one finalized Job receipt by its server-derived identifier:
 
@@ -385,7 +388,8 @@ return not found.
 The `agentpass.intent-quality-job-detail.v1` response contains the same safe Job
 row, immutable profile/intent/snapshot boundary, final predicate and execution
 discipline summaries, valid preview summaries, frozen evidence source
-counts/digests, and a deterministic ascending timeline. The timeline includes
+counts/digests, the same optional model-usage summary, and a deterministic
+ascending timeline. The timeline includes
 only allowlisted authorization, execution, observation-verification,
 preview-evaluation, and finalization fields. Missing timestamps are nullable
 and sort last with a stable event/identifier/source-index tie breaker. Raw

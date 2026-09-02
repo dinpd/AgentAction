@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.11.0 - 2026-09-02
+
+### Model and token usage for Hermes observability
+
+- Show provider/model names and clearly labeled estimated or actual token
+  counts on model-request Activity events.
+- Aggregate provider-reported input, output, and total tokens into immutable
+  Hermes Jobs, with request coverage and a bounded per-model breakdown in Job
+  detail.
+- Preserve the existing privacy boundary and fail-open behavior: no prompts or
+  responses are captured, missing usage remains unavailable, and existing
+  integrations and finalized Jobs require no migration.
+
 ## 0.10.1 - 2026-09-01
 
 ### Reliable Hermes activity and support-triage demo

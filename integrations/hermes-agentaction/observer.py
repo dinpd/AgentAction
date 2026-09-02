@@ -23,6 +23,8 @@ BATCH_SCHEMA_VERSION = "agentaction.observation-batch.v1"
 JOB_SCHEMA_VERSION = "agentaction.activity-job.v1"
 DECLARED_INTENT_SCHEMA_VERSION = "agentaction.declared-intent.v1"
 REPORTED_OUTCOME_SCHEMA_VERSION = "agentaction.reported-outcome.v1"
+MODEL_USAGE_MAX_REQUESTS = 10_000
+MODEL_USAGE_MAX_MODELS = 20
 VALID_DECISIONS = {"allow", "deny", "challenge_required"}
 VALID_EXECUTION_STATUSES = {"ok", "error", "blocked", "cancelled", "unknown"}
 DECLARED_INTENT_CONTEXT = (
@@ -190,10 +192,13 @@ class HermesShadowObserver:
         self._pending: dict[str, dict[str, Any]] = {}
         self._run_started_at: dict[str, str] = {}
         self._run_correlations: dict[str, dict[str, str]] = {}
-        self._active_runs: dict[tuple[str, str], str] = {}
+        self._active_runs: dict[tuple[str, str, str], str] = {}
         self._run_bindings: dict[str, dict[str, str]] = {}
         self._declared_intents: dict[str, dict[str, Any]] = {}
         self._reported_outcomes: dict[str, dict[str, Any]] = {}
+        self._run_model_usage: dict[str, dict[str, Any]] = {}
+        self._seen_model_requests: defaultdict[str, set[str]] = defaultdict(set)
+        self._model_request_sequence = 0
         self._declared_started_runs: set[str] = set()
         self._started_runs: set[str] = set()
         self._completed_runs: set[str] = set()
@@ -326,6 +331,7 @@ class HermesShadowObserver:
             event["model"] = _model_metadata(kwargs)
             event["execution"] = {"status": "ok", "duration_ms": _seconds_to_milliseconds(kwargs.get("api_duration"))}
             event["usage"] = _usage_metadata(kwargs.get("usage"))
+            self._record_model_request(kwargs, event["model"], event["usage"])
             self._submit(self._finish_event(event))
         except Exception:
             pass
@@ -340,6 +346,7 @@ class HermesShadowObserver:
                 "duration_ms": _seconds_to_milliseconds(kwargs.get("api_duration")),
                 **({"error_type": _safe_code(_mapping(kwargs.get("error")).get("type"))} if _safe_code(_mapping(kwargs.get("error")).get("type")) else {}),
             }
+            self._record_model_request(kwargs, event["model"], {})
             self._submit(self._finish_event(event))
         except Exception:
             pass
@@ -374,7 +381,13 @@ class HermesShadowObserver:
                 self._started_runs.add(run_key)
                 self._run_started_at[run_key] = started_at
                 self._run_correlations[run_key] = dict(correlation)
-                self._active_runs[(correlation["session_id"], correlation.get("task_id", ""))] = run_key
+                self._active_runs[
+                    (
+                        correlation["session_id"],
+                        correlation.get("task_id", ""),
+                        correlation.get("turn_id", ""),
+                    )
+                ] = run_key
             if not self.config.intent_id and not self.config.capture_declared_intent:
                 self._submit_job(self._job_lifecycle("started", correlation, started_at))
             event = self._base_event("job_started", correlation)
@@ -592,6 +605,7 @@ class HermesShadowObserver:
                 declaration = self._declared_intents.get(run_key)
                 outcome = self._reported_outcomes.get(run_key)
                 declared_started = run_key in self._declared_started_runs
+                model_usage = self._model_usage_summary_locked(run_key)
             completed_at = _date_time(kwargs.get("completed_at")) or _now()
             started_at = started_at or _date_time(kwargs.get("started_at")) or completed_at
             interrupted = kwargs.get("interrupted") is True
@@ -620,6 +634,7 @@ class HermesShadowObserver:
                         status,
                         declared_intent=declaration,
                         reported_outcome=outcome,
+                        model_usage=model_usage,
                     )
                 )
             event = self._base_event("job_completed", correlation)
@@ -629,6 +644,9 @@ class HermesShadowObserver:
                 **({"error_type": reason} if reason else {}),
             }
             self._submit(self._finish_event(event))
+            with self._lock:
+                self._run_model_usage.pop(run_key, None)
+                self._seen_model_requests.pop(run_key, None)
         except Exception:
             pass
 
@@ -641,6 +659,7 @@ class HermesShadowObserver:
         status: str = "",
         declared_intent: Mapping[str, Any] | None = None,
         reported_outcome: Mapping[str, Any] | None = None,
+        model_usage: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {
             "schema_version": JOB_SCHEMA_VERSION,
@@ -654,21 +673,126 @@ class HermesShadowObserver:
             "started_at": started_at,
             **({"declared_intent": dict(declared_intent)} if declared_intent is not None else {}),
             **({"reported_outcome": dict(reported_outcome)} if reported_outcome is not None else {}),
+            **({"model_usage": dict(model_usage)} if model_usage is not None else {}),
             **({"completed_at": completed_at, "status": status} if phase == "completed" else {}),
+        }
+
+    def _record_model_request(
+        self,
+        kwargs: Mapping[str, Any],
+        model: Mapping[str, Any],
+        usage: Mapping[str, Any],
+    ) -> None:
+        try:
+            run_key, _correlation_value, _started_at = self._active_run(kwargs)
+        except Exception:
+            return
+        request_id = _bounded(kwargs.get("api_request_id"), 160)
+        api_call_count = _nonnegative_integer(kwargs.get("api_call_count"))
+        with self._lock:
+            if request_id:
+                dedupe_key = f"id:{request_id}"
+            elif api_call_count is not None:
+                dedupe_key = f"count:{api_call_count}"
+            else:
+                self._model_request_sequence += 1
+                dedupe_key = f"sequence:{self._model_request_sequence}"
+            if dedupe_key in self._seen_model_requests[run_key]:
+                return
+            if len(self._seen_model_requests[run_key]) >= MODEL_USAGE_MAX_REQUESTS:
+                existing = self._run_model_usage.get(run_key)
+                if existing is not None:
+                    existing["requests_truncated"] = True
+                return
+            self._seen_model_requests[run_key].add(dedupe_key)
+            summary = self._run_model_usage.setdefault(
+                run_key,
+                {
+                    "request_count": 0,
+                    "requests_with_model": 0,
+                    "requests_with_usage": 0,
+                    "models": {},
+                },
+            )
+            summary["request_count"] += 1
+            provider = _bounded(model.get("provider"), 160)
+            model_name = _bounded(model.get("model"), 160)
+            has_model = bool(provider or model_name)
+            has_usage = any(key in usage for key in ("input_tokens", "output_tokens", "total_tokens"))
+            if has_model:
+                summary["requests_with_model"] += 1
+            if has_usage:
+                summary["requests_with_usage"] += 1
+            for key in ("input_tokens", "output_tokens", "total_tokens"):
+                value = _nonnegative_integer(usage.get(key))
+                if value is not None:
+                    summary[key] = summary.get(key, 0) + value
+            if not has_model:
+                return
+            model_key = (provider, model_name)
+            models = summary["models"]
+            group = models.get(model_key)
+            if group is None:
+                if len(models) >= MODEL_USAGE_MAX_MODELS:
+                    summary["models_truncated"] = True
+                    return
+                group = {
+                    **({"provider": provider} if provider else {}),
+                    **({"model": model_name} if model_name else {}),
+                    "request_count": 0,
+                    "requests_with_usage": 0,
+                }
+                models[model_key] = group
+            group["request_count"] += 1
+            if has_usage:
+                group["requests_with_usage"] += 1
+            for key in ("input_tokens", "output_tokens", "total_tokens"):
+                value = _nonnegative_integer(usage.get(key))
+                if value is not None:
+                    group[key] = group.get(key, 0) + value
+
+    def _model_usage_summary_locked(self, run_key: str) -> dict[str, Any] | None:
+        summary = self._run_model_usage.get(run_key)
+        if not summary or summary["request_count"] == 0:
+            return None
+        models = sorted(
+            summary["models"].values(),
+            key=lambda item: (
+                -item["request_count"],
+                str(item.get("provider") or ""),
+                str(item.get("model") or ""),
+            ),
+        )
+        return {
+            key: value
+            for key, value in {
+                **summary,
+                "models": [dict(item) for item in models],
+            }.items()
+            if key != "models" or value
         }
 
     def _active_run(self, kwargs: Mapping[str, Any]) -> tuple[str, dict[str, str], str]:
         session_id = _activity_id(kwargs.get("session_id"), "session_id")
         task_id = _bounded(kwargs.get("task_id"), 160)
+        turn_id = _bounded(kwargs.get("turn_id"), 160)
         with self._lock:
-            run_key = self._active_runs.get((session_id, task_id))
-            if run_key is None and task_id:
-                run_key = self._active_runs.get((session_id, ""))
+            run_key = self._active_runs.get((session_id, task_id, turn_id))
+            direct_key = _run_key({
+                "session_id": session_id,
+                **({"task_id": task_id} if task_id else {}),
+                **({"turn_id": turn_id} if turn_id else {}),
+            })
+            if run_key is None and direct_key in self._run_correlations:
+                run_key = direct_key
             if run_key is None:
                 candidates = [
                     key
                     for key, correlation in self._run_correlations.items()
                     if correlation["session_id"] == session_id
+                    and (not task_id or correlation.get("task_id") == task_id)
+                    and (not turn_id or correlation.get("turn_id") == turn_id)
+                    and key not in self._completed_runs
                 ]
                 run_key = candidates[-1] if len(candidates) == 1 else None
             if run_key is None:
@@ -941,6 +1065,8 @@ def _usage_metadata(value: Any) -> dict[str, int]:
         number = _nonnegative_integer(usage.get(source))
         if number is not None:
             result[target] = number
+    if "total_tokens" not in result and "input_tokens" in result and "output_tokens" in result:
+        result["total_tokens"] = result["input_tokens"] + result["output_tokens"]
     return result
 
 
