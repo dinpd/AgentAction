@@ -121,6 +121,29 @@ type ActivityJobLifecycle = {
   status?: "completed" | "interrupted" | "incomplete" | "error";
   declared_intent?: AgentDeclaredIntent;
   reported_outcome?: AgentReportedOutcome;
+  model_usage?: ModelUsageSummary;
+};
+
+type ModelUsageGroup = {
+  provider?: string;
+  model?: string;
+  request_count: number;
+  requests_with_usage: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+};
+
+type ModelUsageSummary = {
+  request_count: number;
+  requests_with_model: number;
+  requests_with_usage: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  requests_truncated?: true;
+  models_truncated?: true;
+  models?: ModelUsageGroup[];
 };
 
 type AgentDeclaredIntent = {
@@ -426,6 +449,7 @@ type IntentQualityRecord = {
   finalized_at: string;
   evaluation: HostedIntentEvaluationReceipt;
   intent_context?: AgentDeclaredIntentContext;
+  model_usage?: ModelUsageSummary;
 };
 type IntentQualityFilters = {
   from: string;
@@ -5101,6 +5125,7 @@ function intentQualityRecord(value: unknown): {
     !/^[a-f0-9]{64}$/.test(evaluation.profile_digest)
   ) return { error: "invalid_final_receipt" };
   const intentContext = intentQualityDeclaredContext(snapshot.evidence.job, evaluation.profile);
+  const modelUsage = intentQualityModelUsage(snapshot.evidence.job);
   if (evaluation.profile === "agentaction_declared_intent.v1" && !intentContext) {
     return { error: "invalid_final_receipt" };
   }
@@ -5128,6 +5153,7 @@ function intentQualityRecord(value: unknown): {
       finalized_at: new Date(finalization.finalized_at).toISOString(),
       evaluation,
       ...(intentContext ? { intent_context: intentContext } : {}),
+      ...(modelUsage ? { model_usage: modelUsage } : {}),
     },
   };
 }
@@ -5184,6 +5210,16 @@ function intentQualityDeclaredContext(
     declaration_confidence: declarationConfidence,
     ...(reportedOutcome ? { reported_outcome: reportedOutcome } : {}),
   };
+}
+
+function intentQualityModelUsage(jobValue: unknown): ModelUsageSummary | undefined {
+  const value = recordValue(jobValue).model_usage;
+  if (value === undefined) return undefined;
+  try {
+    return validateModelUsage(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function intentQualityBoundedTextList(
@@ -5291,6 +5327,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
       digest: record.profile_digest,
     },
     ...(record.intent_context ? { intent_context: record.intent_context } : {}),
+    ...(record.model_usage ? { model_usage: record.model_usage } : {}),
     verdict: record.evaluation.verdict,
     qualified_success: record.evaluation.qualified_success,
     constraint_compliance: record.evaluation.constraint_compliance,
@@ -6341,6 +6378,7 @@ async function storeActivityJob(
               provenance: "agent_self_attested",
             },
           } : {}),
+          ...(lifecycle.model_usage ? { model_usage: lifecycle.model_usage } : {}),
         },
       }),
     }),
@@ -6447,6 +6485,7 @@ function validateActivityJob(
     "status",
     "declared_intent",
     "reported_outcome",
+    "model_usage",
   ], "activity job");
   if (job.schema_version !== "agentaction.activity-job.v1") {
     throw new Error("activity job schema_version is unsupported");
@@ -6468,11 +6507,14 @@ function validateActivityJob(
   const reportedOutcome = job.reported_outcome === undefined
     ? undefined
     : validateReportedOutcome(job.reported_outcome);
+  const modelUsage = job.model_usage === undefined
+    ? undefined
+    : validateModelUsage(job.model_usage);
   if (reportedOutcome && !declaredIntent) {
     throw new Error("activity job reported_outcome requires declared_intent");
   }
   if (job.phase === "started") {
-    if (job.completed_at !== undefined || job.status !== undefined || reportedOutcome !== undefined) {
+    if (job.completed_at !== undefined || job.status !== undefined || reportedOutcome !== undefined || modelUsage !== undefined) {
       throw new Error("started activity job cannot include terminal fields");
     }
   } else {
@@ -6488,7 +6530,120 @@ function validateActivityJob(
     ...job,
     ...(declaredIntent ? { declared_intent: declaredIntent } : {}),
     ...(reportedOutcome ? { reported_outcome: reportedOutcome } : {}),
+    ...(modelUsage ? { model_usage: modelUsage } : {}),
   } as ActivityJobLifecycle;
+}
+
+function validateModelUsage(value: unknown): ModelUsageSummary {
+  const usage = strictRecord(value, [
+    "request_count",
+    "requests_with_model",
+    "requests_with_usage",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "requests_truncated",
+    "models_truncated",
+    "models",
+  ], "activity job model_usage");
+  const requestCount = requiredUsageInteger(usage.request_count, "activity job model_usage request_count", 1, 10_000);
+  const requestsWithModel = requiredUsageInteger(
+    usage.requests_with_model,
+    "activity job model_usage requests_with_model",
+    0,
+    requestCount,
+  );
+  const requestsWithUsage = requiredUsageInteger(
+    usage.requests_with_usage,
+    "activity job model_usage requests_with_usage",
+    0,
+    requestCount,
+  );
+  const inputTokens = optionalUsageInteger(usage.input_tokens, "activity job model_usage input_tokens");
+  const outputTokens = optionalUsageInteger(usage.output_tokens, "activity job model_usage output_tokens");
+  const totalTokens = optionalUsageInteger(usage.total_tokens, "activity job model_usage total_tokens");
+  if (usage.requests_truncated !== undefined && usage.requests_truncated !== true) {
+    throw new Error("activity job model_usage requests_truncated is invalid");
+  }
+  if (usage.models_truncated !== undefined && usage.models_truncated !== true) {
+    throw new Error("activity job model_usage models_truncated is invalid");
+  }
+  if (usage.models !== undefined && (!Array.isArray(usage.models) || usage.models.length > 20)) {
+    throw new Error("activity job model_usage models is invalid");
+  }
+  const seen = new Set<string>();
+  const models = (Array.isArray(usage.models) ? usage.models : []).map((item, index) => {
+    const group = strictRecord(item, [
+      "provider", "model", "request_count", "requests_with_usage", "input_tokens", "output_tokens", "total_tokens",
+    ], `activity job model_usage models[${index}]`);
+    const provider = group.provider === undefined
+      ? undefined
+      : requiredActivityText(group.provider, `activity job model_usage models[${index}].provider`, 160);
+    const model = group.model === undefined
+      ? undefined
+      : requiredActivityText(group.model, `activity job model_usage models[${index}].model`, 160);
+    if (!provider && !model) throw new Error(`activity job model_usage models[${index}] requires provider or model`);
+    const key = `${provider || ""}\u0000${model || ""}`;
+    if (seen.has(key)) throw new Error("activity job model_usage contains duplicate model groups");
+    seen.add(key);
+    const groupRequestCount = requiredUsageInteger(
+      group.request_count,
+      `activity job model_usage models[${index}].request_count`,
+      1,
+      requestCount,
+    );
+    const groupRequestsWithUsage = requiredUsageInteger(
+      group.requests_with_usage,
+      `activity job model_usage models[${index}].requests_with_usage`,
+      0,
+      groupRequestCount,
+    );
+    const groupInput = optionalUsageInteger(group.input_tokens, `activity job model_usage models[${index}].input_tokens`);
+    const groupOutput = optionalUsageInteger(group.output_tokens, `activity job model_usage models[${index}].output_tokens`);
+    const groupTotal = optionalUsageInteger(group.total_tokens, `activity job model_usage models[${index}].total_tokens`);
+    if (
+      (groupInput !== undefined && (inputTokens === undefined || groupInput > inputTokens)) ||
+      (groupOutput !== undefined && (outputTokens === undefined || groupOutput > outputTokens)) ||
+      (groupTotal !== undefined && (totalTokens === undefined || groupTotal > totalTokens))
+    ) throw new Error(`activity job model_usage models[${index}] exceeds aggregate tokens`);
+    return {
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
+      request_count: groupRequestCount,
+      requests_with_usage: groupRequestsWithUsage,
+      ...(groupInput !== undefined ? { input_tokens: groupInput } : {}),
+      ...(groupOutput !== undefined ? { output_tokens: groupOutput } : {}),
+      ...(groupTotal !== undefined ? { total_tokens: groupTotal } : {}),
+    };
+  });
+  if (models.reduce((sum, group) => sum + group.request_count, 0) > requestsWithModel) {
+    throw new Error("activity job model_usage model requests exceed aggregate coverage");
+  }
+  if (models.reduce((sum, group) => sum + group.requests_with_usage, 0) > requestsWithUsage) {
+    throw new Error("activity job model_usage model usage coverage exceeds aggregate coverage");
+  }
+  return {
+    request_count: requestCount,
+    requests_with_model: requestsWithModel,
+    requests_with_usage: requestsWithUsage,
+    ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+    ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+    ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+    ...(usage.requests_truncated === true ? { requests_truncated: true as const } : {}),
+    ...(usage.models_truncated === true ? { models_truncated: true as const } : {}),
+    ...(models.length > 0 ? { models } : {}),
+  };
+}
+
+function requiredUsageInteger(value: unknown, label: string, minimum: number, maximum: number): number {
+  if (!Number.isSafeInteger(value) || Number(value) < minimum || Number(value) > maximum) {
+    throw new Error(`${label} is invalid`);
+  }
+  return Number(value);
+}
+
+function optionalUsageInteger(value: unknown, label: string): number | undefined {
+  return value === undefined ? undefined : requiredUsageInteger(value, label, 0, 1_000_000_000_000);
 }
 
 function validateDeclaredIntent(value: unknown): AgentDeclaredIntent {
@@ -6694,8 +6849,8 @@ function validateActivityEvent(
     if (execution.error_type !== undefined) requiredActivityId(execution.error_type, `${label} execution.error_type`);
   }
   validateStringRecord(event.model, ["model", "provider", "api_mode", "platform"], `${label} model`, 160);
-  validateNumberRecord(event.request, ["api_call_count", "approx_input_tokens", "tool_count"], `${label} request`, true);
-  validateNumberRecord(event.usage, ["input_tokens", "output_tokens", "total_tokens"], `${label} usage`, false);
+  validateNumberRecord(event.request, ["api_call_count", "approx_input_tokens", "tool_count"], `${label} request`, true, 1_000_000_000_000);
+  validateNumberRecord(event.usage, ["input_tokens", "output_tokens", "total_tokens"], `${label} usage`, false, 1_000_000_000_000);
   if (event.subagent !== undefined) {
     const subagent = strictRecord(event.subagent, ["role", "status", "duration_ms"], `${label} subagent`);
     requiredBoundedString(subagent.role, 80, `${label} subagent.role`);
@@ -6739,12 +6894,20 @@ function validateStringRecord(value: unknown, fields: string[], label: string, m
   for (const [key, entry] of Object.entries(record)) requiredBoundedString(entry, maximum, `${label}.${key}`);
 }
 
-function validateNumberRecord(value: unknown, fields: string[], label: string, allowNull: boolean): void {
+function validateNumberRecord(
+  value: unknown,
+  fields: string[],
+  label: string,
+  allowNull: boolean,
+  maximum = Number.MAX_SAFE_INTEGER,
+): void {
   if (value === undefined) return;
   const record = strictRecord(value, fields, label);
   for (const [key, entry] of Object.entries(record)) {
     if (allowNull && entry === null) continue;
-    if (typeof entry !== "number" || !Number.isInteger(entry) || entry < 0) throw new Error(`${label}.${key} is invalid`);
+    if (typeof entry !== "number" || !Number.isSafeInteger(entry) || entry < 0 || entry > maximum) {
+      throw new Error(`${label}.${key} is invalid`);
+    }
   }
 }
 

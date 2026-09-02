@@ -63,6 +63,23 @@ const JOBS_FIXTURE = {
       confidence_band: "high",
       preview_count: 0,
       execution_discipline: { retries: 0, replays: 0, runtime_ms: 850 },
+      model_usage: {
+        request_count: 2,
+        requests_with_model: 2,
+        requests_with_usage: 2,
+        input_tokens: 640,
+        output_tokens: 160,
+        total_tokens: 800,
+        models: [{
+          provider: "openrouter",
+          model: "nousresearch/hermes-4-405b",
+          request_count: 2,
+          requests_with_usage: 2,
+          input_tokens: 640,
+          output_tokens: 160,
+          total_tokens: 800,
+        }],
+      },
       data_quality: {
         missing_agent: false,
         missing_runtime: false,
@@ -102,6 +119,7 @@ const ACTIVITY_FIXTURE = {
       intent: { binding_status: "unbound" },
       model: { provider: "test", model: "model" },
       execution: { status: "ok", duration_ms: 100 },
+      usage: { input_tokens: 340, output_tokens: 88, total_tokens: 428 },
     },
   ],
   count: 2,
@@ -317,6 +335,9 @@ class FakeDocument {
       "[data-job-detail-subtitle]",
       "[data-job-detail-status]",
       "[data-job-detail-boundary]",
+      "[data-job-detail-model-usage-summary]",
+      "[data-job-detail-model-usage-metrics]",
+      "[data-job-detail-model-usage-models]",
       "[data-job-detail-evaluation-id]",
       "[data-job-detail-metrics]",
       "[data-job-detail-outcomes]",
@@ -1070,8 +1091,32 @@ test("loads tenant activity with allowlisted filters and explicit intent binding
   assert.match(text, /intent-safe/);
   assert.match(text, /No intent was inferred/);
   assert.match(text, /challenge_required/);
+  assert.match(text, /model via test/);
+  assert.match(text, /428 tokens actual/);
+  assert.match(text, /Input 340 tokens · Output 88 tokens/);
+  assert.match(text, /Provider-reported actual/);
   assert.equal(document.get("[data-console-view='activity']").hidden, false);
   assert.equal(document.get("[data-console-view='overview']").hidden, true);
+});
+
+test("labels pre-request token counts as approximate rather than actual usage", async () => {
+  const payload = structuredClone(ACTIVITY_FIXTURE);
+  payload.events = [{
+    ...payload.events[1],
+    event_id: "obs-ui-estimate",
+    event_type: "model_request_started",
+    execution: undefined,
+    usage: undefined,
+    request: { api_call_count: 1, approx_input_tokens: 512, tool_count: 2 },
+  }];
+  payload.count = 1;
+  payload.next_cursor = null;
+  const { controller, document } = makeRuntime({ hash: "#activity", activityPayload: payload });
+  await controller.ready;
+  const rendered = textOf(document.get("[data-activity-list]"));
+  assert.match(rendered, /Approx\. 512 tokens/);
+  assert.match(rendered, /Pre-request estimate/);
+  assert.doesNotMatch(rendered, /512 tokens actual/);
 });
 
 test("offers workspace agent IDs in Activity without treating source IDs as agents", async () => {
@@ -1155,6 +1200,11 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(rendered, /2 retries · 1 replays/);
   assert.match(rendered, /Finalized/);
   assert.match(rendered, /support_refund\.v1/);
+  assert.match(rendered, /nousresearch\/hermes-4-405b via openrouter/);
+  assert.match(rendered, /800 tokens actual/);
+  assert.match(rendered, /Input 640 tokens · Output 160 tokens/);
+  assert.match(rendered, /2\/2 request\(s\) reported usage/);
+  assert.match(rendered, /No model or token report/);
   assert.equal(document.get("[data-jobs-message]").hidden, true);
   assert.equal(document.get("[data-jobs-next]").hidden, false);
   const links = elementsByTag(list, "a");
@@ -1198,6 +1248,7 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
     version: "v1",
     digest: "b".repeat(64),
   };
+  delete observedDetail.job.model_usage;
   observedDetail.immutable_boundary.profile_digest = "b".repeat(64);
   const detailRuntime = makeRuntime({
     hash: "#job-detail",
@@ -1209,6 +1260,8 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /no semantic intent inferred/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-boundary]")), /Lifecycle completion only/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Lifecycle objective/);
+  assert.match(detailRuntime.document.get("[data-job-detail-model-usage-summary]").textContent, /Usage was not reported/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-model-usage-metrics]")), /Unavailable/);
 });
 
 test("labels agent-declared intent and terminal outcome as self-attested", async () => {
@@ -1333,6 +1386,9 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   assert.equal(document.get("[data-job-detail-title]").textContent, "job-refund-partial");
   assert.match(document.get("[data-job-detail-subtitle]").textContent, /intent-refund-partial/);
   assert.match(textOf(document.get("[data-job-detail-boundary]")), /snapshot_support_refund_partial/);
+  assert.match(document.get("[data-job-detail-model-usage-summary]").textContent, /Actual provider usage/);
+  assert.match(textOf(document.get("[data-job-detail-model-usage-metrics]")), /800 tokens/);
+  assert.match(textOf(document.get("[data-job-detail-model-usage-models]")), /nousresearch\/hermes-4-405b via openrouter/);
   assert.match(textOf(document.get("[data-job-detail-metrics]")), /Goal attainment 50%/);
   assert.match(textOf(document.get("[data-job-detail-outcomes]")), /customer-notified/);
   assert.match(textOf(document.get("[data-job-detail-constraints]")), /approval-required/);

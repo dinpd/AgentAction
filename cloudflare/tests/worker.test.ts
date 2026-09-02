@@ -2701,7 +2701,26 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
     ctx,
     "POST",
     "/tenants/acme/activity/jobs",
-    activityJob("completed"),
+    {
+      ...activityJob("completed"),
+      model_usage: {
+        request_count: 2,
+        requests_with_model: 2,
+        requests_with_usage: 1,
+        input_tokens: 120,
+        output_tokens: 30,
+        total_tokens: 150,
+        models: [{
+          provider: "openrouter",
+          model: "nousresearch/hermes-4-405b",
+          request_count: 2,
+          requests_with_usage: 1,
+          input_tokens: 120,
+          output_tokens: 30,
+          total_tokens: 150,
+        }],
+      },
+    },
     headers,
   );
   assert.equal(completed.status, 201, JSON.stringify(completed.body));
@@ -2725,15 +2744,32 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&agent_id=hermes-support",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-03T00:00:00.000Z&agent_id=hermes-support",
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
   assert.equal(jobs.status, 200);
-  assert.equal(jobs.body.matched_records, 1);
+  assert.equal(jobs.body.matched_records, 1, JSON.stringify(jobs.body));
   assert.equal(jobs.body.jobs[0].job_id, created.body.job_id);
   assert.equal(jobs.body.jobs[0].profile_binding.key, "agentaction_observed_execution.v1");
   assert.deepEqual(jobs.body.jobs[0].agent_ids, ["hermes-support"]);
+  assert.deepEqual(jobs.body.jobs[0].model_usage, {
+    request_count: 2,
+    requests_with_model: 2,
+    requests_with_usage: 1,
+    input_tokens: 120,
+    output_tokens: 30,
+    total_tokens: 150,
+    models: [{
+      provider: "openrouter",
+      model: "nousresearch/hermes-4-405b",
+      request_count: 2,
+      requests_with_usage: 1,
+      input_tokens: 120,
+      output_tokens: 30,
+      total_tokens: 150,
+    }],
+  });
 
   const detail = await call(
     env,
@@ -2746,6 +2782,8 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   assert.equal(detail.status, 200);
   assert.equal(detail.body.job.job_id, created.body.job_id);
   assert.equal(detail.body.job.profile_binding.key, "agentaction_observed_execution.v1");
+  assert.equal(detail.body.job.model_usage.total_tokens, 150);
+  assert.equal(detail.body.job.model_usage.models[0].model, "nousresearch/hermes-4-405b");
   assert.equal(JSON.stringify(detail.body).includes("prompt"), false);
   assert.equal(JSON.stringify(detail.body).includes("result"), false);
 });
@@ -2796,11 +2834,12 @@ test("activity source lifecycle evaluates bounded agent-declared intent as self-
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-02T00:00:00.000Z&agent_id=hermes-support",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-03T00:00:00.000Z&agent_id=hermes-support",
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
   assert.equal(jobs.status, 200);
+  assert.ok(jobs.body.jobs[0], JSON.stringify(jobs.body));
   assert.equal(jobs.body.jobs[0].intent_context.kind, "agent_declared");
   assert.equal(jobs.body.jobs[0].intent_context.trust, "self_attested");
   assert.equal(jobs.body.jobs[0].intent_context.goal, declaredIntent.goal);
@@ -2881,6 +2920,60 @@ test("activity source lifecycle rejects raw and unbounded declared-intent fields
   }, headers);
   assert.equal(tooLong.status, 400);
   assert.match(String(tooLong.body.error), /goal/);
+
+  const startedUsage = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...lifecycle,
+    model_usage: {
+      request_count: 1,
+      requests_with_model: 1,
+      requests_with_usage: 1,
+      total_tokens: 10,
+    },
+  }, headers);
+  assert.equal(startedUsage.status, 400);
+  assert.match(String(startedUsage.body.error), /terminal fields/);
+
+  const unboundedModels = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("completed"),
+    session_id: "hermes-session-model-overflow",
+    model_usage: {
+      request_count: 21,
+      requests_with_model: 21,
+      requests_with_usage: 0,
+      models: Array.from({ length: 21 }, (_value, index) => ({
+        model: `model-${index}`,
+        request_count: 1,
+        requests_with_usage: 0,
+      })),
+    },
+  }, headers);
+  assert.equal(unboundedModels.status, 400);
+  assert.match(String(unboundedModels.body.error), /models is invalid/);
+
+  const malformedCoverage = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("completed"),
+    session_id: "hermes-session-bad-coverage",
+    model_usage: {
+      request_count: 1,
+      requests_with_model: 2,
+      requests_with_usage: 0,
+    },
+  }, headers);
+  assert.equal(malformedCoverage.status, 400);
+  assert.match(String(malformedCoverage.body.error), /requests_with_model/);
+
+  const unboundedTokens = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("completed"),
+    session_id: "hermes-session-token-overflow",
+    model_usage: {
+      request_count: 1,
+      requests_with_model: 0,
+      requests_with_usage: 1,
+      total_tokens: 1_000_000_000_001,
+    },
+  }, headers);
+  assert.equal(unboundedTokens.status, 400);
+  assert.match(String(unboundedTokens.body.error), /total_tokens/);
 });
 
 test("activity source lifecycle stays tenant source and agent scoped", async () => {

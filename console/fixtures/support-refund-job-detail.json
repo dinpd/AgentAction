@@ -27,6 +27,25 @@
       "replays": 1,
       "runtime_ms": 1800
     },
+    "model_usage": {
+      "request_count": 2,
+      "requests_with_model": 2,
+      "requests_with_usage": 2,
+      "input_tokens": 640,
+      "output_tokens": 160,
+      "total_tokens": 800,
+      "models": [
+        {
+          "provider": "openrouter",
+          "model": "nousresearch/hermes-4-405b",
+          "request_count": 2,
+          "requests_with_usage": 2,
+          "input_tokens": 640,
+          "output_tokens": 160,
+          "total_tokens": 800
+        }
+      ]
+    },
     "data_quality": {
       "missing_agent": false,
       "missing_runtime": false,

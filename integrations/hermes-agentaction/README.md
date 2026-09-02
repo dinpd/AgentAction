@@ -62,7 +62,8 @@ AgentAction Observability operator console through Cloudflare Access, open
 4. Restart Hermes and run one turn. Setup changes from **Waiting for
    activity** to **Activity received**, lifecycle events appear in Activity,
    and the completed turn appears in Jobs. With the hosted YAML, Jobs also
-   shows the agent's declared goal and terminal self-assessment.
+   shows the agent's declared goal, terminal self-assessment, model, and
+   provider-reported token usage.
 
 Owners and operators can create a source per environment, rotate a compromised
 or lost token, and disable a retired source in the same screen. Only token
@@ -122,6 +123,11 @@ and terminal self-assessment supplied through its tools. The injected guidance
 explicitly tells the model not to include secrets, personal data, or copied raw
 content. Tool arguments may be hashed in memory only for
 counterfactual duplicate-call budgets; that fingerprint is not exported.
+Model telemetry is metadata-only: provider/model names, request counts, and
+nonnegative token counters reported by the provider. Pre-request input counts
+are labeled approximate in Activity. Completed requests and Jobs show only
+provider-reported actual usage, along with coverage when some requests omit
+usage. Per-job aggregation is capped at 10,000 requests and 20 model groups.
 
 ## Intent binding
 

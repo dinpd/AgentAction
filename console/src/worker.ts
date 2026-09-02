@@ -471,7 +471,7 @@ const SHELL_HTML = `<!doctype html>
           <div class="jobs-table-wrap">
             <table class="jobs-table">
               <caption>Privacy-safe agent activity</caption>
-              <thead><tr><th scope="col">Observed</th><th scope="col">Agent / event</th><th scope="col">Tool</th><th scope="col">Shadow decision</th><th scope="col">Actual execution</th><th scope="col">Intent</th><th scope="col">Correlation</th></tr></thead>
+              <thead><tr><th scope="col">Observed</th><th scope="col">Agent / event</th><th scope="col">Tool</th><th scope="col">Model / tokens</th><th scope="col">Shadow decision</th><th scope="col">Actual execution</th><th scope="col">Intent</th><th scope="col">Correlation</th></tr></thead>
               <tbody data-activity-list></tbody>
             </table>
           </div>
@@ -581,6 +581,7 @@ const SHELL_HTML = `<!doctype html>
                   <th scope="col">Agent</th>
                   <th scope="col">Profile binding</th>
                   <th scope="col">Outcome</th>
+                  <th scope="col">Model usage</th>
                   <th scope="col">Evidence</th>
                   <th scope="col">Discipline</th>
                   <th scope="col">Status</th>
@@ -624,6 +625,17 @@ const SHELL_HTML = `<!doctype html>
             <div data-job-detail-status></div>
           </div>
           <dl class="boundary-grid" data-job-detail-boundary aria-label="Immutable execution boundary"></dl>
+          <section class="detail-section" aria-labelledby="job-detail-model-usage-title">
+            <div class="detail-section-heading">
+              <div>
+                <p class="eyebrow">Provider telemetry</p>
+                <h3 id="job-detail-model-usage-title">Model and token usage</h3>
+              </div>
+              <p data-job-detail-model-usage-summary>Usage was not reported for this job.</p>
+            </div>
+            <div class="detail-metric-grid" data-job-detail-model-usage-metrics></div>
+            <div class="source-grid" data-job-detail-model-usage-models></div>
+          </section>
           <section class="detail-section" aria-labelledby="job-detail-outcome-title">
             <div class="detail-section-heading">
               <div>
@@ -1003,7 +1015,7 @@ button { cursor: pointer; }
 .jobs-summary h3 { font-family: Georgia, "Times New Roman", serif; font-size: 1.2rem; font-weight: 400; }
 .jobs-summary > p { max-width: 52%; text-align: right; }
 .jobs-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; }
-.jobs-table { width: 100%; min-width: 1060px; border-collapse: collapse; background: var(--surface-strong); font-size: 0.72rem; }
+.jobs-table { width: 100%; min-width: 1240px; border-collapse: collapse; background: var(--surface-strong); font-size: 0.72rem; }
 .jobs-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .jobs-table th,
 .jobs-table td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
@@ -1450,6 +1462,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const jobDetailSubtitle = required<HTMLElement>("[data-job-detail-subtitle]");
   const jobDetailStatus = required<HTMLElement>("[data-job-detail-status]");
   const jobDetailBoundary = required<HTMLElement>("[data-job-detail-boundary]");
+  const jobDetailModelUsageSummary = required<HTMLElement>("[data-job-detail-model-usage-summary]");
+  const jobDetailModelUsageMetrics = required<HTMLElement>("[data-job-detail-model-usage-metrics]");
+  const jobDetailModelUsageModels = required<HTMLElement>("[data-job-detail-model-usage-models]");
   const jobDetailEvaluationId = required<HTMLElement>("[data-job-detail-evaluation-id]");
   const jobDetailMetrics = required<HTMLElement>("[data-job-detail-metrics]");
   const jobDetailOutcomes = required<HTMLElement>("[data-job-detail-outcomes]");
@@ -1559,6 +1574,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
   function formatCount(value: unknown): string {
     return count(value).toLocaleString("en-US");
+  }
+
+  function formatTokens(value: unknown): string {
+    return Number.isSafeInteger(value) && Number(value) >= 0
+      ? `${Number(value).toLocaleString("en-US")} token${Number(value) === 1 ? "" : "s"}`
+      : "Unavailable";
+  }
+
+  function modelUsageLabel(value: unknown): string {
+    const group = record(value);
+    const model = safeText(group.model, "");
+    const provider = safeText(group.provider, "");
+    if (model && provider) return `${model} via ${provider}`;
+    return model || provider || "Model unavailable";
   }
 
   function formatMetric(value: unknown, digits = 2): string {
@@ -2631,7 +2660,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && ["low", "medium", "high"].includes(job.confidence_band)
       && Number.isInteger(job.preview_count)
       && job.preview_count >= 0
-      && (!isAgentDeclaredIntentProfile(binding) || isRenderableIntentContext(job.intent_context));
+      && (!isAgentDeclaredIntentProfile(binding) || isRenderableIntentContext(job.intent_context))
+      && (job.model_usage === undefined || isRenderableModelUsage(job.model_usage));
   }
 
   function isObservedExecutionProfile(value: unknown): boolean {
@@ -2670,6 +2700,38 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
           && outcome.confidence <= 1
         )
       );
+  }
+
+  function isRenderableModelUsage(value: unknown): boolean {
+    const usage = record(value);
+    const validInteger = (candidate: unknown, maximum = 1_000_000_000_000): boolean => (
+      Number.isSafeInteger(candidate) && Number(candidate) >= 0 && Number(candidate) <= maximum
+    );
+    if (
+      !validInteger(usage.request_count, 10_000)
+      || usage.request_count < 1
+      || !validInteger(usage.requests_with_model, usage.request_count)
+      || !validInteger(usage.requests_with_usage, usage.request_count)
+      || (usage.requests_truncated !== undefined && usage.requests_truncated !== true)
+      || (usage.models_truncated !== undefined && usage.models_truncated !== true)
+      || ["input_tokens", "output_tokens", "total_tokens"].some(
+        (key) => usage[key] !== undefined && !validInteger(usage[key]),
+      )
+      || (usage.models !== undefined && (!Array.isArray(usage.models) || usage.models.length > 20))
+    ) return false;
+    const models = Array.isArray(usage.models) ? usage.models : [];
+    return models.every((candidate: unknown) => {
+      const group = record(candidate);
+      return (typeof group.provider === "string" || typeof group.model === "string")
+        && (group.provider === undefined || (Boolean(group.provider.trim()) && group.provider.length <= 160))
+        && (group.model === undefined || (Boolean(group.model.trim()) && group.model.length <= 160))
+        && validInteger(group.request_count, usage.request_count)
+        && group.request_count >= 1
+        && validInteger(group.requests_with_usage, group.request_count)
+        && ["input_tokens", "output_tokens", "total_tokens"].every(
+          (key) => group[key] === undefined || validInteger(group[key]),
+        );
+    });
   }
 
   function validTimestamp(value: unknown, nullable = false): boolean {
@@ -2936,6 +2998,42 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     appendDefinition(jobDetailBoundary, "Snapshot", safeText(boundary.snapshot_id));
     appendDefinition(jobDetailBoundary, "Evidence digest", safeText(boundary.evidence_digest));
 
+    const modelUsage = record(job.model_usage);
+    const modelGroups = Array.isArray(modelUsage.models) ? modelUsage.models.map(record).slice(0, 20) : [];
+    if (isRenderableModelUsage(job.model_usage)) {
+      const coverage = `${formatCount(modelUsage.requests_with_usage)} of ${formatCount(modelUsage.request_count)} request(s) reported tokens`;
+      jobDetailModelUsageSummary.textContent = `Actual provider usage · ${coverage}${modelUsage.requests_truncated === true ? " · request summary capped" : ""}.`;
+      jobDetailModelUsageMetrics.replaceChildren(
+        metricCard("Total tokens", formatTokens(modelUsage.total_tokens), "Provider reported"),
+        metricCard("Input tokens", formatTokens(modelUsage.input_tokens), "Provider reported"),
+        metricCard("Output tokens", formatTokens(modelUsage.output_tokens), "Provider reported"),
+        metricCard("Model requests", formatCount(modelUsage.request_count), `${formatCount(modelUsage.requests_with_model)} identified`),
+      );
+      if (modelGroups.length > 0) {
+        jobDetailModelUsageModels.replaceChildren(...modelGroups.map((group) => {
+          const card = create("article", "source-card");
+          card.append(
+            create("span", undefined, modelUsageLabel(group)),
+            create("strong", undefined, formatTokens(group.total_tokens)),
+            create("small", undefined, `${formatCount(group.request_count)} request(s) · ${formatCount(group.requests_with_usage)} with usage`),
+            create("code", undefined, `Input ${formatTokens(group.input_tokens)} · Output ${formatTokens(group.output_tokens)}`),
+          );
+          return card;
+        }));
+      } else {
+        jobDetailModelUsageModels.replaceChildren(create("p", "window-note", "The provider did not identify a model for these requests."));
+      }
+    } else {
+      jobDetailModelUsageSummary.textContent = "Usage was not reported for this job.";
+      jobDetailModelUsageMetrics.replaceChildren(
+        metricCard("Total tokens", "Unavailable", "No provider report"),
+        metricCard("Input tokens", "Unavailable", "No provider report"),
+        metricCard("Output tokens", "Unavailable", "No provider report"),
+        metricCard("Model requests", "Unavailable", "Older or non-model job"),
+      );
+      jobDetailModelUsageModels.replaceChildren(create("p", "window-note", "No model breakdown is available."));
+    }
+
     jobDetailEvaluationId.textContent = `Evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
     jobDetailMetrics.replaceChildren(
       metricCard("Verdict", safeText(evaluation.verdict), evaluation.qualified_success ? "Qualified success" : "Not qualified"),
@@ -3093,6 +3191,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       create("small", undefined, `Goal ${formatPercent(job.goal_attainment)} · Qualified ${job.qualified_success ? "yes" : "no"}`),
     );
 
+    const modelUsage = record(job.model_usage);
+    const modelGroups = Array.isArray(modelUsage.models) ? modelUsage.models.map(record).slice(0, 20) : [];
+    const usageCell = isRenderableModelUsage(job.model_usage)
+      ? cellStack(
+        create("strong", undefined, modelGroups.length > 0 ? modelUsageLabel(modelGroups[0]) : "Model unavailable"),
+        create("small", undefined, modelUsage.total_tokens === undefined ? "Actual tokens unavailable" : `${formatTokens(modelUsage.total_tokens)} actual`),
+        create("small", undefined, `Input ${formatTokens(modelUsage.input_tokens)} · Output ${formatTokens(modelUsage.output_tokens)}`),
+        create("small", undefined, `${formatCount(modelUsage.requests_with_usage)}/${formatCount(modelUsage.request_count)} request(s) reported usage`),
+      )
+      : cellStack(
+        create("strong", undefined, "Unavailable"),
+        create("small", undefined, "No model or token report"),
+      );
+
     const evidenceCell = cellStack(
       statusPill(`${safeText(job.confidence_band)} ${formatPercent(job.evidence_confidence)}`, safeText(job.confidence_band, "low")),
     );
@@ -3121,6 +3233,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       tableCell("Agent", agentCell),
       tableCell("Profile binding", profileCell),
       tableCell("Outcome", outcomeCell),
+      tableCell("Model usage", usageCell),
       tableCell("Evidence", evidenceCell),
       tableCell("Discipline", disciplineCell),
       tableCell("Status", statusCell),
@@ -3201,6 +3314,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const execution = record(event.execution);
     const intent = record(event.intent);
     const correlation = record(event.correlation);
+    const model = record(event.model);
+    const request = record(event.request);
+    const usage = record(event.usage);
     const row = create("tr");
     const correlationValues = ["session_id", "job_id", "task_id", "turn_id", "tool_call_id", "api_request_id", "child_subagent_id"]
       .map((key) => safeText(correlation[key], ""))
@@ -3210,10 +3326,41 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       : cellStack(statusPill("Unbound", "indeterminate"), create("small", undefined, "No intent was inferred"));
     const decision = safeText(evaluation.counterfactual_decision, "Not evaluated");
     const executionStatus = safeText(execution.status, "Not applicable");
+    const modelEvent = event.event_type === "model_request_started" || event.event_type === "model_request_completed";
+    let tokenSummary = "Not a model event";
+    let tokenBasis = "—";
+    let tokenDetail = "";
+    if (event.event_type === "model_request_started") {
+      tokenSummary = Number.isSafeInteger(request.approx_input_tokens)
+        ? `Approx. ${formatTokens(request.approx_input_tokens)}`
+        : "Estimate unavailable";
+      tokenBasis = "Pre-request estimate";
+    } else if (event.event_type === "model_request_completed") {
+      if (Number.isSafeInteger(usage.total_tokens)) {
+        tokenSummary = `${formatTokens(usage.total_tokens)} actual`;
+      } else if (Number.isSafeInteger(usage.input_tokens) || Number.isSafeInteger(usage.output_tokens)) {
+        tokenSummary = "Actual total unavailable";
+      } else {
+        tokenSummary = "Actual usage unavailable";
+      }
+      if (Number.isSafeInteger(usage.input_tokens) || Number.isSafeInteger(usage.output_tokens)) {
+        tokenDetail = `Input ${formatTokens(usage.input_tokens)} · Output ${formatTokens(usage.output_tokens)}`;
+      }
+      tokenBasis = "Provider-reported actual";
+    }
+    const modelCell = modelEvent
+      ? cellStack(
+        create("strong", undefined, modelUsageLabel(model)),
+        create("small", undefined, tokenSummary),
+        ...(tokenDetail ? [create("small", undefined, tokenDetail)] : []),
+        create("small", undefined, tokenBasis),
+      )
+      : cellStack(create("strong", undefined, "—"), create("small", undefined, tokenSummary));
     row.append(
       tableCell("Observed", cellStack(create("time", undefined, formatTimestamp(event.observed_at)), create("small", undefined, safeText(event.event_id)))),
       tableCell("Agent / event", cellStack(create("strong", undefined, safeText(event.agent_id)), create("small", undefined, safeText(event.event_type)))),
       tableCell("Tool", cellStack(create("strong", undefined, safeText(tool.name, "Not a tool event")), create("small", undefined, safeText(tool.action, "—")))),
+      tableCell("Model / tokens", modelCell),
       tableCell("Shadow decision", cellStack(statusPill(decision, decision), create("small", undefined, safeText(evaluation.status, "No evaluation")))),
       tableCell("Actual execution", cellStack(statusPill(executionStatus, executionStatus), create("small", undefined, formatDuration(execution.duration_ms)))),
       tableCell("Intent", intentCell),

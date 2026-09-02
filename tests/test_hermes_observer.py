@@ -541,6 +541,184 @@ def test_model_and_subagent_hooks_export_metadata_without_content():
         assert private not in encoded
 
 
+def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplication():
+    job_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(),
+        job_sender=lambda payload: job_payloads.append(payload) or {
+            "job_id": "hermes_usage_1",
+            "intent_id": "intent_usage_1",
+            "intent_digest": "f" * 64,
+        },
+    )
+    instance.pre_llm_call(session_id="session-usage", task_id="task-usage", turn_id="turn-usage")
+    request = {
+        "session_id": "session-usage",
+        "task_id": "task-usage",
+        "turn_id": "turn-usage",
+        "api_request_id": "api-usage-1",
+        "provider": "openrouter",
+        "model": "nousresearch/hermes-4-405b",
+    }
+    instance.post_api_request(
+        **request,
+        usage={"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150},
+    )
+    # A repeated terminal hook for the same provider request must not inflate usage.
+    instance.post_api_request(
+        **request,
+        usage={"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150},
+    )
+    instance.api_request_error(
+        session_id="session-usage",
+        task_id="task-usage",
+        turn_id="turn-usage",
+        api_request_id="api-usage-2",
+        provider="openrouter",
+        model="nousresearch/hermes-4-405b",
+        error={"type": "RateLimitError"},
+    )
+    instance.post_api_request(
+        session_id="session-usage",
+        task_id="task-usage",
+        turn_id="turn-usage",
+        api_request_id="api-usage-3",
+        provider="local",
+        model="llama-3.3-70b",
+        usage={"input_tokens": 10, "output_tokens": 5},
+    )
+    instance.on_session_end(
+        session_id="session-usage",
+        task_id="task-usage",
+        turn_id="turn-usage",
+        completed=True,
+    )
+
+    assert instance.flush_jobs_once() is True
+    completed = job_payloads[-1]
+    assert completed["model_usage"] == {
+        "request_count": 3,
+        "requests_with_model": 3,
+        "requests_with_usage": 2,
+        "input_tokens": 130,
+        "output_tokens": 35,
+        "total_tokens": 165,
+        "models": [
+            {
+                "provider": "openrouter",
+                "model": "nousresearch/hermes-4-405b",
+                "request_count": 2,
+                "requests_with_usage": 1,
+                "input_tokens": 120,
+                "output_tokens": 30,
+                "total_tokens": 150,
+            },
+            {
+                "provider": "local",
+                "model": "llama-3.3-70b",
+                "request_count": 1,
+                "requests_with_usage": 1,
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15,
+            },
+        ],
+    }
+    assert "model_usage" not in job_payloads[0]
+
+
+def test_model_usage_isolated_between_concurrent_runs_and_bounded(monkeypatch):
+    monkeypatch.setattr(observer, "MODEL_USAGE_MAX_REQUESTS", 2)
+    monkeypatch.setattr(observer, "MODEL_USAGE_MAX_MODELS", 1)
+    job_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(),
+        job_sender=lambda payload: job_payloads.append(payload) or {
+            "job_id": f"job-{payload['session_id']}",
+            "intent_id": f"intent-{payload['session_id']}",
+            "intent_digest": "a" * 64,
+        },
+    )
+    for session in ("session-a", "session-b"):
+        instance.pre_llm_call(session_id=session, task_id=f"task-{session}")
+    for index, model in enumerate(("model-a", "model-b", "model-c"), start=1):
+        instance.post_api_request(
+            session_id="session-a",
+            task_id="task-session-a",
+            api_request_id=f"api-a-{index}",
+            provider="provider-a",
+            model=model,
+            usage={"total_tokens": index},
+        )
+    instance.post_api_request(
+        session_id="session-b",
+        task_id="task-session-b",
+        api_request_id="api-b-1",
+        provider="provider-b",
+        model="model-only-b",
+        usage={"total_tokens": 9},
+    )
+    instance.on_session_end(session_id="session-a", task_id="task-session-a", completed=True)
+    instance.on_session_end(session_id="session-b", task_id="task-session-b", completed=True)
+
+    assert instance.flush_jobs_once() is True
+    completions = {payload["session_id"]: payload for payload in job_payloads if payload["phase"] == "completed"}
+    assert completions["session-a"]["model_usage"] == {
+        "request_count": 2,
+        "requests_with_model": 2,
+        "requests_with_usage": 2,
+        "total_tokens": 3,
+        "requests_truncated": True,
+        "models_truncated": True,
+        "models": [{
+            "provider": "provider-a",
+            "model": "model-a",
+            "request_count": 1,
+            "requests_with_usage": 1,
+            "total_tokens": 1,
+        }],
+    }
+    assert completions["session-b"]["model_usage"]["total_tokens"] == 9
+    assert completions["session-b"]["model_usage"]["models"][0]["model"] == "model-only-b"
+
+
+def test_model_usage_does_not_mix_concurrent_turns_in_one_session():
+    job_payloads = []
+    instance = observer.HermesShadowObserver(
+        config(),
+        job_sender=lambda payload: job_payloads.append(payload) or {
+            "job_id": f"job-{payload.get('turn_id')}",
+            "intent_id": f"intent-{payload.get('turn_id')}",
+            "intent_digest": "a" * 64,
+        },
+    )
+    for turn in ("turn-a", "turn-b"):
+        instance.pre_llm_call(session_id="shared-session", task_id="shared-task", turn_id=turn)
+        instance.post_api_request(
+            session_id="shared-session",
+            task_id="shared-task",
+            turn_id=turn,
+            api_request_id=f"api-{turn}",
+            provider="provider",
+            model=f"model-{turn}",
+            usage={"total_tokens": 10 if turn == "turn-a" else 20},
+        )
+    for turn in ("turn-b", "turn-a"):
+        instance.on_session_end(
+            session_id="shared-session",
+            task_id="shared-task",
+            turn_id=turn,
+            completed=True,
+        )
+
+    assert instance.flush_jobs_once() is True
+    completions = {payload["turn_id"]: payload for payload in job_payloads if payload["phase"] == "completed"}
+    assert completions["turn-a"]["model_usage"]["total_tokens"] == 10
+    assert completions["turn-a"]["model_usage"]["models"][0]["model"] == "model-turn-a"
+    assert completions["turn-b"]["model_usage"]["total_tokens"] == 20
+    assert completions["turn-b"]["model_usage"]["models"][0]["model"] == "model-turn-b"
+
+
 def test_batch_retry_spool_is_bounded_and_reuses_deterministic_ids():
     sent = []
     failures = {"remaining": 1}
