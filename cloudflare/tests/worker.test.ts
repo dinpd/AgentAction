@@ -1420,6 +1420,48 @@ test("finalized Jobs explorer is tenant scoped filterable and cursor stable with
   assert.equal(oversizedWindow.body.error_code, "intent_quality_time_window_too_large");
 });
 
+test("finalized Jobs reject an eval binding that does not match the frozen profile", async () => {
+  const namespace = new MemoryNamespace();
+  const env = { JIT_GRANTS: namespace };
+  const ctx = new TestContext();
+  const profileDigest = "a".repeat(64);
+  seedIntentQualityFinalization(namespace, "acme", {
+    intentId: "eval-binding-mismatch",
+    profileKey: "refund_quality.v1",
+    profileVersion: "v1",
+    profileDigest,
+    verdict: "completed",
+    compliance: "pass",
+    qualifiedSuccess: true,
+    goalAttainment: 1,
+    confidence: 1,
+    finalizedAt: "2026-07-21T10:00:00.000Z",
+    discipline: qualityDiscipline({ runtime_ms: 500, preferences_met: true }),
+    jobEvidence: {
+      eval_binding: {
+        schema_version: "agentaction.eval-binding.v1",
+        eval_id: "refund_quality",
+        version: "v1",
+        kind: "agent_declared",
+        trust: "agent_self_attested",
+        profile_key: "refund_quality.v1",
+        profile_digest: "b".repeat(64),
+        assignment_id: "evalroute_tampered",
+      },
+    },
+  });
+
+  const response = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-07-20T00%3A00%3A00.000Z&to=2026-07-22T00%3A00%3A00.000Z",
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.body.matched_records, 0);
+  assert.equal(response.body.excluded_records.by_reason.invalid_final_receipt, 1);
+});
+
 test("finalized Job detail exposes an allowlisted deterministic frozen timeline", async () => {
   const namespace = new MemoryNamespace();
   const env = { JIT_GRANTS: namespace };
@@ -2678,8 +2720,18 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   const created = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", started, headers);
   assert.equal(created.status, 201, JSON.stringify(created.body));
   assert.equal(created.body.phase, "started");
-  assert.equal(created.body.profile_key, "agentaction_observed_execution.v1");
+  assert.equal(created.body.profile_key, "observed_execution.v1");
   assert.equal(created.body.profile_kind, "observed_execution");
+  assert.deepEqual(created.body.eval_binding, {
+    schema_version: "agentaction.eval-binding.v1",
+    eval_id: "observed_execution",
+    version: "v1",
+    kind: "observed_execution",
+    trust: "trusted_execution_state",
+    profile_key: "observed_execution.v1",
+    profile_digest: created.body.eval_binding.profile_digest,
+    assignment_id: "implicit_observed_execution",
+  });
   assert.match(created.body.job_id, /^hermes_[a-f0-9]{24}$/);
   assert.match(created.body.intent_id, /^intent_[a-f0-9]{24}$/);
   assert.match(created.body.intent_digest, /^[a-f0-9]{64}$/);
@@ -2726,7 +2778,7 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   assert.equal(completed.status, 201, JSON.stringify(completed.body));
   assert.equal(completed.body.evaluation.verdict, "completed");
   assert.equal(completed.body.evaluation.qualified_success, true);
-  assert.equal(completed.body.evaluation.profile, "agentaction_observed_execution.v1");
+  assert.equal(completed.body.evaluation.profile, "observed_execution.v1");
 
   const replayedCompletion = await call(
     env,
@@ -2744,14 +2796,15 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-03T00:00:00.000Z&agent_id=hermes-support",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z&agent_id=hermes-support",
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
   assert.equal(jobs.status, 200);
   assert.equal(jobs.body.matched_records, 1, JSON.stringify(jobs.body));
   assert.equal(jobs.body.jobs[0].job_id, created.body.job_id);
-  assert.equal(jobs.body.jobs[0].profile_binding.key, "agentaction_observed_execution.v1");
+  assert.equal(jobs.body.jobs[0].profile_binding.key, "observed_execution.v1");
+  assert.equal(jobs.body.jobs[0].eval_binding.eval_id, "observed_execution");
   assert.deepEqual(jobs.body.jobs[0].agent_ids, ["hermes-support"]);
   assert.deepEqual(jobs.body.jobs[0].model_usage, {
     request_count: 2,
@@ -2781,7 +2834,8 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   );
   assert.equal(detail.status, 200);
   assert.equal(detail.body.job.job_id, created.body.job_id);
-  assert.equal(detail.body.job.profile_binding.key, "agentaction_observed_execution.v1");
+  assert.equal(detail.body.job.profile_binding.key, "observed_execution.v1");
+  assert.equal(detail.body.job.eval_binding.assignment_id, "implicit_observed_execution");
   assert.equal(detail.body.job.model_usage.total_tokens, 150);
   assert.equal(detail.body.job.model_usage.models[0].model, "nousresearch/hermes-4-405b");
   assert.equal(JSON.stringify(detail.body).includes("prompt"), false);
@@ -2811,8 +2865,9 @@ test("activity source lifecycle evaluates bounded agent-declared intent as self-
   const started = { ...activityJob("started"), declared_intent: declaredIntent };
   const created = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", started, headers);
   assert.equal(created.status, 201, JSON.stringify(created.body));
-  assert.equal(created.body.profile_key, "agentaction_declared_intent.v1");
+  assert.equal(created.body.profile_key, "agent_declared_intent.v1");
   assert.equal(created.body.profile_kind, "agent_declared");
+  assert.equal(created.body.eval_binding.trust, "agent_self_attested");
 
   const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
     ...activityJob("completed"),
@@ -2828,13 +2883,13 @@ test("activity source lifecycle evaluates bounded agent-declared intent as self-
   assert.equal(completed.status, 201, JSON.stringify(completed.body));
   assert.equal(completed.body.evaluation.verdict, "completed");
   assert.equal(completed.body.evaluation.qualified_success, true);
-  assert.equal(completed.body.evaluation.profile, "agentaction_declared_intent.v1");
+  assert.equal(completed.body.evaluation.profile, "agent_declared_intent.v1");
 
   const jobs = await call(
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-03T00:00:00.000Z&agent_id=hermes-support",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z&agent_id=hermes-support",
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
@@ -3082,6 +3137,173 @@ test("control plane creates an isolated tenant and returns source secrets only o
   const session = await call(env, ctx, "GET", "/control-plane/session", undefined, alice);
   assert.equal(session.status, 200);
   assert.deepEqual(session.body.memberships.map((entry: any) => entry.tenant.tenant_id), ["acme"]);
+});
+
+test("workspace eval setup is owner-managed, tenant-scoped, routed by specificity, and frozen per Job", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const alice = controlHeaders("alice-subject", "alice@example.com");
+  const bob = controlHeaders("bob-subject", "bob@example.com");
+  const eve = controlHeaders("eve-subject", "eve@example.com");
+  const provisioned = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Acme",
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+  }, alice);
+  assert.equal(provisioned.status, 201);
+
+  const initial = await call(env, ctx, "GET", "/control-plane/tenants/acme/evals", undefined, alice);
+  assert.equal(initial.status, 200);
+  assert.deepEqual(initial.body.definitions.map((definition: any) => definition.profile_key), [
+    "observed_execution.v1",
+    "agent_declared_intent.v1",
+  ]);
+  assert.deepEqual(initial.body.assignments, []);
+
+  async function createEval(evalId: string, kind: "agent_declared" | "observed_execution") {
+    return call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+      eval_id: evalId,
+      version: "v1",
+      name: evalId.replaceAll("_", " "),
+      description: `Deterministic ${kind} test configuration.`,
+      kind,
+    }, alice);
+  }
+  for (const evalId of ["source_eval", "agent_eval", "exact_eval"]) {
+    const created = await createEval(evalId, "observed_execution");
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+  }
+  const refundEval = await createEval("refund_eval", "agent_declared");
+  assert.equal(refundEval.status, 201);
+  const alternateEval = await createEval("alternate_declared", "agent_declared");
+  assert.equal(alternateEval.status, 201);
+  const replay = await createEval("refund_eval", "agent_declared");
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.replayed, true);
+  const frozen = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_eval",
+    version: "v1",
+    name: "Changed name",
+    description: "Attempted mutation.",
+    kind: "agent_declared",
+  }, alice);
+  assert.equal(frozen.status, 409);
+  assert.equal(frozen.body.error_code, "eval_definition_frozen");
+
+  async function assign(evalId: string, sourceId?: string, agentId?: string) {
+    return call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+      eval_id: evalId,
+      eval_version: "v1",
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+    }, alice);
+  }
+  assert.equal((await assign("observed_execution")).status, 201);
+  assert.equal((await assign("source_eval", "hermes-production")).status, 201);
+  assert.equal((await assign("agent_eval", undefined, "support-agent")).status, 201);
+  assert.equal((await assign("exact_eval", "hermes-production", "support-agent")).status, 201);
+
+  const tenantStore = namespace.get("acme");
+  async function resolve(sourceId: string, agentId: string) {
+    const response = await tenantStore.fetch(new Request("https://agentid.local/eval-assignments/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source_id: sourceId, agent_id: agentId, has_declared_intent: false }),
+    }));
+    return { status: response.status, body: await response.json() as any };
+  }
+  assert.equal((await resolve("hermes-production", "support-agent")).body.definition.eval_id, "exact_eval");
+  assert.equal((await resolve("other-source", "support-agent")).body.definition.eval_id, "agent_eval");
+  assert.equal((await resolve("hermes-production", "other-agent")).body.definition.eval_id, "source_eval");
+  assert.equal((await resolve("other-source", "other-agent")).body.definition.eval_id, "observed_execution");
+
+  const declaredIntent = {
+    schema_version: "agentaction.declared-intent.v1",
+    goal: "Determine whether the refund is eligible.",
+    success_criteria: ["Return an eligibility decision."],
+    constraints: ["Use only the supplied policy."],
+    confidence: 0.9,
+  };
+  const sourceHeaders = {
+    authorization: `Bearer ${provisioned.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  assert.equal((await assign("refund_eval", "hermes-production", "support-agent")).status, 200);
+  const started = {
+    ...activityJob("started"),
+    agent_id: "support-agent",
+    declared_intent: declaredIntent,
+  };
+  const bound = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", started, sourceHeaders);
+  assert.equal(bound.status, 201, JSON.stringify(bound.body));
+  assert.equal(bound.body.eval_binding.eval_id, "refund_eval");
+  const frozenAssignmentId = bound.body.eval_binding.assignment_id;
+
+  assert.equal((await assign("alternate_declared", "hermes-production", "support-agent")).status, 200);
+  const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...started,
+    phase: "completed",
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+    reported_outcome: {
+      schema_version: "agentaction.reported-outcome.v1",
+      status: "achieved",
+      success_criteria_met: "all",
+      constraints_respected: "pass",
+      confidence: 0.85,
+    },
+  }, sourceHeaders);
+  assert.equal(completed.status, 201, JSON.stringify(completed.body));
+  assert.equal(completed.body.eval_binding.eval_id, "refund_eval");
+  assert.equal(completed.body.eval_binding.assignment_id, frozenAssignmentId);
+
+  assert.equal((await assign("exact_eval", "hermes-production", "support-agent")).status, 200);
+  const incompatible = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...started,
+    session_id: "incompatible-declared-job",
+  }, sourceHeaders);
+  assert.equal(incompatible.status, 409);
+  assert.equal(incompatible.body.error_code, "eval_assignment_incompatible");
+
+  for (const [headers, role] of [[bob, "viewer"], [eve, "operator"]] as const) {
+    const invitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
+      email: role === "viewer" ? "bob@example.com" : "eve@example.com",
+      role,
+    }, alice);
+    const redeemed = await call(env, ctx, "POST", "/control-plane/invitations/redeem", {
+      invitation_id: invitation.body.invitation.invitation_id,
+    }, headers);
+    assert.equal(redeemed.status, 201);
+    assert.equal((await call(env, ctx, "GET", "/control-plane/tenants/acme/evals", undefined, headers)).status, 200);
+    assert.equal((await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+      eval_id: `${role}_eval`,
+      version: "v1",
+      name: `${role} eval`,
+      description: "Must not be created.",
+      kind: "observed_execution",
+    }, headers)).status, 403);
+    assert.equal((await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+      eval_id: "observed_execution",
+      eval_version: "v1",
+    }, headers)).status, 403);
+  }
+
+  const beta = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "beta",
+    display_name: "Beta",
+  }, alice);
+  assert.equal(beta.status, 201);
+  const betaConfig = await call(env, ctx, "GET", "/control-plane/tenants/beta/evals", undefined, alice);
+  assert.equal(betaConfig.status, 200);
+  assert.equal(betaConfig.body.definitions.length, 2);
+  assert.equal(betaConfig.body.assignments.length, 0);
 });
 
 test("control plane enforces roles, single-use invitations, source rotation, and tenant isolation", async () => {

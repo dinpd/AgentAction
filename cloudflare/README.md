@@ -28,7 +28,7 @@ allow/deny/JIT decisions before tool execution:
 | `GET /intent-quality/jobs/:job_id` | Read one finalized job's immutable boundary, evaluation summaries, evidence counts, and allowlisted timeline |
 | `POST /tenants/<tenant-id>/activity/batches` | Ingest a privacy-safe observer batch using a tenant/source-scoped write-only credential |
 | `GET /tenants/<tenant-id>/activity/events` | Read tenant activity with bounded time, agent, event, tool, decision, execution, and intent-binding filters |
-| `/control-plane/*` | Private console-only tenant directory, invitation, setup, member, and activity-source lifecycle API |
+| `/control-plane/*` | Private console-only tenant directory, invitation, setup, member, activity-source lifecycle, and eval configuration API |
 | `POST /github-actions/dispatch` | Authorize and dispatch a scoped GitHub Actions workflow, then record the provider result |
 | `POST /approval-requests` | Create a durable approval request |
 | `GET /approval-requests?status=pending` | List the durable approval queue |
@@ -349,6 +349,28 @@ The complete response shape is defined by
 [`intent-quality-rollup.schema.json`](../schema/intent-quality-rollup.schema.json),
 with a realistic refund fixture at
 [`support-refund-quality-rollup.json`](../packages/guard/examples/support-refund-quality-rollup.json).
+
+## Workspace eval routing
+
+The internal control plane exposes tenant-scoped eval configuration to the
+operator console. All workspace roles may list definitions and active routes;
+only an `owner` may create an eval version or replace an assignment. Eval
+definitions are immutable. Assignments route by exact source+agent, agent,
+source, then workspace default.
+
+When a source-authenticated lifecycle starts a new Job, the tenant Durable
+Object resolves the route, registers the corresponding versioned intent
+profile, and freezes the assignment ID into the issued intent contract. A
+later assignment change cannot alter an in-progress or finalized Job. An
+explicit route whose evaluator kind is incompatible with the lifecycle payload
+returns `409` rather than falling back silently.
+
+V1 provides two deterministic kinds: `observed_execution`, based on trusted
+terminal lifecycle state, and `agent_declared`, based on lifecycle state plus
+the agent's bounded self-attestation. Custom versions select and label one of
+these existing behaviors; arbitrary rubrics and model-judge execution are out
+of scope. Eval configuration and all resulting contracts remain inside the
+route tenant's Durable Object.
 
 ## Finalized intent quality jobs
 

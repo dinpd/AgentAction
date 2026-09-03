@@ -30,7 +30,7 @@ boundaries.
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
 | [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |
-| [Operator console](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected workspace switching, agent integrations, Activity, intent-relative outcomes, constraints, confidence, and evidence. |
+| [Operator console](https://observability-console.agentaction.dev/?window=7#overview) | Cloudflare Access-protected workspace switching, agent integrations, eval routing, Activity, intent-relative outcomes, constraints, confidence, and evidence. |
 
 Prefer to start without blocking an existing workflow? Run the passive MCP
 observer quick start below, inspect the counterfactual policy decisions, and
@@ -71,7 +71,9 @@ workspace, then provisions a selected Hermes or generic AgentAction source,
 displays its token once, shows integration-specific connection steps, and
 verifies the first event. Each
 Hermes source still uses a separate write-only token whose hash is stored in
-that tenant's manifest.
+that tenant's manifest. Workspace owners can then use **Evals** to create an
+immutable eval version and route new Jobs by source, agent, or both without
+changing the Hermes connection.
 
 ### Recommended: Observe An MCP Workflow
 

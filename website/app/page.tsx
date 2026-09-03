@@ -6,7 +6,7 @@ import { ProjectInquiryForm } from "./project-inquiry-form";
 const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
 const consoleDemo = "https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview";
-const operatorConsole = "https://agentpass-observability-console.drisw.workers.dev/?window=7#overview";
+const operatorConsole = "https://observability-console.agentaction.dev/?window=7#overview";
 const consoleDocs = `${github}/tree/main/console`;
 
 const gatewayCapabilities = [

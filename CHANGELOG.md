@@ -4,6 +4,22 @@
 
 No changes yet.
 
+## 0.12.0 - 2026-09-02
+
+### Workspace eval routing
+
+- Add tenant-scoped, immutable eval definitions and owner-managed assignments
+  with exact source-and-agent, agent, source, and workspace-default precedence.
+- Freeze the resolved eval version, profile digest, and assignment on Job start
+  so route changes affect only later Jobs and unlike versions remain separate.
+- Add an **Evals** workspace view plus eval identity and route provenance in
+  Jobs and Job detail, while keeping sources independent from evaluation setup.
+- Make the trust boundary explicit: v1 versions the existing deterministic
+  observed-lifecycle or agent self-attestation evaluators and does not claim an
+  arbitrary rubric, LLM judge, or independent outcome evidence.
+- Use `observability-console.agentaction.dev` as the canonical protected
+  operator-console URL while retaining the underlying Worker deployment.
+
 ## 0.11.0 - 2026-09-02
 
 ### Model and token usage for Hermes observability

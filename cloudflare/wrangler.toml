@@ -3,7 +3,7 @@ main = "src/worker.ts"
 compatibility_date = "2026-05-24"
 
 [vars]
-AGENTACTION_CONSOLE_URL = "https://agentpass-observability-console.drisw.workers.dev/"
+AGENTACTION_CONSOLE_URL = "https://observability-console.agentaction.dev/"
 AGENTACTION_INVITATION_FROM_EMAIL = "invites@agentaction.dev"
 
 # Set AGENTID_API_KEY as a secret in production:

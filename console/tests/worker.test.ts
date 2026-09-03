@@ -106,6 +106,10 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /Finalized intent executions/);
   assert.match(body, /data-jobs-filters/);
   assert.match(body, /Finalized execution explorer/);
+  assert.match(body, /data-console-view="evals"/);
+  assert.match(body, /Choose how Jobs are evaluated/);
+  assert.match(body, /Sources only authenticate telemetry/);
+  assert.match(body, /Agent-declared results are self-attested/);
   assert.match(body, /Exact job ID/);
   assert.match(body, /Exact intent ID/);
   assert.match(body, /<table class="jobs-table">/);
@@ -278,6 +282,63 @@ test("forwards owner workspace migration with only verified Access identity", as
   assert.equal(calls[0].headers.get("x-agentaction-console-subject"), "operator-123");
   assert.equal(calls[0].headers.get("x-agentaction-console-role"), "owner");
   assert.equal(calls[0].headers.get("x-agentaction-console-tenant-id"), "tenant-alpha");
+});
+
+test("forwards tenant eval reads and owner mutations through the identity-bound control plane", async () => {
+  const calls: GatewayCall[] = [];
+  const env = baseEnv(calls, (request) => {
+    const method = request.method;
+    return json(method === "GET"
+      ? { schema_version: "agentaction.eval-configuration.v1", definitions: [], assignments: [] }
+      : { ok: true }, method === "GET" ? 200 : 201);
+  });
+  const read = await worker.fetch(
+    accessRequest(
+      "/api/console/onboarding/tenants/tenant-alpha/evals",
+      {},
+      { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } },
+    ),
+    env,
+  );
+  const create = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants/tenant-alpha/evals", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ eval_id: "refund_quality", version: "v1", name: "Refund", description: "Refund eval", kind: "agent_declared" }),
+    }, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
+    env,
+  );
+  const assign = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants/tenant-alpha/eval-assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ eval_id: "refund_quality", eval_version: "v1", agent_id: "refund-agent" }),
+    }, { custom: { tenant_id: "tenant-alpha", tenant_role: "owner" } }),
+    env,
+  );
+
+  assert.equal(read.status, 200);
+  assert.equal(create.status, 201);
+  assert.equal(assign.status, 201);
+  assert.deepEqual(calls.map((call) => [call.method, new URL(call.url).pathname]), [
+    ["GET", "/control-plane/tenants/tenant-alpha/evals"],
+    ["POST", "/control-plane/tenants/tenant-alpha/evals"],
+    ["POST", "/control-plane/tenants/tenant-alpha/eval-assignments"],
+  ]);
+  assert.equal(calls.every((call) => call.headers.get("x-agentaction-console-subject") === "operator-123"), true);
+  assert.equal(calls.every((call) => call.headers.get("x-agentaction-console-role") === "owner"), true);
+
+  const queryRejected = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants/tenant-alpha/evals?debug=true"),
+    env,
+  );
+  const methodRejected = await worker.fetch(
+    accessRequest("/api/console/onboarding/tenants/tenant-alpha/evals", { method: "DELETE" }),
+    env,
+  );
+  assert.equal(queryRejected.status, 400);
+  assert.equal(methodRejected.status, 404);
+  assert.equal(calls.length, 3);
 });
 
 test("authorizes a directory tenant before forwarding its read-only data route", async () => {
