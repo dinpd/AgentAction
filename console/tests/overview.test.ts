@@ -202,6 +202,48 @@ const EVALS_FIXTURE = {
     { source_id: "hermes-production", agent_id: "support-agent", observed_kinds: ["agent_declared"], last_observed_at: "2026-07-25T11:55:00.000Z" },
   ],
 };
+function refundTriageSpecificationFixture(): Record<string, unknown> {
+  const observationCriterion = (criterionId: string, label: string, predicate: string) => ({
+    criterion_id: criterionId,
+    label,
+    description: `${label} is supported by bounded structured evidence.`,
+    category: "outcome",
+    required: true,
+    source: "observations",
+    where: [{ path: "predicate", operator: "equals", value: predicate }],
+    assertion: { path: "value", operator: "equals", value: true },
+  });
+  return {
+    schema_version: "agentaction.deterministic-eval-specification.v1",
+    pass_threshold: 1,
+    required_evidence: ["job", "observations", "execution_receipts"],
+    criteria: [
+      observationCriterion("policy-outcome-correct", "Policy outcome correctness", "refund.policy_outcome_correct"),
+      observationCriterion("applicable-rule-evidence", "Applicable-rule evidence", "refund.applicable_rules_supported"),
+      observationCriterion("no-invented-customer-facts", "No invented customer facts", "refund.no_invented_customer_facts"),
+      observationCriterion("ambiguity-escalated", "Escalation of ambiguity", "refund.ambiguity_escalated"),
+      {
+        criterion_id: "no-refund-execution",
+        label: "No refund execution in shadow mode",
+        description: "No refund execution receipt is present while the evaluator runs in shadow mode.",
+        category: "constraint",
+        required: true,
+        source: "execution_receipts",
+        where: [{ path: "action", operator: "equals", value: "refund" }],
+        assertion: { operator: "count_equals", value: 0 },
+      },
+      {
+        criterion_id: "evidence-captured",
+        label: "Evidence capture",
+        description: "All four structured refund-triage observations were captured.",
+        category: "outcome",
+        required: false,
+        source: "observations",
+        assertion: { operator: "count_gte", value: 4 },
+      },
+    ],
+  };
+}
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
 const SHELL_HTML = await (
   await worker.fetch(new Request("https://console.test/"), {
@@ -519,6 +561,7 @@ type RuntimeOptions = {
   detailPayload?: Record<string, any>;
   detailStatus?: number;
   evalPayload?: Record<string, any>;
+  evalAssignmentStatus?: number;
   jobsPayload?: Record<string, any>;
   jobsStatus?: number;
   payload?: Record<string, any>;
@@ -640,6 +683,9 @@ function makeRuntime(options: RuntimeOptions = {}) {
       }
       if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/eval-assignments$/.test(path) && init?.method === "POST") {
         const submitted = JSON.parse(String(init.body || "{}"));
+        if (options.evalAssignmentStatus && options.evalAssignmentStatus !== 200 && options.evalAssignmentStatus !== 201) {
+          return response({ error: { code: "eval_assignment_incompatible", message: "The pending route is incompatible with known traffic." } }, options.evalAssignmentStatus);
+        }
         const assignment = {
           schema_version: "agentaction.eval-assignment.v1",
           assignment_id: "evalroute_created",
@@ -919,6 +965,7 @@ test("renders tenant eval definitions and routes with owner-only configuration c
 test("previews assignment precedence and warns about incompatible and uncovered known traffic", async () => {
   const evalPayload = structuredClone(EVALS_FIXTURE);
   evalPayload.assignments = [];
+  evalPayload.known_traffic_truncated = true;
   evalPayload.known_traffic = [
     { source_id: "hermes-production", agent_id: "support-agent", observed_kinds: ["agent_declared"], last_observed_at: "2026-07-25T11:55:00.000Z" },
     { source_id: "generic-production", agent_id: "lifecycle-agent", observed_kinds: ["observed_execution"], last_observed_at: "2026-07-25T11:50:00.000Z" },
@@ -947,8 +994,200 @@ test("previews assignment precedence and warns about incompatible and uncovered 
   assert.match(document.get("[data-eval-route-preview-detail]").textContent, /wins for 1 of 1 known target/);
   const warnings = textOf(document.get("[data-eval-route-warnings]"));
   assert.match(warnings, /1 known source\/agent target has no explicit route/);
-  assert.match(warnings, /1 known source\/agent target has observed Job types incompatible/);
+  assert.match(warnings, /1 affected source\/agent target has observed Job types incompatible with this pending route/);
+  assert.match(warnings, /Known-traffic coverage is capped/);
   assert.equal(document.get("[data-eval-route-preview]").dataset.state, "warning");
+});
+
+test("allows an exact refund_triage.v2 route across mixed history with an insufficient-evidence warning", async () => {
+  const evalPayload = structuredClone(EVALS_FIXTURE);
+  const deterministicSpecification = refundTriageSpecificationFixture();
+  evalPayload.definitions.push(
+    {
+      schema_version: "agentaction.eval-definition.v1",
+      eval_id: "refund_triage",
+      version: "v1",
+      name: "Refund triage v1",
+      description: "Existing immutable version.",
+      kind: "agent_declared",
+      trust: "agent_self_attested",
+      profile_key: "refund_triage.v1",
+      profile_digest: "1".repeat(64),
+      specification_digest: "2213cc32cc7b4ba3e9c01837d6aadac1367ca5dc2283f5722d4f23e722a30730",
+      created_at: "2026-07-25T09:00:00.000Z",
+      specification: deterministicSpecification,
+    },
+    {
+      schema_version: "agentaction.eval-definition.v1",
+      eval_id: "refund_triage",
+      version: "v2",
+      name: "Refund triage v2",
+      description: "Bounded self-attested refund evidence.",
+      kind: "agent_declared",
+      trust: "agent_self_attested",
+      profile_key: "refund_triage.v2",
+      profile_digest: "2".repeat(64),
+      specification_digest: "2213cc32cc7b4ba3e9c01837d6aadac1367ca5dc2283f5722d4f23e722a30730",
+      created_at: "2026-07-25T10:00:00.000Z",
+      specification: deterministicSpecification,
+    },
+  );
+  evalPayload.assignments = [{
+    schema_version: "agentaction.eval-assignment.v1",
+    assignment_id: "evalroute_refund_v1",
+    source_id: "hermes-smoke-local",
+    agent_id: "hermes-smoke-agent",
+    eval_id: "refund_triage",
+    eval_version: "v1",
+    created_at: "2026-07-25T11:00:00.000Z",
+  }];
+  evalPayload.known_traffic = [{
+    source_id: "hermes-smoke-local",
+    agent_id: "hermes-smoke-agent",
+    observed_kinds: ["agent_declared", "observed_execution"],
+    last_observed_at: "2026-07-25T11:55:00.000Z",
+  }];
+  const { controller, document, requestBodies } = makeRuntime({
+    hash: "#evals",
+    evalPayload,
+    setupPayload: {
+      membership: { tenant_id: "acme", role: "owner" },
+      sources: [{ source_id: "hermes-smoke-local", integration: "hermes", enabled: true, agent_ids: ["hermes-smoke-agent"] }],
+      members: [],
+      invitations: [],
+      ingestion: { observed: true },
+    },
+  });
+  await controller.ready;
+  document.get("[data-eval-assignment-eval]").value = "refund_triage.v2";
+  document.get("[data-eval-assignment-source]").value = "hermes-smoke-local";
+  await document.get("[data-eval-assignment-source]").dispatch("change");
+  document.get("[data-eval-assignment-agent]").value = "hermes-smoke-agent";
+  await document.get("[data-eval-assignment-agent]").dispatch("change");
+
+  const warnings = textOf(document.get("[data-eval-route-warnings]"));
+  assert.match(warnings, /observed-execution Jobs without declared semantic claims/);
+  assert.match(warnings, /exact route can be saved/);
+  assert.match(warnings, /insufficient evidence, never pass/);
+  assert.match(warnings, /Existing finalized Jobs remain unchanged/);
+  assert.doesNotMatch(warnings, /incompatible with this pending route/);
+  assert.equal(document.get("[data-eval-route-preview]").dataset.state, "warning");
+
+  await document.get("[data-create-eval-assignment-form]").dispatch("submit");
+  const assignmentRequest = requestBodies.find((request) => request.path.endsWith("/eval-assignments"));
+  assert.deepEqual(assignmentRequest?.body, {
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    source_id: "hermes-smoke-local",
+    agent_id: "hermes-smoke-agent",
+  });
+  const definitions = textOf(document.get("[data-eval-definition-list]"));
+  assert.match(definitions, /refund_triage\.v1/);
+  assert.match(definitions, /refund_triage\.v2/);
+  assert.match(textOf(document.get("[data-eval-assignment-list]")), /refund_triage\.v2/);
+});
+
+test("keeps a lookalike refund_triage.v2 specification incompatible with observed-only traffic", async () => {
+  const evalPayload = structuredClone(EVALS_FIXTURE);
+  evalPayload.definitions.push({
+    schema_version: "agentaction.eval-definition.v1",
+    eval_id: "refund_triage",
+    version: "v2",
+    name: "Lookalike refund triage",
+    description: "An owner-created evaluator without the canonical refund evidence capability.",
+    kind: "agent_declared",
+    trust: "agent_self_attested",
+    profile_key: "refund_triage.v2",
+    profile_digest: "3".repeat(64),
+    specification_digest: "4".repeat(64),
+    created_at: "2026-07-25T10:00:00.000Z",
+    specification: {
+      schema_version: "agentaction.deterministic-eval-specification.v1",
+      pass_threshold: 1,
+      required_evidence: ["job"],
+      criteria: [{
+        criterion_id: "run-completed",
+        label: "Run completed",
+        description: "The Job reached completed state.",
+        category: "outcome",
+        required: true,
+        source: "job",
+        assertion: { path: "status", operator: "equals", value: "completed" },
+      }],
+    },
+  });
+  evalPayload.assignments = [];
+  evalPayload.known_traffic = [{
+    source_id: "hermes-smoke-local",
+    agent_id: "hermes-smoke-agent",
+    observed_kinds: ["observed_execution"],
+    last_observed_at: "2026-07-25T11:55:00.000Z",
+  }];
+  const { controller, document } = makeRuntime({
+    hash: "#evals",
+    evalPayload,
+    evalAssignmentStatus: 409,
+    setupPayload: {
+      membership: { tenant_id: "acme", role: "owner" },
+      sources: [{ source_id: "hermes-smoke-local", integration: "hermes", enabled: true, agent_ids: ["hermes-smoke-agent"] }],
+      members: [],
+      invitations: [],
+      ingestion: { observed: true },
+    },
+  });
+  await controller.ready;
+  document.get("[data-eval-assignment-eval]").value = "refund_triage.v2";
+  document.get("[data-eval-assignment-source]").value = "hermes-smoke-local";
+  await document.get("[data-eval-assignment-source]").dispatch("change");
+  document.get("[data-eval-assignment-agent]").value = "hermes-smoke-agent";
+  await document.get("[data-eval-assignment-agent]").dispatch("change");
+
+  const warnings = textOf(document.get("[data-eval-route-warnings]"));
+  assert.match(warnings, /backend will reject this assignment/);
+  assert.doesNotMatch(warnings, /exact route can be saved|insufficient evidence, never pass/);
+  await document.get("[data-create-eval-assignment-form]").dispatch("submit");
+  assert.match(document.get("[data-evals-message-title]").textContent, /Assignment failed/);
+});
+
+test("keeps genuine mismatches blocked while more-specific compatible routes shield broad changes", async () => {
+  const incompatiblePayload = structuredClone(EVALS_FIXTURE);
+  incompatiblePayload.assignments = [];
+  incompatiblePayload.known_traffic = [{
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+    observed_kinds: ["observed_execution"],
+    last_observed_at: "2026-07-25T11:55:00.000Z",
+  }];
+  const rejected = makeRuntime({ hash: "#evals", evalPayload: incompatiblePayload, evalAssignmentStatus: 409 });
+  await rejected.controller.ready;
+  rejected.document.get("[data-eval-assignment-eval]").value = "agent_declared_intent.v1";
+  rejected.document.get("[data-eval-assignment-source]").value = "hermes-production";
+  await rejected.document.get("[data-eval-assignment-source]").dispatch("change");
+  rejected.document.get("[data-eval-assignment-agent]").value = "support-agent";
+  await rejected.document.get("[data-eval-assignment-agent]").dispatch("change");
+  assert.match(textOf(rejected.document.get("[data-eval-route-warnings]")), /backend will reject this assignment/);
+  await rejected.document.get("[data-create-eval-assignment-form]").dispatch("submit");
+  assert.match(rejected.document.get("[data-evals-message-title]").textContent, /Assignment failed/);
+
+  const shieldedPayload = structuredClone(incompatiblePayload);
+  shieldedPayload.assignments = [{
+    schema_version: "agentaction.eval-assignment.v1",
+    assignment_id: "evalroute_exact_observed",
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+    eval_id: "observed_execution",
+    eval_version: "v1",
+    created_at: "2026-07-25T11:00:00.000Z",
+  }];
+  const shielded = makeRuntime({ hash: "#evals", evalPayload: shieldedPayload });
+  await shielded.controller.ready;
+  shielded.document.get("[data-eval-assignment-eval]").value = "agent_declared_intent.v1";
+  shielded.document.get("[data-eval-assignment-source]").value = "hermes-production";
+  await shielded.document.get("[data-eval-assignment-source]").dispatch("change");
+  const shieldedWarnings = textOf(shielded.document.get("[data-eval-route-warnings]"));
+  assert.doesNotMatch(shieldedWarnings, /incompatible|insufficient evidence/i);
+  assert.equal(shielded.document.get("[data-eval-route-preview]").dataset.state, "ready");
+  assert.match(shielded.document.get("[data-eval-route-preview-detail]").textContent, /wins for 0 of 1 known target/);
 });
 
 test("creates an immutable eval version and assigns it independently from source setup", async () => {
