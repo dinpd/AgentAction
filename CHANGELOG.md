@@ -16,6 +16,13 @@ No changes yet.
   blocking the assignment or inventing a pass.
 - Preserve fail-closed assignment checks for genuinely incompatible evaluator
   and traffic combinations, with matching console preview guidance.
+- Present the deterministic criterion aggregate as the canonical eval verdict,
+  separately from the agent-reported lifecycle outcome and the legacy intent-
+  profile diagnostic, so a passing six-criterion eval is never mislabeled as
+  failed by the older profile score.
+- Add explicit `eval_verdict` and `legacy_profile_result` read-model fields
+  while preserving existing receipt fields and rejecting mismatched criterion
+  provenance instead of silently promoting it.
 
 ## 0.13.0 - 2026-09-02
 

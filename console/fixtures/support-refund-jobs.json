@@ -50,6 +50,13 @@
         "version": "v1",
         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       },
+      "legacy_profile_result": {
+        "schema_version": "agentpass.intent-profile-result.v1",
+        "verdict": "indeterminate",
+        "qualified_success": false,
+        "constraint_compliance": "indeterminate",
+        "goal_attainment": 0
+      },
       "verdict": "indeterminate",
       "qualified_success": false,
       "constraint_compliance": "indeterminate",
@@ -88,6 +95,13 @@
         "key": "support_refund.v1",
         "version": "v1",
         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "legacy_profile_result": {
+        "schema_version": "agentpass.intent-profile-result.v1",
+        "verdict": "failed",
+        "qualified_success": false,
+        "constraint_compliance": "fail",
+        "goal_attainment": 0
       },
       "verdict": "failed",
       "qualified_success": false,
@@ -144,19 +158,37 @@
       },
       "criterion_evaluation": {
         "schema_version": "agentaction.deterministic-eval-result.v1",
-        "aggregate_status": "fail",
+        "aggregate_status": "pass",
         "trust": "agent_self_attested",
-        "pass_rate": 0.666667,
+        "pass_rate": 1,
         "pass_threshold": 1,
         "criteria_count": 6,
-        "passed_count": 4,
-        "failed_count": 1,
-        "insufficient_evidence_count": 1
+        "passed_count": 6,
+        "failed_count": 0,
+        "insufficient_evidence_count": 0
       },
-      "verdict": "partial",
+      "eval_verdict": {
+        "schema_version": "agentaction.eval-verdict.v1",
+        "status": "pass",
+        "pass_rate": 1,
+        "pass_threshold": 1,
+        "criteria_count": 6,
+        "passed_count": 6,
+        "failed_count": 0,
+        "insufficient_evidence_count": 0,
+        "trust": "agent_self_attested"
+      },
+      "legacy_profile_result": {
+        "schema_version": "agentpass.intent-profile-result.v1",
+        "verdict": "failed",
+        "qualified_success": false,
+        "constraint_compliance": "fail",
+        "goal_attainment": 0
+      },
+      "verdict": "failed",
       "qualified_success": false,
-      "constraint_compliance": "pass",
-      "goal_attainment": 0.5,
+      "constraint_compliance": "fail",
+      "goal_attainment": 0,
       "evidence_confidence": 0.82,
       "confidence_band": "medium",
       "preview_count": 1,
@@ -209,6 +241,13 @@
         "key": "support_refund.v2",
         "version": "v2",
         "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "legacy_profile_result": {
+        "schema_version": "agentpass.intent-profile-result.v1",
+        "verdict": "completed",
+        "qualified_success": true,
+        "constraint_compliance": "pass",
+        "goal_attainment": 1
       },
       "verdict": "completed",
       "qualified_success": true,

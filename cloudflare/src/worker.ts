@@ -566,6 +566,7 @@ type IntentQualityRecord = {
   agent_ids: string[];
   finalized_at: string;
   evaluation: HostedIntentEvaluationReceipt;
+  criterion_evaluation?: DeterministicEvalResult;
   eval_binding?: EvalBinding;
   intent_context?: AgentDeclaredIntentContext;
   model_usage?: ModelUsageSummary;
@@ -5576,6 +5577,16 @@ function intentQualityRecord(value: unknown): {
   if (jobEvidence.eval_binding !== undefined && !evalBinding) {
     return { error: "invalid_final_receipt" };
   }
+  const criterionEvaluation = evaluation.criterion_evaluation === undefined
+    ? undefined
+    : intentQualityCriterionEvaluation(evaluation.criterion_evaluation);
+  if (
+    evaluation.criterion_evaluation !== undefined && (
+      !criterionEvaluation ||
+      !evalBinding ||
+      !intentQualityCriterionEvaluationMatchesReceipt(criterionEvaluation, evaluation, evalBinding)
+    )
+  ) return { error: "invalid_final_receipt" };
   const expectsDeclaredContext = evalBinding?.kind === "agent_declared" || evaluation.profile === "agentaction_declared_intent.v1";
   const intentContext = expectsDeclaredContext ? intentQualityDeclaredContext(snapshot.evidence.job) : undefined;
   const modelUsage = intentQualityModelUsage(snapshot.evidence.job);
@@ -5605,6 +5616,7 @@ function intentQualityRecord(value: unknown): {
       agent_ids: [...agentIds].sort(),
       finalized_at: new Date(finalization.finalized_at).toISOString(),
       evaluation,
+      ...(criterionEvaluation ? { criterion_evaluation: criterionEvaluation } : {}),
       ...(evalBinding ? { eval_binding: evalBinding } : {}),
       ...(intentContext ? { intent_context: intentContext } : {}),
       ...(modelUsage ? { model_usage: modelUsage } : {}),
@@ -5812,7 +5824,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
     ? discipline.runtime_ms
     : null;
   const findings: string[] = [];
-  const criterionEvaluation = intentQualityCriterionEvaluation(record.evaluation.criterion_evaluation);
+  const criterionEvaluation = record.criterion_evaluation;
   if (record.agent_ids.length === 0) findings.push("agent identity is missing");
   if (runtime === null) findings.push("runtime metric is missing");
   if (confidenceBand === "low") findings.push("final receipt has low evidence confidence");
@@ -5838,6 +5850,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
     ...(record.intent_context ? { intent_context: record.intent_context } : {}),
     ...(record.model_usage ? { model_usage: record.model_usage } : {}),
     ...(criterionEvaluation ? {
+      eval_verdict: intentQualityEvalVerdict(criterionEvaluation),
       criterion_evaluation: {
         schema_version: criterionEvaluation.schema_version,
         aggregate_status: criterionEvaluation.aggregate_status,
@@ -5852,6 +5865,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
         trust: criterionEvaluation.provenance.trust,
       },
     } : {}),
+    legacy_profile_result: intentQualityLegacyProfileResult(record.evaluation),
     verdict: record.evaluation.verdict,
     qualified_success: record.evaluation.qualified_success,
     constraint_compliance: record.evaluation.constraint_compliance,
@@ -5964,6 +5978,7 @@ function intentQualityCriterionEvaluation(value: unknown): DeterministicEvalResu
     !qualityMetricInRange(result.pass_threshold, 0, 1) ||
     !Array.isArray(result.required_criteria) || result.required_criteria.length > 20 ||
     !result.required_criteria.every((item: unknown) => typeof item === "string" && EVAL_CRITERION_ID.test(item)) ||
+    new Set(result.required_criteria).size !== result.required_criteria.length ||
     !Array.isArray(result.criteria) || result.criteria.length < 1 || result.criteria.length > 20 ||
     provenance.evaluator !== "agentaction.deterministic" ||
     provenance.evaluator_version !== "v1" ||
@@ -6008,13 +6023,37 @@ function intentQualityCriterionEvaluation(value: unknown): DeterministicEvalResu
       ...(criterion.evidence_trust === "agent_self_attested" ? { evidence_trust: "agent_self_attested" as const } : {}),
     });
   }
-  if (!result.required_criteria.every((criterionId: string) => criterionIds.has(criterionId))) return undefined;
+  const requiredCriteria = criteria.filter((criterion) => criterion.required).map((criterion) => criterion.criterion_id);
+  const passed = criteria.filter((criterion) => criterion.status === "pass").length;
+  const insufficient = criteria.filter((criterion) => criterion.status === "insufficient_evidence").length;
+  const passRate = Math.round((passed / criteria.length) * 1_000_000) / 1_000_000;
+  const maximumPassRate = Math.round(((passed + insufficient) / criteria.length) * 1_000_000) / 1_000_000;
+  const requiredResults = criteria.filter((criterion) => criterion.required);
+  const aggregateStatus: DeterministicEvalResult["aggregate_status"] = requiredResults.some(
+    (criterion) => criterion.status === "fail",
+  )
+    ? "fail"
+    : requiredResults.some((criterion) => criterion.status === "insufficient_evidence")
+      ? "insufficient_evidence"
+      : passRate >= Number(result.pass_threshold)
+        ? "pass"
+        : maximumPassRate >= Number(result.pass_threshold)
+          ? "insufficient_evidence"
+          : "fail";
+  if (
+    canonicalJson(result.required_criteria) !== canonicalJson(requiredCriteria) ||
+    Number(result.pass_rate) !== passRate ||
+    result.aggregate_status !== aggregateStatus ||
+    criteria.some((criterion) => (
+      criterion.evidence_trust !== undefined && provenance.trust !== "agent_self_attested"
+    ))
+  ) return undefined;
   return {
     schema_version: "agentaction.deterministic-eval-result.v1",
     aggregate_status: result.aggregate_status as DeterministicEvalResult["aggregate_status"],
     pass_rate: Number(result.pass_rate),
     pass_threshold: Number(result.pass_threshold),
-    required_criteria: [...result.required_criteria] as string[],
+    required_criteria: requiredCriteria,
     criteria,
     provenance: {
       evaluator: "agentaction.deterministic",
@@ -6031,10 +6070,56 @@ function intentQualityCriterionEvaluation(value: unknown): DeterministicEvalResu
   };
 }
 
+function intentQualityCriterionEvaluationMatchesReceipt(
+  result: DeterministicEvalResult,
+  evaluation: HostedIntentEvaluationReceipt,
+  binding: EvalBinding,
+): boolean {
+  return binding.specification_digest !== undefined
+    && binding.pass_threshold !== undefined
+    && binding.required_criteria !== undefined
+    && result.provenance.eval_id === binding.eval_id
+    && result.provenance.eval_version === binding.version
+    && result.provenance.trust === binding.trust
+    && result.provenance.specification_digest === binding.specification_digest
+    && result.provenance.profile_digest === binding.profile_digest
+    && result.provenance.assignment_id === binding.assignment_id
+    && result.provenance.evidence_digest === evaluation.evidence_digest
+    && result.provenance.evaluated_at === evaluation.evaluated_at
+    && result.pass_threshold === binding.pass_threshold
+    && canonicalJson(result.required_criteria) === canonicalJson(binding.required_criteria);
+}
+
+function intentQualityEvalVerdict(result: DeterministicEvalResult): Record<string, unknown> {
+  return {
+    schema_version: "agentaction.eval-verdict.v1",
+    status: result.aggregate_status,
+    pass_rate: result.pass_rate,
+    pass_threshold: result.pass_threshold,
+    criteria_count: result.criteria.length,
+    passed_count: result.criteria.filter((criterion) => criterion.status === "pass").length,
+    failed_count: result.criteria.filter((criterion) => criterion.status === "fail").length,
+    insufficient_evidence_count: result.criteria.filter(
+      (criterion) => criterion.status === "insufficient_evidence",
+    ).length,
+    trust: result.provenance.trust,
+  };
+}
+
+function intentQualityLegacyProfileResult(evaluation: HostedIntentEvaluationReceipt): Record<string, unknown> {
+  return {
+    schema_version: "agentpass.intent-profile-result.v1",
+    verdict: evaluation.verdict,
+    qualified_success: evaluation.qualified_success,
+    constraint_compliance: evaluation.constraint_compliance,
+    goal_attainment: evaluation.goal_attainment,
+  };
+}
+
 function intentQualityFinalEvaluation(record: IntentQualityRecord): Record<string, unknown> {
   const evaluation = record.evaluation;
   const discipline = recordValue(evaluation.execution_discipline);
-  const criterionEvaluation = intentQualityCriterionEvaluation(evaluation.criterion_evaluation);
+  const criterionEvaluation = record.criterion_evaluation;
   return {
     schema_version: "agentpass.intent-quality-job-final-evaluation.v1",
     evaluation_id: evaluation.evaluation_id,
@@ -6047,7 +6132,11 @@ function intentQualityFinalEvaluation(record: IntentQualityRecord): Record<strin
     confidence_band: intentQualityConfidenceBand(evaluation.evidence_confidence),
     outcomes: intentQualityPredicateSummaries(evaluation.outcomes),
     constraints: intentQualityPredicateSummaries(evaluation.constraints),
-    ...(criterionEvaluation ? { criterion_evaluation: criterionEvaluation } : {}),
+    ...(criterionEvaluation ? {
+      eval_verdict: intentQualityEvalVerdict(criterionEvaluation),
+      criterion_evaluation: criterionEvaluation,
+    } : {}),
+    legacy_profile_result: intentQualityLegacyProfileResult(evaluation),
     execution_discipline: {
       tool_calls: qualityNumber(discipline.tool_calls),
       execution_receipts: qualityNumber(discipline.execution_receipts),
