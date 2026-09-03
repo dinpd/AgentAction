@@ -105,7 +105,7 @@ function activityPayload(url: URL): FixtureRecord {
       intent: { binding_status: "unbound" },
       model: { provider: "synthetic", model: "demo-model" },
       execution: { status: "ok", duration_ms: 920 },
-      usage: { input_tokens: 340, output_tokens: 88, total_tokens: 428 },
+      usage: { input_tokens: 340, uncached_input_tokens: 240, cached_input_tokens: 100, output_tokens: 88, total_tokens: 428 },
     },
   ];
   const filtered = events.filter((event) => {

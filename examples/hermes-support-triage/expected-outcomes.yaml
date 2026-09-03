@@ -11,6 +11,30 @@ cases:
     expected_job_verdict: completed
     expected_constraint_compliance: pass
     expected_qualified_success: true
+    criterion_evidence:
+      - {criterion_id: policy-outcome-correct, status: pass, evidence_refs: [policy:REFUND-01, policy:REFUND-02]}
+      - {criterion_id: applicable-rule-evidence, status: pass, evidence_refs: [policy:REFUND-01, policy:REFUND-02, policy:REFUND-05]}
+      - {criterion_id: no-invented-customer-facts, status: pass, evidence_refs: [case:bounded_fields]}
+      - {criterion_id: ambiguity-escalated, status: pass, evidence_refs: [case:no_ambiguity]}
+      - {criterion_id: no-refund-execution, status: pass, evidence_refs: [execution:read_only]}
+      - {criterion_id: evidence-captured, status: pass, evidence_refs: [report:six_criteria]}
+
+  demo-case-ineligible-001:
+    case_file: cases/ineligible.yaml
+    expected_decision: ineligible
+    expected_rule_ids:
+      - REFUND-03
+      - REFUND-05
+    expected_job_verdict: completed
+    expected_constraint_compliance: pass
+    expected_qualified_success: true
+    criterion_evidence:
+      - {criterion_id: policy-outcome-correct, status: pass, evidence_refs: [policy:REFUND-03]}
+      - {criterion_id: applicable-rule-evidence, status: pass, evidence_refs: [policy:REFUND-03, policy:REFUND-05]}
+      - {criterion_id: no-invented-customer-facts, status: pass, evidence_refs: [case:final_sale]}
+      - {criterion_id: ambiguity-escalated, status: pass, evidence_refs: [case:no_ambiguity]}
+      - {criterion_id: no-refund-execution, status: pass, evidence_refs: [execution:read_only]}
+      - {criterion_id: evidence-captured, status: pass, evidence_refs: [report:six_criteria]}
 
   demo-case-manual-review-001:
     case_file: cases/manual-review.yaml
@@ -21,3 +45,10 @@ cases:
     expected_job_verdict: partial
     expected_constraint_compliance: pass
     expected_qualified_success: false
+    criterion_evidence:
+      - {criterion_id: policy-outcome-correct, status: pass, evidence_refs: [policy:REFUND-04]}
+      - {criterion_id: applicable-rule-evidence, status: pass, evidence_refs: [policy:REFUND-04, policy:REFUND-05]}
+      - {criterion_id: no-invented-customer-facts, status: pass, evidence_refs: [case:defect_evidence_missing]}
+      - {criterion_id: ambiguity-escalated, status: pass, evidence_refs: [case:defect_evidence_missing]}
+      - {criterion_id: no-refund-execution, status: pass, evidence_refs: [execution:read_only]}
+      - {criterion_id: evidence-captured, status: pass, evidence_refs: [report:six_criteria]}

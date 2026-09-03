@@ -123,6 +123,36 @@
         "version": "v1",
         "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       },
+      "eval_binding": {
+        "schema_version": "agentaction.eval-binding.v1",
+        "eval_id": "refund_triage",
+        "version": "v2",
+        "kind": "agent_declared",
+        "trust": "agent_self_attested",
+        "profile_key": "support_refund.v1",
+        "profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "assignment_id": "evalroute_refund_demo"
+      },
+      "intent_context": {
+        "kind": "agent_declared",
+        "trust": "self_attested",
+        "goal": "Determine whether the customer is eligible for a refund under the supplied policy.",
+        "success_criteria": ["Reach the supported policy outcome", "Cite the applicable rule"],
+        "constraints": ["Do not invent customer facts", "Escalate ambiguity", "Do not execute a refund in shadow mode"],
+        "declaration_confidence": 0.92,
+        "reported_outcome": {"status":"partial","success_criteria_met":"some","constraints_respected":"fail","confidence":0.82}
+      },
+      "criterion_evaluation": {
+        "schema_version": "agentaction.deterministic-eval-result.v1",
+        "aggregate_status": "fail",
+        "trust": "agent_self_attested",
+        "pass_rate": 0.666667,
+        "pass_threshold": 1,
+        "criteria_count": 6,
+        "passed_count": 4,
+        "failed_count": 1,
+        "insufficient_evidence_count": 1
+      },
       "verdict": "partial",
       "qualified_success": false,
       "constraint_compliance": "pass",
@@ -140,6 +170,8 @@
         "requests_with_model": 2,
         "requests_with_usage": 2,
         "input_tokens": 640,
+        "uncached_input_tokens": 500,
+        "cached_input_tokens": 140,
         "output_tokens": 160,
         "total_tokens": 800,
         "models": [
@@ -149,6 +181,8 @@
             "request_count": 2,
             "requests_with_usage": 2,
             "input_tokens": 640,
+            "uncached_input_tokens": 500,
+            "cached_input_tokens": 140,
             "output_tokens": 160,
             "total_tokens": 800
           }

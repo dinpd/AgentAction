@@ -7,8 +7,12 @@ import {
   intentProfileKey,
   issueIntentContract,
   type IntentContract,
+  type IntentAssertion,
   type IntentEvidence,
+  type IntentEvidenceSource,
   type IntentEvaluationReceipt,
+  type IntentFilter,
+  type IntentPredicate,
   type IntentProfile,
   type IntentProfileIssuanceInput,
 } from "../../packages/guard/src/intent.ts";
@@ -130,6 +134,8 @@ type ModelUsageGroup = {
   request_count: number;
   requests_with_usage: number;
   input_tokens?: number;
+  uncached_input_tokens?: number;
+  cached_input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
 };
@@ -139,6 +145,8 @@ type ModelUsageSummary = {
   requests_with_model: number;
   requests_with_usage: number;
   input_tokens?: number;
+  uncached_input_tokens?: number;
+  cached_input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
   requests_truncated?: true;
@@ -160,6 +168,22 @@ type AgentReportedOutcome = {
   success_criteria_met: "all" | "some" | "none" | "unknown";
   constraints_respected: "pass" | "fail" | "unknown";
   confidence: number;
+  criterion_evidence?: SelfAttestedCriterionEvidenceReport;
+};
+
+type SelfAttestedCriterionEvidence = {
+  criterion_id: string;
+  status: "pass" | "fail" | "insufficient_evidence";
+  evidence_refs: string[];
+};
+
+type SelfAttestedCriterionEvidenceReport = {
+  schema_version: "agentaction.refund-triage-criterion-evidence.v1";
+  eval_id: "refund_triage";
+  eval_version: "v2";
+  job_id: string;
+  trust: "agent_self_attested";
+  criteria: SelfAttestedCriterionEvidence[];
 };
 
 type AgentDeclaredIntentContext = {
@@ -173,6 +197,22 @@ type AgentDeclaredIntentContext = {
 };
 
 type EvalKind = "agent_declared" | "observed_execution";
+type EvalCriterion = {
+  criterion_id: string;
+  label: string;
+  description: string;
+  category: "outcome" | "constraint";
+  required: boolean;
+  source: IntentEvidenceSource;
+  where?: IntentFilter[];
+  assertion: IntentAssertion;
+};
+type DeterministicEvalSpecification = {
+  schema_version: "agentaction.deterministic-eval-specification.v1";
+  pass_threshold: number;
+  required_evidence: IntentEvidenceSource[];
+  criteria: EvalCriterion[];
+};
 type EvalDefinition = {
   schema_version: "agentaction.eval-definition.v1";
   eval_id: string;
@@ -186,6 +226,8 @@ type EvalDefinition = {
   issued_at: string;
   created_at: string;
   created_by: string;
+  specification?: DeterministicEvalSpecification;
+  specification_digest?: string;
   built_in?: true;
 };
 type EvalAssignment = {
@@ -208,6 +250,43 @@ type EvalBinding = {
   profile_key: string;
   profile_digest: string;
   assignment_id: string;
+  specification_digest?: string;
+  pass_threshold?: number;
+  required_criteria?: string[];
+};
+
+type DeterministicCriterionResult = {
+  criterion_id: string;
+  label: string;
+  description: string;
+  category: "outcome" | "constraint";
+  required: boolean;
+  source: IntentEvidenceSource;
+  status: "pass" | "fail" | "insufficient_evidence";
+  explanation: string;
+  evidence_refs: string[];
+  evidence_trust?: "agent_self_attested";
+};
+
+type DeterministicEvalResult = {
+  schema_version: "agentaction.deterministic-eval-result.v1";
+  aggregate_status: "pass" | "fail" | "insufficient_evidence";
+  pass_rate: number;
+  pass_threshold: number;
+  required_criteria: string[];
+  criteria: DeterministicCriterionResult[];
+  provenance: {
+    evaluator: "agentaction.deterministic";
+    evaluator_version: "v1";
+    eval_id: string;
+    eval_version: string;
+    specification_digest: string;
+    profile_digest: string;
+    assignment_id: string;
+    evidence_digest: string;
+    evaluated_at: string;
+    trust: "agent_self_attested" | "trusted_execution_state";
+  };
 };
 
 type StoredActivityEvent = { digest: string; event: ActivityEvent };
@@ -462,6 +541,7 @@ type HostedIntentEvaluationReceipt = IntentEvaluationReceipt & {
   evaluation_mode: "preview" | "final";
   snapshot_id?: string;
   evidence_digest?: string;
+  criterion_evaluation?: DeterministicEvalResult;
 };
 type IntentFinalizationState = {
   status: "finalizing" | "finalized";
@@ -2100,11 +2180,70 @@ export class AgentIdJitGrants {
       if (assignment) assignments.push(assignment);
     }
     assignments.sort((left, right) => right.created_at.localeCompare(left.created_at));
+    const traffic = await this.knownEvalTraffic();
     return json({
       schema_version: "agentaction.eval-configuration.v1",
       definitions,
       assignments,
+      known_traffic: traffic.records,
+      ...(traffic.truncated ? { known_traffic_truncated: true } : {}),
     });
+  }
+
+  async knownEvalTraffic(): Promise<{
+    records: Array<{
+      source_id: string;
+      agent_id: string;
+      observed_kinds: EvalKind[];
+      last_observed_at: string;
+    }>;
+    truncated: boolean;
+  }> {
+    const intentIds = await this.state.storage.get<string[]>("intent:index") || [];
+    const limited = intentIds.slice(0, 200);
+    const grouped = new Map<string, {
+      source_id: string;
+      agent_id: string;
+      observed_kinds: Set<EvalKind>;
+      last_observed_at: string;
+    }>();
+    for (const intentId of limited) {
+      const finalization = await this.state.storage.get<IntentFinalizationRecord>(`intent:${intentId}:finalization`);
+      const job = recordValue(finalization?.snapshot?.evidence?.job);
+      const sourceId = optionalString(job.source_id);
+      const agentId = optionalString(job.agent_id);
+      if (!sourceId || !agentId || !ACTIVITY_ID.test(sourceId) || !ACTIVITY_ID.test(agentId)) continue;
+      const kind: EvalKind = Object.keys(recordValue(job.declared_intent)).length > 0
+        ? "agent_declared"
+        : "observed_execution";
+      const observedAt = intentQualityTimestamp(job.completed_at)
+        || intentQualityTimestamp(job.started_at)
+        || intentQualityTimestamp(finalization?.finalized_at);
+      if (!observedAt) continue;
+      const key = `${sourceId}\u0000${agentId}`;
+      const existing = grouped.get(key) || {
+        source_id: sourceId,
+        agent_id: agentId,
+        observed_kinds: new Set<EvalKind>(),
+        last_observed_at: observedAt,
+      };
+      existing.observed_kinds.add(kind);
+      if (observedAt > existing.last_observed_at) existing.last_observed_at = observedAt;
+      grouped.set(key, existing);
+    }
+    const records = [...grouped.values()]
+      .map((record) => ({
+        source_id: record.source_id,
+        agent_id: record.agent_id,
+        observed_kinds: [...record.observed_kinds].sort(),
+        last_observed_at: record.last_observed_at,
+      }))
+      .sort((left, right) => (
+        right.last_observed_at.localeCompare(left.last_observed_at) ||
+        left.source_id.localeCompare(right.source_id) ||
+        left.agent_id.localeCompare(right.agent_id)
+      ));
+    return { records, truncated: intentIds.length > limited.length };
   }
 
   async createEvalDefinition(payload: Record<string, unknown>): Promise<Response> {
@@ -2113,13 +2252,22 @@ export class AgentIdJitGrants {
     const name = requiredActivityText(payload.name, "eval name", 120);
     const description = requiredActivityText(payload.description, "eval description", 500);
     const kind = requiredEvalKind(payload.kind);
+    const specification = payload.specification === undefined
+      ? undefined
+      : requiredEvalSpecification(payload.specification, kind);
+    const specificationDigest = specification ? await canonicalDigest(specification) : undefined;
     const createdBy = requiredActivityText(payload.created_by, "eval created_by", 256);
     const key = `${evalId}.${version}`;
     const builtIn = BUILTIN_EVAL_DEFINITIONS.find((definition) => definition.profile_key === key);
     if (builtIn) return json({ error: `built-in eval version is frozen: ${key}`, error_code: "eval_definition_frozen" }, 409);
     const existing = await this.state.storage.get<EvalDefinition>(`eval:${key}`);
     if (existing) {
-      if (existing.name !== name || existing.description !== description || existing.kind !== kind) {
+      if (
+        existing.name !== name ||
+        existing.description !== description ||
+        existing.kind !== kind ||
+        existing.specification_digest !== specificationDigest
+      ) {
         return json({ error: `eval version is frozen: ${key}`, error_code: "eval_definition_frozen" }, 409);
       }
       return json({ definition: existing, replayed: true });
@@ -2135,6 +2283,7 @@ export class AgentIdJitGrants {
       name,
       description,
       kind,
+      ...(specification && specificationDigest ? { specification, specification_digest: specificationDigest } : {}),
       issued_at: createdAt,
       created_at: createdAt,
       created_by: createdBy,
@@ -2153,6 +2302,26 @@ export class AgentIdJitGrants {
     const definition = await this.findEvalDefinition(evalId, evalVersion);
     if (!definition) return json({ error: `eval not found: ${evalId}.${evalVersion}`, error_code: "eval_definition_not_found" }, 404);
     const selectorKey = await evalAssignmentSelectorKey(sourceId, agentId);
+    const assignmentIndex = await this.state.storage.get<string[]>("eval-assignment:index") || [];
+    const traffic = await this.knownEvalTraffic();
+    let incompatible: (typeof traffic.records)[number] | undefined;
+    for (const record of traffic.records) {
+      const winner = await this.effectiveEvalAssignment(record.source_id, record.agent_id, selectorKey);
+      if (winner.pending && record.observed_kinds.some((kind) => kind !== definition.kind)) {
+        incompatible = record;
+        break;
+      }
+    }
+    if (incompatible) {
+      return json({
+        error: `eval ${definition.profile_key} is incompatible with observed ${incompatible.observed_kinds.join(" and ")} traffic`,
+        error_code: "eval_assignment_incompatible",
+        source_id: incompatible.source_id,
+        agent_id: incompatible.agent_id,
+        observed_kinds: incompatible.observed_kinds,
+        eval_kind: definition.kind,
+      }, 409);
+    }
     const existing = await this.state.storage.get<EvalAssignment>(`eval-assignment:${selectorKey}`);
     if (existing?.eval_id === evalId && existing.eval_version === evalVersion) {
       return json({ assignment: existing, replayed: true });
@@ -2168,11 +2337,10 @@ export class AgentIdJitGrants {
       created_by: createdBy,
       ...(existing ? { replaced_assignment_id: existing.assignment_id } : {}),
     };
-    const index = await this.state.storage.get<string[]>("eval-assignment:index") || [];
-    if (!existing && index.length >= 500) {
+    if (!existing && assignmentIndex.length >= 500) {
       return json({ error: "workspace eval assignment limit reached", error_code: "eval_assignment_limit" }, 409);
     }
-    const next = [selectorKey, ...index.filter((key) => key !== selectorKey)];
+    const next = [selectorKey, ...assignmentIndex.filter((key) => key !== selectorKey)];
     await this.state.storage.put({
       [`eval-assignment:${selectorKey}`]: assignment,
       "eval-assignment:index": next,
@@ -2184,17 +2352,7 @@ export class AgentIdJitGrants {
     const sourceId = evalSelectorId(payload.source_id, "eval routing source_id");
     const agentId = evalSelectorId(payload.agent_id, "eval routing agent_id");
     if (typeof payload.has_declared_intent !== "boolean") throw new Error("eval routing has_declared_intent is required");
-    const selectors = [
-      await evalAssignmentSelectorKey(sourceId, agentId),
-      await evalAssignmentSelectorKey(undefined, agentId),
-      await evalAssignmentSelectorKey(sourceId, undefined),
-      await evalAssignmentSelectorKey(undefined, undefined),
-    ];
-    let assignment: EvalAssignment | undefined;
-    for (const selector of selectors) {
-      assignment = await this.state.storage.get<EvalAssignment>(`eval-assignment:${selector}`);
-      if (assignment) break;
-    }
+    const assignment = (await this.effectiveEvalAssignment(sourceId, agentId)).assignment;
     const expectedKind: EvalKind = payload.has_declared_intent ? "agent_declared" : "observed_execution";
     const definition = assignment
       ? await this.findEvalDefinition(assignment.eval_id, assignment.eval_version)
@@ -2212,6 +2370,25 @@ export class AgentIdJitGrants {
       assignment: assignment || null,
       assignment_id: assignment?.assignment_id || `implicit_${expectedKind}`,
     });
+  }
+
+  async effectiveEvalAssignment(
+    sourceId: string,
+    agentId: string,
+    pendingSelectorKey?: string,
+  ): Promise<{ pending: boolean; assignment?: EvalAssignment }> {
+    const selectors = [
+      await evalAssignmentSelectorKey(sourceId, agentId),
+      await evalAssignmentSelectorKey(undefined, agentId),
+      await evalAssignmentSelectorKey(sourceId, undefined),
+      await evalAssignmentSelectorKey(undefined, undefined),
+    ];
+    for (const selector of selectors) {
+      if (selector === pendingSelectorKey) return { pending: true };
+      const assignment = await this.state.storage.get<EvalAssignment>(`eval-assignment:${selector}`);
+      if (assignment) return { pending: false, assignment };
+    }
+    return { pending: false };
   }
 
   async findEvalDefinition(evalId: string, version: string): Promise<EvalDefinition | undefined> {
@@ -2722,15 +2899,37 @@ export class AgentIdJitGrants {
       pending_job: job,
     } satisfies IntentFinalizationState);
 
-    const snapshot = await this.createIntentEvidenceSnapshot(intentId, registered, job, capturedAt);
-    const evaluation: HostedIntentEvaluationReceipt = {
-      ...evaluateIntent(registered.contract, snapshotIntentEvidence(snapshot), {
+    let snapshot: IntentEvidenceSnapshot;
+    let baseEvaluation: IntentEvaluationReceipt;
+    let criterionEvaluation: DeterministicEvalResult | undefined;
+    try {
+      snapshot = await this.createIntentEvidenceSnapshot(intentId, registered, job, capturedAt);
+      baseEvaluation = evaluateIntent(registered.contract, snapshotIntentEvidence(snapshot), {
         now: () => new Date(capturedAt),
         idGenerator: () => `eval_final_${snapshot.evidence_digest.slice(0, 24)}`,
-      }),
+      });
+      criterionEvaluation = await deterministicCriterionEvaluation(
+        registered.contract,
+        snapshot,
+        baseEvaluation,
+        recordValue(job).eval_binding,
+      );
+    } catch (error) {
+      // Invalid frozen provenance is a rejected finalization attempt, not a
+      // recoverable in-progress write. Clear the marker so a corrected retry
+      // cannot be permanently stranded in `finalizing`.
+      await this.state.storage.delete(stateKey);
+      return json({
+        error: (error as Error).message,
+        error_code: "eval_result_provenance_invalid",
+      }, 409);
+    }
+    const evaluation: HostedIntentEvaluationReceipt = {
+      ...baseEvaluation,
       evaluation_mode: "final",
       snapshot_id: snapshot.snapshot_id,
       evidence_digest: snapshot.evidence_digest,
+      ...(criterionEvaluation ? { criterion_evaluation: criterionEvaluation } : {}),
     };
     const finalizedAt = capturedAt;
     const record: IntentFinalizationRecord = {
@@ -4555,10 +4754,31 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
     if (!checked.ok) return json(await checked.json(), checked.status);
     const manifest = await requiredTenantManifest(env, tenantId);
     const input = await readControlJson(request);
+    const sourceId = input.source_id === undefined ? undefined : directoryId(input.source_id, "source_id");
+    const agentId = input.agent_id === undefined ? undefined : directoryId(input.agent_id, "agent_id");
+    const sources = activitySources(manifest);
+    if (sourceId && !Object.prototype.hasOwnProperty.call(sources, sourceId)) {
+      return json({ error: "eval assignment source is not in this workspace", error_code: "eval_assignment_source_not_found" }, 404);
+    }
+    const visibleAgentIds = new Set(Object.values(sources).flatMap((source) => arrayValue(recordValue(source).agent_ids).map(String)));
+    if (agentId && !visibleAgentIds.has(agentId)) {
+      return json({ error: "eval assignment agent is not in this workspace", error_code: "eval_assignment_agent_not_found" }, 404);
+    }
+    if (sourceId && agentId && !arrayValue(recordValue(sources[sourceId]).agent_ids).map(String).includes(agentId)) {
+      return json({
+        error: "eval assignment agent is not connected to the selected source",
+        error_code: "eval_assignment_source_agent_mismatch",
+      }, 409);
+    }
     const created = await authorizationStore(env, tenantId, manifest).fetch(new Request("https://agentid.local/eval-assignments", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...input, created_by: identity.subject }),
+      body: JSON.stringify({
+        ...input,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        ...(agentId ? { agent_id: agentId } : {}),
+        created_by: identity.subject,
+      }),
     }));
     return json(await created.json(), created.status);
   }
@@ -5462,6 +5682,11 @@ function intentQualityEvalBinding(
   }
   const kind = binding.kind;
   const trust = binding.trust;
+  const specificationFields = [
+    binding.specification_digest !== undefined,
+    binding.pass_threshold !== undefined,
+    binding.required_criteria !== undefined,
+  ].filter(Boolean).length;
   if (
     binding.schema_version !== "agentaction.eval-binding.v1" ||
     !EVAL_ID.test(stringValue(binding.eval_id)) ||
@@ -5472,7 +5697,17 @@ function intentQualityEvalBinding(
     binding.profile_digest !== evaluation.profile_digest ||
     binding.version !== evaluation.profile_version ||
     binding.eval_id !== evalIdFromProfile(evaluation.profile, evaluation.profile_version) ||
-    !ACTIVITY_ID.test(stringValue(binding.assignment_id))
+    !ACTIVITY_ID.test(stringValue(binding.assignment_id)) ||
+    (specificationFields !== 0 && specificationFields !== 3) ||
+    (specificationFields === 3 && (
+      !/^[a-f0-9]{64}$/.test(stringValue(binding.specification_digest)) ||
+      !qualityMetricInRange(binding.pass_threshold, 0, 1) ||
+      !Array.isArray(binding.required_criteria) ||
+      binding.required_criteria.length > 20 ||
+      !binding.required_criteria.every((criterionId: unknown) => (
+        typeof criterionId === "string" && EVAL_CRITERION_ID.test(criterionId)
+      ))
+    ))
   ) return undefined;
   return binding as EvalBinding;
 }
@@ -5570,6 +5805,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
     ? discipline.runtime_ms
     : null;
   const findings: string[] = [];
+  const criterionEvaluation = intentQualityCriterionEvaluation(record.evaluation.criterion_evaluation);
   if (record.agent_ids.length === 0) findings.push("agent identity is missing");
   if (runtime === null) findings.push("runtime metric is missing");
   if (confidenceBand === "low") findings.push("final receipt has low evidence confidence");
@@ -5594,6 +5830,21 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
     ...(record.eval_binding ? { eval_binding: record.eval_binding } : {}),
     ...(record.intent_context ? { intent_context: record.intent_context } : {}),
     ...(record.model_usage ? { model_usage: record.model_usage } : {}),
+    ...(criterionEvaluation ? {
+      criterion_evaluation: {
+        schema_version: criterionEvaluation.schema_version,
+        aggregate_status: criterionEvaluation.aggregate_status,
+        pass_rate: criterionEvaluation.pass_rate,
+        pass_threshold: criterionEvaluation.pass_threshold,
+        criteria_count: criterionEvaluation.criteria.length,
+        passed_count: criterionEvaluation.criteria.filter((criterion) => criterion.status === "pass").length,
+        failed_count: criterionEvaluation.criteria.filter((criterion) => criterion.status === "fail").length,
+        insufficient_evidence_count: criterionEvaluation.criteria.filter(
+          (criterion) => criterion.status === "insufficient_evidence",
+        ).length,
+        trust: criterionEvaluation.provenance.trust,
+      },
+    } : {}),
     verdict: record.evaluation.verdict,
     qualified_success: record.evaluation.qualified_success,
     constraint_compliance: record.evaluation.constraint_compliance,
@@ -5696,9 +5947,87 @@ function intentQualityPredicateSummaries(value: unknown): Record<string, unknown
   return summaries;
 }
 
+function intentQualityCriterionEvaluation(value: unknown): DeterministicEvalResult | undefined {
+  const result = recordValue(value);
+  const provenance = recordValue(result.provenance);
+  if (
+    result.schema_version !== "agentaction.deterministic-eval-result.v1" ||
+    !["pass", "fail", "insufficient_evidence"].includes(stringValue(result.aggregate_status)) ||
+    !qualityMetricInRange(result.pass_rate, 0, 1) ||
+    !qualityMetricInRange(result.pass_threshold, 0, 1) ||
+    !Array.isArray(result.required_criteria) || result.required_criteria.length > 20 ||
+    !result.required_criteria.every((item: unknown) => typeof item === "string" && EVAL_CRITERION_ID.test(item)) ||
+    !Array.isArray(result.criteria) || result.criteria.length < 1 || result.criteria.length > 20 ||
+    provenance.evaluator !== "agentaction.deterministic" ||
+    provenance.evaluator_version !== "v1" ||
+    !EVAL_ID.test(stringValue(provenance.eval_id)) ||
+    !EVAL_VERSION.test(stringValue(provenance.eval_version)) ||
+    !/^[a-f0-9]{64}$/.test(stringValue(provenance.specification_digest)) ||
+    !/^[a-f0-9]{64}$/.test(stringValue(provenance.profile_digest)) ||
+    !ACTIVITY_ID.test(stringValue(provenance.assignment_id)) ||
+    !/^[a-f0-9]{64}$/.test(stringValue(provenance.evidence_digest)) ||
+    !intentQualityTimestamp(provenance.evaluated_at) ||
+    !["agent_self_attested", "trusted_execution_state"].includes(stringValue(provenance.trust))
+  ) return undefined;
+  const criteria: DeterministicCriterionResult[] = [];
+  const criterionIds = new Set<string>();
+  for (const value of result.criteria) {
+    const criterion = recordValue(value);
+    const criterionId = stringValue(criterion.criterion_id);
+    if (
+      !EVAL_CRITERION_ID.test(criterionId) || criterionIds.has(criterionId) ||
+      typeof criterion.label !== "string" || !criterion.label || criterion.label.length > 120 ||
+      typeof criterion.description !== "string" || !criterion.description || criterion.description.length > 500 ||
+      (criterion.category !== "outcome" && criterion.category !== "constraint") ||
+      typeof criterion.required !== "boolean" ||
+      !EVAL_EVIDENCE_SOURCES.has(criterion.source as IntentEvidenceSource) ||
+      !["pass", "fail", "insufficient_evidence"].includes(stringValue(criterion.status)) ||
+      typeof criterion.explanation !== "string" || !criterion.explanation || criterion.explanation.length > 500 ||
+      !Array.isArray(criterion.evidence_refs) || criterion.evidence_refs.length > 20 ||
+      !criterion.evidence_refs.every((item: unknown) => typeof item === "string" && Boolean(item) && item.length <= 500) ||
+      (criterion.evidence_trust !== undefined && criterion.evidence_trust !== "agent_self_attested")
+    ) return undefined;
+    criterionIds.add(criterionId);
+    criteria.push({
+      criterion_id: criterionId,
+      label: criterion.label,
+      description: criterion.description,
+      category: criterion.category,
+      required: criterion.required,
+      source: criterion.source as IntentEvidenceSource,
+      status: criterion.status as DeterministicCriterionResult["status"],
+      explanation: criterion.explanation,
+      evidence_refs: [...criterion.evidence_refs] as string[],
+      ...(criterion.evidence_trust === "agent_self_attested" ? { evidence_trust: "agent_self_attested" as const } : {}),
+    });
+  }
+  if (!result.required_criteria.every((criterionId: string) => criterionIds.has(criterionId))) return undefined;
+  return {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: result.aggregate_status as DeterministicEvalResult["aggregate_status"],
+    pass_rate: Number(result.pass_rate),
+    pass_threshold: Number(result.pass_threshold),
+    required_criteria: [...result.required_criteria] as string[],
+    criteria,
+    provenance: {
+      evaluator: "agentaction.deterministic",
+      evaluator_version: "v1",
+      eval_id: stringValue(provenance.eval_id),
+      eval_version: stringValue(provenance.eval_version),
+      specification_digest: stringValue(provenance.specification_digest),
+      profile_digest: stringValue(provenance.profile_digest),
+      assignment_id: stringValue(provenance.assignment_id),
+      evidence_digest: stringValue(provenance.evidence_digest),
+      evaluated_at: String(intentQualityTimestamp(provenance.evaluated_at)),
+      trust: provenance.trust as "agent_self_attested" | "trusted_execution_state",
+    },
+  };
+}
+
 function intentQualityFinalEvaluation(record: IntentQualityRecord): Record<string, unknown> {
   const evaluation = record.evaluation;
   const discipline = recordValue(evaluation.execution_discipline);
+  const criterionEvaluation = intentQualityCriterionEvaluation(evaluation.criterion_evaluation);
   return {
     schema_version: "agentpass.intent-quality-job-final-evaluation.v1",
     evaluation_id: evaluation.evaluation_id,
@@ -5711,6 +6040,7 @@ function intentQualityFinalEvaluation(record: IntentQualityRecord): Record<strin
     confidence_band: intentQualityConfidenceBand(evaluation.evidence_confidence),
     outcomes: intentQualityPredicateSummaries(evaluation.outcomes),
     constraints: intentQualityPredicateSummaries(evaluation.constraints),
+    ...(criterionEvaluation ? { criterion_evaluation: criterionEvaluation } : {}),
     execution_discipline: {
       tool_calls: qualityNumber(discipline.tool_calls),
       execution_receipts: qualityNumber(discipline.execution_receipts),
@@ -6432,13 +6762,50 @@ const ACTIVITY_DECISIONS = new Set(["allow", "deny", "challenge_required"]);
 const ACTIVITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const EVAL_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 const EVAL_VERSION = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
+const EVAL_CRITERION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
+const REFUND_TRIAGE_CRITERION_IDS = new Set([
+  "policy-outcome-correct",
+  "applicable-rule-evidence",
+  "no-invented-customer-facts",
+  "ambiguity-escalated",
+  "no-refund-execution",
+  "evidence-captured",
+]);
+const CRITERION_EVIDENCE_REF = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
+const EVAL_EVIDENCE_SOURCES = new Set<IntentEvidenceSource>([
+  "decision_events",
+  "execution_receipts",
+  "observations",
+  "job",
+]);
+const EVAL_FILTER_OPERATORS = new Set<IntentFilter["operator"]>([
+  "equals",
+  "not_equals",
+  "in",
+  "not_in",
+  "exists",
+]);
+const EVAL_ASSERTION_OPERATORS = new Set<IntentAssertion["operator"]>([
+  "count_equals",
+  "count_lte",
+  "count_gte",
+  "equals",
+  "not_equals",
+  "in",
+  "not_in",
+  "lte",
+  "gte",
+  "exists",
+]);
 const EVAL_CREATED_AT = "2026-09-02T00:00:00.000Z";
 
 type EvalDefinitionInput = Pick<EvalDefinition, "eval_id" | "version" | "name" | "description" | "kind" | "issued_at" | "created_at" | "created_by"> & {
+  specification?: DeterministicEvalSpecification;
+  specification_digest?: string;
   built_in?: true;
 };
 
-function profileForEval(input: Pick<EvalDefinition, "eval_id" | "version" | "kind" | "issued_at">): IntentProfile {
+function profileForEval(input: Pick<EvalDefinition, "eval_id" | "version" | "kind" | "issued_at" | "specification">): IntentProfile {
   const assignmentVariable = {
     agentaction_assignment_id: {
       type: "string" as const,
@@ -6446,6 +6813,51 @@ function profileForEval(input: Pick<EvalDefinition, "eval_id" | "version" | "kin
       description: "The routing assignment frozen when the Job contract was issued.",
     },
   };
+  const specification = input.specification;
+  const specificationVariable = specification ? {
+    agentaction_evaluation_specification: {
+      type: "string" as const,
+      required: true,
+      description: "Canonical deterministic evaluation specification frozen into the Job contract.",
+    },
+  } : {};
+  if (specification) {
+    const predicate = (criterion: EvalCriterion): IntentPredicate => ({
+      id: criterion.criterion_id,
+      description: `${criterion.label}: ${criterion.description}`,
+      source: criterion.source,
+      ...(criterion.where ? { where: criterion.where } : {}),
+      assertion: criterion.assertion,
+    });
+    return {
+      schema_version: "agentpass.intent-profile.v1",
+      profile: input.eval_id,
+      version: input.version,
+      issuer: "agentaction-gateway",
+      issued_at: input.issued_at,
+      objective_template: input.kind === "agent_declared"
+        ? "{{goal}}"
+        : "Observe one bounded agent run through a terminal lifecycle state.",
+      variables: {
+        ...assignmentVariable,
+        ...specificationVariable,
+        ...(input.kind === "agent_declared" ? {
+          goal: {
+            type: "string" as const,
+            required: true,
+            description: "Concise goal declared by the agent; not trusted user intent.",
+          },
+        } : {}),
+      },
+      required_outcomes: specification.criteria
+        .filter((criterion) => criterion.category === "outcome")
+        .map(predicate),
+      hard_constraints: specification.criteria
+        .filter((criterion) => criterion.category === "constraint")
+        .map(predicate),
+      evidence_requirements: specification.required_evidence,
+    };
+  }
   if (input.kind === "observed_execution") {
     return {
       schema_version: "agentpass.intent-profile.v1",
@@ -6525,6 +6937,10 @@ function evalDefinition(input: EvalDefinitionInput): EvalDefinition {
     issued_at: input.issued_at,
     created_at: input.created_at,
     created_by: input.created_by,
+    ...(input.specification && input.specification_digest ? {
+      specification: input.specification,
+      specification_digest: input.specification_digest,
+    } : {}),
     ...(input.built_in ? { built_in: true } : {}),
   };
 }
@@ -6569,6 +6985,319 @@ function requiredEvalVersion(value: unknown, label: string): string {
 function requiredEvalKind(value: unknown): EvalKind {
   if (value !== "agent_declared" && value !== "observed_execution") throw new Error("eval kind is invalid");
   return value;
+}
+
+function requiredEvalSpecification(value: unknown, kind: EvalKind): DeterministicEvalSpecification {
+  const specification = strictRecord(value, [
+    "schema_version",
+    "pass_threshold",
+    "required_evidence",
+    "criteria",
+  ], "eval specification");
+  if (specification.schema_version !== "agentaction.deterministic-eval-specification.v1") {
+    throw new Error("eval specification schema_version is unsupported");
+  }
+  if (
+    typeof specification.pass_threshold !== "number" ||
+    !Number.isFinite(specification.pass_threshold) ||
+    specification.pass_threshold < 0 || specification.pass_threshold > 1
+  ) throw new Error("eval specification pass_threshold is invalid");
+  if (!Array.isArray(specification.required_evidence) || specification.required_evidence.length > 4) {
+    throw new Error("eval specification required_evidence is invalid");
+  }
+  const requiredEvidence = specification.required_evidence.map((source, index) => {
+    if (!EVAL_EVIDENCE_SOURCES.has(source as IntentEvidenceSource)) {
+      throw new Error(`eval specification required_evidence[${index}] is invalid`);
+    }
+    return source as IntentEvidenceSource;
+  });
+  if (new Set(requiredEvidence).size !== requiredEvidence.length) {
+    throw new Error("eval specification required_evidence must be unique");
+  }
+  if (!Array.isArray(specification.criteria) || specification.criteria.length < 1 || specification.criteria.length > 20) {
+    throw new Error("eval specification criteria is invalid");
+  }
+  const criterionIds = new Set<string>();
+  const criteria = specification.criteria.map((value, index) => {
+    const criterion = strictRecord(value, [
+      "criterion_id",
+      "label",
+      "description",
+      "category",
+      "required",
+      "source",
+      "where",
+      "assertion",
+    ], `eval specification criteria[${index}]`);
+    const criterionId = stringValue(criterion.criterion_id);
+    if (!EVAL_CRITERION_ID.test(criterionId)) {
+      throw new Error(`eval specification criteria[${index}].criterion_id is invalid`);
+    }
+    if (criterionIds.has(criterionId)) throw new Error(`duplicate eval criterion_id: ${criterionId}`);
+    criterionIds.add(criterionId);
+    const label = requiredActivityText(criterion.label, `eval specification criteria[${index}].label`, 120);
+    const description = requiredActivityText(
+      criterion.description,
+      `eval specification criteria[${index}].description`,
+      500,
+    );
+    if (criterion.category !== "outcome" && criterion.category !== "constraint") {
+      throw new Error(`eval specification criteria[${index}].category is invalid`);
+    }
+    if (typeof criterion.required !== "boolean") {
+      throw new Error(`eval specification criteria[${index}].required is invalid`);
+    }
+    if (!EVAL_EVIDENCE_SOURCES.has(criterion.source as IntentEvidenceSource)) {
+      throw new Error(`eval specification criteria[${index}].source is invalid`);
+    }
+    if (criterion.where !== undefined && (!Array.isArray(criterion.where) || criterion.where.length > 10)) {
+      throw new Error(`eval specification criteria[${index}].where is invalid`);
+    }
+    const where = Array.isArray(criterion.where)
+      ? criterion.where.map((filter, filterIndex) => normalizeEvalFilter(filter, index, filterIndex))
+      : undefined;
+    const assertion = normalizeEvalAssertion(criterion.assertion, index);
+    return {
+      criterion_id: criterionId,
+      label,
+      description,
+      category: criterion.category,
+      required: criterion.required,
+      source: criterion.source as IntentEvidenceSource,
+      ...(where && where.length > 0 ? { where } : {}),
+      assertion,
+    } satisfies EvalCriterion;
+  });
+  if (!criteria.some((criterion) => criterion.category === "outcome")) {
+    throw new Error("eval specification requires at least one outcome criterion");
+  }
+  const normalized: DeterministicEvalSpecification = {
+    schema_version: "agentaction.deterministic-eval-specification.v1",
+    pass_threshold: specification.pass_threshold,
+    required_evidence: requiredEvidence,
+    criteria,
+  };
+  // Reuse the public deterministic evaluator's validation as the final fail-closed schema boundary.
+  bindIntentProfile(profileForEval({
+    eval_id: "validation",
+    version: "v1",
+    kind,
+    issued_at: EVAL_CREATED_AT,
+    specification: normalized,
+  } as EvalDefinition));
+  return normalized;
+}
+
+function normalizeEvalFilter(value: unknown, criterionIndex: number, filterIndex: number): IntentFilter {
+  const filter = strictRecord(value, ["path", "operator", "value"], `eval specification criteria[${criterionIndex}].where[${filterIndex}]`);
+  const path = requiredEvalPath(filter.path, `eval specification criteria[${criterionIndex}].where[${filterIndex}].path`);
+  if (!EVAL_FILTER_OPERATORS.has(filter.operator as IntentFilter["operator"])) {
+    throw new Error(`eval specification criteria[${criterionIndex}].where[${filterIndex}].operator is invalid`);
+  }
+  if (filter.operator !== "exists" && !("value" in filter)) {
+    throw new Error(`eval specification criteria[${criterionIndex}].where[${filterIndex}].value is required`);
+  }
+  if (filter.operator === "exists" && "value" in filter) {
+    throw new Error(`eval specification criteria[${criterionIndex}].where[${filterIndex}].value is not allowed`);
+  }
+  if ((filter.operator === "in" || filter.operator === "not_in") && !Array.isArray(filter.value)) {
+    throw new Error(`eval specification criteria[${criterionIndex}].where[${filterIndex}].value must be an array`);
+  }
+  if ("value" in filter) requiredBoundedEvalValue(filter.value, `eval specification criteria[${criterionIndex}].where[${filterIndex}].value`);
+  return {
+    path,
+    operator: filter.operator as IntentFilter["operator"],
+    ...(filter.operator !== "exists" ? { value: filter.value } : {}),
+  };
+}
+
+function normalizeEvalAssertion(value: unknown, criterionIndex: number): IntentAssertion {
+  const assertion = strictRecord(value, ["operator", "path", "value", "quantifier"], `eval specification criteria[${criterionIndex}].assertion`);
+  if (!EVAL_ASSERTION_OPERATORS.has(assertion.operator as IntentAssertion["operator"])) {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.operator is invalid`);
+  }
+  const isCount = ["count_equals", "count_lte", "count_gte"].includes(String(assertion.operator));
+  const path = assertion.path === undefined
+    ? undefined
+    : requiredEvalPath(assertion.path, `eval specification criteria[${criterionIndex}].assertion.path`);
+  if (!isCount && !path) throw new Error(`eval specification criteria[${criterionIndex}].assertion.path is required`);
+  if (assertion.operator !== "exists" && !("value" in assertion)) {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.value is required`);
+  }
+  if (assertion.operator === "exists" && "value" in assertion) {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.value is not allowed`);
+  }
+  if ((assertion.operator === "in" || assertion.operator === "not_in") && !Array.isArray(assertion.value)) {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.value must be an array`);
+  }
+  if (isCount && (!Number.isSafeInteger(assertion.value) || Number(assertion.value) < 0)) {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.value must be a non-negative integer`);
+  }
+  if (assertion.quantifier !== undefined && assertion.quantifier !== "any" && assertion.quantifier !== "all") {
+    throw new Error(`eval specification criteria[${criterionIndex}].assertion.quantifier is invalid`);
+  }
+  if ("value" in assertion) requiredBoundedEvalValue(assertion.value, `eval specification criteria[${criterionIndex}].assertion.value`);
+  return {
+    operator: assertion.operator as IntentAssertion["operator"],
+    ...(path ? { path } : {}),
+    ...(assertion.operator !== "exists" ? { value: assertion.value } : {}),
+    ...(assertion.quantifier ? { quantifier: assertion.quantifier as "any" | "all" } : {}),
+  };
+}
+
+function requiredEvalPath(value: unknown, label: string): string {
+  const path = stringValue(value);
+  if (!path || path.length > 240 || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(path)) {
+    throw new Error(`${label} is invalid`);
+  }
+  if (path.split(".").some((segment) => ["__proto__", "prototype", "constructor"].includes(segment))) {
+    throw new Error(`${label} is invalid`);
+  }
+  return path;
+}
+
+function requiredBoundedEvalValue(value: unknown, label: string): void {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined || serialized.length > 2_048) throw new Error(`${label} is invalid`);
+  let nodeCount = 0;
+  const visit = (candidate: unknown, depth: number): void => {
+    nodeCount += 1;
+    if (nodeCount > 200 || depth > 8) throw new Error(`${label} is invalid`);
+    if (Array.isArray(candidate)) {
+      candidate.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (candidate !== null && typeof candidate === "object") {
+      Object.values(candidate as Record<string, unknown>).forEach((item) => visit(item, depth + 1));
+    }
+  };
+  visit(value, 0);
+}
+
+async function evalSpecificationFromContract(
+  contract: IntentContract,
+  kind: EvalKind,
+): Promise<{ specification: DeterministicEvalSpecification; digest: string } | undefined> {
+  const encoded = optionalString(recordValue(contract.profile_variables).agentaction_evaluation_specification);
+  if (!encoded) return undefined;
+  if (encoded.length > 32_768) throw new Error("frozen eval specification is too large");
+  const specification = requiredEvalSpecification(JSON.parse(encoded), kind);
+  return { specification, digest: await canonicalDigest(specification) };
+}
+
+async function deterministicCriterionEvaluation(
+  contract: IntentContract,
+  snapshot: IntentEvidenceSnapshot,
+  evaluation: IntentEvaluationReceipt,
+  bindingValue: unknown,
+): Promise<DeterministicEvalResult | undefined> {
+  const kind: EvalKind = optionalString(recordValue(contract.profile_variables).goal)
+    ? "agent_declared"
+    : "observed_execution";
+  const frozen = await evalSpecificationFromContract(contract, kind);
+  if (!frozen) return undefined;
+  const binding = recordValue(bindingValue);
+  const requiredCriteria = frozen.specification.criteria
+    .filter((criterion) => criterion.required)
+    .map((criterion) => criterion.criterion_id);
+  if (
+    binding.schema_version !== "agentaction.eval-binding.v1" ||
+    binding.specification_digest !== frozen.digest ||
+    binding.pass_threshold !== frozen.specification.pass_threshold ||
+    canonicalJson(binding.required_criteria) !== canonicalJson(requiredCriteria) ||
+    binding.profile_key !== contract.profile ||
+    binding.profile_digest !== contract.profile_digest ||
+    binding.version !== contract.profile_version
+  ) throw new Error("frozen eval binding does not match its deterministic specification");
+  const evaluatedById = new Map(
+    [...evaluation.outcomes, ...evaluation.constraints].map((result) => [result.predicate_id, result]),
+  );
+  const reportedOutcome = recordValue(recordValue(snapshot.evidence.job).reported_outcome);
+  const selfAttestedReport = reportedOutcome.criterion_evidence === undefined
+    ? undefined
+    : validateSelfAttestedCriterionEvidence(reportedOutcome.criterion_evidence);
+  if (selfAttestedReport && (
+    binding.eval_id !== selfAttestedReport.eval_id ||
+    binding.version !== selfAttestedReport.eval_version ||
+    binding.trust !== selfAttestedReport.trust ||
+    snapshot.job_id !== selfAttestedReport.job_id
+  )) throw new Error("self-attested criterion evidence does not match its frozen Job binding");
+  const selfAttestedById = new Map(
+    (selfAttestedReport?.criteria || []).map((criterion) => [criterion.criterion_id, criterion]),
+  );
+  if ([...selfAttestedById.keys()].some((criterionId) => (
+    !frozen.specification.criteria.some((criterion) => criterion.criterion_id === criterionId)
+  ))) throw new Error("self-attested criterion evidence is not present in the frozen specification");
+  const criteria = frozen.specification.criteria.map((criterion): DeterministicCriterionResult => {
+    const result = evaluatedById.get(criterion.criterion_id);
+    if (!result) throw new Error(`deterministic criterion result is missing: ${criterion.criterion_id}`);
+    const selfAttested = criterion.source === "observations" && result.observed_count === 0
+      ? selfAttestedById.get(criterion.criterion_id)
+      : undefined;
+    const evidenceSource = snapshot.sources[criterion.source];
+    const evidenceRefs = selfAttested
+      ? selfAttested.evidence_refs.map((reference) => `job:self_attested:${criterion.criterion_id}:${reference}`)
+      : (result.observed_count > 0
+        ? evidenceSource.evidence_ids.slice(0, 20).map((id) => `${criterion.source}:${id}`)
+        : [`${criterion.source}:digest:${evidenceSource.digest}`]
+      ).filter((reference) => reference.length <= 500);
+    const status = selfAttested?.status
+      || (criterion.source === "observations" && result.observed_count === 0
+        ? "insufficient_evidence"
+        : result.status === "indeterminate" ? "insufficient_evidence" : result.status);
+    return {
+      criterion_id: criterion.criterion_id,
+      label: criterion.label,
+      description: criterion.description,
+      category: criterion.category,
+      required: criterion.required,
+      source: criterion.source,
+      status,
+      explanation: selfAttested
+        ? `Self-attested by agent as ${selfAttested.status.replace("_", " ")}; not independently verified.`
+        : result.reason.slice(0, 500),
+      evidence_refs: evidenceRefs,
+      ...(selfAttested ? { evidence_trust: "agent_self_attested" as const } : {}),
+    };
+  });
+  const passed = criteria.filter((criterion) => criterion.status === "pass").length;
+  const insufficient = criteria.filter((criterion) => criterion.status === "insufficient_evidence").length;
+  const passRate = criteria.length === 0 ? 0 : Math.round((passed / criteria.length) * 1_000_000) / 1_000_000;
+  const maximumPassRate = criteria.length === 0
+    ? 0
+    : Math.round(((passed + insufficient) / criteria.length) * 1_000_000) / 1_000_000;
+  const requiredResults = criteria.filter((criterion) => criterion.required);
+  const aggregateStatus: DeterministicEvalResult["aggregate_status"] = requiredResults.some(
+    (criterion) => criterion.status === "fail",
+  )
+    ? "fail"
+    : requiredResults.some((criterion) => criterion.status === "insufficient_evidence")
+      ? "insufficient_evidence"
+      : passRate >= frozen.specification.pass_threshold
+        ? "pass"
+        : maximumPassRate >= frozen.specification.pass_threshold
+          ? "insufficient_evidence"
+          : "fail";
+  return {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: aggregateStatus,
+    pass_rate: passRate,
+    pass_threshold: frozen.specification.pass_threshold,
+    required_criteria: requiredCriteria,
+    criteria,
+    provenance: {
+      evaluator: "agentaction.deterministic",
+      evaluator_version: "v1",
+      eval_id: stringValue(binding.eval_id),
+      eval_version: stringValue(binding.version),
+      specification_digest: frozen.digest,
+      profile_digest: stringValue(contract.profile_digest),
+      assignment_id: stringValue(binding.assignment_id),
+      evidence_digest: snapshot.evidence_digest,
+      evaluated_at: evaluation.evaluated_at,
+      trust: binding.trust as "agent_self_attested" | "trusted_execution_state",
+    },
+  };
 }
 
 function evalSelectorId(value: unknown, label: string): string {
@@ -6636,6 +7365,9 @@ async function storeActivityJob(
     const profile = profileForEval(definition);
     const profileVariables = {
       agentaction_assignment_id: stringValue(resolvedBody.assignment_id),
+      ...(definition.specification ? {
+        agentaction_evaluation_specification: canonicalJson(definition.specification),
+      } : {}),
       ...(lifecycle.declared_intent ? { goal: lifecycle.declared_intent.goal } : {}),
     };
     const boundProfile = bindIntentProfile(profile);
@@ -6702,6 +7434,15 @@ async function storeActivityJob(
       body: { error: "activity job eval binding is invalid", error_code: "activity_job_eval_binding_invalid" },
     };
   }
+  let frozenSpecification: { specification: DeterministicEvalSpecification; digest: string } | undefined;
+  try {
+    frozenSpecification = await evalSpecificationFromContract(contract, contractKind);
+  } catch {
+    return {
+      response: new Response(null, { status: 409 }),
+      body: { error: "activity job eval specification is invalid", error_code: "activity_job_eval_specification_invalid" },
+    };
+  }
   const evalBinding: EvalBinding = {
     schema_version: "agentaction.eval-binding.v1",
     eval_id: evalId,
@@ -6712,7 +7453,37 @@ async function storeActivityJob(
     profile_digest: contract.profile_digest,
     assignment_id: optionalString(recordValue(contract.profile_variables).agentaction_assignment_id)
       || `legacy_implicit_${contractKind}`,
+    ...(frozenSpecification ? {
+      specification_digest: frozenSpecification.digest,
+      pass_threshold: frozenSpecification.specification.pass_threshold,
+      required_criteria: frozenSpecification.specification.criteria
+        .filter((criterion) => criterion.required)
+        .map((criterion) => criterion.criterion_id),
+    } : {}),
   };
+  const criterionEvidence = lifecycle.reported_outcome?.criterion_evidence;
+  if (criterionEvidence && (
+    evalBinding.eval_id !== criterionEvidence.eval_id ||
+    evalBinding.version !== criterionEvidence.eval_version ||
+    evalBinding.trust !== criterionEvidence.trust
+  )) {
+    return {
+      response: new Response(null, { status: 409 }),
+      body: {
+        error: "activity job criterion evidence does not match the frozen eval binding",
+        error_code: "criterion_evidence_binding_mismatch",
+      },
+    };
+  }
+  if (criterionEvidence && criterionEvidence.job_id !== jobId) {
+    return {
+      response: new Response(null, { status: 409 }),
+      body: {
+        error: "activity job criterion evidence job_id does not match the active Job",
+        error_code: "criterion_evidence_job_mismatch",
+      },
+    };
+  }
   const binding = {
     schema_version: "agentaction.activity-job-result.v1",
     phase: lifecycle.phase,
@@ -6742,7 +7513,7 @@ async function storeActivityJob(
   if (history.ok) {
     const historyBody = await history.json() as Record<string, unknown>;
     const final = recordValue(historyBody.final);
-    if (Object.keys(final).length > 0) {
+    if (Object.keys(final).length > 0 && !criterionEvidence) {
       return {
         response: new Response(null, { status: 200 }),
         body: { ...binding, replayed: true, evaluation: final },
@@ -6943,6 +7714,8 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
     "requests_with_model",
     "requests_with_usage",
     "input_tokens",
+    "uncached_input_tokens",
+    "cached_input_tokens",
     "output_tokens",
     "total_tokens",
     "requests_truncated",
@@ -6963,8 +7736,23 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
     requestCount,
   );
   const inputTokens = optionalUsageInteger(usage.input_tokens, "activity job model_usage input_tokens");
+  const uncachedInputTokens = optionalUsageInteger(
+    usage.uncached_input_tokens,
+    "activity job model_usage uncached_input_tokens",
+  );
+  const cachedInputTokens = optionalUsageInteger(
+    usage.cached_input_tokens,
+    "activity job model_usage cached_input_tokens",
+  );
   const outputTokens = optionalUsageInteger(usage.output_tokens, "activity job model_usage output_tokens");
   const totalTokens = optionalUsageInteger(usage.total_tokens, "activity job model_usage total_tokens");
+  validateReconciledUsageTotal(
+    uncachedInputTokens,
+    cachedInputTokens,
+    outputTokens,
+    totalTokens,
+    "activity job model_usage",
+  );
   if (usage.requests_truncated !== undefined && usage.requests_truncated !== true) {
     throw new Error("activity job model_usage requests_truncated is invalid");
   }
@@ -6977,7 +7765,8 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
   const seen = new Set<string>();
   const models = (Array.isArray(usage.models) ? usage.models : []).map((item, index) => {
     const group = strictRecord(item, [
-      "provider", "model", "request_count", "requests_with_usage", "input_tokens", "output_tokens", "total_tokens",
+      "provider", "model", "request_count", "requests_with_usage", "input_tokens", "uncached_input_tokens",
+      "cached_input_tokens", "output_tokens", "total_tokens",
     ], `activity job model_usage models[${index}]`);
     const provider = group.provider === undefined
       ? undefined
@@ -7002,10 +7791,27 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
       groupRequestCount,
     );
     const groupInput = optionalUsageInteger(group.input_tokens, `activity job model_usage models[${index}].input_tokens`);
+    const groupUncachedInput = optionalUsageInteger(
+      group.uncached_input_tokens,
+      `activity job model_usage models[${index}].uncached_input_tokens`,
+    );
+    const groupCachedInput = optionalUsageInteger(
+      group.cached_input_tokens,
+      `activity job model_usage models[${index}].cached_input_tokens`,
+    );
     const groupOutput = optionalUsageInteger(group.output_tokens, `activity job model_usage models[${index}].output_tokens`);
     const groupTotal = optionalUsageInteger(group.total_tokens, `activity job model_usage models[${index}].total_tokens`);
+    validateReconciledUsageTotal(
+      groupUncachedInput,
+      groupCachedInput,
+      groupOutput,
+      groupTotal,
+      `activity job model_usage models[${index}]`,
+    );
     if (
       (groupInput !== undefined && (inputTokens === undefined || groupInput > inputTokens)) ||
+      (groupUncachedInput !== undefined && (uncachedInputTokens === undefined || groupUncachedInput > uncachedInputTokens)) ||
+      (groupCachedInput !== undefined && (cachedInputTokens === undefined || groupCachedInput > cachedInputTokens)) ||
       (groupOutput !== undefined && (outputTokens === undefined || groupOutput > outputTokens)) ||
       (groupTotal !== undefined && (totalTokens === undefined || groupTotal > totalTokens))
     ) throw new Error(`activity job model_usage models[${index}] exceeds aggregate tokens`);
@@ -7015,6 +7821,8 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
       request_count: groupRequestCount,
       requests_with_usage: groupRequestsWithUsage,
       ...(groupInput !== undefined ? { input_tokens: groupInput } : {}),
+      ...(groupUncachedInput !== undefined ? { uncached_input_tokens: groupUncachedInput } : {}),
+      ...(groupCachedInput !== undefined ? { cached_input_tokens: groupCachedInput } : {}),
       ...(groupOutput !== undefined ? { output_tokens: groupOutput } : {}),
       ...(groupTotal !== undefined ? { total_tokens: groupTotal } : {}),
     };
@@ -7030,12 +7838,30 @@ function validateModelUsage(value: unknown): ModelUsageSummary {
     requests_with_model: requestsWithModel,
     requests_with_usage: requestsWithUsage,
     ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+    ...(uncachedInputTokens !== undefined ? { uncached_input_tokens: uncachedInputTokens } : {}),
+    ...(cachedInputTokens !== undefined ? { cached_input_tokens: cachedInputTokens } : {}),
     ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
     ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
     ...(usage.requests_truncated === true ? { requests_truncated: true as const } : {}),
     ...(usage.models_truncated === true ? { models_truncated: true as const } : {}),
     ...(models.length > 0 ? { models } : {}),
   };
+}
+
+function validateReconciledUsageTotal(
+  uncachedInputTokens: number | undefined,
+  cachedInputTokens: number | undefined,
+  outputTokens: number | undefined,
+  totalTokens: number | undefined,
+  label: string,
+): void {
+  if (
+    uncachedInputTokens !== undefined &&
+    cachedInputTokens !== undefined &&
+    outputTokens !== undefined &&
+    totalTokens !== undefined &&
+    uncachedInputTokens + cachedInputTokens + outputTokens !== totalTokens
+  ) throw new Error(`${label} total_tokens does not equal uncached_input_tokens + cached_input_tokens + output_tokens`);
 }
 
 function requiredUsageInteger(value: unknown, label: string, minimum: number, maximum: number): number {
@@ -7088,6 +7914,7 @@ function validateReportedOutcome(value: unknown): AgentReportedOutcome {
     "success_criteria_met",
     "constraints_respected",
     "confidence",
+    "criterion_evidence",
   ], "activity job reported_outcome");
   if (outcome.schema_version !== "agentaction.reported-outcome.v1") {
     throw new Error("activity job reported_outcome schema_version is unsupported");
@@ -7107,6 +7934,71 @@ function validateReportedOutcome(value: unknown): AgentReportedOutcome {
     success_criteria_met: outcome.success_criteria_met as AgentReportedOutcome["success_criteria_met"],
     constraints_respected: outcome.constraints_respected as AgentReportedOutcome["constraints_respected"],
     confidence: requiredActivityConfidence(outcome.confidence, "activity job reported_outcome confidence"),
+    ...(outcome.criterion_evidence !== undefined ? {
+      criterion_evidence: validateSelfAttestedCriterionEvidence(outcome.criterion_evidence),
+    } : {}),
+  };
+}
+
+function validateSelfAttestedCriterionEvidence(value: unknown): SelfAttestedCriterionEvidenceReport {
+  const report = strictRecord(value, [
+    "schema_version", "eval_id", "eval_version", "job_id", "trust", "criteria",
+  ], "activity job criterion_evidence");
+  if (report.schema_version !== "agentaction.refund-triage-criterion-evidence.v1") {
+    throw new Error("activity job criterion_evidence schema_version is unsupported");
+  }
+  if (report.eval_id !== "refund_triage" || report.eval_version !== "v2") {
+    throw new Error("activity job criterion_evidence eval is unsupported");
+  }
+  if (report.trust !== "agent_self_attested") {
+    throw new Error("activity job criterion_evidence trust is invalid");
+  }
+  requiredActivityId(report.job_id, "activity job criterion_evidence job_id");
+  if (!Array.isArray(report.criteria) || report.criteria.length < 1 || report.criteria.length > 6) {
+    throw new Error("activity job criterion_evidence criteria is invalid");
+  }
+  const seen = new Set<string>();
+  const criteria = report.criteria.map((value, index): SelfAttestedCriterionEvidence => {
+    const criterion = strictRecord(
+      value,
+      ["criterion_id", "status", "evidence_refs"],
+      `activity job criterion_evidence criteria[${index}]`,
+    );
+    const criterionId = stringValue(criterion.criterion_id);
+    if (!REFUND_TRIAGE_CRITERION_IDS.has(criterionId) || seen.has(criterionId)) {
+      throw new Error(`activity job criterion_evidence criteria[${index}].criterion_id is invalid`);
+    }
+    seen.add(criterionId);
+    if (!["pass", "fail", "insufficient_evidence"].includes(stringValue(criterion.status))) {
+      throw new Error(`activity job criterion_evidence criteria[${index}].status is invalid`);
+    }
+    if (!Array.isArray(criterion.evidence_refs) || criterion.evidence_refs.length < 1 || criterion.evidence_refs.length > 4) {
+      throw new Error(`activity job criterion_evidence criteria[${index}].evidence_refs is invalid`);
+    }
+    const evidenceRefs = criterion.evidence_refs.map((reference, referenceIndex) => {
+      if (typeof reference !== "string" || !CRITERION_EVIDENCE_REF.test(reference)) {
+        throw new Error(
+          `activity job criterion_evidence criteria[${index}].evidence_refs[${referenceIndex}] is invalid`,
+        );
+      }
+      return reference;
+    });
+    if (new Set(evidenceRefs).size !== evidenceRefs.length) {
+      throw new Error(`activity job criterion_evidence criteria[${index}].evidence_refs contains duplicates`);
+    }
+    return {
+      criterion_id: criterionId,
+      status: criterion.status as SelfAttestedCriterionEvidence["status"],
+      evidence_refs: evidenceRefs,
+    };
+  });
+  return {
+    schema_version: "agentaction.refund-triage-criterion-evidence.v1",
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    job_id: String(report.job_id),
+    trust: "agent_self_attested",
+    criteria,
   };
 }
 
@@ -7253,7 +8145,23 @@ function validateActivityEvent(
   }
   validateStringRecord(event.model, ["model", "provider", "api_mode", "platform"], `${label} model`, 160);
   validateNumberRecord(event.request, ["api_call_count", "approx_input_tokens", "tool_count"], `${label} request`, true, 1_000_000_000_000);
-  validateNumberRecord(event.usage, ["input_tokens", "output_tokens", "total_tokens"], `${label} usage`, false, 1_000_000_000_000);
+  validateNumberRecord(
+    event.usage,
+    ["input_tokens", "uncached_input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"],
+    `${label} usage`,
+    false,
+    1_000_000_000_000,
+  );
+  if (event.usage !== undefined) {
+    const usage = event.usage as Record<string, unknown>;
+    validateReconciledUsageTotal(
+      usage.uncached_input_tokens as number | undefined,
+      usage.cached_input_tokens as number | undefined,
+      usage.output_tokens as number | undefined,
+      usage.total_tokens as number | undefined,
+      `${label} usage`,
+    );
+  }
   if (event.subagent !== undefined) {
     const subagent = strictRecord(event.subagent, ["role", "status", "duration_ms"], `${label} subagent`);
     requiredBoundedString(subagent.role, 80, `${label} subagent.role`);

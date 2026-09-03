@@ -4,6 +4,30 @@
 
 No changes yet.
 
+## 0.13.0 - 2026-09-02
+
+### Explainable workspace evaluations
+
+- Add an immutable refund-triage evaluation specification with explicit,
+  criterion-level pass, fail, and insufficient-evidence results plus bounded
+  explanations, evidence references, aggregate thresholds, and frozen
+  evaluator provenance.
+- Let the maintained Hermes integration report bounded evidence for the six
+  refund-triage criteria, bound to the active Job and labeled **Self-attested
+  by agent · not independently verified** throughout storage and the console.
+- Reconcile provider usage by distinguishing uncached input, cached input,
+  output, and total tokens without inventing missing counters or double
+  counting provider-reported cache usage.
+- Make eval assignment safer with workspace-scoped source and agent choices,
+  effective-route previews, and compatibility or coverage warnings before an
+  owner saves a route.
+- Keep Job detail reachable from Job rows and supported deep links with a clear
+  workspace-preserving return path, while removing it from permanent
+  navigation.
+- Preserve v1 definitions and historical finalized Jobs through additive
+  fields; existing workspaces require no migration. This release does not add
+  a general-purpose rubric builder or independent model judge.
+
 ## 0.12.0 - 2026-09-02
 
 ### Workspace eval routing

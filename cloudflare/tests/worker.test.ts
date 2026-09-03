@@ -2626,6 +2626,13 @@ test("activity ingestion authenticates a tenant source and stores privacy-safe i
     "x-agentaction-source-id": "hermes-production",
   };
   const batch = activityBatch("acme", "obs_tool_1");
+  (batch.events as Array<Record<string, unknown>>)[0].usage = {
+    input_tokens: 20,
+    uncached_input_tokens: 12,
+    cached_input_tokens: 8,
+    output_tokens: 3,
+    total_tokens: 23,
+  };
 
   const accepted = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, headers);
   assert.equal(accepted.status, 202);
@@ -2649,6 +2656,13 @@ test("activity ingestion authenticates a tenant source and stores privacy-safe i
   assert.equal(page.body.count, 1);
   assert.equal(page.body.events[0].intent.intent_id, "intent-123");
   assert.equal(page.body.events[0].evaluation.counterfactual_decision, "challenge_required");
+  assert.deepEqual(page.body.events[0].usage, {
+    input_tokens: 20,
+    uncached_input_tokens: 12,
+    cached_input_tokens: 8,
+    output_tokens: 3,
+    total_tokens: 23,
+  });
   assert.equal(JSON.stringify(page.body.events).includes("args"), false);
   assert.equal(JSON.stringify(page.body.events).includes("result"), false);
 
@@ -2691,6 +2705,19 @@ test("activity ingestion rejects wrong credentials, tenant drift, raw fields, an
   const rawRejected = await call(env, ctx, "POST", "/tenants/acme/activity/batches", rawField, headers);
   assert.equal(rawRejected.status, 400);
   assert.match(String(rawRejected.body.error), /unsupported field: args/);
+
+  const inconsistentUsage = structuredClone(batch);
+  (inconsistentUsage as any).batch_id = "batch-usage-inconsistent";
+  (inconsistentUsage.events as Array<Record<string, any>>)[0].event_id = "obs-usage-inconsistent";
+  (inconsistentUsage.events as Array<Record<string, any>>)[0].usage = {
+    uncached_input_tokens: 2,
+    cached_input_tokens: 3,
+    output_tokens: 4,
+    total_tokens: 10,
+  };
+  const rejectedUsage = await call(env, ctx, "POST", "/tenants/acme/activity/batches", inconsistentUsage, headers);
+  assert.equal(rejectedUsage.status, 400);
+  assert.match(String(rejectedUsage.body.error), /total_tokens does not equal/);
 
   const accepted = await call(env, ctx, "POST", "/tenants/acme/activity/batches", batch, headers);
   assert.equal(accepted.status, 202);
@@ -2840,6 +2867,121 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   assert.equal(detail.body.job.model_usage.models[0].model, "nousresearch/hermes-4-405b");
   assert.equal(JSON.stringify(detail.body).includes("prompt"), false);
   assert.equal(JSON.stringify(detail.body).includes("result"), false);
+});
+
+test("activity job usage preserves legacy counts and validates additive cached input semantics", async () => {
+  const namespace = new MemoryNamespace();
+  const token = "hermes-source-secret";
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_API_KEY: "dashboard-secret",
+    AGENTID_MANIFEST_JSON: JSON.stringify(activityManifest(token)),
+  };
+  const ctx = new TestContext();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+
+  async function submitUsage(suffix: string, modelUsage: Record<string, unknown>): Promise<any> {
+    const base = {
+      ...activityJob("started"),
+      session_id: `usage-session-${suffix}`,
+      task_id: `usage-task-${suffix}`,
+      turn_id: `usage-turn-${suffix}`,
+    };
+    const started = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", base, headers);
+    assert.equal(started.status, 201, JSON.stringify(started.body));
+    const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+      ...base,
+      phase: "completed",
+      completed_at: "2026-08-31T18:00:04.000Z",
+      status: "completed",
+      model_usage: modelUsage,
+    }, headers);
+    if (completed.status !== 201) return completed;
+    const detail = await call(
+      env,
+      ctx,
+      "GET",
+      `/tenants/acme/intent-quality/jobs/${completed.body.job_id}`,
+      undefined,
+      { authorization: "Bearer dashboard-secret" },
+    );
+    assert.equal(detail.status, 200, JSON.stringify(detail.body));
+    return detail.body.job.model_usage;
+  }
+
+  const cached = await submitUsage("cached", {
+    request_count: 1,
+    requests_with_model: 1,
+    requests_with_usage: 1,
+    input_tokens: 20,
+    uncached_input_tokens: 12,
+    cached_input_tokens: 8,
+    output_tokens: 3,
+    total_tokens: 23,
+    models: [{
+      provider: "openrouter",
+      model: "hermes",
+      request_count: 1,
+      requests_with_usage: 1,
+      input_tokens: 20,
+      uncached_input_tokens: 12,
+      cached_input_tokens: 8,
+      output_tokens: 3,
+      total_tokens: 23,
+    }],
+  });
+  assert.equal(cached.input_tokens, 20);
+  assert.equal(cached.uncached_input_tokens, 12);
+  assert.equal(cached.cached_input_tokens, 8);
+  assert.equal(cached.models[0].cached_input_tokens, 8);
+
+  const explicitZero = await submitUsage("zero", {
+    request_count: 1,
+    requests_with_model: 0,
+    requests_with_usage: 1,
+    input_tokens: 9,
+    uncached_input_tokens: 9,
+    cached_input_tokens: 0,
+    output_tokens: 1,
+    total_tokens: 10,
+  });
+  assert.equal(explicitZero.cached_input_tokens, 0);
+
+  const legacy = await submitUsage("legacy", {
+    request_count: 1,
+    requests_with_model: 0,
+    requests_with_usage: 1,
+    input_tokens: 11,
+    output_tokens: 2,
+    total_tokens: 13,
+  });
+  assert.equal(legacy.input_tokens, 11);
+  assert.equal("cached_input_tokens" in legacy, false);
+  assert.equal("uncached_input_tokens" in legacy, false);
+
+  const malformed = await submitUsage("malformed", {
+    request_count: 1,
+    requests_with_model: 0,
+    requests_with_usage: 1,
+    uncached_input_tokens: -1,
+  });
+  assert.equal(malformed.status, 400);
+  assert.match(String(malformed.body.error), /uncached_input_tokens/);
+
+  const inconsistent = await submitUsage("inconsistent", {
+    request_count: 1,
+    requests_with_model: 0,
+    requests_with_usage: 1,
+    uncached_input_tokens: 2,
+    cached_input_tokens: 3,
+    output_tokens: 4,
+    total_tokens: 10,
+  });
+  assert.equal(inconsistent.status, 400);
+  assert.match(String(inconsistent.body.error), /total_tokens does not equal/);
 });
 
 test("activity source lifecycle evaluates bounded agent-declared intent as self-attestation", async () => {
@@ -3211,11 +3353,11 @@ test("workspace eval setup is owner-managed, tenant-scoped, routed by specificit
   assert.equal((await assign("exact_eval", "hermes-production", "support-agent")).status, 201);
 
   const tenantStore = namespace.get("acme");
-  async function resolve(sourceId: string, agentId: string) {
+  async function resolve(sourceId: string, agentId: string, hasDeclaredIntent = false) {
     const response = await tenantStore.fetch(new Request("https://agentid.local/eval-assignments/resolve", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ source_id: sourceId, agent_id: agentId, has_declared_intent: false }),
+      body: JSON.stringify({ source_id: sourceId, agent_id: agentId, has_declared_intent: hasDeclaredIntent }),
     }));
     return { status: response.status, body: await response.json() as any };
   }
@@ -3264,13 +3406,13 @@ test("workspace eval setup is owner-managed, tenant-scoped, routed by specificit
   assert.equal(completed.body.eval_binding.eval_id, "refund_eval");
   assert.equal(completed.body.eval_binding.assignment_id, frozenAssignmentId);
 
-  assert.equal((await assign("exact_eval", "hermes-production", "support-agent")).status, 200);
-  const incompatible = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
-    ...started,
-    session_id: "incompatible-declared-job",
-  }, sourceHeaders);
+  const incompatible = await assign("exact_eval", "hermes-production", "support-agent");
   assert.equal(incompatible.status, 409);
   assert.equal(incompatible.body.error_code, "eval_assignment_incompatible");
+  const shieldedBroadRoute = await assign("source_eval", "hermes-production");
+  assert.equal(shieldedBroadRoute.status, 200, JSON.stringify(shieldedBroadRoute.body));
+  assert.equal(shieldedBroadRoute.body.replayed, true);
+  assert.equal((await resolve("hermes-production", "support-agent", true)).body.definition.eval_id, "alternate_declared");
 
   for (const [headers, role] of [[bob, "viewer"], [eve, "operator"]] as const) {
     const invitation = await call(env, ctx, "POST", "/control-plane/tenants/acme/invitations", {
@@ -3304,6 +3446,415 @@ test("workspace eval setup is owner-managed, tenant-scoped, routed by specificit
   assert.equal(betaConfig.status, 200);
   assert.equal(betaConfig.body.definitions.length, 2);
   assert.equal(betaConfig.body.assignments.length, 0);
+});
+
+test("refund triage v2 freezes deterministic criteria and exposes explainable aggregate results", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const owner = controlHeaders("refund-owner", "refund-owner@example.com");
+  const provisioned = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Refund triage",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(provisioned.status, 201);
+
+  const specification = refundTriageSpecification();
+  const created = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_triage",
+    version: "v2",
+    name: "Refund triage",
+    description: "Deterministic refund-policy evidence checks for shadow-mode Hermes runs.",
+    kind: "agent_declared",
+    specification,
+  }, owner);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  assert.equal(created.body.definition.specification.schema_version, "agentaction.deterministic-eval-specification.v1");
+  assert.match(String(created.body.definition.specification_digest), /^[a-f0-9]{64}$/);
+  assert.equal(created.body.definition.specification.criteria.length, 6);
+
+  const unsafePath = structuredClone(specification) as any;
+  unsafePath.criteria[0].assertion.path = "__proto__.polluted";
+  const rejectedUnsafePath = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_triage_unsafe",
+    version: "v2",
+    name: "Unsafe refund triage",
+    description: "Must fail before any definition is stored.",
+    kind: "agent_declared",
+    specification: unsafePath,
+  }, owner);
+  assert.equal(rejectedUnsafePath.status, 400);
+  assert.match(rejectedUnsafePath.body.error, /assertion.path is invalid/);
+
+  const replay = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_triage",
+    version: "v2",
+    name: "Refund triage",
+    description: "Deterministic refund-policy evidence checks for shadow-mode Hermes runs.",
+    kind: "agent_declared",
+    specification,
+  }, owner);
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.replayed, true);
+  const changedSpecification = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_triage",
+    version: "v2",
+    name: "Refund triage",
+    description: "Deterministic refund-policy evidence checks for shadow-mode Hermes runs.",
+    kind: "agent_declared",
+    specification: { ...specification, pass_threshold: 0.8 },
+  }, owner);
+  assert.equal(changedSpecification.status, 409);
+  assert.equal(changedSpecification.body.error_code, "eval_definition_frozen");
+
+  const assigned = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(assigned.status, 201, JSON.stringify(assigned.body));
+  const sourceHeaders = {
+    authorization: `Bearer ${provisioned.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const declaredIntent = {
+    schema_version: "agentaction.declared-intent.v1",
+    goal: "Recommend the correct refund-policy outcome without executing a refund.",
+    success_criteria: ["Determine eligibility and cite applicable policy rules."],
+    constraints: ["Remain read-only and escalate ambiguity."],
+    confidence: 0.9,
+  };
+  const tenantStore = namespace.get("acme");
+
+  const provenanceLifecycle = {
+    ...activityJob("started"),
+    session_id: "refund-provenance-retry",
+    task_id: "refund-task-provenance-retry",
+    turn_id: "refund-turn-provenance-retry",
+    declared_intent: declaredIntent,
+  };
+  const provenanceStarted = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    provenanceLifecycle,
+    sourceHeaders,
+  );
+  assert.equal(provenanceStarted.status, 201, JSON.stringify(provenanceStarted.body));
+  const tenantValues = namespace.stores.get("acme")!;
+  const contractKey = `intent:${provenanceStarted.body.intent_id}:contract`;
+  const originalContract = structuredClone(tenantValues.get(contractKey)) as any;
+  const malformedContract = structuredClone(originalContract);
+  malformedContract.contract.profile_variables.agentaction_evaluation_specification = "{";
+  tenantValues.set(contractKey, malformedContract);
+  const provenanceJob = {
+    tenant_id: "acme",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+    session_id: provenanceLifecycle.session_id,
+    task_id: provenanceLifecycle.task_id,
+    turn_id: provenanceLifecycle.turn_id,
+    intent_id: provenanceStarted.body.intent_id,
+    intent_digest: provenanceStarted.body.intent_digest,
+    job_id: provenanceStarted.body.job_id,
+    eval_binding: provenanceStarted.body.eval_binding,
+    started_at: provenanceLifecycle.started_at,
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+    declared_intent: { ...declaredIntent, provenance: "agent_declared" },
+    reported_outcome: {
+      schema_version: "agentaction.reported-outcome.v1",
+      status: "achieved",
+      success_criteria_met: "all",
+      constraints_respected: "pass",
+      confidence: 0.85,
+      provenance: "agent_self_attested",
+    },
+  };
+  const rejectedProvenance = await tenantStore.fetch(new Request(
+    `https://agentid.local/intent-contracts/${provenanceStarted.body.intent_id}/finalize`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ job: provenanceJob }),
+    },
+  ));
+  assert.equal(rejectedProvenance.status, 409);
+  assert.equal((await rejectedProvenance.json() as any).error_code, "eval_result_provenance_invalid");
+  assert.equal(tenantValues.has(`intent:${provenanceStarted.body.intent_id}:finalization:state`), false);
+  tenantValues.set(contractKey, originalContract);
+  const recoveredProvenance = await tenantStore.fetch(new Request(
+    `https://agentid.local/intent-contracts/${provenanceStarted.body.intent_id}/finalize`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ job: provenanceJob }),
+    },
+  ));
+  assert.equal(recoveredProvenance.status, 201, await recoveredProvenance.text());
+
+  async function runFixture(
+    fixture: string,
+    criteria: Array<{ criterion_id: string; status: string; evidence_refs: string[] }>,
+    outcome: Record<string, unknown> = {
+      status: "achieved",
+      success_criteria_met: "all",
+      constraints_respected: "pass",
+      confidence: 0.85,
+    },
+  ): Promise<{ completed: any; detail: any; completionRequest: any }> {
+    const startedJob = {
+      ...activityJob("started"),
+      session_id: `refund-${fixture}`,
+      task_id: `refund-task-${fixture}`,
+      turn_id: `refund-turn-${fixture}`,
+      declared_intent: declaredIntent,
+    };
+    const started = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", startedJob, sourceHeaders);
+    assert.equal(started.status, 201, JSON.stringify(started.body));
+    assert.equal(started.body.eval_binding.eval_id, "refund_triage");
+    assert.equal(started.body.eval_binding.version, "v2");
+    assert.equal(started.body.eval_binding.pass_threshold, 1);
+    assert.equal(started.body.eval_binding.required_criteria.length, 5);
+    assert.equal(started.body.eval_binding.specification_digest, created.body.definition.specification_digest);
+    assert.equal(started.body.eval_binding.trust, "agent_self_attested");
+    const completionRequest = {
+      ...startedJob,
+      phase: "completed",
+      completed_at: "2026-08-31T18:00:04.000Z",
+      status: "completed",
+      reported_outcome: {
+        schema_version: "agentaction.reported-outcome.v1",
+        ...outcome,
+        criterion_evidence: {
+          schema_version: "agentaction.refund-triage-criterion-evidence.v1",
+          eval_id: "refund_triage",
+          eval_version: "v2",
+          job_id: started.body.job_id,
+          trust: "agent_self_attested",
+          criteria,
+        },
+      },
+    };
+    const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", completionRequest, sourceHeaders);
+    assert.equal(completed.status, 201, JSON.stringify(completed.body));
+    const detail = await call(
+      env,
+      ctx,
+      "GET",
+      `/tenants/acme/intent-quality/jobs/${encodeURIComponent(completed.body.job_id)}`,
+      undefined,
+      { authorization: "Bearer console-service-secret" },
+    );
+    assert.equal(detail.status, 200, JSON.stringify(detail.body));
+    return { completed: completed.body, detail: detail.body, completionRequest };
+  }
+
+  const allCriteria = [
+    { criterion_id: "policy-outcome-correct", status: "pass", evidence_refs: ["policy:decision"] },
+    { criterion_id: "applicable-rule-evidence", status: "pass", evidence_refs: ["policy:rule_ids"] },
+    { criterion_id: "no-invented-customer-facts", status: "pass", evidence_refs: ["case:bounded_fields"] },
+    { criterion_id: "ambiguity-escalated", status: "pass", evidence_refs: ["policy:ambiguity"] },
+    { criterion_id: "no-refund-execution", status: "pass", evidence_refs: ["execution:read_only"] },
+    { criterion_id: "evidence-captured", status: "pass", evidence_refs: ["report:six_criteria"] },
+  ];
+  async function rejectCriterionEvidence(
+    fixture: string,
+    mutate: (completion: any) => void,
+    expectedStatus: number,
+    expectedError: RegExp | string,
+  ): Promise<void> {
+    const startedJob = {
+      ...activityJob("started"),
+      session_id: `refund-reject-${fixture}`,
+      task_id: `refund-task-reject-${fixture}`,
+      turn_id: `refund-turn-reject-${fixture}`,
+      declared_intent: declaredIntent,
+    };
+    const started = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", startedJob, sourceHeaders);
+    assert.equal(started.status, 201, JSON.stringify(started.body));
+    const completion: any = {
+      ...startedJob,
+      phase: "completed",
+      completed_at: "2026-08-31T18:00:04.000Z",
+      status: "completed",
+      reported_outcome: {
+        schema_version: "agentaction.reported-outcome.v1",
+        status: "achieved",
+        success_criteria_met: "all",
+        constraints_respected: "pass",
+        confidence: 0.85,
+        criterion_evidence: {
+          schema_version: "agentaction.refund-triage-criterion-evidence.v1",
+          eval_id: "refund_triage",
+          eval_version: "v2",
+          job_id: started.body.job_id,
+          trust: "agent_self_attested",
+          criteria: structuredClone(allCriteria),
+        },
+      },
+    };
+    mutate(completion);
+    const rejected = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", completion, sourceHeaders);
+    assert.equal(rejected.status, expectedStatus, JSON.stringify(rejected.body));
+    if (typeof expectedError === "string") assert.equal(rejected.body.error_code, expectedError);
+    else assert.match(String(rejected.body.error), expectedError);
+  }
+  await rejectCriterionEvidence("unknown", (completion) => {
+    completion.reported_outcome.criterion_evidence.criteria[0].criterion_id = "unknown-criterion";
+  }, 400, /criterion_id/);
+  await rejectCriterionEvidence("raw", (completion) => {
+    completion.reported_outcome.criterion_evidence.criteria[0].raw_prompt = "private customer content";
+  }, 400, /unsupported field: raw_prompt/);
+  await rejectCriterionEvidence("oversized", (completion) => {
+    completion.reported_outcome.criterion_evidence.criteria[0].evidence_refs = [`case:${"x".repeat(80)}`];
+  }, 400, /evidence_refs/);
+  await rejectCriterionEvidence("cross-job", (completion) => {
+    completion.reported_outcome.criterion_evidence.job_id = "hermes_different_job";
+  }, 409, "criterion_evidence_job_mismatch");
+  await rejectCriterionEvidence("trust", (completion) => {
+    completion.reported_outcome.criterion_evidence.trust = "independently_verified";
+  }, 400, /trust/);
+
+  const eligible = await runFixture("eligible", allCriteria);
+  assert.equal(eligible.completed.evaluation.criterion_evaluation.aggregate_status, "pass");
+  assert.equal(eligible.completed.evaluation.criterion_evaluation.pass_rate, 1);
+  assert.deepEqual(
+    eligible.completed.evaluation.criterion_evaluation.criteria.map((criterion: any) => criterion.status),
+    ["pass", "pass", "pass", "pass", "pass", "pass"],
+  );
+  const eligibleResult = eligible.detail.final_evaluation.criterion_evaluation;
+  assert.equal(eligibleResult.provenance.evaluator, "agentaction.deterministic");
+  assert.equal(eligibleResult.provenance.specification_digest, created.body.definition.specification_digest);
+  assert.equal(eligibleResult.provenance.assignment_id, assigned.body.assignment.assignment_id);
+  assert.equal(eligibleResult.provenance.evidence_digest, eligible.detail.immutable_boundary.evidence_digest);
+  assert.equal(eligibleResult.provenance.trust, "agent_self_attested");
+  assert.equal(eligibleResult.criteria[0].label, "Policy outcome correctness");
+  assert.equal(eligibleResult.criteria[0].evidence_trust, "agent_self_attested");
+  assert.match(eligibleResult.criteria[0].evidence_refs[0], /^job:self_attested:policy-outcome-correct:/);
+  assert.match(eligibleResult.criteria[0].explanation, /Self-attested by agent/);
+  assert.match(eligibleResult.criteria[0].explanation, /not independently verified/);
+  assert.equal(JSON.stringify(eligible.detail).includes("refund-fixture-secret"), false);
+
+  const ineligible = await runFixture("ineligible", allCriteria);
+  assert.equal(ineligible.detail.final_evaluation.criterion_evaluation.aggregate_status, "pass");
+  assert.equal(ineligible.detail.final_evaluation.criterion_evaluation.pass_rate, 1);
+
+  const incorrect = await runFixture("incorrect", [
+    { ...allCriteria[0], status: "fail" },
+    ...allCriteria.slice(1),
+  ]);
+  assert.equal(incorrect.detail.final_evaluation.criterion_evaluation.aggregate_status, "fail");
+  assert.equal(incorrect.detail.final_evaluation.criterion_evaluation.criteria[0].status, "fail");
+
+  const manualReview = await runFixture("manual-review", allCriteria, {
+    status: "partial",
+    success_criteria_met: "some",
+    constraints_respected: "pass",
+    confidence: 0.8,
+  });
+  const manualResult = manualReview.detail.final_evaluation.criterion_evaluation;
+  assert.equal(manualResult.aggregate_status, "pass");
+  assert.equal(manualReview.detail.final_evaluation.qualified_success, false);
+  assert.equal(
+    manualResult.criteria.find((criterion: any) => criterion.criterion_id === "ambiguity-escalated").status,
+    "pass",
+  );
+
+  const missingEvidence = await runFixture("missing-evidence", allCriteria.slice(0, 3));
+  const missingResult = missingEvidence.detail.final_evaluation.criterion_evaluation;
+  assert.equal(missingResult.aggregate_status, "insufficient_evidence");
+  assert.equal(
+    missingResult.criteria.find((criterion: any) => criterion.criterion_id === "ambiguity-escalated").status,
+    "insufficient_evidence",
+  );
+  assert.match(
+    missingResult.criteria.find((criterion: any) => criterion.criterion_id === "ambiguity-escalated").explanation,
+    /no evidence matched|no observations available/,
+  );
+
+  const conflictingReplay = structuredClone(eligible.completionRequest);
+  conflictingReplay.reported_outcome.criterion_evidence.criteria[0].status = "fail";
+  const rejectedConflict = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    conflictingReplay,
+    sourceHeaders,
+  );
+  assert.equal(rejectedConflict.status, 409);
+  assert.equal(rejectedConflict.body.error_code, "intent_evidence_finalized");
+
+  const rerouted = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+    eval_id: "agent_declared_intent",
+    eval_version: "v1",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(rerouted.status, 200);
+  const immutableEligible = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${encodeURIComponent(eligible.completed.job_id)}`,
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.deepEqual(immutableEligible.body.final_evaluation.criterion_evaluation, eligibleResult);
+
+  const jobs = await call(
+    env,
+    ctx,
+    "GET",
+    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z",
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.equal(jobs.status, 200);
+  const eligibleSummary = jobs.body.jobs.find((job: any) => job.job_id === eligible.completed.job_id).criterion_evaluation;
+  assert.deepEqual(eligibleSummary, {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: "pass",
+    pass_rate: 1,
+    pass_threshold: 1,
+    criteria_count: 6,
+    passed_count: 6,
+    failed_count: 0,
+    insufficient_evidence_count: 0,
+    trust: "agent_self_attested",
+  });
+
+  const config = await call(env, ctx, "GET", "/control-plane/tenants/acme/evals", undefined, owner);
+  assert.equal(config.status, 200);
+  assert.deepEqual(config.body.known_traffic, [{
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+    observed_kinds: ["agent_declared"],
+    last_observed_at: "2026-08-31T18:00:04.000Z",
+  }]);
+
+  await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "beta",
+    display_name: "Beta",
+  }, owner);
+  const crossTenantSource = await call(env, ctx, "POST", "/control-plane/tenants/beta/eval-assignments", {
+    eval_id: "agent_declared_intent",
+    eval_version: "v1",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(crossTenantSource.status, 404);
+  assert.equal(crossTenantSource.body.error_code, "eval_assignment_source_not_found");
 });
 
 test("control plane enforces roles, single-use invitations, source rotation, and tenant isolation", async () => {
@@ -4461,5 +5012,48 @@ function activityJob(phase: "started" | "completed"): Record<string, unknown> {
     ...(phase === "completed"
       ? { completed_at: "2026-08-31T18:00:04.000Z", status: "completed" }
       : {}),
+  };
+}
+
+function refundTriageSpecification(): Record<string, unknown> {
+  const observationCriterion = (criterionId: string, label: string, predicate: string) => ({
+    criterion_id: criterionId,
+    label,
+    description: `${label} is supported by bounded structured evidence.`,
+    category: "outcome",
+    required: true,
+    source: "observations",
+    where: [{ path: "predicate", operator: "equals", value: predicate }],
+    assertion: { path: "value", operator: "equals", value: true },
+  });
+  return {
+    schema_version: "agentaction.deterministic-eval-specification.v1",
+    pass_threshold: 1,
+    required_evidence: ["job", "observations", "execution_receipts"],
+    criteria: [
+      observationCriterion("policy-outcome-correct", "Policy outcome correctness", "refund.policy_outcome_correct"),
+      observationCriterion("applicable-rule-evidence", "Applicable-rule evidence", "refund.applicable_rules_supported"),
+      observationCriterion("no-invented-customer-facts", "No invented customer facts", "refund.no_invented_customer_facts"),
+      observationCriterion("ambiguity-escalated", "Escalation of ambiguity", "refund.ambiguity_escalated"),
+      {
+        criterion_id: "no-refund-execution",
+        label: "No refund execution in shadow mode",
+        description: "No refund execution receipt is present while the evaluator runs in shadow mode.",
+        category: "constraint",
+        required: true,
+        source: "execution_receipts",
+        where: [{ path: "action", operator: "equals", value: "refund" }],
+        assertion: { operator: "count_equals", value: 0 },
+      },
+      {
+        criterion_id: "evidence-captured",
+        label: "Evidence capture",
+        description: "All four structured refund-triage observations were captured.",
+        category: "outcome",
+        required: false,
+        source: "observations",
+        assertion: { operator: "count_gte", value: 4 },
+      },
+    ],
   };
 }

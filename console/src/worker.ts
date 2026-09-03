@@ -156,7 +156,6 @@ const SHELL_HTML = `<!doctype html>
       <a href="#activity" data-nav-activity>Activity</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
       <a href="#evals" data-nav-evals>Evals</a>
-      <a href="#job-detail" data-nav-job-detail>Job detail</a>
       <a href="#setup" data-nav-setup>Setup</a>
       <a href="#exceptions">Exceptions</a>
     </nav>
@@ -370,20 +369,27 @@ const SHELL_HTML = `<!doctype html>
             <form class="setup-card inline-setup-form" data-create-eval-form>
               <p class="eyebrow">Owner action</p>
               <h3>Create an immutable eval version</h3>
+              <label><span>Template</span><select data-eval-template><option value="basic">Basic evaluator</option><option value="refund_triage">Refund triage · 6 criteria</option></select></label>
               <label><span>Eval ID</span><input data-eval-id required maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" placeholder="refund_quality" autocomplete="off"></label>
               <label><span>Version</span><input data-eval-version required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" value="v1" autocomplete="off"></label>
               <label><span>Name</span><input data-eval-name required maxlength="120" placeholder="Refund quality" autocomplete="off"></label>
               <label><span>Evaluator</span><select data-eval-kind><option value="agent_declared">Agent-declared intent</option><option value="observed_execution">Observed execution</option></select></label>
               <label class="eval-description"><span>Description</span><textarea data-eval-description required maxlength="500" rows="3" placeholder="What this evaluation is for"></textarea></label>
+              <p class="eval-help" data-eval-template-detail>Basic evaluators use the selected lifecycle or agent-declared behavior.</p>
               <button class="primary-button" type="submit">Create eval version</button>
             </form>
             <form class="setup-card inline-setup-form" data-create-eval-assignment-form>
               <p class="eyebrow">Owner action</p>
               <h3>Assign an eval</h3>
               <label><span>Eval version</span><select data-eval-assignment-eval required></select></label>
-              <label><span>Source ID <small>(optional)</small></span><input data-eval-assignment-source maxlength="160" placeholder="hermes-production" autocomplete="off"></label>
-              <label><span>Agent ID <small>(optional)</small></span><input data-eval-assignment-agent maxlength="160" placeholder="refund-agent" autocomplete="off"></label>
-              <p class="eval-help">Leave both IDs blank to set the workspace default. Saving the same selector replaces its active route; already-started Jobs stay unchanged.</p>
+              <label><span>Source <small>(optional)</small></span><select data-eval-assignment-source><option value="">Any source</option></select></label>
+              <label><span>Agent <small>(optional)</small></span><select data-eval-assignment-agent><option value="">Any agent</option></select></label>
+              <p class="eval-help">Choose “Any source” and “Any agent” to set the workspace default. Saving the same selector replaces its active route; already-started Jobs stay unchanged.</p>
+              <section class="eval-route-preview" data-eval-route-preview data-state="ready" aria-live="polite">
+                <h4 data-eval-route-preview-title>Choose an eval and target</h4>
+                <p data-eval-route-preview-detail>The winning route and known coverage will appear here before you save.</p>
+                <ul data-eval-route-warnings hidden></ul>
+              </section>
               <button class="primary-button" type="submit">Save assignment</button>
             </form>
           </section>
@@ -711,6 +717,16 @@ const SHELL_HTML = `<!doctype html>
                 <dl data-job-detail-discipline></dl>
               </section>
             </div>
+          </section>
+          <section class="detail-section" data-job-detail-criteria-section aria-labelledby="job-detail-criteria-title" hidden>
+            <div class="detail-section-heading">
+              <div>
+                <p class="eyebrow">Explainable eval</p>
+                <h3 id="job-detail-criteria-title">Criterion results</h3>
+              </div>
+              <p data-job-detail-criteria-summary></p>
+            </div>
+            <div class="criterion-results" data-job-detail-criteria></div>
           </section>
           <section class="detail-section" aria-labelledby="job-detail-timeline-title">
             <div class="detail-section-heading">
@@ -1082,6 +1098,7 @@ button { cursor: pointer; }
 .status-pill[data-state="partial"],
 .status-pill[data-state="failed"],
 .status-pill[data-state="indeterminate"],
+.status-pill[data-state="insufficient_evidence"],
 .status-pill[data-state="low"] { background: #f8e7c5; color: #765013; }
 .status-pill[data-state="disabled"] { background: color-mix(in srgb, var(--red) 11%, white); color: var(--red); }
 .job-findings { margin: 2px 0 0; padding-left: 14px; color: #765013; font-size: 0.62rem; }
@@ -1146,6 +1163,16 @@ button { cursor: pointer; }
 .preview-card small { color: var(--muted); font-size: 0.65rem; }
 .source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .source-card { min-width: 0; padding: 11px; border-left: 3px solid var(--green); background: var(--surface); }
+.criterion-results { display: grid; gap: 9px; }
+.criterion-result { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--line); border-left: 3px solid var(--green); border-radius: 5px; background: var(--surface-strong); }
+.criterion-result[data-state="fail"], .criterion-result[data-state="insufficient_evidence"] { border-left-color: var(--amber); }
+.criterion-result header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.criterion-result h4, .criterion-result p, .criterion-result dl { margin: 0; }
+.criterion-result p, .criterion-result dd { color: var(--muted); font-size: 0.72rem; }
+.criterion-result dl { display: grid; gap: 4px; }
+.criterion-result dl > div { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 9px; }
+.criterion-result dt { color: var(--muted); font-size: 0.62rem; font-weight: 800; text-transform: uppercase; }
+.criterion-result dd { overflow-wrap: anywhere; }
 .source-card strong { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; font-weight: 400; }
 .source-card span { display: block; color: var(--muted); font-size: 0.64rem; font-weight: 800; text-transform: capitalize; }
 .source-card code { display: block; margin-top: 5px; color: var(--muted); font-size: 0.57rem; overflow-wrap: anywhere; }
@@ -1196,6 +1223,11 @@ button { cursor: pointer; }
 .eval-owner-controls .eyebrow, .eval-owner-controls h3, .eval-owner-controls .eval-description, .eval-owner-controls .eval-help, .eval-owner-controls .primary-button { grid-column: 1 / -1; }
 .eval-owner-controls .primary-button { justify-self: start; }
 .eval-help { margin: 0 0 12px; color: var(--muted); font-size: 0.72rem; }
+.eval-route-preview { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--line); border-left: 3px solid var(--green); border-radius: 5px; background: var(--soft); }
+.eval-route-preview[data-state="warning"] { border-left-color: var(--amber); }
+.eval-route-preview h4, .eval-route-preview p { margin: 0; }
+.eval-route-preview p, .eval-route-preview li { color: var(--muted); font-size: 0.7rem; }
+.eval-route-preview ul { margin: 8px 0 0; padding-left: 18px; }
 .eval-list { display: grid; gap: 7px; }
 .eval-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); }
 .eval-row strong, .eval-row code, .eval-row small { display: block; }
@@ -1426,7 +1458,6 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const activityNav = required<HTMLAnchorElement>("[data-nav-activity]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
   const evalsNav = required<HTMLAnchorElement>("[data-nav-evals]");
-  const jobDetailNav = required<HTMLAnchorElement>("[data-nav-job-detail]");
   const setupNav = required<HTMLAnchorElement>("[data-nav-setup]");
   const evalsRole = required<HTMLElement>("[data-evals-role]");
   const evalsMessage = required<HTMLElement>("[data-evals-message]");
@@ -1437,6 +1468,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const evalAssignmentList = required<HTMLElement>("[data-eval-assignment-list]");
   const evalOwnerControls = required<HTMLElement>("[data-eval-owner-controls]");
   const createEvalForm = required<HTMLFormElement>("[data-create-eval-form]");
+  const evalTemplateInput = required<HTMLSelectElement>("[data-eval-template]");
+  const evalTemplateDetail = required<HTMLElement>("[data-eval-template-detail]");
   const evalIdInput = required<HTMLInputElement>("[data-eval-id]");
   const evalVersionInput = required<HTMLInputElement>("[data-eval-version]");
   const evalNameInput = required<HTMLInputElement>("[data-eval-name]");
@@ -1444,8 +1477,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const evalDescriptionInput = required<HTMLTextAreaElement>("[data-eval-description]");
   const createEvalAssignmentForm = required<HTMLFormElement>("[data-create-eval-assignment-form]");
   const evalAssignmentEval = required<HTMLSelectElement>("[data-eval-assignment-eval]");
-  const evalAssignmentSource = required<HTMLInputElement>("[data-eval-assignment-source]");
-  const evalAssignmentAgent = required<HTMLInputElement>("[data-eval-assignment-agent]");
+  const evalAssignmentSource = required<HTMLSelectElement>("[data-eval-assignment-source]");
+  const evalAssignmentAgent = required<HTMLSelectElement>("[data-eval-assignment-agent]");
+  const evalRoutePreview = required<HTMLElement>("[data-eval-route-preview]");
+  const evalRoutePreviewTitle = required<HTMLElement>("[data-eval-route-preview-title]");
+  const evalRoutePreviewDetail = required<HTMLElement>("[data-eval-route-preview-detail]");
+  const evalRouteWarnings = required<HTMLElement>("[data-eval-route-warnings]");
   const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
   const createTenantForm = required<HTMLFormElement>("[data-create-tenant-form]");
   const createWorkspaceCard = required<HTMLElement>("[data-create-workspace-card]");
@@ -1556,6 +1593,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const jobDetailOutcomes = required<HTMLElement>("[data-job-detail-outcomes]");
   const jobDetailConstraints = required<HTMLElement>("[data-job-detail-constraints]");
   const jobDetailDiscipline = required<HTMLElement>("[data-job-detail-discipline]");
+  const jobDetailCriteriaSection = required<HTMLElement>("[data-job-detail-criteria-section]");
+  const jobDetailCriteriaSummary = required<HTMLElement>("[data-job-detail-criteria-summary]");
+  const jobDetailCriteria = required<HTMLElement>("[data-job-detail-criteria]");
   const jobDetailTimelineSummary = required<HTMLElement>("[data-job-detail-timeline-summary]");
   const jobDetailTimeline = required<HTMLElement>("[data-job-detail-timeline]");
   const jobDetailPreviewSummary = required<HTMLElement>("[data-job-detail-preview-summary]");
@@ -1637,6 +1677,11 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   let currentJobsCursor = "";
   let nextJobsCursor = "";
   let jobsLoaded = false;
+  let evalDefinitions: Record<string, any>[] = [];
+  let evalAssignments: Record<string, any>[] = [];
+  let evalSources: Record<string, any>[] = [];
+  let evalKnownTraffic: Record<string, any>[] = [];
+  let evalKnownTrafficTruncated = false;
 
   function record(value: unknown): Record<string, any> {
     return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -1653,6 +1698,21 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (evalId === "observed_execution") return "Observed execution";
     if (evalId === "agent_declared_intent") return "Agent-declared intent";
     return evalId || fallback;
+  }
+
+  function evalTrustLabel(value: unknown): string {
+    const candidate = record(value);
+    return candidate.trust === "agent_self_attested" || candidate.kind === "agent_declared"
+      ? "Self-attested by agent"
+      : candidate.trust === "trusted_execution_state" || candidate.kind === "observed_execution"
+        ? "Trusted execution state"
+        : "Trust not reported";
+  }
+
+  function evalTrustExplanation(value: unknown): string {
+    return evalTrustLabel(value) === "Self-attested by agent"
+      ? "Agent-provided claims; not independently verified"
+      : "Deterministic scoring over trusted lifecycle state";
   }
 
   function count(value: unknown): number {
@@ -1675,6 +1735,34 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     return Number.isSafeInteger(value) && Number(value) >= 0
       ? `${Number(value).toLocaleString("en-US")} token${Number(value) === 1 ? "" : "s"}`
       : "Unavailable";
+  }
+
+  function tokenComponent(value: unknown, missing = "Not reported"): string {
+    return Number.isSafeInteger(value) && Number(value) >= 0 ? formatTokens(value) : missing;
+  }
+
+  function hasCompleteTokenBreakdown(value: unknown): boolean {
+    const usage = record(value);
+    return ["uncached_input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"]
+      .every((key) => Number.isSafeInteger(usage[key]) && Number(usage[key]) >= 0);
+  }
+
+  function tokenBreakdownReconciles(value: unknown): boolean {
+    const usage = record(value);
+    return !hasCompleteTokenBreakdown(usage)
+      || Number(usage.uncached_input_tokens) + Number(usage.cached_input_tokens) + Number(usage.output_tokens) === Number(usage.total_tokens);
+  }
+
+  function tokenBreakdownLabel(value: unknown): string {
+    const usage = record(value);
+    return `Uncached input ${tokenComponent(usage.uncached_input_tokens)} · Cached input ${tokenComponent(usage.cached_input_tokens)} · Output ${tokenComponent(usage.output_tokens)}`;
+  }
+
+  function legacyInputLabel(value: unknown): string {
+    const usage = record(value);
+    return Number.isSafeInteger(usage.input_tokens) && usage.uncached_input_tokens === undefined
+      ? `Provider input ${formatTokens(usage.input_tokens)} · cache breakdown not reported`
+      : "";
   }
 
   function modelUsageLabel(value: unknown): string {
@@ -2161,17 +2249,229 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setStatus("ready", `Workspace ${tenantId} is ready.`);
   }
 
-  function renderEvalConfiguration(value: unknown): void {
+  function evalTargetLabel(sourceId: string, agentId: string): string {
+    return sourceId && agentId ? `source ${sourceId} + agent ${agentId}` : agentId ? `agent ${agentId}` : sourceId ? `source ${sourceId}` : "the workspace default";
+  }
+
+  function evalAssignmentSpecificity(value: unknown): number {
+    const assignment = record(value);
+    const hasSource = Boolean(safeText(assignment.source_id, ""));
+    const hasAgent = Boolean(safeText(assignment.agent_id, ""));
+    return hasSource && hasAgent ? 3 : hasAgent ? 2 : hasSource ? 1 : 0;
+  }
+
+  function evalAssignmentMatches(value: unknown, sourceId: string, agentId: string): boolean {
+    const assignment = record(value);
+    const assignmentSource = safeText(assignment.source_id, "");
+    const assignmentAgent = safeText(assignment.agent_id, "");
+    return (!assignmentSource || assignmentSource === sourceId) && (!assignmentAgent || assignmentAgent === agentId);
+  }
+
+  function winningEvalAssignment(sourceId: string, agentId: string, assignments = evalAssignments): Record<string, any> | undefined {
+    return assignments
+      .filter((assignment) => evalAssignmentMatches(assignment, sourceId, agentId))
+      .sort((left, right) => evalAssignmentSpecificity(right) - evalAssignmentSpecificity(left))[0];
+  }
+
+  function evalDefinitionForAssignment(value: unknown): Record<string, any> | undefined {
+    const assignment = record(value);
+    return evalDefinitions.find((definition) => (
+      safeText(definition.eval_id, "") === safeText(assignment.eval_id, "")
+      && safeText(definition.version, "") === safeText(assignment.eval_version, "")
+    ));
+  }
+
+  function refundTriageSpecification(): Record<string, unknown> {
+    const observationCriterion = (criterionId: string, label: string, predicate: string): Record<string, unknown> => ({
+      criterion_id: criterionId,
+      label,
+      description: `${label} is supported by bounded structured evidence.`,
+      category: "outcome",
+      required: true,
+      source: "observations",
+      where: [{ path: "predicate", operator: "equals", value: predicate }],
+      assertion: { path: "value", operator: "equals", value: true },
+    });
+    return {
+      schema_version: "agentaction.deterministic-eval-specification.v1",
+      pass_threshold: 1,
+      required_evidence: ["job", "observations", "execution_receipts"],
+      criteria: [
+        observationCriterion("policy-outcome-correct", "Policy outcome correctness", "refund.policy_outcome_correct"),
+        observationCriterion("applicable-rule-evidence", "Applicable-rule evidence", "refund.applicable_rules_supported"),
+        observationCriterion("no-invented-customer-facts", "No invented customer facts", "refund.no_invented_customer_facts"),
+        observationCriterion("ambiguity-escalated", "Escalation of ambiguity", "refund.ambiguity_escalated"),
+        {
+          criterion_id: "no-refund-execution",
+          label: "No refund execution in shadow mode",
+          description: "No refund execution receipt is present while the evaluator runs in shadow mode.",
+          category: "constraint",
+          required: true,
+          source: "execution_receipts",
+          where: [{ path: "action", operator: "equals", value: "refund" }],
+          assertion: { operator: "count_equals", value: 0 },
+        },
+        {
+          criterion_id: "evidence-captured",
+          label: "Evidence capture",
+          description: "All four structured refund-triage observations were captured.",
+          category: "outcome",
+          required: false,
+          source: "observations",
+          assertion: { operator: "count_gte", value: 4 },
+        },
+      ],
+    };
+  }
+
+  function applyEvalTemplate(): void {
+    const refundTriage = evalTemplateInput.value === "refund_triage";
+    evalTemplateDetail.textContent = refundTriage
+      ? "Six deterministic checks score bounded evidence supplied by the agent. All five required checks must pass; scoring does not establish the claims as real-world truth."
+      : "Agent-declared evaluators score self-attested evidence; observed-execution evaluators score trusted lifecycle state.";
+    if (!refundTriage) return;
+    evalIdInput.value = "refund_triage";
+    evalVersionInput.value = "v2";
+    evalNameInput.value = "Refund triage";
+    evalKindInput.value = "agent_declared";
+    evalDescriptionInput.value = "Deterministic refund-policy quality checks over bounded, self-attested evidence from shadow-mode support agents.";
+  }
+
+  function updateEvalAgentOptions(): void {
+    const sourceId = String(evalAssignmentSource.value || "");
+    const preferred = String(evalAssignmentAgent.value || "");
+    const agentIds = new Set<string>();
+    for (const source of evalSources) {
+      if (sourceId && safeText(source.source_id, "") !== sourceId) continue;
+      for (const value of Array.isArray(source.agent_ids) ? source.agent_ids : []) {
+        const agentId = safeText(value, "").slice(0, 160);
+        if (agentId) agentIds.add(agentId);
+      }
+    }
+    const anyAgent = create("option", undefined, "Any agent") as HTMLOptionElement;
+    anyAgent.value = "";
+    const options = [...agentIds].sort((left, right) => left.localeCompare(right)).map((agentId) => {
+      const option = create("option", undefined, agentId) as HTMLOptionElement;
+      option.value = agentId;
+      return option;
+    });
+    evalAssignmentAgent.replaceChildren(anyAgent, ...options);
+    evalAssignmentAgent.value = agentIds.has(preferred) ? preferred : "";
+  }
+
+  function renderEvalTargetOptions(value: unknown): void {
+    evalSources = (Array.isArray(value) ? value.map(record) : []).filter((source) => safeText(source.source_id, ""));
+    const preferredSource = String(evalAssignmentSource.value || "");
+    const anySource = create("option", undefined, "Any source") as HTMLOptionElement;
+    anySource.value = "";
+    const options = [...evalSources]
+      .sort((left, right) => safeText(left.source_id).localeCompare(safeText(right.source_id)))
+      .map((source) => {
+        const sourceId = safeText(source.source_id, "");
+        const option = create("option", undefined, `${sourceId}${source.enabled === false ? " (disabled)" : ""}`) as HTMLOptionElement;
+        option.value = sourceId;
+        return option;
+      });
+    evalAssignmentSource.replaceChildren(anySource, ...options);
+    evalAssignmentSource.value = evalSources.some((source) => safeText(source.source_id, "") === preferredSource) ? preferredSource : "";
+    updateEvalAgentOptions();
+  }
+
+  function updateEvalRoutePreview(): void {
+    const selected = evalAssignmentEval.selectedOptions[0];
+    const sourceId = String(evalAssignmentSource.value || "");
+    const agentId = String(evalAssignmentAgent.value || "");
+    const selectedEvalId = safeText(selected?.dataset.evalId, "");
+    const selectedEvalVersion = safeText(selected?.dataset.evalVersion, "");
+    const selectedDefinition = evalDefinitions.find((definition) => (
+      safeText(definition.eval_id, "") === selectedEvalId && safeText(definition.version, "") === selectedEvalVersion
+    ));
+    if (!selectedDefinition) {
+      evalRoutePreview.dataset.state = "warning";
+      evalRoutePreviewTitle.textContent = "Choose an eval version";
+      evalRoutePreviewDetail.textContent = "A valid immutable version is required before coverage can be previewed.";
+      evalRouteWarnings.replaceChildren();
+      evalRouteWarnings.hidden = true;
+      return;
+    }
+    const targetLabel = evalTargetLabel(sourceId, agentId);
+    const pending = {
+      assignment_id: "pending",
+      eval_id: selectedEvalId,
+      eval_version: selectedEvalVersion,
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+    };
+    const projected = [
+      pending,
+      ...evalAssignments.filter((assignment) => (
+        safeText(assignment.source_id, "") !== sourceId || safeText(assignment.agent_id, "") !== agentId
+      )),
+    ];
+    const relevantTraffic = evalKnownTraffic.filter((traffic) => (
+      (!sourceId || safeText(traffic.source_id, "") === sourceId)
+      && (!agentId || safeText(traffic.agent_id, "") === agentId)
+    ));
+    const pendingWins = relevantTraffic.filter((traffic) => (
+      safeText(winningEvalAssignment(safeText(traffic.source_id, ""), safeText(traffic.agent_id, ""), projected)?.assignment_id, "") === "pending"
+    )).length;
+    const warnings: string[] = [];
+    const uncovered = evalKnownTraffic.filter((traffic) => !winningEvalAssignment(
+      safeText(traffic.source_id, ""),
+      safeText(traffic.agent_id, ""),
+      projected,
+    )).length;
+    if (uncovered > 0) warnings.push(`${uncovered} known source/agent target${uncovered === 1 ? " has" : "s have"} no explicit route and will use the automatic compatible eval.`);
+    const incompatible = evalKnownTraffic.filter((traffic) => {
+      const winner = winningEvalAssignment(safeText(traffic.source_id, ""), safeText(traffic.agent_id, ""), projected);
+      const definition = evalDefinitionForAssignment(winner);
+      const observedKinds = Array.isArray(traffic.observed_kinds) ? traffic.observed_kinds : [];
+      return Boolean(winner && definition && observedKinds.some((kind) => kind !== definition.kind));
+    }).length;
+    if (incompatible > 0) warnings.push(`${incompatible} known source/agent target${incompatible === 1 ? " has" : "s have"} observed Job types incompatible with its winning eval.`);
+    const source = evalSources.find((candidate) => safeText(candidate.source_id, "") === sourceId);
+    if (source?.enabled === false) warnings.push("The selected source is disabled, so it cannot send new activity until re-enabled or rotated.");
+    if (evalKnownTrafficTruncated) warnings.push("Known-traffic coverage is capped; additional targets may exist.");
+    evalRoutePreview.dataset.state = warnings.length > 0 ? "warning" : "ready";
+    evalRoutePreviewTitle.textContent = `${safeText(selectedDefinition.name, selectedEvalId)} · ${selectedEvalVersion}`;
+    const routeEffect = relevantTraffic.length > 0
+      ? `For ${targetLabel}, this new route wins for ${pendingWins} of ${relevantTraffic.length} known target${relevantTraffic.length === 1 ? "" : "s"}. Preview precedence is source + agent, then agent, then source, then workspace default.`
+      : `This becomes the ${targetLabel} route for future matching Jobs. Preview precedence is source + agent, then agent, then source, then workspace default.`;
+    evalRoutePreviewDetail.textContent = `${routeEffect} Evidence trust: ${evalTrustLabel(selectedDefinition)}. ${evalTrustExplanation(selectedDefinition)}.`;
+    evalRouteWarnings.replaceChildren(...warnings.map((warning) => create("li", undefined, warning)));
+    evalRouteWarnings.hidden = warnings.length === 0;
+  }
+
+  function renderEvalConfiguration(value: unknown, sourceValue: unknown): void {
     const body = record(value);
     if (body.schema_version !== "agentaction.eval-configuration.v1" || !Array.isArray(body.definitions) || !Array.isArray(body.assignments)) {
       throw new Error("Eval configuration response is invalid.");
     }
-    const definitions = body.definitions.map(record).filter((definition: Record<string, any>) => (
-      safeText(definition.eval_id, "") && safeText(definition.version, "") && safeText(definition.profile_key, "")
-    ));
+    const definitions = body.definitions.map(record).filter((definition: Record<string, any>) => {
+      const kind = safeText(definition.kind, "");
+      const expectedTrust = kind === "agent_declared" ? "agent_self_attested" : kind === "observed_execution" ? "trusted_execution_state" : "";
+      return safeText(definition.eval_id, "")
+        && safeText(definition.version, "")
+        && safeText(definition.profile_key, "")
+        && safeText(definition.trust, "") === expectedTrust;
+    });
     const assignments = body.assignments.map(record).filter((assignment: Record<string, any>) => (
       safeText(assignment.assignment_id, "") && safeText(assignment.eval_id, "") && safeText(assignment.eval_version, "")
     ));
+    evalDefinitions = definitions;
+    evalAssignments = assignments;
+    evalKnownTraffic = (Array.isArray(body.known_traffic) ? body.known_traffic.map(record) : []).filter((traffic) => (
+      safeText(traffic.source_id, "").length > 0
+      && safeText(traffic.source_id, "").length <= 160
+      && safeText(traffic.agent_id, "").length > 0
+      && safeText(traffic.agent_id, "").length <= 160
+      && Array.isArray(traffic.observed_kinds)
+      && traffic.observed_kinds.length > 0
+      && traffic.observed_kinds.every((kind: unknown) => kind === "agent_declared" || kind === "observed_execution")
+      && validTimestamp(traffic.last_observed_at)
+    )).slice(0, 200);
+    evalKnownTrafficTruncated = body.known_traffic_truncated === true;
+    renderEvalTargetOptions(sourceValue);
     evalDefinitionList.replaceChildren();
     evalAssignmentEval.replaceChildren();
     for (const definition of definitions) {
@@ -2182,15 +2482,25 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         create("strong", undefined, safeText(definition.name, definition.profile_key)),
         create("code", undefined, safeText(definition.profile_key)),
         create("small", undefined, safeText(definition.description, "No description")),
+        create("small", undefined, `Evidence trust: ${evalTrustLabel(definition)}`),
+        create("small", undefined, evalTrustExplanation(definition)),
       );
+      const specification = record(definition.specification);
+      const criteria = Array.isArray(specification.criteria) ? specification.criteria.map(record) : [];
+      if (specification.schema_version === "agentaction.deterministic-eval-specification.v1" && criteria.length > 0) {
+        details.append(
+          create("small", undefined, `${criteria.length} ${criteria.length === 1 ? "criterion" : "criteria"} · ${formatPercent(specification.pass_threshold)} pass threshold`),
+          create("small", undefined, `Required evidence: ${Array.isArray(specification.required_evidence) ? specification.required_evidence.map((item: unknown) => safeText(item, "")).filter(Boolean).join(", ") : "not specified"}`),
+        );
+      }
       const meta = create("div", "eval-row-meta");
       meta.append(
         statusPill(definition.built_in === true ? "Built in" : "Custom", definition.built_in === true ? "enabled" : "completed"),
-        create("small", undefined, kind === "agent_declared" ? "Agent-declared · self-attested" : "Observed lifecycle · trusted state"),
+        create("small", undefined, kind === "agent_declared" ? "Agent-declared" : "Observed lifecycle"),
       );
       row.append(details, meta);
       evalDefinitionList.append(row);
-      const option = create("option", undefined, `${safeText(definition.name, definition.eval_id)} · ${safeText(definition.version)}`) as HTMLOptionElement;
+      const option = create("option", undefined, `${safeText(definition.name, definition.eval_id)} · ${safeText(definition.version)} · ${evalTrustLabel(definition)}`) as HTMLOptionElement;
       option.value = safeText(definition.profile_key);
       option.dataset.evalId = safeText(definition.eval_id);
       option.dataset.evalVersion = safeText(definition.version);
@@ -2208,6 +2518,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         create("strong", undefined, selector),
         create("code", undefined, `${safeText(assignment.eval_id)}.${safeText(assignment.eval_version)}`),
       );
+      const assignedDefinition = evalDefinitionForAssignment(assignment);
+      if (assignedDefinition) details.append(create("small", undefined, `Evidence trust: ${evalTrustLabel(assignedDefinition)}`));
       const meta = create("div", "eval-row-meta");
       meta.append(statusPill("Active", "enabled"), create("small", undefined, formatTimestamp(assignment.created_at)));
       row.append(details, meta);
@@ -2218,6 +2530,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     }
     evalOwnerControls.hidden = activeRole !== "owner";
     evalsRole.textContent = activeRole === "owner" ? "Owner" : "Read only";
+    updateEvalRoutePreview();
     evalsContent.hidden = false;
   }
 
@@ -2233,14 +2546,23 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setEvalsMessage("ready", "Loading evaluations", "Reading this workspace's immutable definitions and active routing rules.");
     setStatus("loading", "Loading tenant-scoped evaluation configuration.");
     try {
-      const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/evals`);
+      const [result, setupResult] = await Promise.all([
+        read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/evals`),
+        read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/setup`),
+      ]);
       if (!result.response.ok) {
         const detail = failureMessage(result.body, "Evaluation configuration is unavailable.");
         setEvalsMessage("error", "Evaluations unavailable", detail);
         setStatus(failureState(result.response.status), detail);
         return;
       }
-      renderEvalConfiguration(result.body);
+      if (!setupResult.response.ok) {
+        const detail = failureMessage(setupResult.body, "Workspace sources are unavailable.");
+        setEvalsMessage("error", "Assignment targets unavailable", detail);
+        setStatus(failureState(setupResult.response.status), detail);
+        return;
+      }
+      renderEvalConfiguration(result.body, record(setupResult.body).sources);
       evalsMessage.hidden = true;
       setStatus("ready", "Evaluation definitions and routing are current for this workspace.");
     } catch {
@@ -2523,7 +2845,6 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     activityNav.setAttribute("aria-current", view === "activity" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
     evalsNav.setAttribute("aria-current", view === "evals" ? "page" : "false");
-    jobDetailNav.setAttribute("aria-current", view === "job-detail" ? "page" : "false");
     setupNav.setAttribute("aria-current", view === "setup" ? "page" : "false");
   }
 
@@ -2857,7 +3178,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && job.preview_count >= 0
       && (job.eval_binding === undefined || isRenderableEvalBinding(job.eval_binding, binding))
       && (!isAgentDeclaredIntentProfile(job) || isRenderableIntentContext(job.intent_context))
-      && (job.model_usage === undefined || isRenderableModelUsage(job.model_usage));
+      && (job.model_usage === undefined || isRenderableModelUsage(job.model_usage))
+      && (job.criterion_evaluation === undefined || isRenderableCriterionSummary(job.criterion_evaluation, job.eval_binding));
   }
 
   function isObservedExecutionProfile(value: unknown): boolean {
@@ -2883,10 +3205,109 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && Boolean(binding.version)
       && ["agent_declared", "observed_execution"].includes(binding.kind)
       && ["agent_self_attested", "trusted_execution_state"].includes(binding.trust)
+      && binding.trust === (binding.kind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state")
       && binding.profile_key === profileBinding.key
       && binding.profile_digest === profileBinding.digest
       && typeof binding.assignment_id === "string"
-      && Boolean(binding.assignment_id);
+      && Boolean(binding.assignment_id)
+      && (binding.specification_digest === undefined || (typeof binding.specification_digest === "string" && /^[a-f0-9]{64}$/.test(binding.specification_digest)))
+      && (binding.pass_threshold === undefined || (typeof binding.pass_threshold === "number" && binding.pass_threshold >= 0 && binding.pass_threshold <= 1))
+      && (binding.required_criteria === undefined || (
+        Array.isArray(binding.required_criteria)
+        && binding.required_criteria.length <= 20
+        && binding.required_criteria.every((item: unknown) => typeof item === "string" && Boolean(item) && item.length <= 80)
+        && new Set(binding.required_criteria).size === binding.required_criteria.length
+      ));
+  }
+
+  function isRenderableCriterionSummary(value: unknown, bindingValue: unknown): boolean {
+    const summary = record(value);
+    const binding = record(bindingValue);
+    const validCount = (candidate: unknown): boolean => Number.isInteger(candidate) && Number(candidate) >= 0 && Number(candidate) <= 50;
+    return summary.schema_version === "agentaction.deterministic-eval-result.v1"
+      && ["pass", "fail", "insufficient_evidence"].includes(summary.aggregate_status)
+      && ["agent_self_attested", "trusted_execution_state"].includes(summary.trust)
+      && summary.trust === binding.trust
+      && typeof summary.pass_rate === "number"
+      && summary.pass_rate >= 0
+      && summary.pass_rate <= 1
+      && typeof summary.pass_threshold === "number"
+      && summary.pass_threshold >= 0
+      && summary.pass_threshold <= 1
+      && validCount(summary.criteria_count)
+      && validCount(summary.passed_count)
+      && validCount(summary.failed_count)
+      && validCount(summary.insufficient_evidence_count)
+      && summary.passed_count + summary.failed_count + summary.insufficient_evidence_count === summary.criteria_count;
+  }
+
+  function isRenderableCriterionEvaluation(value: unknown): boolean {
+    const result = record(value);
+    const provenance = record(result.provenance);
+    const criteria = Array.isArray(result.criteria) ? result.criteria.map(record) : [];
+    const requiredCriteria = Array.isArray(result.required_criteria) ? result.required_criteria : [];
+    const boundedText = (candidate: unknown, maximum: number): boolean => typeof candidate === "string" && Boolean(candidate.trim()) && candidate.length <= maximum;
+    const criterionIds = criteria.map((criterion) => criterion.criterion_id);
+    return result.schema_version === "agentaction.deterministic-eval-result.v1"
+      && ["pass", "fail", "insufficient_evidence"].includes(result.aggregate_status)
+      && typeof result.pass_rate === "number"
+      && result.pass_rate >= 0
+      && result.pass_rate <= 1
+      && typeof result.pass_threshold === "number"
+      && result.pass_threshold >= 0
+      && result.pass_threshold <= 1
+      && Array.isArray(result.required_criteria)
+      && requiredCriteria.length <= 20
+      && requiredCriteria.every((item: unknown) => boundedText(item, 80))
+      && new Set(requiredCriteria).size === requiredCriteria.length
+      && criteria.length > 0
+      && criteria.length <= 20
+      && new Set(criterionIds).size === criterionIds.length
+      && criteria.every((criterion) => (
+        boundedText(criterion.criterion_id, 80)
+        && boundedText(criterion.label, 120)
+        && boundedText(criterion.description, 500)
+        && ["outcome", "constraint"].includes(criterion.category)
+        && typeof criterion.required === "boolean"
+        && boundedText(criterion.source, 40)
+        && (criterion.evidence_trust === undefined || criterion.evidence_trust === "agent_self_attested")
+        && (criterion.evidence_trust === undefined || criterion.evidence_trust === provenance.trust)
+        && ["pass", "fail", "insufficient_evidence"].includes(criterion.status)
+        && boundedText(criterion.explanation, 500)
+        && Array.isArray(criterion.evidence_refs)
+        && criterion.evidence_refs.length <= 20
+        && criterion.evidence_refs.every((reference: unknown) => boundedText(reference, 500))
+      ))
+      && requiredCriteria.every((criterionId: unknown) => criterionIds.includes(criterionId))
+      && provenance.evaluator === "agentaction.deterministic"
+      && provenance.evaluator_version === "v1"
+      && ["agent_self_attested", "trusted_execution_state"].includes(provenance.trust)
+      && boundedText(provenance.eval_id, 80)
+      && boundedText(provenance.eval_version, 40)
+      && typeof provenance.specification_digest === "string"
+      && /^[a-f0-9]{64}$/.test(provenance.specification_digest)
+      && typeof provenance.profile_digest === "string"
+      && /^[a-f0-9]{64}$/.test(provenance.profile_digest)
+      && boundedText(provenance.assignment_id, 160)
+      && typeof provenance.evidence_digest === "string"
+      && /^[a-f0-9]{64}$/.test(provenance.evidence_digest)
+      && validTimestamp(provenance.evaluated_at);
+  }
+
+  function criterionEvaluationMatchesDetail(value: unknown, detail: Record<string, any>): boolean {
+    if (!isRenderableCriterionEvaluation(value)) return false;
+    const provenance = record(record(value).provenance);
+    const binding = record(record(detail.job).eval_binding);
+    const boundary = record(detail.immutable_boundary);
+    const evaluation = record(detail.final_evaluation);
+    return provenance.eval_id === binding.eval_id
+      && provenance.eval_version === binding.version
+      && provenance.trust === binding.trust
+      && provenance.specification_digest === binding.specification_digest
+      && provenance.profile_digest === binding.profile_digest
+      && provenance.assignment_id === binding.assignment_id
+      && provenance.evidence_digest === boundary.evidence_digest
+      && provenance.evaluated_at === evaluation.evaluated_at;
   }
 
   function isRenderableIntentContext(value: unknown): boolean {
@@ -2931,9 +3352,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       || !validInteger(usage.requests_with_usage, usage.request_count)
       || (usage.requests_truncated !== undefined && usage.requests_truncated !== true)
       || (usage.models_truncated !== undefined && usage.models_truncated !== true)
-      || ["input_tokens", "output_tokens", "total_tokens"].some(
+      || ["input_tokens", "uncached_input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"].some(
         (key) => usage[key] !== undefined && !validInteger(usage[key]),
       )
+      || !tokenBreakdownReconciles(usage)
       || (usage.models !== undefined && (!Array.isArray(usage.models) || usage.models.length > 20))
     ) return false;
     const models = Array.isArray(usage.models) ? usage.models : [];
@@ -2945,9 +3367,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         && validInteger(group.request_count, usage.request_count)
         && group.request_count >= 1
         && validInteger(group.requests_with_usage, group.request_count)
-        && ["input_tokens", "output_tokens", "total_tokens"].every(
+        && ["input_tokens", "uncached_input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"].every(
           (key) => group[key] === undefined || validInteger(group[key]),
-        );
+        )
+        && tokenBreakdownReconciles(group);
     });
   }
 
@@ -3046,6 +3469,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && evaluation.constraints.every(isRenderablePredicate)
       && typeof evaluation.execution_discipline === "object"
       && Array.isArray(evaluation.evidence_findings)
+      && (evaluation.criterion_evaluation === undefined || criterionEvaluationMatchesDetail(evaluation.criterion_evaluation, detail))
       && Number.isInteger(previews.count)
       && Number(previews.count) >= 0
       && Number.isInteger(previews.invalid_count)
@@ -3165,6 +3589,57 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     return item;
   }
 
+  function renderCriterionEvaluation(value: unknown): void {
+    if (!isRenderableCriterionEvaluation(value)) {
+      jobDetailCriteriaSection.hidden = true;
+      jobDetailCriteriaSummary.textContent = "";
+      jobDetailCriteria.replaceChildren();
+      return;
+    }
+    const result = record(value);
+    const provenance = record(result.provenance);
+    const criteria = (result.criteria as Record<string, any>[]);
+    const passed = criteria.filter((criterion) => criterion.status === "pass").length;
+    jobDetailCriteriaSummary.textContent = `${safeText(result.aggregate_status).replaceAll("_", " ")} · ${passed} of ${criteria.length} passed · threshold ${formatPercent(result.pass_threshold)} · ${evalTrustLabel(provenance)} · ${safeText(provenance.evaluator)} ${safeText(provenance.evaluator_version)}`;
+    const criterionCards = criteria.map((criterion) => {
+      const card = create("article", "criterion-result");
+      card.dataset.state = safeText(criterion.status, "insufficient_evidence");
+      const heading = create("header");
+      heading.append(
+        create("h4", undefined, safeText(criterion.label, criterion.criterion_id)),
+        statusPill(safeText(criterion.status).replaceAll("_", " "), safeText(criterion.status)),
+      );
+      const details = create("dl");
+      appendDefinition(details, "Category", safeText(criterion.category));
+      appendDefinition(details, "Evidence source", safeText(criterion.source));
+      appendDefinition(details, "Eval trust", evalTrustLabel({ trust: criterion.evidence_trust || provenance.trust }));
+      appendDefinition(details, "Required", criterion.required === true ? "Yes" : "No");
+      appendDefinition(details, "Evidence", Array.isArray(criterion.evidence_refs) && criterion.evidence_refs.length > 0 ? criterion.evidence_refs.join(" · ") : "No evidence reference");
+      card.append(
+        heading,
+        create("p", undefined, safeText(criterion.description)),
+        create("p", undefined, safeText(criterion.explanation)),
+        details,
+      );
+      return card;
+    });
+    const provenanceCard = create("article", "criterion-result criterion-provenance");
+    provenanceCard.append(create("h4", undefined, "Frozen evaluator provenance"));
+    const provenanceDetails = create("dl");
+    appendDefinition(provenanceDetails, "Evaluator", `${safeText(provenance.evaluator)} ${safeText(provenance.evaluator_version)}`);
+    appendDefinition(provenanceDetails, "Eval trust", evalTrustLabel(provenance));
+    appendDefinition(provenanceDetails, "Interpretation", evalTrustExplanation(provenance));
+    appendDefinition(provenanceDetails, "Eval version", `${safeText(provenance.eval_id)}.${safeText(provenance.eval_version)}`);
+    appendDefinition(provenanceDetails, "Assignment", safeText(provenance.assignment_id));
+    appendDefinition(provenanceDetails, "Specification digest", safeText(provenance.specification_digest));
+    appendDefinition(provenanceDetails, "Profile digest", safeText(provenance.profile_digest));
+    appendDefinition(provenanceDetails, "Evidence digest", safeText(provenance.evidence_digest));
+    appendDefinition(provenanceDetails, "Evaluated at", formatTimestamp(provenance.evaluated_at));
+    provenanceCard.append(provenanceDetails);
+    jobDetailCriteria.replaceChildren(...criterionCards, provenanceCard);
+    jobDetailCriteriaSection.hidden = false;
+  }
+
   function renderJobDetail(payloadValue: unknown, response: Response): void {
     if (!isRenderableJobDetail(payloadValue)) throw new Error("Finalized Job detail response is invalid.");
     const payload = record(payloadValue);
@@ -3186,7 +3661,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     jobDetailSubtitle.textContent = observedExecution
       ? `Observed Hermes run · ${safeText(job.agent_id, "Agent identity missing")} · no semantic intent inferred`
       : agentDeclared
-        ? `Agent-declared intent · ${safeText(job.agent_id, "Agent identity missing")} · self-attested`
+        ? `Agent-declared intent · ${safeText(job.agent_id, "Agent identity missing")} · Self-attested by agent`
         : `Intent ${safeText(job.intent_id)} · ${safeText(job.agent_id, "Agent identity missing")}`;
     jobDetailStatus.replaceChildren(statusPill("Finalized", "completed"));
     jobDetailBoundary.replaceChildren();
@@ -3203,7 +3678,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     );
     if (observedExecution) appendDefinition(jobDetailBoundary, "Intent meaning", "Lifecycle completion only; no semantic intent inferred");
     if (agentDeclared) {
-      appendDefinition(jobDetailBoundary, "Intent meaning", "Self-attested agent claim; not trusted user intent");
+      appendDefinition(jobDetailBoundary, "Intent meaning", "Self-attested by agent; not trusted user intent");
       appendDefinition(jobDetailBoundary, "Declared goal", safeText(intentContext.goal));
       appendDefinition(jobDetailBoundary, "Declaration confidence", formatPercent(intentContext.declaration_confidence));
       appendDefinition(jobDetailBoundary, "Reported outcome", safeText(reportedOutcome.status, "Not reported"));
@@ -3227,7 +3702,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       jobDetailModelUsageSummary.textContent = `Actual provider usage · ${coverage}${modelUsage.requests_truncated === true ? " · request summary capped" : ""}.`;
       jobDetailModelUsageMetrics.replaceChildren(
         metricCard("Total tokens", formatTokens(modelUsage.total_tokens), "Provider reported"),
-        metricCard("Input tokens", formatTokens(modelUsage.input_tokens), "Provider reported"),
+        metricCard("Uncached input", tokenComponent(modelUsage.uncached_input_tokens), "Provider reported"),
+        metricCard("Cached input", tokenComponent(modelUsage.cached_input_tokens), modelUsage.cached_input_tokens === undefined ? "Not reported" : "Provider reported"),
         metricCard("Output tokens", formatTokens(modelUsage.output_tokens), "Provider reported"),
         metricCard("Model requests", formatCount(modelUsage.request_count), `${formatCount(modelUsage.requests_with_model)} identified`),
       );
@@ -3238,7 +3714,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
             create("span", undefined, modelUsageLabel(group)),
             create("strong", undefined, formatTokens(group.total_tokens)),
             create("small", undefined, `${formatCount(group.request_count)} request(s) · ${formatCount(group.requests_with_usage)} with usage`),
-            create("code", undefined, `Input ${formatTokens(group.input_tokens)} · Output ${formatTokens(group.output_tokens)}`),
+            create("code", undefined, tokenBreakdownLabel(group)),
+            ...(legacyInputLabel(group) ? [create("small", undefined, legacyInputLabel(group))] : []),
           );
           return card;
         }));
@@ -3249,7 +3726,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       jobDetailModelUsageSummary.textContent = "Usage was not reported for this job.";
       jobDetailModelUsageMetrics.replaceChildren(
         metricCard("Total tokens", "Unavailable", "No provider report"),
-        metricCard("Input tokens", "Unavailable", "No provider report"),
+        metricCard("Uncached input", "Not reported", "No provider report"),
+        metricCard("Cached input", "Not reported", "No provider report"),
         metricCard("Output tokens", "Unavailable", "No provider report"),
         metricCard("Model requests", "Unavailable", "Older or non-model job"),
       );
@@ -3268,11 +3746,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       metricCard(
         "Evidence",
         formatPercent(evaluation.evidence_confidence),
-        agentDeclared ? "Agent self-attestation" : `${safeText(evaluation.confidence_band)} confidence`,
+        agentDeclared ? "Self-attested by agent" : `${safeText(evaluation.confidence_band)} confidence`,
       ),
     );
     jobDetailOutcomes.replaceChildren(renderPredicateList(evaluation.outcomes, "No outcome predicates were recorded."));
     jobDetailConstraints.replaceChildren(renderPredicateList(evaluation.constraints, "No constraint predicates were recorded."));
+    renderCriterionEvaluation(evaluation.criterion_evaluation);
     jobDetailDiscipline.replaceChildren();
     appendDiscipline(jobDetailDiscipline, "Tool calls", formatCount(discipline.tool_calls));
     appendDiscipline(jobDetailDiscipline, "Receipts", formatCount(discipline.execution_receipts));
@@ -3416,6 +3895,14 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       create("small", undefined, `Constraint ${safeText(job.constraint_compliance)}`),
       create("small", undefined, `Goal ${formatPercent(job.goal_attainment)} · Qualified ${job.qualified_success ? "yes" : "no"}`),
     );
+    const criterionSummary = record(job.criterion_evaluation);
+    if (isRenderableCriterionSummary(job.criterion_evaluation, job.eval_binding)) {
+      outcomeCell.append(
+        statusPill(safeText(criterionSummary.aggregate_status).replaceAll("_", " "), safeText(criterionSummary.aggregate_status)),
+        create("small", undefined, `Criteria ${formatCount(criterionSummary.passed_count)}/${formatCount(criterionSummary.criteria_count)} passed · ${formatPercent(criterionSummary.pass_rate)} vs ${formatPercent(criterionSummary.pass_threshold)} threshold`),
+        create("small", undefined, `Eval trust: ${evalTrustLabel(criterionSummary)} · ${evalTrustExplanation(criterionSummary)}`),
+      );
+    }
 
     const modelUsage = record(job.model_usage);
     const modelGroups = Array.isArray(modelUsage.models) ? modelUsage.models.map(record).slice(0, 20) : [];
@@ -3423,7 +3910,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       ? cellStack(
         create("strong", undefined, modelGroups.length > 0 ? modelUsageLabel(modelGroups[0]) : "Model unavailable"),
         create("small", undefined, modelUsage.total_tokens === undefined ? "Actual tokens unavailable" : `${formatTokens(modelUsage.total_tokens)} actual`),
-        create("small", undefined, `Input ${formatTokens(modelUsage.input_tokens)} · Output ${formatTokens(modelUsage.output_tokens)}`),
+        create("small", undefined, tokenBreakdownLabel(modelUsage)),
+        ...(legacyInputLabel(modelUsage) ? [create("small", undefined, legacyInputLabel(modelUsage))] : []),
         create("small", undefined, `${formatCount(modelUsage.requests_with_usage)}/${formatCount(modelUsage.request_count)} request(s) reported usage`),
       )
       : cellStack(
@@ -3569,10 +4057,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       } else {
         tokenSummary = "Actual usage unavailable";
       }
-      if (Number.isSafeInteger(usage.input_tokens) || Number.isSafeInteger(usage.output_tokens)) {
-        tokenDetail = `Input ${formatTokens(usage.input_tokens)} · Output ${formatTokens(usage.output_tokens)}`;
+      if (["input_tokens", "uncached_input_tokens", "cached_input_tokens", "output_tokens"].some((key) => Number.isSafeInteger(usage[key]))) {
+        tokenDetail = tokenBreakdownLabel(usage);
       }
-      tokenBasis = "Provider-reported actual";
+      tokenBasis = hasCompleteTokenBreakdown(usage)
+        ? tokenBreakdownReconciles(usage) ? "Provider-reported actual · reconciled" : "Provider report does not reconcile"
+        : legacyInputLabel(usage) || "Provider-reported actual · cache breakdown not reported";
     }
     const modelCell = modelEvent
       ? cellStack(
@@ -3858,11 +4348,6 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     event.preventDefault();
     void loadEvals();
   });
-  jobDetailNav.addEventListener("click", (event) => {
-    event.preventDefault();
-    showView("job-detail");
-    void loadJobDetail();
-  });
   jobDetailBack.addEventListener("click", (event) => {
     event.preventDefault();
     showView("jobs");
@@ -3990,15 +4475,19 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       name: evalNameInput.value.trim(),
       description: evalDescriptionInput.value.trim(),
       kind: evalKindInput.value,
+      ...(evalTemplateInput.value === "refund_triage" ? { specification: refundTriageSpecification() } : {}),
     });
     if (!result.response.ok) return setEvalsMessage("error", "Eval creation failed", failureMessage(result.body, "The eval version could not be created."));
     evalIdInput.value = "";
     evalVersionInput.value = "v1";
     evalNameInput.value = "";
     evalDescriptionInput.value = "";
+    evalTemplateInput.value = "basic";
+    applyEvalTemplate();
     await loadEvals();
     setEvalsMessage("ready", "Eval version created", "The definition is immutable and ready to assign. Create a new version to change its meaning later.");
   });
+  evalTemplateInput.addEventListener("change", applyEvalTemplate);
   createEvalAssignmentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!tenantId || activeRole !== "owner") return;
@@ -4007,6 +4496,15 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setEvalsMessage("ready", "Saving assignment", "Updating the active route without changing already-started Jobs.");
     const sourceId = evalAssignmentSource.value.trim();
     const agentId = evalAssignmentAgent.value.trim();
+    const allowedSources = new Set(evalSources.map((source) => safeText(source.source_id, "")));
+    const allowedAgents = new Set(evalSources
+      .filter((source) => !sourceId || safeText(source.source_id, "") === sourceId)
+      .flatMap((source) => Array.isArray(source.agent_ids) ? source.agent_ids : [])
+      .map((value) => safeText(value, ""))
+      .filter(Boolean));
+    if ((sourceId && !allowedSources.has(sourceId)) || (agentId && !allowedAgents.has(agentId))) {
+      return setEvalsMessage("error", "Assignment failed", "Choose a source and agent from this workspace.");
+    }
     const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/eval-assignments`, "POST", {
       eval_id: selected.dataset.evalId,
       eval_version: selected.dataset.evalVersion,
@@ -4017,6 +4515,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     await loadEvals();
     setEvalsMessage("ready", "Assignment saved", "New matching Jobs will freeze this eval version when they start.");
   });
+  evalAssignmentEval.addEventListener("change", updateEvalRoutePreview);
+  evalAssignmentSource.addEventListener("change", () => {
+    updateEvalAgentOptions();
+    updateEvalRoutePreview();
+  });
+  evalAssignmentAgent.addEventListener("change", updateEvalRoutePreview);
   copySourceToken.addEventListener("click", () => { void copyText(sourceToken.textContent || "", copySourceToken); });
   copyHermesEnvironment.addEventListener("click", () => { void copyText(hermesEnvironment.textContent || "", copyHermesEnvironment); });
   copyHermesYaml.addEventListener("click", () => { void copyText(hermesYaml.textContent || "", copyHermesYaml); });
@@ -4024,6 +4528,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   dismissSecret.addEventListener("click", clearOneTimeSecret);
 
   renderIntegrationGuide();
+  applyEvalTemplate();
   const ready = start();
   return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadEvals, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
