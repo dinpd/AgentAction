@@ -155,6 +155,7 @@ const SHELL_HTML = `<!doctype html>
       <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
       <a href="#activity" data-nav-activity>Activity</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
+      <a href="#evals" data-nav-evals>Evals</a>
       <a href="#job-detail" data-nav-job-detail>Job detail</a>
       <a href="#setup" data-nav-setup>Setup</a>
       <a href="#exceptions">Exceptions</a>
@@ -336,6 +337,57 @@ const SHELL_HTML = `<!doctype html>
             </form>
           </section>
         </div>
+      </section>
+      <section id="evals" class="setup-panel" data-console-view="evals" aria-labelledby="evals-heading" tabindex="-1" hidden>
+        <header class="section-heading">
+          <div>
+            <p class="eyebrow">Evaluation setup</p>
+            <h2 id="evals-heading">Choose how Jobs are evaluated</h2>
+            <p>Define reusable evaluation versions, then route agents and sources to them. Sources only authenticate telemetry; assignments choose evaluation behavior.</p>
+          </div>
+          <span class="role-badge" data-evals-role>Read only</span>
+        </header>
+        <section class="setup-notice" data-evals-message data-state="ready" role="status" aria-live="polite">
+          <h3 data-evals-message-title>Loading evaluations</h3>
+          <p data-evals-message-detail>Reading this workspace's definitions and routing rules.</p>
+        </section>
+        <section data-evals-content hidden>
+          <div class="setup-grid eval-overview-grid">
+            <section class="setup-card setup-wide">
+              <p class="eyebrow">Definitions</p>
+              <h3>Reusable evaluation versions</h3>
+              <p class="eval-help">V1 supports deterministic lifecycle checks and agent-declared intent checks. Agent-declared results are self-attested, not independent proof of correctness.</p>
+              <div class="eval-list" data-eval-definition-list></div>
+            </section>
+            <section class="setup-card setup-wide">
+              <p class="eyebrow">Routing</p>
+              <h3>Active assignments</h3>
+              <p class="eval-help">The most specific match wins: agent + source, then agent, then source, then workspace default. A Job freezes the selected version when it starts.</p>
+              <div class="eval-list" data-eval-assignment-list></div>
+            </section>
+          </div>
+          <section class="eval-owner-controls" data-eval-owner-controls hidden>
+            <form class="setup-card inline-setup-form" data-create-eval-form>
+              <p class="eyebrow">Owner action</p>
+              <h3>Create an immutable eval version</h3>
+              <label><span>Eval ID</span><input data-eval-id required maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" placeholder="refund_quality" autocomplete="off"></label>
+              <label><span>Version</span><input data-eval-version required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" value="v1" autocomplete="off"></label>
+              <label><span>Name</span><input data-eval-name required maxlength="120" placeholder="Refund quality" autocomplete="off"></label>
+              <label><span>Evaluator</span><select data-eval-kind><option value="agent_declared">Agent-declared intent</option><option value="observed_execution">Observed execution</option></select></label>
+              <label class="eval-description"><span>Description</span><textarea data-eval-description required maxlength="500" rows="3" placeholder="What this evaluation is for"></textarea></label>
+              <button class="primary-button" type="submit">Create eval version</button>
+            </form>
+            <form class="setup-card inline-setup-form" data-create-eval-assignment-form>
+              <p class="eyebrow">Owner action</p>
+              <h3>Assign an eval</h3>
+              <label><span>Eval version</span><select data-eval-assignment-eval required></select></label>
+              <label><span>Source ID <small>(optional)</small></span><input data-eval-assignment-source maxlength="160" placeholder="hermes-production" autocomplete="off"></label>
+              <label><span>Agent ID <small>(optional)</small></span><input data-eval-assignment-agent maxlength="160" placeholder="refund-agent" autocomplete="off"></label>
+              <p class="eval-help">Leave both IDs blank to set the workspace default. Saving the same selector replaces its active route; already-started Jobs stay unchanged.</p>
+              <button class="primary-button" type="submit">Save assignment</button>
+            </form>
+          </section>
+        </section>
       </section>
       <section id="overview" class="overview-panel" data-console-view="overview" aria-labelledby="overview-heading" tabindex="-1">
         <header class="section-heading">
@@ -579,7 +631,7 @@ const SHELL_HTML = `<!doctype html>
                   <th scope="col">Finalized</th>
                   <th scope="col">Job / intent</th>
                   <th scope="col">Agent</th>
-                  <th scope="col">Profile binding</th>
+                  <th scope="col">Eval / intent</th>
                   <th scope="col">Outcome</th>
                   <th scope="col">Model usage</th>
                   <th scope="col">Evidence</th>
@@ -1122,7 +1174,7 @@ button { cursor: pointer; }
 .setup-card h3 { margin: 0 0 10px; font-size: 0.95rem; }
 .setup-card h4 { margin: 18px 0 8px; font-size: 0.76rem; }
 .setup-card label, .inline-setup-form label { display: grid; gap: 4px; margin: 10px 0; color: var(--muted); font-size: 0.7rem; font-weight: 800; }
-.setup-card input, .setup-card select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); }
+.setup-card input, .setup-card select, .setup-card textarea { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-strong); color: var(--ink); font: inherit; }
 .setup-card .primary-button { margin-top: 6px; }
 .setup-wide { grid-column: 1 / -1; }
 .setup-card-heading { display: flex; justify-content: space-between; gap: 12px; }
@@ -1138,6 +1190,18 @@ button { cursor: pointer; }
 .join-workspace-form > p { color: var(--muted); font-size: 0.75rem; }
 .inline-setup-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .inline-setup-form label { margin: 0; }
+.eval-overview-grid { grid-template-columns: 1fr; }
+.eval-owner-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.eval-owner-controls .inline-setup-form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; margin: 0; padding-top: 17px; border-top: 1px solid var(--line); }
+.eval-owner-controls .eyebrow, .eval-owner-controls h3, .eval-owner-controls .eval-description, .eval-owner-controls .eval-help, .eval-owner-controls .primary-button { grid-column: 1 / -1; }
+.eval-owner-controls .primary-button { justify-self: start; }
+.eval-help { margin: 0 0 12px; color: var(--muted); font-size: 0.72rem; }
+.eval-list { display: grid; gap: 7px; }
+.eval-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-strong); }
+.eval-row strong, .eval-row code, .eval-row small { display: block; }
+.eval-row code { margin-top: 2px; color: var(--muted); font-size: 0.65rem; overflow-wrap: anywhere; }
+.eval-row small { margin-top: 4px; color: var(--muted); font-size: 0.67rem; }
+.eval-row-meta { display: grid; justify-items: end; gap: 4px; text-align: right; }
 .source-list { display: grid; gap: 7px; }
 .integration-guide { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
 .integration-guide h4, .integration-guide p, .integration-guide ol { margin: 0; }
@@ -1199,6 +1263,7 @@ button { cursor: pointer; }
   .detail-lower-grid { grid-template-columns: 1fr; }
   .future-grid { grid-template-columns: 1fr; }
   .setup-grid { grid-template-columns: 1fr; }
+  .eval-owner-controls { grid-template-columns: 1fr; }
   .setup-wide { grid-column: auto; }
 }
 @media (max-width: 760px) {
@@ -1307,8 +1372,9 @@ export type ConsoleAppController = {
   loadJobs(cursor?: string): Promise<void>;
   loadOverview(): Promise<void>;
   loadSetup(): Promise<void>;
+  loadEvals(): Promise<void>;
   ready: Promise<void>;
-  showView(view: "activity" | "job-detail" | "jobs" | "overview" | "setup"): void;
+  showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
@@ -1353,13 +1419,33 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   const jobsPanel = required<HTMLElement>("[data-console-view='jobs']");
   const jobDetailPanel = required<HTMLElement>("[data-console-view='job-detail']");
   const setupPanel = required<HTMLElement>("[data-console-view='setup']");
+  const evalsPanel = required<HTMLElement>("[data-console-view='evals']");
   const qualityIntro = required<HTMLElement>("[data-overview-context='boundaries']");
   const lifecyclePanel = doc.querySelector<HTMLElement>("[data-overview-context='lifecycle']");
   const overviewNav = required<HTMLAnchorElement>("[data-nav-overview]");
   const activityNav = required<HTMLAnchorElement>("[data-nav-activity]");
   const jobsNav = required<HTMLAnchorElement>("[data-nav-jobs]");
+  const evalsNav = required<HTMLAnchorElement>("[data-nav-evals]");
   const jobDetailNav = required<HTMLAnchorElement>("[data-nav-job-detail]");
   const setupNav = required<HTMLAnchorElement>("[data-nav-setup]");
+  const evalsRole = required<HTMLElement>("[data-evals-role]");
+  const evalsMessage = required<HTMLElement>("[data-evals-message]");
+  const evalsMessageTitle = required<HTMLElement>("[data-evals-message-title]");
+  const evalsMessageDetail = required<HTMLElement>("[data-evals-message-detail]");
+  const evalsContent = required<HTMLElement>("[data-evals-content]");
+  const evalDefinitionList = required<HTMLElement>("[data-eval-definition-list]");
+  const evalAssignmentList = required<HTMLElement>("[data-eval-assignment-list]");
+  const evalOwnerControls = required<HTMLElement>("[data-eval-owner-controls]");
+  const createEvalForm = required<HTMLFormElement>("[data-create-eval-form]");
+  const evalIdInput = required<HTMLInputElement>("[data-eval-id]");
+  const evalVersionInput = required<HTMLInputElement>("[data-eval-version]");
+  const evalNameInput = required<HTMLInputElement>("[data-eval-name]");
+  const evalKindInput = required<HTMLSelectElement>("[data-eval-kind]");
+  const evalDescriptionInput = required<HTMLTextAreaElement>("[data-eval-description]");
+  const createEvalAssignmentForm = required<HTMLFormElement>("[data-create-eval-assignment-form]");
+  const evalAssignmentEval = required<HTMLSelectElement>("[data-eval-assignment-eval]");
+  const evalAssignmentSource = required<HTMLInputElement>("[data-eval-assignment-source]");
+  const evalAssignmentAgent = required<HTMLInputElement>("[data-eval-assignment-agent]");
   const jobDetailBack = required<HTMLAnchorElement>("[data-job-detail-back]");
   const createTenantForm = required<HTMLFormElement>("[data-create-tenant-form]");
   const createWorkspaceCard = required<HTMLElement>("[data-create-workspace-card]");
@@ -1532,10 +1618,12 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     inviteCode.value = pendingInvitationCode;
   }
   const initialHash = invitationQueryPresent || pendingInvitationCode ? "#setup" : runtime.location.hash.split("?", 1)[0];
-  let activeView: "activity" | "job-detail" | "jobs" | "overview" | "setup" = initialHash === "#activity"
+  let activeView: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" = initialHash === "#activity"
     ? "activity"
     : initialHash === "#jobs"
       ? "jobs"
+      : initialHash === "#evals"
+        ? "evals"
       : initialHash === "#job-detail"
         ? "job-detail"
         : initialHash === "#setup"
@@ -1558,6 +1646,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
   function safeText(value: unknown, fallback = "—"): string {
     return typeof value === "string" && value.trim() ? value.trim() : fallback;
+  }
+
+  function evalDisplayName(value: unknown, fallback = "—"): string {
+    const evalId = safeText(record(value).eval_id, "");
+    if (evalId === "observed_execution") return "Observed execution";
+    if (evalId === "agent_declared_intent") return "Agent-declared intent";
+    return evalId || fallback;
   }
 
   function count(value: unknown): number {
@@ -1696,6 +1791,13 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setupMessageDetail.textContent = detail;
   }
 
+  function setEvalsMessage(state: "error" | "ready", title: string, detail: string): void {
+    evalsMessage.dataset.state = state;
+    evalsMessageTitle.textContent = title;
+    evalsMessageDetail.textContent = detail;
+    evalsMessage.hidden = false;
+  }
+
   function setJoinWorkspaceExpanded(expanded: boolean): void {
     const connected = Boolean(tenantId);
     joinWorkspaceExpanded = connected ? expanded : true;
@@ -1720,9 +1822,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     publicDemo = body.public_demo === true;
     workspaceMode = body.workspace_mode === "sso_fixed" ? "sso_fixed" : "directory";
     setupNav.hidden = publicDemo;
+    evalsNav.hidden = publicDemo;
     logoutLink.hidden = publicDemo;
     identityLabel.textContent = publicDemo ? "Viewing as" : "Signed in as";
-    if (publicDemo && activeView === "setup") showView("overview");
+    if (publicDemo && (activeView === "setup" || activeView === "evals")) showView("overview");
     tenantMemberships = membershipEntries(body.memberships);
     const canCreateWorkspace = tenantMemberships.length === 0 || tenantMemberships.some((entry) => safeText(entry.membership.role, "") === "owner");
     createWorkspaceCard.hidden = publicDemo || workspaceMode !== "directory" || !canCreateWorkspace;
@@ -1767,6 +1870,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     tenantSelect.value = tenantId;
     tenantLabel.textContent = tenantId ? `Workspace: ${tenantId}` : "No workspace yet";
     setupRole.textContent = activeRole || "Not provisioned";
+    evalsRole.textContent = activeRole === "owner" ? "Owner" : "Read only";
+    evalOwnerControls.hidden = activeRole !== "owner";
     setJoinWorkspaceExpanded(false);
   }
 
@@ -2056,6 +2161,94 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     setStatus("ready", `Workspace ${tenantId} is ready.`);
   }
 
+  function renderEvalConfiguration(value: unknown): void {
+    const body = record(value);
+    if (body.schema_version !== "agentaction.eval-configuration.v1" || !Array.isArray(body.definitions) || !Array.isArray(body.assignments)) {
+      throw new Error("Eval configuration response is invalid.");
+    }
+    const definitions = body.definitions.map(record).filter((definition: Record<string, any>) => (
+      safeText(definition.eval_id, "") && safeText(definition.version, "") && safeText(definition.profile_key, "")
+    ));
+    const assignments = body.assignments.map(record).filter((assignment: Record<string, any>) => (
+      safeText(assignment.assignment_id, "") && safeText(assignment.eval_id, "") && safeText(assignment.eval_version, "")
+    ));
+    evalDefinitionList.replaceChildren();
+    evalAssignmentEval.replaceChildren();
+    for (const definition of definitions) {
+      const kind = safeText(definition.kind, "observed_execution");
+      const row = create("article", "eval-row");
+      const details = create("div");
+      details.append(
+        create("strong", undefined, safeText(definition.name, definition.profile_key)),
+        create("code", undefined, safeText(definition.profile_key)),
+        create("small", undefined, safeText(definition.description, "No description")),
+      );
+      const meta = create("div", "eval-row-meta");
+      meta.append(
+        statusPill(definition.built_in === true ? "Built in" : "Custom", definition.built_in === true ? "enabled" : "completed"),
+        create("small", undefined, kind === "agent_declared" ? "Agent-declared · self-attested" : "Observed lifecycle · trusted state"),
+      );
+      row.append(details, meta);
+      evalDefinitionList.append(row);
+      const option = create("option", undefined, `${safeText(definition.name, definition.eval_id)} · ${safeText(definition.version)}`) as HTMLOptionElement;
+      option.value = safeText(definition.profile_key);
+      option.dataset.evalId = safeText(definition.eval_id);
+      option.dataset.evalVersion = safeText(definition.version);
+      evalAssignmentEval.append(option);
+    }
+    if (definitions.length === 0) evalDefinitionList.append(create("p", "eval-help", "No eval definitions are available."));
+    evalAssignmentList.replaceChildren();
+    for (const assignment of assignments) {
+      const row = create("article", "eval-row");
+      const details = create("div");
+      const source = safeText(assignment.source_id, "");
+      const agent = safeText(assignment.agent_id, "");
+      const selector = source && agent ? `Source ${source} + agent ${agent}` : agent ? `Agent ${agent}` : source ? `Source ${source}` : "Workspace default";
+      details.append(
+        create("strong", undefined, selector),
+        create("code", undefined, `${safeText(assignment.eval_id)}.${safeText(assignment.eval_version)}`),
+      );
+      const meta = create("div", "eval-row-meta");
+      meta.append(statusPill("Active", "enabled"), create("small", undefined, formatTimestamp(assignment.created_at)));
+      row.append(details, meta);
+      evalAssignmentList.append(row);
+    }
+    if (assignments.length === 0) {
+      evalAssignmentList.append(create("p", "eval-help", "No explicit routes yet. Jobs use the compatible built-in eval automatically."));
+    }
+    evalOwnerControls.hidden = activeRole !== "owner";
+    evalsRole.textContent = activeRole === "owner" ? "Owner" : "Read only";
+    evalsContent.hidden = false;
+  }
+
+  async function loadEvals(): Promise<void> {
+    showView("evals");
+    if (!tenantId) {
+      evalsContent.hidden = true;
+      setEvalsMessage("error", "Workspace required", "Create or join a workspace before configuring evaluations.");
+      setStatus("ready", "Select a workspace to configure evaluations.");
+      return;
+    }
+    evalsContent.hidden = true;
+    setEvalsMessage("ready", "Loading evaluations", "Reading this workspace's immutable definitions and active routing rules.");
+    setStatus("loading", "Loading tenant-scoped evaluation configuration.");
+    try {
+      const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/evals`);
+      if (!result.response.ok) {
+        const detail = failureMessage(result.body, "Evaluation configuration is unavailable.");
+        setEvalsMessage("error", "Evaluations unavailable", detail);
+        setStatus(failureState(result.response.status), detail);
+        return;
+      }
+      renderEvalConfiguration(result.body);
+      evalsMessage.hidden = true;
+      setStatus("ready", "Evaluation definitions and routing are current for this workspace.");
+    } catch {
+      setEvalsMessage("error", "Evaluations unavailable", "The workspace evaluation configuration could not be loaded.");
+      setStatus("unavailable");
+    }
+  }
+
   function restoreFilters(): void {
     const query = new URLSearchParams(runtime.location.search || "");
     const windowValue = query.get("window") || "";
@@ -2316,18 +2509,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     nextJobsCursor = "";
   }
 
-  function showView(view: "activity" | "job-detail" | "jobs" | "overview" | "setup"): void {
+  function showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup"): void {
     activeView = view;
     overviewPanel.hidden = view !== "overview";
     activityPanel.hidden = view !== "activity";
     jobsPanel.hidden = view !== "jobs";
     jobDetailPanel.hidden = view !== "job-detail";
     setupPanel.hidden = view !== "setup";
+    evalsPanel.hidden = view !== "evals";
     qualityIntro.hidden = view !== "overview";
     if (lifecyclePanel) lifecyclePanel.hidden = view !== "overview";
     overviewNav.setAttribute("aria-current", view === "overview" ? "page" : "false");
     activityNav.setAttribute("aria-current", view === "activity" ? "page" : "false");
     jobsNav.setAttribute("aria-current", view === "jobs" ? "page" : "false");
+    evalsNav.setAttribute("aria-current", view === "evals" ? "page" : "false");
     jobDetailNav.setAttribute("aria-current", view === "job-detail" ? "page" : "false");
     setupNav.setAttribute("aria-current", view === "setup" ? "page" : "false");
   }
@@ -2660,16 +2855,38 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && ["low", "medium", "high"].includes(job.confidence_band)
       && Number.isInteger(job.preview_count)
       && job.preview_count >= 0
-      && (!isAgentDeclaredIntentProfile(binding) || isRenderableIntentContext(job.intent_context))
+      && (job.eval_binding === undefined || isRenderableEvalBinding(job.eval_binding, binding))
+      && (!isAgentDeclaredIntentProfile(job) || isRenderableIntentContext(job.intent_context))
       && (job.model_usage === undefined || isRenderableModelUsage(job.model_usage));
   }
 
   function isObservedExecutionProfile(value: unknown): boolean {
-    return record(value).key === "agentaction_observed_execution.v1";
+    const candidate = record(value);
+    return record(candidate.eval_binding).kind === "observed_execution"
+      || candidate.key === "agentaction_observed_execution.v1"
+      || record(candidate.profile_binding).key === "agentaction_observed_execution.v1";
   }
 
   function isAgentDeclaredIntentProfile(value: unknown): boolean {
-    return record(value).key === "agentaction_declared_intent.v1";
+    const candidate = record(value);
+    return record(candidate.eval_binding).kind === "agent_declared"
+      || candidate.key === "agentaction_declared_intent.v1"
+      || record(candidate.profile_binding).key === "agentaction_declared_intent.v1";
+  }
+
+  function isRenderableEvalBinding(value: unknown, profileBinding: Record<string, any>): boolean {
+    const binding = record(value);
+    return binding.schema_version === "agentaction.eval-binding.v1"
+      && typeof binding.eval_id === "string"
+      && Boolean(binding.eval_id)
+      && typeof binding.version === "string"
+      && Boolean(binding.version)
+      && ["agent_declared", "observed_execution"].includes(binding.kind)
+      && ["agent_self_attested", "trusted_execution_state"].includes(binding.trust)
+      && binding.profile_key === profileBinding.key
+      && binding.profile_digest === profileBinding.digest
+      && typeof binding.assignment_id === "string"
+      && Boolean(binding.assignment_id);
   }
 
   function isRenderableIntentContext(value: unknown): boolean {
@@ -2959,8 +3176,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const timeline = record(payload.timeline);
     const entries = timeline.entries as Record<string, any>[];
     const quality = record(payload.data_quality);
-    const observedExecution = isObservedExecutionProfile(job.profile_binding);
-    const agentDeclared = isAgentDeclaredIntentProfile(job.profile_binding);
+    const observedExecution = isObservedExecutionProfile(job);
+    const agentDeclared = isAgentDeclaredIntentProfile(job);
+    const evalBinding = record(job.eval_binding);
     const intentContext = record(job.intent_context);
     const reportedOutcome = record(intentContext.reported_outcome);
 
@@ -2994,6 +3212,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       }
     }
     appendDefinition(jobDetailBoundary, "Profile digest", safeText(record(job.profile_binding).digest));
+    if (Object.keys(evalBinding).length > 0) {
+      appendDefinition(jobDetailBoundary, "Eval", `${evalDisplayName(evalBinding)} · ${safeText(evalBinding.version)}`);
+      appendDefinition(jobDetailBoundary, "Eval route", safeText(evalBinding.assignment_id));
+    }
     appendDefinition(jobDetailBoundary, "Intent digest", safeText(boundary.intent_digest));
     appendDefinition(jobDetailBoundary, "Snapshot", safeText(boundary.snapshot_id));
     appendDefinition(jobDetailBoundary, "Evidence digest", safeText(boundary.evidence_digest));
@@ -3171,18 +3393,22 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       ...(agentIds.length === 0 ? [statusPill("Missing identity", "indeterminate")] : []),
     );
 
-    const declaredIntent = isAgentDeclaredIntentProfile(binding);
+    const declaredIntent = isAgentDeclaredIntentProfile(job);
+    const observedExecution = isObservedExecutionProfile(job);
+    const evalBinding = record(job.eval_binding);
     const intentContext = record(job.intent_context);
     const profileCell = declaredIntent
       ? cellStack(
-        create("strong", undefined, "Agent-declared intent"),
+        create("strong", undefined, evalDisplayName(evalBinding, "Agent-declared intent")),
         create("small", undefined, "Self-attested by agent · not trusted user intent"),
         create("small", undefined, safeText(intentContext.goal)),
+        create("small", undefined, `Eval version ${safeText(evalBinding.version, binding.version)} · route ${safeText(evalBinding.assignment_id, "legacy")}`),
         create("code", undefined, safeText(binding.digest)),
       )
       : cellStack(
-        create("strong", undefined, isObservedExecutionProfile(binding) ? "Observed execution" : safeText(binding.key)),
-        create("small", undefined, isObservedExecutionProfile(binding) ? "System lifecycle profile · no inferred intent" : `Version ${safeText(binding.version)}`),
+        create("strong", undefined, evalDisplayName(evalBinding, observedExecution ? "Observed execution" : safeText(binding.key))),
+        create("small", undefined, observedExecution ? "System lifecycle profile · no inferred intent" : `Version ${safeText(binding.version)}`),
+        ...(Object.keys(evalBinding).length > 0 ? [create("small", undefined, `Eval version ${safeText(evalBinding.version)} · route ${safeText(evalBinding.assignment_id)}`)] : []),
         create("code", undefined, safeText(binding.digest)),
       );
     const outcomeCell = cellStack(
@@ -3231,7 +3457,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       tableCell("Finalized", cellStack(create("time", undefined, finalizedLabel))),
       tableCell("Job / intent", idCell),
       tableCell("Agent", agentCell),
-      tableCell("Profile binding", profileCell),
+      tableCell("Eval / intent", profileCell),
       tableCell("Outcome", outcomeCell),
       tableCell("Model usage", usageCell),
       tableCell("Evidence", evidenceCell),
@@ -3558,6 +3784,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       else if (activeView === "setup") await loadSetup();
       else if (activeView === "activity") await loadActivity();
       else if (activeView === "jobs") await loadJobs();
+      else if (activeView === "evals") await loadEvals();
       else if (activeView === "job-detail") await loadJobDetail();
       else await loadOverview();
     } catch {
@@ -3566,6 +3793,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       setActivityState("unavailable", "Observed activity is unavailable", statusMessages.unavailable[1]);
       setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
       setJobDetailState("unavailable", "Finalized Job detail is unavailable", statusMessages.unavailable[1]);
+      setEvalsMessage("error", "Evaluations unavailable", statusMessages.unavailable[1]);
     }
   }
 
@@ -3580,6 +3808,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   refreshButton.addEventListener("click", () => {
     if (activeView === "activity") void loadActivity();
     else if (activeView === "jobs") void loadJobs();
+    else if (activeView === "evals") void loadEvals();
     else if (activeView === "job-detail") void loadJobDetail();
     else void loadOverview();
   });
@@ -3625,6 +3854,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     showView("jobs");
     void loadJobs();
   });
+  evalsNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    void loadEvals();
+  });
   jobDetailNav.addEventListener("click", (event) => {
     event.preventDefault();
     showView("job-detail");
@@ -3655,6 +3888,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     if (activeView === "setup") void loadSetup();
     else if (activeView === "activity") void loadActivity("");
     else if (activeView === "jobs") void loadJobs("");
+    else if (activeView === "evals") void loadEvals();
     else if (activeView === "job-detail") void loadJobDetail();
     else void loadOverview();
   });
@@ -3746,6 +3980,43 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         : "The invitation is still valid. Share the displayed fallback code through a secure channel.",
     );
   });
+  createEvalForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!tenantId || activeRole !== "owner") return;
+    setEvalsMessage("ready", "Creating eval version", "Freezing this deterministic evaluation definition.");
+    const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/evals`, "POST", {
+      eval_id: evalIdInput.value.trim(),
+      version: evalVersionInput.value.trim(),
+      name: evalNameInput.value.trim(),
+      description: evalDescriptionInput.value.trim(),
+      kind: evalKindInput.value,
+    });
+    if (!result.response.ok) return setEvalsMessage("error", "Eval creation failed", failureMessage(result.body, "The eval version could not be created."));
+    evalIdInput.value = "";
+    evalVersionInput.value = "v1";
+    evalNameInput.value = "";
+    evalDescriptionInput.value = "";
+    await loadEvals();
+    setEvalsMessage("ready", "Eval version created", "The definition is immutable and ready to assign. Create a new version to change its meaning later.");
+  });
+  createEvalAssignmentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!tenantId || activeRole !== "owner") return;
+    const selected = evalAssignmentEval.selectedOptions[0];
+    if (!selected) return setEvalsMessage("error", "Assignment failed", "Choose an eval version first.");
+    setEvalsMessage("ready", "Saving assignment", "Updating the active route without changing already-started Jobs.");
+    const sourceId = evalAssignmentSource.value.trim();
+    const agentId = evalAssignmentAgent.value.trim();
+    const result = await write(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/eval-assignments`, "POST", {
+      eval_id: selected.dataset.evalId,
+      eval_version: selected.dataset.evalVersion,
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+    });
+    if (!result.response.ok) return setEvalsMessage("error", "Assignment failed", failureMessage(result.body, "The eval route could not be saved."));
+    await loadEvals();
+    setEvalsMessage("ready", "Assignment saved", "New matching Jobs will freeze this eval version when they start.");
+  });
   copySourceToken.addEventListener("click", () => { void copyText(sourceToken.textContent || "", copySourceToken); });
   copyHermesEnvironment.addEventListener("click", () => { void copyText(hermesEnvironment.textContent || "", copyHermesEnvironment); });
   copyHermesYaml.addEventListener("click", () => { void copyText(hermesYaml.textContent || "", copyHermesYaml); });
@@ -3754,7 +4025,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
 
   renderIntegrationGuide();
   const ready = start();
-  return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
+  return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadEvals, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
 
 const APP_JS = `(${consoleApp.toString()})(window);`;
@@ -4182,6 +4453,12 @@ function parseOnboardingRoute(url: URL, method: string): string {
   if (method === "POST" && sameSegments(tail, ["migrate"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/migrate`;
   if (method === "POST" && sameSegments(tail, ["invitations"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/invitations`;
   if (method === "GET" && sameSegments(tail, ["members"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/members`;
+  if ((method === "GET" || method === "POST") && sameSegments(tail, ["evals"])) {
+    return `/control-plane/tenants/${encodeURIComponent(tenantId)}/evals`;
+  }
+  if (method === "POST" && sameSegments(tail, ["eval-assignments"])) {
+    return `/control-plane/tenants/${encodeURIComponent(tenantId)}/eval-assignments`;
+  }
   if (method === "POST" && sameSegments(tail, ["sources"])) return `/control-plane/tenants/${encodeURIComponent(tenantId)}/sources`;
   if (tail[0] === "sources" && tail.length === 2 && method === "DELETE") {
     validateResourceSegment(tail[1]);

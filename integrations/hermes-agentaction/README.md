@@ -64,6 +64,10 @@ AgentAction Observability operator console through Cloudflare Access, open
    and the completed turn appears in Jobs. With the hosted YAML, Jobs also
    shows the agent's declared goal, terminal self-assessment, model, and
    provider-reported token usage.
+5. Optionally open **Evals**. Workspace owners can create an immutable eval
+   version and assign it to this source, this agent, both, or the workspace
+   default. The assignment affects new Jobs; it does not change the source
+   credential or rewrite historical Jobs.
 
 Owners and operators can create a source per environment, rotate a compromised
 or lost token, and disable a retired source in the same screen. Only token
@@ -131,8 +135,8 @@ usage. Per-job aggregation is capped at 10,000 requests and 20 model groups.
 
 ## Intent binding
 
-Without an explicit intent binding, each completed Hermes turn/run is finalized
-under the server-owned `agentaction_observed_execution.v1` profile. This makes
+Without an explicit intent binding, each completed Hermes turn/run is routed
+to the built-in `observed_execution.v1` eval/profile. This makes
 the run visible in **Jobs** and evaluates only whether the observed run
 reached a successful terminal lifecycle state. The console labels it **Observed
 execution** and states that no semantic intent was inferred.
@@ -142,8 +146,8 @@ instruction and the `agentaction_declare_intent` and
 `agentaction_report_outcome` tools. The first tool freezes a concise declared
 goal, success criteria, constraints, and confidence for the run. The second
 records the agent's terminal status, criteria/constraint assessment, and
-confidence. The gateway evaluates these under the server-owned
-`agentaction_declared_intent.v1` profile. A pass requires a completed run plus
+confidence. By default, the gateway evaluates these under the built-in
+`agent_declared_intent.v1` eval/profile. A pass requires a completed run plus
 the agent reporting `achieved`, all criteria met, and constraints respected.
 
 These values are agent-generated claims. The console labels them
@@ -151,6 +155,15 @@ These values are agent-generated claims. The console labels them
 independent outcome evidence, authorization, or approval. If the model omits
 the declaration, the plugin falls back to the observed-execution lifecycle Job.
 If capture or export fails, Hermes continues normally.
+
+Workspace eval assignments can replace either built-in with a named,
+immutable version of the same evaluator kind. Routing precedence is exact
+source+agent, agent, source, then workspace default. The gateway freezes the
+resolved eval and assignment when the Job starts. V1 does not define arbitrary
+rubrics or invoke an independent model judge: `agent_declared` remains an
+explicitly self-attested evaluator, while `observed_execution` remains a
+lifecycle-state evaluator. An assignment whose kind does not match the Job is
+rejected rather than silently evaluating different evidence.
 
 Set both `intent_id` and `intent_digest` only when the Hermes deployment is
 already operating under an explicit AgentAction contract. Explicit bindings

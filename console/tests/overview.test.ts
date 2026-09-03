@@ -125,6 +125,46 @@ const ACTIVITY_FIXTURE = {
   count: 2,
   next_cursor: "obs-ui-2",
 };
+const EVALS_FIXTURE = {
+  schema_version: "agentaction.eval-configuration.v1",
+  definitions: [
+    {
+      schema_version: "agentaction.eval-definition.v1",
+      eval_id: "observed_execution",
+      version: "v1",
+      name: "Observed execution",
+      description: "Checks whether a Job reached a successful terminal state.",
+      kind: "observed_execution",
+      trust: "trusted_execution_state",
+      profile_key: "observed_execution.v1",
+      profile_digest: "c".repeat(64),
+      created_at: "2026-07-25T10:00:00.000Z",
+      built_in: true,
+    },
+    {
+      schema_version: "agentaction.eval-definition.v1",
+      eval_id: "agent_declared_intent",
+      version: "v1",
+      name: "Agent-declared intent",
+      description: "Checks the agent's self-attested goal, criteria, and constraints.",
+      kind: "agent_declared",
+      trust: "agent_self_attested",
+      profile_key: "agent_declared_intent.v1",
+      profile_digest: "d".repeat(64),
+      created_at: "2026-07-25T10:00:00.000Z",
+      built_in: true,
+    },
+  ],
+  assignments: [{
+    schema_version: "agentaction.eval-assignment.v1",
+    assignment_id: "evalroute_fixture",
+    source_id: "hermes-production",
+    agent_id: "support-agent",
+    eval_id: "agent_declared_intent",
+    eval_version: "v1",
+    created_at: "2026-07-25T11:00:00.000Z",
+  }],
+};
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
 const SHELL_HTML = await (
   await worker.fetch(new Request("https://console.test/"), {
@@ -155,6 +195,11 @@ class FakeElement {
   max = 0;
   textContent = "";
   value: string | number = "";
+
+  get selectedOptions(): FakeElement[] {
+    const selected = this.children.filter((child) => child.tagName === "option" && child.value === this.value);
+    return selected.length > 0 ? selected : this.children.filter((child) => child.tagName === "option").slice(0, 1);
+  }
 
   constructor(tagName: string) {
     this.tagName = tagName;
@@ -226,12 +271,32 @@ class FakeDocument {
       "[data-console-view='jobs']",
       "[data-console-view='job-detail']",
       "[data-console-view='setup']",
+      "[data-console-view='evals']",
       "[data-overview-context='boundaries']",
       "[data-nav-overview]",
       "[data-nav-activity]",
       "[data-nav-jobs]",
+      "[data-nav-evals]",
       "[data-nav-job-detail]",
       "[data-nav-setup]",
+      "[data-evals-role]",
+      "[data-evals-message]",
+      "[data-evals-message-title]",
+      "[data-evals-message-detail]",
+      "[data-evals-content]",
+      "[data-eval-definition-list]",
+      "[data-eval-assignment-list]",
+      "[data-eval-owner-controls]",
+      "[data-create-eval-form]",
+      "[data-eval-id]",
+      "[data-eval-version]",
+      "[data-eval-name]",
+      "[data-eval-kind]",
+      "[data-eval-description]",
+      "[data-create-eval-assignment-form]",
+      "[data-eval-assignment-eval]",
+      "[data-eval-assignment-source]",
+      "[data-eval-assignment-agent]",
       "[data-job-detail-back]",
       "[data-create-tenant-form]",
       "[data-create-workspace-card]",
@@ -356,6 +421,8 @@ class FakeDocument {
     this.get("[data-filter-window]").value = "7";
     this.get("[data-create-integration]").value = "none";
     this.get("[data-source-integration]").value = "hermes";
+    this.get("[data-eval-kind]").value = "agent_declared";
+    this.get("[data-eval-version]").value = "v1";
     this.get("[data-filter-verdict]").value = "";
     this.get("[data-filter-constraint]").value = "";
     this.get("[data-jobs-filter-window]").value = "7";
@@ -371,6 +438,9 @@ class FakeDocument {
     this.get("[data-console-view='activity']").hidden = true;
     this.get("[data-console-view='job-detail']").hidden = true;
     this.get("[data-console-view='setup']").hidden = true;
+    this.get("[data-console-view='evals']").hidden = true;
+    this.get("[data-evals-content]").hidden = true;
+    this.get("[data-eval-owner-controls]").hidden = true;
     this.get("[data-create-integration-fields]").hidden = true;
     this.get("[data-setup-onboarding]").hidden = true;
     this.get("[data-workspace-migration]").hidden = true;
@@ -402,6 +472,7 @@ type RuntimeOptions = {
   hash?: string;
   detailPayload?: Record<string, any>;
   detailStatus?: number;
+  evalPayload?: Record<string, any>;
   jobsPayload?: Record<string, any>;
   jobsStatus?: number;
   payload?: Record<string, any>;
@@ -425,6 +496,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const jobsPayload = structuredClone(options.jobsPayload || JOBS_FIXTURE);
   const activityPayload = structuredClone(options.activityPayload || ACTIVITY_FIXTURE);
   const detailPayload = structuredClone(options.detailPayload || JOB_DETAIL_FIXTURE);
+  const evalPayload = structuredClone(options.evalPayload || EVALS_FIXTURE);
   let provisioned = options.startUnprovisioned !== true;
   let workspaceMigrated = false;
   let invitationJoined = false;
@@ -503,6 +575,33 @@ function makeRuntime(options: RuntimeOptions = {}) {
           ...setup,
           invitations: [...createdInvitations, ...(Array.isArray(setup.invitations) ? setup.invitations : [])],
         });
+      }
+      if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/evals$/.test(path)) {
+        if (init?.method === "POST") {
+          const submitted = JSON.parse(String(init.body || "{}"));
+          const definition = {
+            schema_version: "agentaction.eval-definition.v1",
+            ...submitted,
+            trust: submitted.kind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state",
+            profile_key: `${submitted.eval_id}.${submitted.version}`,
+            profile_digest: "e".repeat(64),
+            created_at: "2026-07-25T12:00:00.000Z",
+          };
+          evalPayload.definitions.unshift(definition);
+          return response({ definition }, 201);
+        }
+        return response(evalPayload);
+      }
+      if (/^\/api\/console\/onboarding\/tenants\/(?:acme|beta)\/eval-assignments$/.test(path) && init?.method === "POST") {
+        const submitted = JSON.parse(String(init.body || "{}"));
+        const assignment = {
+          schema_version: "agentaction.eval-assignment.v1",
+          assignment_id: "evalroute_created",
+          ...submitted,
+          created_at: "2026-07-25T12:00:00.000Z",
+        };
+        evalPayload.assignments.unshift(assignment);
+        return response({ assignment }, 201);
       }
       if (path === "/api/console/health") {
         return response({ ok: true, data_state: options.dataState || "fresh" });
@@ -737,6 +836,64 @@ test("renders role-aware tenant setup and Hermes ingestion health", async () => 
   assert.match(textOf(document.get("[data-source-list]")), /Source ID hermes-production Enabled Agent ID support-agent Integration hermes/);
   assert.match(document.get("[data-ingestion-title]").textContent, /Waiting for activity/);
   assert.ok(requests.includes("/api/console/onboarding/tenants/acme/setup"));
+});
+
+test("renders tenant eval definitions and routes with owner-only configuration controls", async () => {
+  const owner = makeRuntime({ hash: "#evals" });
+  await owner.controller.ready;
+  assert.equal(owner.document.get("[data-console-view='evals']").hidden, false);
+  assert.equal(owner.document.get("[data-eval-owner-controls]").hidden, false);
+  assert.match(textOf(owner.document.get("[data-eval-definition-list]")), /Observed execution/);
+  assert.match(textOf(owner.document.get("[data-eval-definition-list]")), /Agent-declared · self-attested/);
+  assert.match(textOf(owner.document.get("[data-eval-assignment-list]")), /Source hermes-production \+ agent support-agent/);
+  assert.match(textOf(owner.document.get("[data-eval-assignment-list]")), /agent_declared_intent\.v1/);
+
+  const viewer = makeRuntime({
+    hash: "#evals",
+    sessionPayload: {
+      authenticated: true,
+      workspace_mode: "directory",
+      tenant_id: "acme",
+      subject: "viewer-1",
+      memberships: [{ tenant: { tenant_id: "acme", display_name: "Acme" }, membership: { tenant_id: "acme", role: "viewer" } }],
+    },
+  });
+  await viewer.controller.ready;
+  assert.equal(viewer.document.get("[data-eval-owner-controls]").hidden, true);
+  assert.equal(viewer.document.get("[data-evals-role]").textContent, "Read only");
+  assert.match(textOf(viewer.document.get("[data-eval-definition-list]")), /Agent-declared intent/);
+});
+
+test("creates an immutable eval version and assigns it independently from source setup", async () => {
+  const { controller, document, requestBodies } = makeRuntime({ hash: "#evals" });
+  await controller.ready;
+  document.get("[data-eval-id]").value = "refund_quality";
+  document.get("[data-eval-version]").value = "v1";
+  document.get("[data-eval-name]").value = "Refund quality";
+  document.get("[data-eval-kind]").value = "agent_declared";
+  document.get("[data-eval-description]").value = "Evaluate the agent's declared refund goal.";
+  await document.get("[data-create-eval-form]").dispatch("submit");
+  const definitionRequest = requestBodies.find((request) => request.path.endsWith("/evals"));
+  assert.deepEqual(definitionRequest?.body, {
+    eval_id: "refund_quality",
+    version: "v1",
+    name: "Refund quality",
+    description: "Evaluate the agent's declared refund goal.",
+    kind: "agent_declared",
+  });
+
+  document.get("[data-eval-assignment-eval]").value = "refund_quality.v1";
+  document.get("[data-eval-assignment-source]").value = "hermes-production";
+  document.get("[data-eval-assignment-agent]").value = "refund-agent";
+  await document.get("[data-create-eval-assignment-form]").dispatch("submit");
+  const assignmentRequest = requestBodies.find((request) => request.path.endsWith("/eval-assignments"));
+  assert.deepEqual(assignmentRequest?.body, {
+    eval_id: "refund_quality",
+    eval_version: "v1",
+    source_id: "hermes-production",
+    agent_id: "refund-agent",
+  });
+  assert.match(textOf(document.get("[data-eval-assignment-list]")), /refund_quality\.v1/);
 });
 
 test("makes disabled source credentials visually explicit and removes active source actions", async () => {
@@ -1227,9 +1384,19 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
     agent_id: "hermes-smoke-agent",
     agent_ids: ["hermes-smoke-agent"],
     profile_binding: {
-      key: "agentaction_observed_execution.v1",
+      key: "observed_execution.v1",
       version: "v1",
       digest: "b".repeat(64),
+    },
+    eval_binding: {
+      schema_version: "agentaction.eval-binding.v1",
+      eval_id: "observed_execution",
+      version: "v1",
+      kind: "observed_execution",
+      trust: "trusted_execution_state",
+      profile_key: "observed_execution.v1",
+      profile_digest: "b".repeat(64),
+      assignment_id: "evalroute_observed",
     },
   }];
   observedJobs.matched_records = 1;
@@ -1239,15 +1406,17 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   const rendered = textOf(listRuntime.document.get("[data-jobs-list]"));
   assert.match(rendered, /Observed execution/);
   assert.match(rendered, /System lifecycle profile · no inferred intent/);
+  assert.match(rendered, /Eval version v1 · route evalroute_observed/);
 
   const observedDetail = structuredClone(JOB_DETAIL_FIXTURE);
   observedDetail.job.job_id = "hermes-observed-job";
   observedDetail.job.agent_id = "hermes-smoke-agent";
   observedDetail.job.profile_binding = {
-    key: "agentaction_observed_execution.v1",
+    key: "observed_execution.v1",
     version: "v1",
     digest: "b".repeat(64),
   };
+  observedDetail.job.eval_binding = observedJobs.jobs[0].eval_binding;
   delete observedDetail.job.model_usage;
   observedDetail.immutable_boundary.profile_digest = "b".repeat(64);
   const detailRuntime = makeRuntime({
@@ -1259,6 +1428,8 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /Observed Hermes run/);
   assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /no semantic intent inferred/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-boundary]")), /Lifecycle completion only/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-boundary]")), /Observed execution · v1/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-boundary]")), /evalroute_observed/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Lifecycle objective/);
   assert.match(detailRuntime.document.get("[data-job-detail-model-usage-summary]").textContent, /Usage was not reported/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-model-usage-metrics]")), /Unavailable/);
@@ -1273,9 +1444,19 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
     agent_id: "hermes-smoke-agent",
     agent_ids: ["hermes-smoke-agent"],
     profile_binding: {
-      key: "agentaction_declared_intent.v1",
+      key: "refund_quality.v1",
       version: "v1",
       digest: "c".repeat(64),
+    },
+    eval_binding: {
+      schema_version: "agentaction.eval-binding.v1",
+      eval_id: "refund_quality",
+      version: "v1",
+      kind: "agent_declared",
+      trust: "agent_self_attested",
+      profile_key: "refund_quality.v1",
+      profile_digest: "c".repeat(64),
+      assignment_id: "evalroute_refund_agent",
     },
     intent_context: {
       kind: "agent_declared",
@@ -1297,9 +1478,10 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
   const listRuntime = makeRuntime({ hash: "#jobs", jobsPayload: declaredJobs });
   await listRuntime.controller.ready;
   const rendered = textOf(listRuntime.document.get("[data-jobs-list]"));
-  assert.match(rendered, /Agent-declared intent/);
+  assert.match(rendered, /refund_quality/);
   assert.match(rendered, /Self-attested by agent · not trusted user intent/);
   assert.match(rendered, /Calculate a product/);
+  assert.match(rendered, /Eval version v1 · route evalroute_refund_agent/);
 
   const declaredDetail = structuredClone(JOB_DETAIL_FIXTURE);
   declaredDetail.job = declaredJobs.jobs[0];
@@ -1313,6 +1495,8 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
   assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /Agent-declared intent/);
   const boundary = textOf(detailRuntime.document.get("[data-job-detail-boundary]"));
   assert.match(boundary, /Self-attested agent claim; not trusted user intent/);
+  assert.match(boundary, /refund_quality · v1/);
+  assert.match(boundary, /evalroute_refund_agent/);
   assert.match(boundary, /Calculate a product and explain it/);
   assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Agent self-attestation/);
 });

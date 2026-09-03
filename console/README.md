@@ -2,9 +2,10 @@
 
 This directory contains the Cloudflare-hosted UI/BFF for AgentAction
 Observability. It combines self-service tenant setup, privacy-safe Activity,
-profile-scoped Fleet Overview, finalized Jobs, and Job detail. Observability
-reads remain read only; authenticated owners and operators can manage only
-tenant onboarding, invitations, and source credentials.
+profile-scoped Fleet Overview, finalized Jobs, Job detail, and tenant-scoped
+eval routing. Observability reads remain read only; authenticated owners and
+operators can manage tenant onboarding and source credentials, while only
+owners can manage membership and eval configuration.
 
 ## Hosted surfaces
 
@@ -13,7 +14,7 @@ AgentAction publishes two deliberately separate console deployments:
 | Surface | URL | Data and access boundary |
 | --- | --- | --- |
 | Public demo | [agentaction-observability-demo.drisw.workers.dev](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Unauthenticated, synthetic repository fixtures only, including synthetic Activity; no production binding, credential, tenant selection, audit routes, or approval routes. |
-| Operator console | [agentpass-observability-console.drisw.workers.dev](https://agentpass-observability-console.drisw.workers.dev/?window=7#overview) | Cloudflare Access-protected tenant onboarding and evidence through a private gateway binding. |
+| Operator console | [observability-console.agentaction.dev](https://observability-console.agentaction.dev/?window=7#overview) | Cloudflare Access-protected tenant onboarding, eval routing, and evidence through a private gateway binding. |
 
 The public demo reuses the production interface and interaction model but its
 Worker entry point constructs an in-memory fixture service. It cannot read
@@ -69,7 +70,8 @@ login, an operator sees an always-available workspace control. They can:
   or credentials;
 - see whether the tenant has received its first activity event;
 - create, rotate, or disable sources as an `owner` or `operator`; and
-- create viewer/operator invitations and inspect members as an `owner`.
+- create viewer/operator invitations and inspect members as an `owner`; and
+- create immutable eval versions and assign them to new Jobs as an `owner`.
 
 For an identity without a workspace, create and join choices are shown as
 primary onboarding. Once connected, current-workspace setup appears first and
@@ -96,9 +98,10 @@ shows connection steps and documentation for the selected integration;
 Hermes-specific environment and YAML configuration appears only for a Hermes
 source.
 
-Roles are ordered `viewer < operator < owner`. Viewers can inspect data and
-setup health. Operators can also manage source credentials. Owners can also
-invite members, read the member list, and create additional workspaces.
+Roles are ordered `viewer < operator < owner`. Viewers can inspect data,
+setup health, and eval configuration. Operators can also manage source
+credentials. Owners can also configure evals, invite members, read the member
+list, and create additional workspaces.
 Identities with no memberships may create their first workspace; identities
 with only viewer/operator memberships may not create another. Invitations
 cannot grant `owner`.
@@ -109,9 +112,36 @@ the Access session and clears the application authorization cookie; it does not
 claim to sign the user out of their upstream identity provider. The public demo
 does not display this action.
 
+## Evals
+
+Sources and evals are deliberately separate. A source authenticates and scopes
+agent telemetry; an eval says how a new finalized Job will be measured. The
+**Evals** view is readable by every workspace member. Owners can create a
+named, immutable eval version and assign it at one of four routing levels:
+
+1. exact source and agent;
+2. agent across sources;
+3. source across agents; or
+4. workspace default.
+
+The most specific matching assignment wins. If no assignment matches, the
+gateway selects its built-in observed-execution or agent-declared-intent eval
+according to the Job payload. The exact eval definition and assignment are
+frozen into the intent contract when a Job starts, so changing a route affects
+only later Jobs. Historical results remain grouped by eval/profile version and
+digest.
+
+V1 exposes two deterministic evaluator behaviors. **Observed execution** uses
+trusted lifecycle state and checks that a run completed. **Agent-declared**
+checks lifecycle completion plus the agent's bounded self-report of goal,
+criteria, and constraints. Creating another eval version names and versions one
+of those behaviors; it does not turn a self-report into independent evidence
+or run an LLM judge. Assigning an incompatible evaluator kind fails closed for
+that Job export.
+
 ## BFF routes
 
-All gateway routes are `GET` only and tenant-prefixed:
+All tenant evidence routes below are `GET` only and tenant-prefixed:
 
 | Console route | Gateway route | Allowed query parameters |
 | --- | --- | --- |
@@ -128,8 +158,10 @@ All gateway routes are `GET` only and tenant-prefixed:
 `/api/console/session` returns the authenticated subject, optional email,
 safe membership summaries, and a default tenant only when one can be chosen
 unambiguously. `/api/console/onboarding/*` is an explicit allowlist for tenant,
-invitation, setup, member, and source lifecycle operations. The public demo
-returns `404` for every onboarding route and has no control-plane credential.
+invitation, setup, member, source lifecycle, and eval operations. Eval
+configuration is readable by workspace members; its create and assign routes
+require `owner`. The public demo returns `404` for every onboarding route and
+has no control-plane credential.
 
 Responses are `private, no-store`. The BFF marks upstream data as `fresh`,
 `stale`, or `unknown` in `X-AgentAction-Console-Data-State` using the upstream

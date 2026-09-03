@@ -172,6 +172,44 @@ type AgentDeclaredIntentContext = {
   reported_outcome?: Omit<AgentReportedOutcome, "schema_version">;
 };
 
+type EvalKind = "agent_declared" | "observed_execution";
+type EvalDefinition = {
+  schema_version: "agentaction.eval-definition.v1";
+  eval_id: string;
+  version: string;
+  name: string;
+  description: string;
+  kind: EvalKind;
+  trust: "agent_self_attested" | "trusted_execution_state";
+  profile_key: string;
+  profile_digest: string;
+  issued_at: string;
+  created_at: string;
+  created_by: string;
+  built_in?: true;
+};
+type EvalAssignment = {
+  schema_version: "agentaction.eval-assignment.v1";
+  assignment_id: string;
+  source_id?: string;
+  agent_id?: string;
+  eval_id: string;
+  eval_version: string;
+  created_at: string;
+  created_by: string;
+  replaced_assignment_id?: string;
+};
+type EvalBinding = {
+  schema_version: "agentaction.eval-binding.v1";
+  eval_id: string;
+  version: string;
+  kind: EvalKind;
+  trust: EvalDefinition["trust"];
+  profile_key: string;
+  profile_digest: string;
+  assignment_id: string;
+};
+
 type StoredActivityEvent = { digest: string; event: ActivityEvent };
 
 type ToolEvent = Record<string, unknown>;
@@ -448,6 +486,7 @@ type IntentQualityRecord = {
   agent_ids: string[];
   finalized_at: string;
   evaluation: HostedIntentEvaluationReceipt;
+  eval_binding?: EvalBinding;
   intent_context?: AgentDeclaredIntentContext;
   model_usage?: ModelUsageSummary;
 };
@@ -1599,6 +1638,19 @@ export class AgentIdJitGrants {
       return this.activityEvents(url);
     }
 
+    if (request.method === "GET" && url.pathname === "/evals") {
+      return this.evalConfiguration();
+    }
+    if (request.method === "POST" && url.pathname === "/evals") {
+      return this.createEvalDefinition(recordValue(payload));
+    }
+    if (request.method === "POST" && url.pathname === "/eval-assignments/resolve") {
+      return this.resolveEvalAssignment(recordValue(payload));
+    }
+    if (request.method === "POST" && url.pathname === "/eval-assignments") {
+      return this.createEvalAssignment(recordValue(payload));
+    }
+
     if (request.method === "GET" && url.pathname === "/intent-quality/rollups") {
       return this.intentQualityRollups(url);
     }
@@ -2032,6 +2084,140 @@ export class AgentIdJitGrants {
     }
 
     return json({ error: "not found" }, 404);
+  }
+
+  async evalConfiguration(): Promise<Response> {
+    const storedKeys = await this.state.storage.get<string[]>("eval:index") || [];
+    const definitions = [...BUILTIN_EVAL_DEFINITIONS];
+    for (const key of storedKeys) {
+      const definition = await this.state.storage.get<EvalDefinition>(`eval:${key}`);
+      if (definition) definitions.push(definition);
+    }
+    const assignmentKeys = await this.state.storage.get<string[]>("eval-assignment:index") || [];
+    const assignments: EvalAssignment[] = [];
+    for (const key of assignmentKeys) {
+      const assignment = await this.state.storage.get<EvalAssignment>(`eval-assignment:${key}`);
+      if (assignment) assignments.push(assignment);
+    }
+    assignments.sort((left, right) => right.created_at.localeCompare(left.created_at));
+    return json({
+      schema_version: "agentaction.eval-configuration.v1",
+      definitions,
+      assignments,
+    });
+  }
+
+  async createEvalDefinition(payload: Record<string, unknown>): Promise<Response> {
+    const evalId = requiredEvalId(payload.eval_id, "eval_id");
+    const version = requiredEvalVersion(payload.version, "version");
+    const name = requiredActivityText(payload.name, "eval name", 120);
+    const description = requiredActivityText(payload.description, "eval description", 500);
+    const kind = requiredEvalKind(payload.kind);
+    const createdBy = requiredActivityText(payload.created_by, "eval created_by", 256);
+    const key = `${evalId}.${version}`;
+    const builtIn = BUILTIN_EVAL_DEFINITIONS.find((definition) => definition.profile_key === key);
+    if (builtIn) return json({ error: `built-in eval version is frozen: ${key}`, error_code: "eval_definition_frozen" }, 409);
+    const existing = await this.state.storage.get<EvalDefinition>(`eval:${key}`);
+    if (existing) {
+      if (existing.name !== name || existing.description !== description || existing.kind !== kind) {
+        return json({ error: `eval version is frozen: ${key}`, error_code: "eval_definition_frozen" }, 409);
+      }
+      return json({ definition: existing, replayed: true });
+    }
+    const storedKeys = await this.state.storage.get<string[]>("eval:index") || [];
+    if (storedKeys.length >= 500) {
+      return json({ error: "workspace eval definition limit reached", error_code: "eval_definition_limit" }, 409);
+    }
+    const createdAt = new Date().toISOString();
+    const definition = evalDefinition({
+      eval_id: evalId,
+      version,
+      name,
+      description,
+      kind,
+      issued_at: createdAt,
+      created_at: createdAt,
+      created_by: createdBy,
+    });
+    const next = [key, ...storedKeysWithout(storedKeys, key)];
+    await this.state.storage.put({ [`eval:${key}`]: definition, "eval:index": next });
+    return json({ definition, replayed: false }, 201);
+  }
+
+  async createEvalAssignment(payload: Record<string, unknown>): Promise<Response> {
+    const sourceId = payload.source_id === undefined ? undefined : evalSelectorId(payload.source_id, "eval assignment source_id");
+    const agentId = payload.agent_id === undefined ? undefined : evalSelectorId(payload.agent_id, "eval assignment agent_id");
+    const evalId = requiredEvalId(payload.eval_id, "eval_id");
+    const evalVersion = requiredEvalVersion(payload.eval_version, "eval_version");
+    const createdBy = requiredActivityText(payload.created_by, "eval assignment created_by", 256);
+    const definition = await this.findEvalDefinition(evalId, evalVersion);
+    if (!definition) return json({ error: `eval not found: ${evalId}.${evalVersion}`, error_code: "eval_definition_not_found" }, 404);
+    const selectorKey = await evalAssignmentSelectorKey(sourceId, agentId);
+    const existing = await this.state.storage.get<EvalAssignment>(`eval-assignment:${selectorKey}`);
+    if (existing?.eval_id === evalId && existing.eval_version === evalVersion) {
+      return json({ assignment: existing, replayed: true });
+    }
+    const assignment: EvalAssignment = {
+      schema_version: "agentaction.eval-assignment.v1",
+      assignment_id: randomIdentifier("evalroute"),
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+      eval_id: evalId,
+      eval_version: evalVersion,
+      created_at: new Date().toISOString(),
+      created_by: createdBy,
+      ...(existing ? { replaced_assignment_id: existing.assignment_id } : {}),
+    };
+    const index = await this.state.storage.get<string[]>("eval-assignment:index") || [];
+    if (!existing && index.length >= 500) {
+      return json({ error: "workspace eval assignment limit reached", error_code: "eval_assignment_limit" }, 409);
+    }
+    const next = [selectorKey, ...index.filter((key) => key !== selectorKey)];
+    await this.state.storage.put({
+      [`eval-assignment:${selectorKey}`]: assignment,
+      "eval-assignment:index": next,
+    });
+    return json({ assignment, replayed: false }, existing ? 200 : 201);
+  }
+
+  async resolveEvalAssignment(payload: Record<string, unknown>): Promise<Response> {
+    const sourceId = evalSelectorId(payload.source_id, "eval routing source_id");
+    const agentId = evalSelectorId(payload.agent_id, "eval routing agent_id");
+    if (typeof payload.has_declared_intent !== "boolean") throw new Error("eval routing has_declared_intent is required");
+    const selectors = [
+      await evalAssignmentSelectorKey(sourceId, agentId),
+      await evalAssignmentSelectorKey(undefined, agentId),
+      await evalAssignmentSelectorKey(sourceId, undefined),
+      await evalAssignmentSelectorKey(undefined, undefined),
+    ];
+    let assignment: EvalAssignment | undefined;
+    for (const selector of selectors) {
+      assignment = await this.state.storage.get<EvalAssignment>(`eval-assignment:${selector}`);
+      if (assignment) break;
+    }
+    const expectedKind: EvalKind = payload.has_declared_intent ? "agent_declared" : "observed_execution";
+    const definition = assignment
+      ? await this.findEvalDefinition(assignment.eval_id, assignment.eval_version)
+      : BUILTIN_EVAL_DEFINITIONS.find((candidate) => candidate.kind === expectedKind);
+    if (!definition) return json({ error: "assigned eval definition is unavailable", error_code: "eval_definition_not_found" }, 409);
+    if (definition.kind !== expectedKind) {
+      return json({
+        error: `eval ${definition.profile_key} expects ${definition.kind.replace("_", " ")} Jobs`,
+        error_code: "eval_assignment_incompatible",
+        expected_kind: expectedKind,
+      }, 409);
+    }
+    return json({
+      definition,
+      assignment: assignment || null,
+      assignment_id: assignment?.assignment_id || `implicit_${expectedKind}`,
+    });
+  }
+
+  async findEvalDefinition(evalId: string, version: string): Promise<EvalDefinition | undefined> {
+    const key = `${evalId}.${version}`;
+    return BUILTIN_EVAL_DEFINITIONS.find((definition) => definition.profile_key === key)
+      || this.state.storage.get<EvalDefinition>(`eval:${key}`);
   }
 
   async directoryRequest(method: string, pathname: string, payload: Record<string, unknown>): Promise<Response> {
@@ -4343,6 +4529,40 @@ async function handleControlPlane(request: Request, env: Env, identity: ControlI
     return json(await members.json(), members.status);
   }
 
+  if (request.method === "GET" && suffix === "evals") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "viewer");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const configured = await authorizationStore(env, tenantId, manifest).fetch(new Request("https://agentid.local/evals"));
+    return json(await configured.json(), configured.status);
+  }
+
+  if (request.method === "POST" && suffix === "evals") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "owner");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const input = await readControlJson(request);
+    const created = await authorizationStore(env, tenantId, manifest).fetch(new Request("https://agentid.local/evals", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...input, created_by: identity.subject }),
+    }));
+    return json(await created.json(), created.status);
+  }
+
+  if (request.method === "POST" && suffix === "eval-assignments") {
+    const checked = await authorizeControlTenant(directory, identity, tenantId, "owner");
+    if (!checked.ok) return json(await checked.json(), checked.status);
+    const manifest = await requiredTenantManifest(env, tenantId);
+    const input = await readControlJson(request);
+    const created = await authorizationStore(env, tenantId, manifest).fetch(new Request("https://agentid.local/eval-assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...input, created_by: identity.subject }),
+    }));
+    return json(await created.json(), created.status);
+  }
+
   if (request.method === "POST" && suffix === "sources") {
     const checked = await authorizeControlTenant(directory, identity, tenantId, "operator");
     if (!checked.ok) return json(await checked.json(), checked.status);
@@ -5124,9 +5344,15 @@ function intentQualityRecord(value: unknown): {
     !evaluation.profile.endsWith(`.${evaluation.profile_version}`) ||
     !/^[a-f0-9]{64}$/.test(evaluation.profile_digest)
   ) return { error: "invalid_final_receipt" };
-  const intentContext = intentQualityDeclaredContext(snapshot.evidence.job, evaluation.profile);
+  const jobEvidence = recordValue(snapshot.evidence.job);
+  const evalBinding = intentQualityEvalBinding(jobEvidence, evaluation);
+  if (jobEvidence.eval_binding !== undefined && !evalBinding) {
+    return { error: "invalid_final_receipt" };
+  }
+  const expectsDeclaredContext = evalBinding?.kind === "agent_declared" || evaluation.profile === "agentaction_declared_intent.v1";
+  const intentContext = expectsDeclaredContext ? intentQualityDeclaredContext(snapshot.evidence.job) : undefined;
   const modelUsage = intentQualityModelUsage(snapshot.evidence.job);
-  if (evaluation.profile === "agentaction_declared_intent.v1" && !intentContext) {
+  if (expectsDeclaredContext && !intentContext) {
     return { error: "invalid_final_receipt" };
   }
   const agentIds = new Set<string>();
@@ -5152,6 +5378,7 @@ function intentQualityRecord(value: unknown): {
       agent_ids: [...agentIds].sort(),
       finalized_at: new Date(finalization.finalized_at).toISOString(),
       evaluation,
+      ...(evalBinding ? { eval_binding: evalBinding } : {}),
       ...(intentContext ? { intent_context: intentContext } : {}),
       ...(modelUsage ? { model_usage: modelUsage } : {}),
     },
@@ -5160,9 +5387,7 @@ function intentQualityRecord(value: unknown): {
 
 function intentQualityDeclaredContext(
   jobValue: unknown,
-  profileKey: string,
 ): AgentDeclaredIntentContext | undefined {
-  if (profileKey !== "agentaction_declared_intent.v1") return undefined;
   const job = recordValue(jobValue);
   const declaration = recordValue(job.declared_intent);
   if (
@@ -5210,6 +5435,46 @@ function intentQualityDeclaredContext(
     declaration_confidence: declarationConfidence,
     ...(reportedOutcome ? { reported_outcome: reportedOutcome } : {}),
   };
+}
+
+function intentQualityEvalBinding(
+  jobValue: unknown,
+  evaluation: HostedIntentEvaluationReceipt,
+): EvalBinding | undefined {
+  const binding = recordValue(recordValue(jobValue).eval_binding);
+  if (Object.keys(binding).length === 0) {
+    const legacyKind = evaluation.profile === "agentaction_declared_intent.v1"
+      ? "agent_declared"
+      : evaluation.profile === "agentaction_observed_execution.v1"
+        ? "observed_execution"
+        : undefined;
+    if (!legacyKind || !evaluation.profile_version || !evaluation.profile_digest) return undefined;
+    return {
+      schema_version: "agentaction.eval-binding.v1",
+      eval_id: legacyKind === "agent_declared" ? "agentaction_declared_intent" : "agentaction_observed_execution",
+      version: evaluation.profile_version,
+      kind: legacyKind,
+      trust: legacyKind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state",
+      profile_key: evaluation.profile,
+      profile_digest: evaluation.profile_digest,
+      assignment_id: `legacy_implicit_${legacyKind}`,
+    };
+  }
+  const kind = binding.kind;
+  const trust = binding.trust;
+  if (
+    binding.schema_version !== "agentaction.eval-binding.v1" ||
+    !EVAL_ID.test(stringValue(binding.eval_id)) ||
+    !EVAL_VERSION.test(stringValue(binding.version)) ||
+    (kind !== "agent_declared" && kind !== "observed_execution") ||
+    trust !== (kind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state") ||
+    binding.profile_key !== evaluation.profile ||
+    binding.profile_digest !== evaluation.profile_digest ||
+    binding.version !== evaluation.profile_version ||
+    binding.eval_id !== evalIdFromProfile(evaluation.profile, evaluation.profile_version) ||
+    !ACTIVITY_ID.test(stringValue(binding.assignment_id))
+  ) return undefined;
+  return binding as EvalBinding;
 }
 
 function intentQualityModelUsage(jobValue: unknown): ModelUsageSummary | undefined {
@@ -5326,6 +5591,7 @@ function intentQualityJob(record: IntentQualityRecord, previewCount: number): Re
       version: record.profile_version,
       digest: record.profile_digest,
     },
+    ...(record.eval_binding ? { eval_binding: record.eval_binding } : {}),
     ...(record.intent_context ? { intent_context: record.intent_context } : {}),
     ...(record.model_usage ? { model_usage: record.model_usage } : {}),
     verdict: record.evaluation.verdict,
@@ -6164,70 +6430,165 @@ const ACTIVITY_EVENT_TYPES = new Set([
 const ACTIVITY_EXECUTION_STATUSES = new Set(["ok", "error", "blocked", "cancelled", "unknown", "running"]);
 const ACTIVITY_DECISIONS = new Set(["allow", "deny", "challenge_required"]);
 const ACTIVITY_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
-const OBSERVED_EXECUTION_PROFILE: IntentProfile = {
-  schema_version: "agentpass.intent-profile.v1",
-  profile: "agentaction_observed_execution",
-  version: "v1",
-  issuer: "agentaction-gateway",
-  issued_at: "2026-01-01T00:00:00.000Z",
-  objective_template: "Observe one bounded agent run through a terminal lifecycle state.",
-  variables: {},
-  required_outcomes: [
-    {
-      id: "run-completed",
-      description: "The observed agent run reached a successful terminal state.",
-      source: "job",
-      assertion: { path: "status", operator: "equals", value: "completed" },
-    },
-  ],
-  hard_constraints: [],
-  evidence_requirements: ["job"],
+const EVAL_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
+const EVAL_VERSION = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
+const EVAL_CREATED_AT = "2026-09-02T00:00:00.000Z";
+
+type EvalDefinitionInput = Pick<EvalDefinition, "eval_id" | "version" | "name" | "description" | "kind" | "issued_at" | "created_at" | "created_by"> & {
+  built_in?: true;
 };
 
-const AGENT_DECLARED_INTENT_PROFILE: IntentProfile = {
-  schema_version: "agentpass.intent-profile.v1",
-  profile: "agentaction_declared_intent",
-  version: "v1",
-  issuer: "agentaction-gateway",
-  issued_at: "2026-01-01T00:00:00.000Z",
-  objective_template: "{{goal}}",
-  variables: {
-    goal: {
-      type: "string",
+function profileForEval(input: Pick<EvalDefinition, "eval_id" | "version" | "kind" | "issued_at">): IntentProfile {
+  const assignmentVariable = {
+    agentaction_assignment_id: {
+      type: "string" as const,
       required: true,
-      description: "Concise goal declared by the agent; not trusted user intent.",
+      description: "The routing assignment frozen when the Job contract was issued.",
     },
-  },
-  required_outcomes: [
-    {
-      id: "run-completed",
-      description: "The observed agent run reached a successful terminal state.",
-      source: "job",
-      assertion: { path: "status", operator: "equals", value: "completed" },
+  };
+  if (input.kind === "observed_execution") {
+    return {
+      schema_version: "agentpass.intent-profile.v1",
+      profile: input.eval_id,
+      version: input.version,
+      issuer: "agentaction-gateway",
+      issued_at: input.issued_at,
+      objective_template: "Observe one bounded agent run through a terminal lifecycle state.",
+      variables: assignmentVariable,
+      required_outcomes: [{
+        id: "run-completed",
+        description: "The observed agent run reached a successful terminal state.",
+        source: "job",
+        assertion: { path: "status", operator: "equals", value: "completed" },
+      }],
+      hard_constraints: [],
+      evidence_requirements: ["job"],
+    };
+  }
+  return {
+    schema_version: "agentpass.intent-profile.v1",
+    profile: input.eval_id,
+    version: input.version,
+    issuer: "agentaction-gateway",
+    issued_at: input.issued_at,
+    objective_template: "{{goal}}",
+    variables: {
+      ...assignmentVariable,
+      goal: {
+        type: "string",
+        required: true,
+        description: "Concise goal declared by the agent; not trusted user intent.",
+      },
     },
-    {
-      id: "agent-reported-achieved",
-      description: "The agent self-attested that the declared goal was achieved.",
-      source: "job",
-      assertion: { path: "reported_outcome.status", operator: "equals", value: "achieved" },
-    },
-    {
-      id: "agent-reported-criteria-met",
-      description: "The agent self-attested that all declared success criteria were met.",
-      source: "job",
-      assertion: { path: "reported_outcome.success_criteria_met", operator: "equals", value: "all" },
-    },
-  ],
-  hard_constraints: [
-    {
+    required_outcomes: [
+      {
+        id: "run-completed",
+        description: "The observed agent run reached a successful terminal state.",
+        source: "job",
+        assertion: { path: "status", operator: "equals", value: "completed" },
+      },
+      {
+        id: "agent-reported-achieved",
+        description: "The agent self-attested that the declared goal was achieved.",
+        source: "job",
+        assertion: { path: "reported_outcome.status", operator: "equals", value: "achieved" },
+      },
+      {
+        id: "agent-reported-criteria-met",
+        description: "The agent self-attested that all declared success criteria were met.",
+        source: "job",
+        assertion: { path: "reported_outcome.success_criteria_met", operator: "equals", value: "all" },
+      },
+    ],
+    hard_constraints: [{
       id: "agent-reported-constraints-respected",
       description: "The agent self-attested that the declared constraints were respected.",
       source: "job",
       assertion: { path: "reported_outcome.constraints_respected", operator: "equals", value: "pass" },
-    },
-  ],
-  evidence_requirements: ["job"],
-};
+    }],
+    evidence_requirements: ["job"],
+  };
+}
+
+function evalDefinition(input: EvalDefinitionInput): EvalDefinition {
+  const profile = bindIntentProfile(profileForEval(input));
+  return {
+    schema_version: "agentaction.eval-definition.v1",
+    eval_id: input.eval_id,
+    version: input.version,
+    name: input.name,
+    description: input.description,
+    kind: input.kind,
+    trust: input.kind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state",
+    profile_key: intentProfileKey(profile),
+    profile_digest: stringValue(profile.profile_digest),
+    issued_at: input.issued_at,
+    created_at: input.created_at,
+    created_by: input.created_by,
+    ...(input.built_in ? { built_in: true } : {}),
+  };
+}
+
+const BUILTIN_EVAL_DEFINITIONS = [
+  evalDefinition({
+    eval_id: "observed_execution",
+    version: "v1",
+    name: "Observed execution",
+    description: "Checks whether a Job reached a successful terminal state using trusted execution state.",
+    kind: "observed_execution",
+    issued_at: EVAL_CREATED_AT,
+    created_at: EVAL_CREATED_AT,
+    created_by: "agentaction-gateway",
+    built_in: true,
+  }),
+  evalDefinition({
+    eval_id: "agent_declared_intent",
+    version: "v1",
+    name: "Agent-declared intent",
+    description: "Checks lifecycle success plus the agent's self-attested goal, criteria, and constraints.",
+    kind: "agent_declared",
+    issued_at: EVAL_CREATED_AT,
+    created_at: EVAL_CREATED_AT,
+    created_by: "agentaction-gateway",
+    built_in: true,
+  }),
+] satisfies EvalDefinition[];
+
+function requiredEvalId(value: unknown, label: string): string {
+  const result = stringValue(value).trim();
+  if (!EVAL_ID.test(result)) throw new Error(`${label} is invalid`);
+  return result;
+}
+
+function requiredEvalVersion(value: unknown, label: string): string {
+  const result = stringValue(value).trim();
+  if (!EVAL_VERSION.test(result)) throw new Error(`${label} is invalid`);
+  return result;
+}
+
+function requiredEvalKind(value: unknown): EvalKind {
+  if (value !== "agent_declared" && value !== "observed_execution") throw new Error("eval kind is invalid");
+  return value;
+}
+
+function evalSelectorId(value: unknown, label: string): string {
+  requiredActivityId(value, label);
+  return String(value);
+}
+
+function storedKeysWithout(value: string[] | undefined, key: string): string[] {
+  return (value || []).filter((candidate) => candidate !== key);
+}
+
+async function evalAssignmentSelectorKey(sourceId?: string, agentId?: string): Promise<string> {
+  return canonicalDigest({ source_id: sourceId || null, agent_id: agentId || null });
+}
+
+function evalIdFromProfile(profileKey: string, version?: string): string | undefined {
+  if (!version || !profileKey.endsWith(`.${version}`)) return undefined;
+  const evalId = profileKey.slice(0, -(version.length + 1));
+  return EVAL_ID.test(evalId) ? evalId : undefined;
+}
 
 async function storeActivityJob(
   env: Env,
@@ -6235,9 +6596,6 @@ async function storeActivityJob(
   lifecycle: ActivityJobLifecycle,
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
   const store = authorizationStore(env, lifecycle.tenant_id, manifest);
-  const profile = lifecycle.declared_intent ? AGENT_DECLARED_INTENT_PROFILE : OBSERVED_EXECUTION_PROFILE;
-  const profileKey = intentProfileKey(profile);
-  const profileVariables = lifecycle.declared_intent ? { goal: lifecycle.declared_intent.goal } : {};
   const identityDigest = await canonicalDigest({
     tenant_id: lifecycle.tenant_id,
     source_id: lifecycle.source_id,
@@ -6257,6 +6615,29 @@ async function storeActivityJob(
   if (existing.ok) {
     contractBody = await existing.json() as Record<string, unknown>;
   } else if (existing.status === 404) {
+    const resolved = await store.fetch(new Request("https://agentid.local/eval-assignments/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source_id: lifecycle.source_id,
+        agent_id: lifecycle.agent_id,
+        has_declared_intent: Boolean(lifecycle.declared_intent),
+      }),
+    }));
+    if (!resolved.ok) return { response: resolved, body: await resolved.json() as Record<string, unknown> };
+    const resolvedBody = await resolved.json() as Record<string, unknown>;
+    const definition = recordValue(resolvedBody.definition) as EvalDefinition;
+    if (definition.schema_version !== "agentaction.eval-definition.v1") {
+      return {
+        response: new Response(null, { status: 500 }),
+        body: { error: "resolved eval definition is invalid", error_code: "eval_definition_invalid" },
+      };
+    }
+    const profile = profileForEval(definition);
+    const profileVariables = {
+      agentaction_assignment_id: stringValue(resolvedBody.assignment_id),
+      ...(lifecycle.declared_intent ? { goal: lifecycle.declared_intent.goal } : {}),
+    };
     const boundProfile = bindIntentProfile(profile);
     const registered = await store.fetch(
       new Request("https://agentid.local/intent-profiles", {
@@ -6300,9 +6681,11 @@ async function storeActivityJob(
 
   const contract = recordValue(contractBody.contract) as IntentContract;
   const contractGoal = optionalString(recordValue(contract.profile_variables).goal);
+  const expectedKind: EvalKind = lifecycle.declared_intent ? "agent_declared" : "observed_execution";
+  const contractKind: EvalKind = contractGoal === undefined ? "observed_execution" : "agent_declared";
   if (
-    contract.profile !== profileKey ||
-    (lifecycle.declared_intent ? contractGoal !== lifecycle.declared_intent.goal : contractGoal !== undefined)
+    contractKind !== expectedKind ||
+    (lifecycle.declared_intent && contractGoal !== lifecycle.declared_intent.goal)
   ) {
     return {
       response: new Response(null, { status: 409 }),
@@ -6312,6 +6695,24 @@ async function storeActivityJob(
       },
     };
   }
+  const evalId = evalIdFromProfile(contract.profile, contract.profile_version);
+  if (!evalId || !contract.profile_version || !contract.profile_digest) {
+    return {
+      response: new Response(null, { status: 409 }),
+      body: { error: "activity job eval binding is invalid", error_code: "activity_job_eval_binding_invalid" },
+    };
+  }
+  const evalBinding: EvalBinding = {
+    schema_version: "agentaction.eval-binding.v1",
+    eval_id: evalId,
+    version: contract.profile_version,
+    kind: contractKind,
+    trust: contractKind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state",
+    profile_key: contract.profile,
+    profile_digest: contract.profile_digest,
+    assignment_id: optionalString(recordValue(contract.profile_variables).agentaction_assignment_id)
+      || `legacy_implicit_${contractKind}`,
+  };
   const binding = {
     schema_version: "agentaction.activity-job-result.v1",
     phase: lifecycle.phase,
@@ -6324,8 +6725,9 @@ async function storeActivityJob(
     job_id: jobId,
     intent_id: intentId,
     intent_digest: stringValue(contractBody.intent_digest || contract.intent_digest),
-    profile_key: profileKey,
-    profile_kind: lifecycle.declared_intent ? "agent_declared" : "observed_execution",
+    profile_key: contract.profile,
+    profile_kind: contractKind,
+    eval_binding: evalBinding,
   };
   if (lifecycle.phase === "started") {
     return {
@@ -6363,6 +6765,7 @@ async function storeActivityJob(
           intent_id: intentId,
           intent_digest: binding.intent_digest,
           job_id: jobId,
+          eval_binding: evalBinding,
           started_at: lifecycle.started_at,
           completed_at: lifecycle.completed_at,
           status: lifecycle.status,
