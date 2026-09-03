@@ -1749,6 +1749,10 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(rendered, /Uncached input 500 tokens · Cached input 140 tokens · Output 160 tokens/);
   assert.match(rendered, /2\/2 request\(s\) reported usage/);
   assert.match(rendered, /Criteria 6\/6 passed · 100% vs 80% threshold/);
+  assert.match(rendered, /Eval pass/);
+  assert.match(rendered, /Deterministic eval verdict/);
+  assert.match(rendered, /Lifecycle achieved/);
+  assert.match(rendered, /Legacy profile diagnostic: completed/);
   assert.match(rendered, /Eval trust: Self-attested by agent/);
   assert.match(rendered, /Agent-provided claims; not independently verified/);
   assert.doesNotMatch(rendered, /verified by AgentAction|independently verified evidence/i);
@@ -1764,6 +1768,107 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(requests.at(-1) || "", /cursor=opaque-next/);
   assert.match(pageUrls.at(-1) || "", /cursor=opaque-next/);
   assert.match(document.get("[data-jobs-page-summary]").textContent, /cursor-stable subsequent page/);
+});
+
+test("keeps lifecycle, canonical eval verdict, and legacy profile diagnostics distinct", async () => {
+  const base = structuredClone(JOBS_FIXTURE.jobs[1]);
+  const scenarios = [
+    ["eligible", "achieved"],
+    ["ineligible", "achieved"],
+    ["manual-review", "partial"],
+  ].map(([name, lifecycle], index) => {
+    const job = structuredClone(base);
+    job.job_id = `job-${name}`;
+    job.intent_id = `intent-${name}`;
+    job.finalized_at = `2026-07-25T11:${String(30 - index).padStart(2, "0")}:00.000Z`;
+    job.intent_context.reported_outcome.status = lifecycle;
+    job.intent_context.reported_outcome.success_criteria_met = lifecycle === "partial" ? "some" : "all";
+    job.verdict = "failed";
+    job.qualified_success = false;
+    job.constraint_compliance = "fail";
+    job.goal_attainment = 0;
+    job.criterion_evaluation = {
+      ...job.criterion_evaluation,
+      aggregate_status: "pass",
+      pass_rate: 1,
+      pass_threshold: 1,
+      criteria_count: 6,
+      passed_count: 6,
+      failed_count: 0,
+      insufficient_evidence_count: 0,
+    };
+    job.eval_verdict = {
+      schema_version: "agentaction.eval-verdict.v1",
+      status: "pass",
+      pass_rate: 1,
+      pass_threshold: 1,
+      criteria_count: 6,
+      passed_count: 6,
+      failed_count: 0,
+      insufficient_evidence_count: 0,
+      trust: "agent_self_attested",
+    };
+    job.legacy_profile_result = {
+      schema_version: "agentpass.intent-profile-result.v1",
+      verdict: "failed",
+      qualified_success: false,
+      constraint_compliance: "fail",
+      goal_attainment: 0,
+    };
+    return job;
+  });
+  const legacy = structuredClone(JOBS_FIXTURE.jobs[0]);
+  legacy.legacy_profile_result = {
+    schema_version: "agentpass.intent-profile-result.v1",
+    verdict: legacy.verdict,
+    qualified_success: legacy.qualified_success,
+    constraint_compliance: legacy.constraint_compliance,
+    goal_attainment: legacy.goal_attainment,
+  };
+  const payload = {
+    ...structuredClone(JOBS_FIXTURE),
+    jobs: [...scenarios, legacy],
+    pagination: { limit: 25, returned_jobs: 4, next_cursor: null },
+  };
+  const { controller, document } = makeRuntime({ hash: "#jobs", jobsPayload: payload });
+  await controller.ready;
+
+  const rows = document.get("[data-jobs-list]").children;
+  assert.equal(rows.length, 4);
+  for (const row of rows.slice(0, 2)) {
+    const rendered = textOf(row);
+    assert.match(rendered, /Eval pass/);
+    assert.match(rendered, /Lifecycle achieved/);
+    assert.match(rendered, /Legacy profile diagnostic: failed/);
+  }
+  const manual = textOf(rows[2]);
+  assert.match(manual, /Eval pass/);
+  assert.match(manual, /Lifecycle partial/);
+  assert.match(manual, /Legacy profile diagnostic: failed/);
+  const legacyRendered = textOf(rows[3]);
+  assert.match(legacyRendered, /Profile indeterminate/);
+  assert.match(legacyRendered, /Legacy intent-profile result; no deterministic criterion verdict/);
+  assert.doesNotMatch(legacyRendered, /Eval pass|Lifecycle achieved|Lifecycle partial/);
+});
+
+test("rejects an additive eval verdict that disagrees with its criterion summary", async () => {
+  const malformed = structuredClone(JOBS_FIXTURE.jobs[1]);
+  malformed.eval_verdict = {
+    schema_version: "agentaction.eval-verdict.v1",
+    status: "fail",
+    pass_rate: 1,
+    pass_threshold: 0.8,
+    criteria_count: 6,
+    passed_count: 6,
+    failed_count: 0,
+    insufficient_evidence_count: 0,
+    trust: "agent_self_attested",
+  };
+  const payload = { ...structuredClone(JOBS_FIXTURE), jobs: [malformed] };
+  const { controller, document } = makeRuntime({ hash: "#jobs", jobsPayload: payload });
+  await controller.ready;
+  assert.equal(document.get("[data-jobs-message]").dataset.state, "unavailable");
+  assert.match(document.get("[data-jobs-message-detail]").textContent, /cannot be reached/i);
 });
 
 test("distinguishes zero, missing, and irreconcilable cached-token reports in Jobs", async () => {
@@ -1821,6 +1926,7 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
       assignment_id: "evalroute_observed",
     },
     criterion_evaluation: undefined,
+    eval_verdict: undefined,
   }];
   observedJobs.matched_records = 1;
   observedJobs.pagination.next_cursor = null;
@@ -1841,7 +1947,10 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   };
   observedDetail.job.eval_binding = observedJobs.jobs[0].eval_binding;
   delete observedDetail.job.model_usage;
+  delete observedDetail.job.criterion_evaluation;
+  delete observedDetail.job.eval_verdict;
   delete observedDetail.final_evaluation.criterion_evaluation;
+  delete observedDetail.final_evaluation.eval_verdict;
   observedDetail.immutable_boundary.profile_digest = "b".repeat(64);
   const detailRuntime = makeRuntime({
     hash: "#job-detail",
@@ -1896,6 +2005,8 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
         confidence: 0.88,
       },
     },
+    criterion_evaluation: undefined,
+    eval_verdict: undefined,
   }];
   declaredJobs.matched_records = 1;
   declaredJobs.pagination.next_cursor = null;
@@ -1910,6 +2021,7 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
   const declaredDetail = structuredClone(JOB_DETAIL_FIXTURE);
   declaredDetail.job = declaredJobs.jobs[0];
   delete declaredDetail.final_evaluation.criterion_evaluation;
+  delete declaredDetail.final_evaluation.eval_verdict;
   declaredDetail.immutable_boundary.profile_digest = "c".repeat(64);
   const detailRuntime = makeRuntime({
     hash: "#job-detail",
@@ -2005,7 +2117,7 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   const modelBreakdown = textOf(document.get("[data-job-detail-model-usage-models]"));
   assert.match(modelBreakdown, /nousresearch\/hermes-4-405b via openrouter/);
   assert.match(modelBreakdown, /Uncached input 500 tokens · Cached input 140 tokens · Output 160 tokens/);
-  assert.match(textOf(document.get("[data-job-detail-metrics]")), /Goal attainment 50%/);
+  assert.match(textOf(document.get("[data-job-detail-metrics]")), /Profile goal attainment 0%/);
   assert.match(textOf(document.get("[data-job-detail-outcomes]")), /customer-notified/);
   assert.match(textOf(document.get("[data-job-detail-constraints]")), /approval-required/);
   assert.match(textOf(document.get("[data-job-detail-discipline]")), /Replays 1/);
@@ -2019,6 +2131,105 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   assert.match(textOf(timeline), /Timestamp missing/);
   assert.match(textOf(document.get("[data-job-detail-findings-list]")), /timeline event lacks a valid timestamp/);
   assert.equal(document.get("[data-status-card]").dataset.state, "partial");
+});
+
+test("presents a passing deterministic eval separately from partial lifecycle and failed profile diagnostics", async () => {
+  const detail = structuredClone(JOB_DETAIL_FIXTURE);
+  const criterion = detail.final_evaluation.criterion_evaluation;
+  criterion.aggregate_status = "pass";
+  criterion.pass_rate = 1;
+  criterion.pass_threshold = 1;
+  criterion.criteria = criterion.criteria.map((item: Record<string, any>) => ({ ...item, status: "pass" }));
+  detail.job.intent_context.reported_outcome.status = "partial";
+  detail.job.intent_context.reported_outcome.success_criteria_met = "some";
+  for (const container of [detail.job, detail.final_evaluation]) {
+    container.verdict = "failed";
+    container.qualified_success = false;
+    container.constraint_compliance = "fail";
+    container.goal_attainment = 0;
+    container.eval_verdict = {
+      schema_version: "agentaction.eval-verdict.v1",
+      status: "pass",
+      pass_rate: 1,
+      pass_threshold: 1,
+      criteria_count: 6,
+      passed_count: 6,
+      failed_count: 0,
+      insufficient_evidence_count: 0,
+      trust: "agent_self_attested",
+    };
+    container.legacy_profile_result = {
+      schema_version: "agentpass.intent-profile-result.v1",
+      verdict: "failed",
+      qualified_success: false,
+      constraint_compliance: "fail",
+      goal_attainment: 0,
+    };
+  }
+  detail.job.criterion_evaluation = {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: "pass",
+    trust: "agent_self_attested",
+    pass_rate: 1,
+    pass_threshold: 1,
+    criteria_count: 6,
+    passed_count: 6,
+    failed_count: 0,
+    insufficient_evidence_count: 0,
+  };
+  const { controller, document } = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial",
+    detailPayload: detail,
+  });
+  await controller.ready;
+
+  assert.equal(document.get("[data-job-detail-message]").hidden, true);
+  const metrics = textOf(document.get("[data-job-detail-metrics]"));
+  assert.match(metrics, /Eval verdict pass/);
+  assert.match(metrics, /Lifecycle outcome partial/);
+  assert.match(metrics, /Legacy profile result failed/);
+  assert.match(metrics, /Diagnostic only; not the eval verdict/);
+  assert.match(metrics, /Self-attested by agent; not independently verified/);
+  assert.match(document.get("[data-job-detail-criteria-summary]").textContent, /pass · 6 of 6 passed/);
+  assert.match(document.get("[data-job-detail-evaluation-id]").textContent, /Legacy profile evaluation/);
+});
+
+test("rejects detail when the additive eval verdict disagrees with the frozen criterion result", async () => {
+  const detail = structuredClone(JOB_DETAIL_FIXTURE);
+  const criteria = detail.final_evaluation.criterion_evaluation.criteria as Record<string, any>[];
+  const summary = {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: detail.final_evaluation.criterion_evaluation.aggregate_status,
+    trust: detail.final_evaluation.criterion_evaluation.provenance.trust,
+    pass_rate: detail.final_evaluation.criterion_evaluation.pass_rate,
+    pass_threshold: detail.final_evaluation.criterion_evaluation.pass_threshold,
+    criteria_count: criteria.length,
+    passed_count: criteria.filter((item) => item.status === "pass").length,
+    failed_count: criteria.filter((item) => item.status === "fail").length,
+    insufficient_evidence_count: criteria.filter((item) => item.status === "insufficient_evidence").length,
+  };
+  const mismatchedVerdict = {
+    schema_version: "agentaction.eval-verdict.v1",
+    status: "fail",
+    pass_rate: summary.pass_rate,
+    pass_threshold: summary.pass_threshold,
+    criteria_count: summary.criteria_count,
+    passed_count: summary.passed_count,
+    failed_count: summary.failed_count,
+    insufficient_evidence_count: summary.insufficient_evidence_count,
+    trust: summary.trust,
+  };
+  detail.job.criterion_evaluation = summary;
+  detail.job.eval_verdict = mismatchedVerdict;
+  detail.final_evaluation.eval_verdict = mismatchedVerdict;
+  const { controller, document } = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial",
+    detailPayload: detail,
+  });
+  await controller.ready;
+  assert.equal(document.get("[data-job-detail-message]").dataset.state, "unavailable");
 });
 
 test("renders bounded criterion results with evidence and frozen evaluator provenance", async () => {
@@ -2083,6 +2294,9 @@ test("renders bounded criterion results with evidence and frozen evaluator prove
       evaluated_at: "2026-07-25T11:15:00.000Z",
     },
   };
+  delete detail.job.criterion_evaluation;
+  delete detail.job.eval_verdict;
+  delete detail.final_evaluation.eval_verdict;
   const { controller, document } = makeRuntime({
     hash: "#job-detail",
     search: "?job_id=job-refund-partial",

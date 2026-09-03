@@ -2866,7 +2866,17 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
   assert.equal(detail.body.job.model_usage.total_tokens, 150);
   assert.equal(detail.body.job.model_usage.models[0].model, "nousresearch/hermes-4-405b");
   assert.equal(JSON.stringify(detail.body).includes("prompt"), false);
-  assert.equal(JSON.stringify(detail.body).includes("result"), false);
+  assert.equal(JSON.stringify(detail.body).includes("provider_result"), false);
+  assert.equal(detail.body.job.eval_verdict, undefined);
+  assert.deepEqual(detail.body.job.legacy_profile_result, {
+    schema_version: "agentpass.intent-profile-result.v1",
+    verdict: "completed",
+    qualified_success: true,
+    constraint_compliance: "pass",
+    goal_attainment: 1,
+  });
+  assert.equal(detail.body.final_evaluation.eval_verdict, undefined);
+  assert.deepEqual(detail.body.final_evaluation.legacy_profile_result, detail.body.job.legacy_profile_result);
 });
 
 test("activity job usage preserves legacy counts and validates additive cached input semantics", async () => {
@@ -3937,6 +3947,11 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
     ["pass", "pass", "pass", "pass", "pass", "pass"],
   );
   const eligibleResult = eligible.detail.final_evaluation.criterion_evaluation;
+  assert.equal(eligible.detail.job.intent_context.reported_outcome.status, "achieved");
+  assert.equal(eligible.detail.job.eval_verdict.status, "pass");
+  assert.equal(eligible.detail.final_evaluation.eval_verdict.status, "pass");
+  assert.equal(eligible.detail.job.legacy_profile_result.verdict, "failed");
+  assert.equal(eligible.detail.final_evaluation.legacy_profile_result.verdict, "failed");
   assert.equal(eligibleResult.provenance.evaluator, "agentaction.deterministic");
   assert.equal(eligibleResult.provenance.specification_digest, created.body.definition.specification_digest);
   assert.equal(eligibleResult.provenance.assignment_id, assigned.body.assignment.assignment_id);
@@ -3949,9 +3964,42 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   assert.match(eligibleResult.criteria[0].explanation, /not independently verified/);
   assert.equal(JSON.stringify(eligible.detail).includes("refund-fixture-secret"), false);
 
+  const eligibleFinalizationKey = `intent:${eligible.completed.intent_id}:finalization`;
+  const originalEligibleFinalization = structuredClone(tenantValues.get(eligibleFinalizationKey)) as any;
+  const provenanceMismatch = structuredClone(originalEligibleFinalization);
+  provenanceMismatch.evaluation.criterion_evaluation.provenance.evidence_digest = "f".repeat(64);
+  tenantValues.set(eligibleFinalizationKey, provenanceMismatch);
+  const rejectedProvenanceRead = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${encodeURIComponent(eligible.completed.job_id)}`,
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.equal(rejectedProvenanceRead.status, 404);
+  assert.equal(rejectedProvenanceRead.body.error_code, "intent_quality_job_not_found");
+  const malformedAggregate = structuredClone(originalEligibleFinalization);
+  malformedAggregate.evaluation.criterion_evaluation.pass_rate = 0;
+  tenantValues.set(eligibleFinalizationKey, malformedAggregate);
+  const rejectedAggregateRead = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${encodeURIComponent(eligible.completed.job_id)}`,
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.equal(rejectedAggregateRead.status, 404);
+  assert.equal(rejectedAggregateRead.body.error_code, "intent_quality_job_not_found");
+  tenantValues.set(eligibleFinalizationKey, originalEligibleFinalization);
+
   const ineligible = await runFixture("ineligible", allCriteria);
   assert.equal(ineligible.detail.final_evaluation.criterion_evaluation.aggregate_status, "pass");
   assert.equal(ineligible.detail.final_evaluation.criterion_evaluation.pass_rate, 1);
+  assert.equal(ineligible.detail.job.intent_context.reported_outcome.status, "achieved");
+  assert.equal(ineligible.detail.job.eval_verdict.status, "pass");
+  assert.equal(ineligible.detail.job.legacy_profile_result.verdict, "failed");
 
   const incorrect = await runFixture("incorrect", [
     { ...allCriteria[0], status: "fail" },
@@ -3969,6 +4017,9 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   const manualResult = manualReview.detail.final_evaluation.criterion_evaluation;
   assert.equal(manualResult.aggregate_status, "pass");
   assert.equal(manualReview.detail.final_evaluation.qualified_success, false);
+  assert.equal(manualReview.detail.job.intent_context.reported_outcome.status, "partial");
+  assert.equal(manualReview.detail.job.eval_verdict.status, "pass");
+  assert.equal(manualReview.detail.job.legacy_profile_result.verdict, "failed");
   assert.equal(
     manualResult.criteria.find((criterion: any) => criterion.criterion_id === "ambiguity-escalated").status,
     "pass",
@@ -4038,6 +4089,9 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
     insufficient_evidence_count: 0,
     trust: "agent_self_attested",
   });
+  const eligibleJob = jobs.body.jobs.find((job: any) => job.job_id === eligible.completed.job_id);
+  assert.equal(eligibleJob.eval_verdict.status, "pass");
+  assert.equal(eligibleJob.legacy_profile_result.verdict, "failed");
 
   const config = await call(env, ctx, "GET", "/control-plane/tenants/acme/evals", undefined, owner);
   assert.equal(config.status, 200);

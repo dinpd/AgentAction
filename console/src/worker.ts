@@ -638,7 +638,7 @@ const SHELL_HTML = `<!doctype html>
                   <th scope="col">Job / intent</th>
                   <th scope="col">Agent</th>
                   <th scope="col">Eval / intent</th>
-                  <th scope="col">Outcome</th>
+                  <th scope="col">Lifecycle / eval</th>
                   <th scope="col">Model usage</th>
                   <th scope="col">Evidence</th>
                   <th scope="col">Discipline</th>
@@ -697,19 +697,19 @@ const SHELL_HTML = `<!doctype html>
           <section class="detail-section" aria-labelledby="job-detail-outcome-title">
             <div class="detail-section-heading">
               <div>
-                <p class="eyebrow">Final evaluation</p>
-                <h3 id="job-detail-outcome-title">Outcome against profile</h3>
+                <p class="eyebrow">Lifecycle and diagnostics</p>
+                <h3 id="job-detail-outcome-title">Lifecycle outcome and legacy profile diagnostics</h3>
               </div>
               <p data-job-detail-evaluation-id></p>
             </div>
             <div class="detail-metric-grid" data-job-detail-metrics></div>
             <div class="predicate-grid">
               <section class="predicate-panel">
-                <h4>Outcomes</h4>
+                <h4>Legacy profile outcomes</h4>
                 <div data-job-detail-outcomes></div>
               </section>
               <section class="predicate-panel">
-                <h4>Constraints</h4>
+                <h4>Legacy profile constraints</h4>
                 <div data-job-detail-constraints></div>
               </section>
               <section class="predicate-panel">
@@ -3216,7 +3216,9 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && (job.eval_binding === undefined || isRenderableEvalBinding(job.eval_binding, binding))
       && (!isAgentDeclaredIntentProfile(job) || isRenderableIntentContext(job.intent_context))
       && (job.model_usage === undefined || isRenderableModelUsage(job.model_usage))
-      && (job.criterion_evaluation === undefined || isRenderableCriterionSummary(job.criterion_evaluation, job.eval_binding));
+      && (job.criterion_evaluation === undefined || isRenderableCriterionSummary(job.criterion_evaluation, job.eval_binding))
+      && (job.eval_verdict === undefined || isRenderableEvalVerdict(job.eval_verdict, job.criterion_evaluation, job.eval_binding))
+      && (job.legacy_profile_result === undefined || isRenderableLegacyProfileResult(job.legacy_profile_result, job));
   }
 
   function isObservedExecutionProfile(value: unknown): boolean {
@@ -3275,7 +3277,81 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && validCount(summary.passed_count)
       && validCount(summary.failed_count)
       && validCount(summary.insufficient_evidence_count)
-      && summary.passed_count + summary.failed_count + summary.insufficient_evidence_count === summary.criteria_count;
+      && summary.criteria_count > 0
+      && summary.passed_count + summary.failed_count + summary.insufficient_evidence_count === summary.criteria_count
+      && summary.pass_rate === Math.round((summary.passed_count / summary.criteria_count) * 1_000_000) / 1_000_000;
+  }
+
+  function isRenderableEvalVerdict(value: unknown, summaryValue: unknown, bindingValue: unknown): boolean {
+    const verdict = record(value);
+    const summary = record(summaryValue);
+    return verdict.schema_version === "agentaction.eval-verdict.v1"
+      && ["pass", "fail", "insufficient_evidence"].includes(verdict.status)
+      && isRenderableCriterionSummary(summary, bindingValue)
+      && verdict.status === summary.aggregate_status
+      && verdict.pass_rate === summary.pass_rate
+      && verdict.pass_threshold === summary.pass_threshold
+      && verdict.criteria_count === summary.criteria_count
+      && verdict.passed_count === summary.passed_count
+      && verdict.failed_count === summary.failed_count
+      && verdict.insufficient_evidence_count === summary.insufficient_evidence_count
+      && verdict.trust === summary.trust;
+  }
+
+  function isRenderableLegacyProfileResult(value: unknown, containerValue: unknown): boolean {
+    const result = record(value);
+    const container = record(containerValue);
+    return result.schema_version === "agentpass.intent-profile-result.v1"
+      && ["completed", "partial", "failed", "indeterminate"].includes(result.verdict)
+      && typeof result.qualified_success === "boolean"
+      && ["pass", "fail", "indeterminate"].includes(result.constraint_compliance)
+      && typeof result.goal_attainment === "number"
+      && result.goal_attainment >= 0
+      && result.goal_attainment <= 1
+      && result.verdict === container.verdict
+      && result.qualified_success === container.qualified_success
+      && result.constraint_compliance === container.constraint_compliance
+      && result.goal_attainment === container.goal_attainment;
+  }
+
+  function evalVerdictFor(containerValue: unknown, bindingValue: unknown): Record<string, any> {
+    const container = record(containerValue);
+    const summary = record(container.criterion_evaluation);
+    if (!isRenderableCriterionSummary(summary, bindingValue)) return {};
+    if (container.eval_verdict !== undefined) {
+      return isRenderableEvalVerdict(container.eval_verdict, summary, bindingValue)
+        ? record(container.eval_verdict)
+        : {};
+    }
+    // Rolling deploy compatibility: the old gateway already exposes the validated
+    // criterion summary, so preserve the same labels until its additive verdict arrives.
+    return {
+      schema_version: "agentaction.eval-verdict.v1",
+      status: summary.aggregate_status,
+      pass_rate: summary.pass_rate,
+      pass_threshold: summary.pass_threshold,
+      criteria_count: summary.criteria_count,
+      passed_count: summary.passed_count,
+      failed_count: summary.failed_count,
+      insufficient_evidence_count: summary.insufficient_evidence_count,
+      trust: summary.trust,
+    };
+  }
+
+  function legacyProfileResultFor(containerValue: unknown): Record<string, any> {
+    const container = record(containerValue);
+    if (container.legacy_profile_result !== undefined) {
+      return isRenderableLegacyProfileResult(container.legacy_profile_result, container)
+        ? record(container.legacy_profile_result)
+        : {};
+    }
+    return {
+      schema_version: "agentpass.intent-profile-result.v1",
+      verdict: container.verdict,
+      qualified_success: container.qualified_success,
+      constraint_compliance: container.constraint_compliance,
+      goal_attainment: container.goal_attainment,
+    };
   }
 
   function isRenderableCriterionEvaluation(value: unknown): boolean {
@@ -3285,6 +3361,21 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const requiredCriteria = Array.isArray(result.required_criteria) ? result.required_criteria : [];
     const boundedText = (candidate: unknown, maximum: number): boolean => typeof candidate === "string" && Boolean(candidate.trim()) && candidate.length <= maximum;
     const criterionIds = criteria.map((criterion) => criterion.criterion_id);
+    const requiredIds = criteria.filter((criterion) => criterion.required === true).map((criterion) => criterion.criterion_id);
+    const passed = criteria.filter((criterion) => criterion.status === "pass").length;
+    const insufficient = criteria.filter((criterion) => criterion.status === "insufficient_evidence").length;
+    const computedPassRate = criteria.length > 0 ? Math.round((passed / criteria.length) * 1_000_000) / 1_000_000 : -1;
+    const maximumPassRate = criteria.length > 0 ? Math.round(((passed + insufficient) / criteria.length) * 1_000_000) / 1_000_000 : -1;
+    const requiredResults = criteria.filter((criterion) => criterion.required === true);
+    const computedAggregate = requiredResults.some((criterion) => criterion.status === "fail")
+      ? "fail"
+      : requiredResults.some((criterion) => criterion.status === "insufficient_evidence")
+        ? "insufficient_evidence"
+        : computedPassRate >= Number(result.pass_threshold)
+          ? "pass"
+          : maximumPassRate >= Number(result.pass_threshold)
+            ? "insufficient_evidence"
+            : "fail";
     return result.schema_version === "agentaction.deterministic-eval-result.v1"
       && ["pass", "fail", "insufficient_evidence"].includes(result.aggregate_status)
       && typeof result.pass_rate === "number"
@@ -3297,6 +3388,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && requiredCriteria.length <= 20
       && requiredCriteria.every((item: unknown) => boundedText(item, 80))
       && new Set(requiredCriteria).size === requiredCriteria.length
+      && requiredCriteria.length === requiredIds.length
+      && requiredCriteria.every((item: unknown, index: number) => item === requiredIds[index])
       && criteria.length > 0
       && criteria.length <= 20
       && new Set(criterionIds).size === criterionIds.length
@@ -3316,6 +3409,8 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         && criterion.evidence_refs.every((reference: unknown) => boundedText(reference, 500))
       ))
       && requiredCriteria.every((criterionId: unknown) => criterionIds.includes(criterionId))
+      && result.pass_rate === computedPassRate
+      && result.aggregate_status === computedAggregate
       && provenance.evaluator === "agentaction.deterministic"
       && provenance.evaluator_version === "v1"
       && ["agent_self_attested", "trusted_execution_state"].includes(provenance.trust)
@@ -3345,6 +3440,39 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && provenance.assignment_id === binding.assignment_id
       && provenance.evidence_digest === boundary.evidence_digest
       && provenance.evaluated_at === evaluation.evaluated_at;
+  }
+
+  function criterionSummaryFromEvaluation(value: unknown): Record<string, unknown> {
+    const result = record(value);
+    if (!isRenderableCriterionEvaluation(result)) return {};
+    const criteria = (result.criteria as unknown[]).map(record);
+    return {
+      schema_version: "agentaction.deterministic-eval-result.v1",
+      aggregate_status: result.aggregate_status,
+      pass_rate: result.pass_rate,
+      pass_threshold: result.pass_threshold,
+      criteria_count: criteria.length,
+      passed_count: criteria.filter((criterion) => criterion.status === "pass").length,
+      failed_count: criteria.filter((criterion) => criterion.status === "fail").length,
+      insufficient_evidence_count: criteria.filter((criterion) => criterion.status === "insufficient_evidence").length,
+      trust: record(result.provenance).trust,
+    };
+  }
+
+  function evalVerdictsAgree(leftValue: unknown, rightValue: unknown): boolean {
+    const left = record(leftValue);
+    const right = record(rightValue);
+    return [
+      "schema_version",
+      "status",
+      "pass_rate",
+      "pass_threshold",
+      "criteria_count",
+      "passed_count",
+      "failed_count",
+      "insufficient_evidence_count",
+      "trust",
+    ].every((key) => left[key] === right[key]);
   }
 
   function isRenderableIntentContext(value: unknown): boolean {
@@ -3473,6 +3601,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const timeline = record(detail.timeline);
     const ordering = record(timeline.ordering);
     const quality = record(detail.data_quality);
+    const detailCriterionSummary = criterionSummaryFromEvaluation(evaluation.criterion_evaluation);
     const sourceNames = ["decision_events", "execution_receipts", "observations", "job"];
     return detail.schema_version === "agentpass.intent-quality-job-detail.v1"
       && detail.tenant_id === tenantId
@@ -3507,6 +3636,20 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       && typeof evaluation.execution_discipline === "object"
       && Array.isArray(evaluation.evidence_findings)
       && (evaluation.criterion_evaluation === undefined || criterionEvaluationMatchesDetail(evaluation.criterion_evaluation, detail))
+      && (evaluation.eval_verdict === undefined || isRenderableEvalVerdict(evaluation.eval_verdict, detailCriterionSummary, record(detail.job).eval_binding))
+      && (evaluation.legacy_profile_result === undefined || isRenderableLegacyProfileResult(evaluation.legacy_profile_result, evaluation))
+      && (
+        record(detail.job).eval_verdict === undefined
+        || evaluation.eval_verdict === undefined
+        || evalVerdictsAgree(record(detail.job).eval_verdict, evaluation.eval_verdict)
+      )
+      && (
+        record(detail.job).legacy_profile_result === undefined
+        || evaluation.legacy_profile_result === undefined
+        || ["verdict", "qualified_success", "constraint_compliance", "goal_attainment"].every(
+          (key) => record(record(detail.job).legacy_profile_result)[key] === record(evaluation.legacy_profile_result)[key],
+        )
+      )
       && Number.isInteger(previews.count)
       && Number(previews.count) >= 0
       && Number.isInteger(previews.invalid_count)
@@ -3693,6 +3836,24 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const evalBinding = record(job.eval_binding);
     const intentContext = record(job.intent_context);
     const reportedOutcome = record(intentContext.reported_outcome);
+    const detailCriterionSummary = criterionSummaryFromEvaluation(evaluation.criterion_evaluation);
+    const deterministicVerdict = evaluation.eval_verdict !== undefined
+      && isRenderableEvalVerdict(evaluation.eval_verdict, detailCriterionSummary, evalBinding)
+      ? record(evaluation.eval_verdict)
+      : Object.keys(detailCriterionSummary).length > 0
+        ? {
+          schema_version: "agentaction.eval-verdict.v1",
+          status: detailCriterionSummary.aggregate_status,
+          pass_rate: detailCriterionSummary.pass_rate,
+          pass_threshold: detailCriterionSummary.pass_threshold,
+          criteria_count: detailCriterionSummary.criteria_count,
+          passed_count: detailCriterionSummary.passed_count,
+          failed_count: detailCriterionSummary.failed_count,
+          insufficient_evidence_count: detailCriterionSummary.insufficient_evidence_count,
+          trust: detailCriterionSummary.trust,
+        }
+        : {};
+    const legacyProfileResult = legacyProfileResultFor(evaluation);
 
     jobDetailTitle.textContent = safeText(job.job_id);
     jobDetailSubtitle.textContent = observedExecution
@@ -3771,21 +3932,38 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       jobDetailModelUsageModels.replaceChildren(create("p", "window-note", "No model breakdown is available."));
     }
 
-    jobDetailEvaluationId.textContent = `Evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
-    jobDetailMetrics.replaceChildren(
-      metricCard("Verdict", safeText(evaluation.verdict), evaluation.qualified_success ? "Qualified success" : "Not qualified"),
+    jobDetailEvaluationId.textContent = `Legacy profile evaluation ${safeText(evaluation.evaluation_id)} · ${evaluation.evaluated_at ? formatTimestamp(evaluation.evaluated_at) : "timestamp missing"}`;
+    const evaluationMetrics = [
+      ...(Object.keys(deterministicVerdict).length > 0 ? [metricCard(
+        "Eval verdict",
+        safeText(deterministicVerdict.status).replaceAll("_", " "),
+        `${evalTrustLabel(deterministicVerdict)} · ${evalTrustExplanation(deterministicVerdict)}`,
+      )] : []),
+      ...(agentDeclared ? [metricCard(
+        "Lifecycle outcome",
+        safeText(reportedOutcome.status, "Not reported"),
+        "Self-attested by agent; not independently verified",
+      )] : []),
       metricCard(
-        "Goal attainment",
-        formatPercent(evaluation.goal_attainment),
+        Object.keys(deterministicVerdict).length > 0 ? "Legacy profile result" : "Profile result",
+        safeText(legacyProfileResult.verdict),
+        Object.keys(deterministicVerdict).length > 0
+          ? "Diagnostic only; not the eval verdict"
+          : legacyProfileResult.qualified_success ? "Qualified success" : "Not qualified",
+      ),
+      metricCard(
+        "Profile goal attainment",
+        formatPercent(legacyProfileResult.goal_attainment),
         observedExecution ? "Lifecycle objective" : agentDeclared ? "Agent self-attestation" : "Intent-relative",
       ),
-      metricCard("Constraints", safeText(evaluation.constraint_compliance), `${(evaluation.constraints as any[]).length} evaluated`),
+      metricCard("Profile constraints", safeText(legacyProfileResult.constraint_compliance), `${(evaluation.constraints as any[]).length} evaluated`),
       metricCard(
         "Evidence",
         formatPercent(evaluation.evidence_confidence),
         agentDeclared ? "Self-attested by agent" : `${safeText(evaluation.confidence_band)} confidence`,
       ),
-    );
+    ];
+    jobDetailMetrics.replaceChildren(...evaluationMetrics);
     jobDetailOutcomes.replaceChildren(renderPredicateList(evaluation.outcomes, "No outcome predicates were recorded."));
     jobDetailConstraints.replaceChildren(renderPredicateList(evaluation.constraints, "No constraint predicates were recorded."));
     renderCriterionEvaluation(evaluation.criterion_evaluation);
@@ -3913,6 +4091,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const observedExecution = isObservedExecutionProfile(job);
     const evalBinding = record(job.eval_binding);
     const intentContext = record(job.intent_context);
+    const reportedOutcome = record(intentContext.reported_outcome);
     const profileCell = declaredIntent
       ? cellStack(
         create("strong", undefined, evalDisplayName(evalBinding, "Agent-declared intent")),
@@ -3927,17 +4106,39 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
         ...(Object.keys(evalBinding).length > 0 ? [create("small", undefined, `Eval version ${safeText(evalBinding.version)} · route ${safeText(evalBinding.assignment_id)}`)] : []),
         create("code", undefined, safeText(binding.digest)),
       );
-    const outcomeCell = cellStack(
-      statusPill(safeText(job.verdict), safeText(job.verdict, "indeterminate")),
-      create("small", undefined, `Constraint ${safeText(job.constraint_compliance)}`),
-      create("small", undefined, `Goal ${formatPercent(job.goal_attainment)} · Qualified ${job.qualified_success ? "yes" : "no"}`),
-    );
-    const criterionSummary = record(job.criterion_evaluation);
-    if (isRenderableCriterionSummary(job.criterion_evaluation, job.eval_binding)) {
+    const outcomeCell = cellStack();
+    const deterministicVerdict = evalVerdictFor(job, job.eval_binding);
+    const legacyProfileResult = legacyProfileResultFor(job);
+    if (Object.keys(deterministicVerdict).length > 0) {
       outcomeCell.append(
-        statusPill(safeText(criterionSummary.aggregate_status).replaceAll("_", " "), safeText(criterionSummary.aggregate_status)),
-        create("small", undefined, `Criteria ${formatCount(criterionSummary.passed_count)}/${formatCount(criterionSummary.criteria_count)} passed · ${formatPercent(criterionSummary.pass_rate)} vs ${formatPercent(criterionSummary.pass_threshold)} threshold`),
-        create("small", undefined, `Eval trust: ${evalTrustLabel(criterionSummary)} · ${evalTrustExplanation(criterionSummary)}`),
+        statusPill(`Eval ${safeText(deterministicVerdict.status).replaceAll("_", " ")}`, safeText(deterministicVerdict.status)),
+        create("small", undefined, `Deterministic eval verdict · Criteria ${formatCount(deterministicVerdict.passed_count)}/${formatCount(deterministicVerdict.criteria_count)} passed · ${formatPercent(deterministicVerdict.pass_rate)} vs ${formatPercent(deterministicVerdict.pass_threshold)} threshold`),
+        create("small", undefined, `Eval trust: ${evalTrustLabel(deterministicVerdict)} · ${evalTrustExplanation(deterministicVerdict)}`),
+      );
+      if (declaredIntent) {
+        const lifecycleStatus = safeText(reportedOutcome.status, "not reported");
+        outcomeCell.append(
+          statusPill(`Lifecycle ${lifecycleStatus}`, lifecycleStatus === "achieved" ? "completed" : lifecycleStatus === "unknown" ? "indeterminate" : lifecycleStatus),
+          create("small", undefined, "Agent-reported lifecycle · Self-attested by agent; not independently verified"),
+        );
+      }
+      outcomeCell.append(create(
+        "small",
+        undefined,
+        `Legacy profile diagnostic: ${safeText(legacyProfileResult.verdict)} · Goal ${formatPercent(legacyProfileResult.goal_attainment)} · Constraint ${safeText(legacyProfileResult.constraint_compliance)} · Qualified ${legacyProfileResult.qualified_success ? "yes" : "no"}`,
+      ));
+    } else {
+      if (declaredIntent) {
+        const lifecycleStatus = safeText(reportedOutcome.status, "not reported");
+        outcomeCell.append(
+          statusPill(`Lifecycle ${lifecycleStatus}`, lifecycleStatus === "achieved" ? "completed" : lifecycleStatus === "unknown" ? "indeterminate" : lifecycleStatus),
+          create("small", undefined, "Agent-reported lifecycle · Self-attested by agent; not independently verified"),
+        );
+      }
+      outcomeCell.append(
+        statusPill(`Profile ${safeText(legacyProfileResult.verdict)}`, safeText(legacyProfileResult.verdict, "indeterminate")),
+        create("small", undefined, "Legacy intent-profile result; no deterministic criterion verdict"),
+        create("small", undefined, `Constraint ${safeText(legacyProfileResult.constraint_compliance)} · Goal ${formatPercent(legacyProfileResult.goal_attainment)} · Qualified ${legacyProfileResult.qualified_success ? "yes" : "no"}`),
       );
     }
 
@@ -3983,7 +4184,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       tableCell("Job / intent", idCell),
       tableCell("Agent", agentCell),
       tableCell("Eval / intent", profileCell),
-      tableCell("Outcome", outcomeCell),
+      tableCell("Lifecycle / eval", outcomeCell),
       tableCell("Model usage", usageCell),
       tableCell("Evidence", evidenceCell),
       tableCell("Discipline", disciplineCell),
