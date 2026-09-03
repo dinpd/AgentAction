@@ -3467,6 +3467,13 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   assert.equal(provisioned.status, 201);
 
   const specification = refundTriageSpecification();
+  const declaredIntent = {
+    schema_version: "agentaction.declared-intent.v1",
+    goal: "Recommend the correct refund-policy outcome without executing a refund.",
+    success_criteria: ["Determine eligibility and cite applicable policy rules."],
+    constraints: ["Remain read-only and escalate ambiguity."],
+    confidence: 0.9,
+  };
   const created = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
     eval_id: "refund_triage",
     version: "v2",
@@ -3514,6 +3521,59 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   assert.equal(changedSpecification.status, 409);
   assert.equal(changedSpecification.body.error_code, "eval_definition_frozen");
 
+  const sourceHeaders = {
+    authorization: `Bearer ${provisioned.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  async function completeHistoricalJob(sessionId: string, withDeclaredIntent: boolean): Promise<any> {
+    const startedJob = {
+      ...activityJob("started"),
+      session_id: sessionId,
+      task_id: `${sessionId}-task`,
+      turn_id: `${sessionId}-turn`,
+      ...(withDeclaredIntent ? { declared_intent: declaredIntent } : {}),
+    };
+    const started = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", startedJob, sourceHeaders);
+    assert.equal(started.status, 201, JSON.stringify(started.body));
+    const completed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+      ...startedJob,
+      phase: "completed",
+      completed_at: "2026-08-31T18:00:04.000Z",
+      status: "completed",
+      ...(withDeclaredIntent ? {
+        reported_outcome: {
+          schema_version: "agentaction.reported-outcome.v1",
+          status: "achieved",
+          success_criteria_met: "all",
+          constraints_respected: "pass",
+          confidence: 0.85,
+        },
+      } : {}),
+    }, sourceHeaders);
+    assert.equal(completed.status, 201, JSON.stringify(completed.body));
+    return completed.body;
+  }
+  await completeHistoricalJob("refund-history-declared", true);
+  const historicalObserved = await completeHistoricalJob("refund-history-observed", false);
+  const historicalObservedDetail = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${encodeURIComponent(historicalObserved.job_id)}`,
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.equal(historicalObservedDetail.status, 200, JSON.stringify(historicalObservedDetail.body));
+
+  const rejectedBroadMixedRoute = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    source_id: "hermes-production",
+  }, owner);
+  assert.equal(rejectedBroadMixedRoute.status, 409);
+  assert.equal(rejectedBroadMixedRoute.body.error_code, "eval_assignment_incompatible");
+  assert.deepEqual(rejectedBroadMixedRoute.body.observed_kinds, ["agent_declared", "observed_execution"]);
+
   const assigned = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
     eval_id: "refund_triage",
     eval_version: "v2",
@@ -3521,18 +3581,162 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
     agent_id: "hermes-support",
   }, owner);
   assert.equal(assigned.status, 201, JSON.stringify(assigned.body));
-  const sourceHeaders = {
-    authorization: `Bearer ${provisioned.body.source_token}`,
-    "x-agentaction-source-id": "hermes-production",
-  };
-  const declaredIntent = {
-    schema_version: "agentaction.declared-intent.v1",
-    goal: "Recommend the correct refund-policy outcome without executing a refund.",
-    success_criteria: ["Determine eligibility and cite applicable policy rules."],
-    constraints: ["Remain read-only and escalate ambiguity."],
-    confidence: 0.9,
-  };
   const tenantStore = namespace.get("acme");
+
+  const rejectedReservedGoal = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("started"),
+    session_id: "refund-reserved-goal",
+    task_id: "refund-reserved-goal-task",
+    turn_id: "refund-reserved-goal-turn",
+    declared_intent: {
+      ...declaredIntent,
+      goal: "agentaction.system:missing-declared-intent",
+    },
+  }, sourceHeaders);
+  assert.equal(rejectedReservedGoal.status, 400);
+  assert.equal(rejectedReservedGoal.body.error_code, "activity_job_intent_reserved");
+
+  const legacyProfileSeed = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...activityJob("started"),
+    session_id: "refund-legacy-profile-seed",
+    task_id: "refund-legacy-profile-seed-task",
+    turn_id: "refund-legacy-profile-seed-turn",
+    declared_intent: declaredIntent,
+  }, sourceHeaders);
+  assert.equal(legacyProfileSeed.status, 201, JSON.stringify(legacyProfileSeed.body));
+  assert.equal(legacyProfileSeed.body.eval_binding.profile_digest, created.body.definition.profile_digest);
+  const frozenRefundProfile = await tenantStore.fetch(
+    new Request("https://agentid.local/intent-profiles/refund_triage.v2"),
+  );
+  assert.equal(frozenRefundProfile.status, 200);
+  const frozenRefundProfileBody = await frozenRefundProfile.json() as any;
+  assert.equal(frozenRefundProfileBody.profile_digest, created.body.definition.profile_digest);
+  assert.equal(frozenRefundProfileBody.definition.variables.goal.required, true);
+
+  const evidenceAbsentStartedJob = {
+    ...activityJob("started"),
+    session_id: "refund-evidence-absent",
+    task_id: "refund-evidence-absent-task",
+    turn_id: "refund-evidence-absent-turn",
+  };
+  const evidenceAbsentStarted = await call(
+    env,
+    ctx,
+    "POST",
+    "/tenants/acme/activity/jobs",
+    evidenceAbsentStartedJob,
+    sourceHeaders,
+  );
+  assert.equal(evidenceAbsentStarted.status, 201, JSON.stringify(evidenceAbsentStarted.body));
+  assert.equal(evidenceAbsentStarted.body.eval_binding.eval_id, "refund_triage");
+  assert.equal(evidenceAbsentStarted.body.eval_binding.version, "v2");
+  assert.equal(evidenceAbsentStarted.body.eval_binding.kind, "observed_execution");
+  assert.equal(evidenceAbsentStarted.body.eval_binding.trust, "trusted_execution_state");
+  assert.equal(evidenceAbsentStarted.body.eval_binding.assignment_id, assigned.body.assignment.assignment_id);
+  assert.equal(evidenceAbsentStarted.body.eval_binding.profile_digest, created.body.definition.profile_digest);
+  const evidenceAbsentContract = await tenantStore.fetch(new Request(
+    `https://agentid.local/intent-contracts/${encodeURIComponent(evidenceAbsentStarted.body.intent_id)}`,
+  ));
+  const evidenceAbsentContractBody = await evidenceAbsentContract.json() as any;
+  assert.equal(
+    evidenceAbsentContractBody.contract.profile_variables.goal,
+    "agentaction.system:missing-declared-intent",
+  );
+  const evidenceAbsentValues = namespace.stores.get("acme")!;
+  const evidenceAbsentContractKey = `intent:${evidenceAbsentStarted.body.intent_id}:contract`;
+  const originalEvidenceAbsentContract = structuredClone(evidenceAbsentValues.get(evidenceAbsentContractKey)) as any;
+  const impostorEvidenceAbsentContract = structuredClone(originalEvidenceAbsentContract);
+  impostorEvidenceAbsentContract.contract.profile_variables.agentaction_evaluation_specification = JSON.stringify({
+    schema_version: "agentaction.deterministic-eval-specification.v1",
+    pass_threshold: 1,
+    required_evidence: ["job"],
+    criteria: [{
+      criterion_id: "run-completed",
+      label: "Run completed",
+      description: "A job-only impostor specification.",
+      category: "outcome",
+      required: true,
+      source: "job",
+      assertion: { path: "status", operator: "equals", value: "completed" },
+    }],
+  });
+  evidenceAbsentValues.set(evidenceAbsentContractKey, impostorEvidenceAbsentContract);
+  const rejectedImpostorSentinelContract = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...evidenceAbsentStartedJob,
+    phase: "completed",
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+  }, sourceHeaders);
+  assert.equal(rejectedImpostorSentinelContract.status, 409);
+  assert.equal(rejectedImpostorSentinelContract.body.error_code, "activity_job_intent_conflict");
+  evidenceAbsentValues.set(evidenceAbsentContractKey, originalEvidenceAbsentContract);
+  const rejectedTrustUpgrade = await tenantStore.fetch(new Request(
+    `https://agentid.local/intent-contracts/${encodeURIComponent(evidenceAbsentStarted.body.intent_id)}/finalize`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        job: {
+          tenant_id: "acme",
+          source_id: "hermes-production",
+          agent_id: "hermes-support",
+          session_id: evidenceAbsentStartedJob.session_id,
+          task_id: evidenceAbsentStartedJob.task_id,
+          turn_id: evidenceAbsentStartedJob.turn_id,
+          intent_id: evidenceAbsentStarted.body.intent_id,
+          intent_digest: evidenceAbsentStarted.body.intent_digest,
+          job_id: evidenceAbsentStarted.body.job_id,
+          eval_binding: {
+            ...evidenceAbsentStarted.body.eval_binding,
+            kind: "agent_declared",
+            trust: "agent_self_attested",
+          },
+          started_at: evidenceAbsentStartedJob.started_at,
+          completed_at: "2026-08-31T18:00:04.000Z",
+          status: "completed",
+        },
+      }),
+    },
+  ));
+  assert.equal(rejectedTrustUpgrade.status, 409);
+  assert.equal((await rejectedTrustUpgrade.json() as any).error_code, "eval_result_provenance_invalid");
+  const evidenceAbsentCompleted = await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...evidenceAbsentStartedJob,
+    phase: "completed",
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+  }, sourceHeaders);
+  assert.equal(evidenceAbsentCompleted.status, 201, JSON.stringify(evidenceAbsentCompleted.body));
+  const evidenceAbsentResult = evidenceAbsentCompleted.body.evaluation.criterion_evaluation;
+  assert.equal(evidenceAbsentResult.aggregate_status, "insufficient_evidence");
+  assert.equal(evidenceAbsentResult.provenance.trust, "trusted_execution_state");
+  assert.equal(
+    evidenceAbsentResult.criteria.find((criterion: any) => criterion.criterion_id === "policy-outcome-correct").status,
+    "insufficient_evidence",
+  );
+  assert.equal(
+    evidenceAbsentResult.criteria.find((criterion: any) => criterion.criterion_id === "no-refund-execution").status,
+    "pass",
+  );
+  assert.equal(JSON.stringify(evidenceAbsentCompleted.body).includes("agent_self_attested"), false);
+  assert.equal(JSON.stringify(evidenceAbsentCompleted.body).includes("missing-declared-intent"), false);
+
+  const historicalObservedAfterAssignment = await call(
+    env,
+    ctx,
+    "GET",
+    `/tenants/acme/intent-quality/jobs/${encodeURIComponent(historicalObserved.job_id)}`,
+    undefined,
+    { authorization: "Bearer console-service-secret" },
+  );
+  assert.deepEqual(historicalObservedAfterAssignment.body, historicalObservedDetail.body);
+
+  const shieldedBroadRoute = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    source_id: "hermes-production",
+  }, owner);
+  assert.equal(shieldedBroadRoute.status, 201, JSON.stringify(shieldedBroadRoute.body));
 
   const provenanceLifecycle = {
     ...activityJob("started"),
@@ -3795,13 +3999,14 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   assert.equal(rejectedConflict.status, 409);
   assert.equal(rejectedConflict.body.error_code, "intent_evidence_finalized");
 
-  const rerouted = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+  const rejectedGenuinelyIncompatibleRoute = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
     eval_id: "agent_declared_intent",
     eval_version: "v1",
     source_id: "hermes-production",
     agent_id: "hermes-support",
   }, owner);
-  assert.equal(rerouted.status, 200);
+  assert.equal(rejectedGenuinelyIncompatibleRoute.status, 409);
+  assert.equal(rejectedGenuinelyIncompatibleRoute.body.error_code, "eval_assignment_incompatible");
   const immutableEligible = await call(
     env,
     ctx,
@@ -3839,7 +4044,7 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   assert.deepEqual(config.body.known_traffic, [{
     source_id: "hermes-production",
     agent_id: "hermes-support",
-    observed_kinds: ["agent_declared"],
+    observed_kinds: ["agent_declared", "observed_execution"],
     last_observed_at: "2026-08-31T18:00:04.000Z",
   }]);
 
@@ -3855,6 +4060,74 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
   }, owner);
   assert.equal(crossTenantSource.status, 404);
   assert.equal(crossTenantSource.body.error_code, "eval_assignment_source_not_found");
+});
+
+test("refund triage mixed-kind compatibility rejects an impostor deterministic specification", async () => {
+  const namespace = new MemoryNamespace();
+  const manifests = new MemoryManifests();
+  const env = {
+    JIT_GRANTS: namespace,
+    AGENTID_INTERNAL_SERVICE_TOKEN: "console-service-secret",
+    AGENTID_MANIFESTS: manifests,
+  };
+  const ctx = new TestContext();
+  const owner = controlHeaders("impostor-owner", "impostor-owner@example.com");
+  const provisioned = await call(env, ctx, "POST", "/control-plane/tenants", {
+    tenant_id: "acme",
+    display_name: "Impostor refund triage",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(provisioned.status, 201);
+  const sourceHeaders = {
+    authorization: `Bearer ${provisioned.body.source_token}`,
+    "x-agentaction-source-id": "hermes-production",
+  };
+  const historical = {
+    ...activityJob("started"),
+    session_id: "impostor-history",
+    task_id: "impostor-history-task",
+    turn_id: "impostor-history-turn",
+  };
+  assert.equal((await call(env, ctx, "POST", "/tenants/acme/activity/jobs", historical, sourceHeaders)).status, 201);
+  assert.equal((await call(env, ctx, "POST", "/tenants/acme/activity/jobs", {
+    ...historical,
+    phase: "completed",
+    completed_at: "2026-08-31T18:00:04.000Z",
+    status: "completed",
+  }, sourceHeaders)).status, 201);
+
+  const impostor = await call(env, ctx, "POST", "/control-plane/tenants/acme/evals", {
+    eval_id: "refund_triage",
+    version: "v2",
+    name: "Refund triage impostor",
+    description: "A job-only evaluator must not receive the refund mixed-history exception.",
+    kind: "agent_declared",
+    specification: {
+      schema_version: "agentaction.deterministic-eval-specification.v1",
+      pass_threshold: 1,
+      required_evidence: ["job"],
+      criteria: [{
+        criterion_id: "run-completed",
+        label: "Run completed",
+        description: "Only checks terminal execution state.",
+        category: "outcome",
+        required: true,
+        source: "job",
+        assertion: { path: "status", operator: "equals", value: "completed" },
+      }],
+    },
+  }, owner);
+  assert.equal(impostor.status, 201, JSON.stringify(impostor.body));
+  const rejected = await call(env, ctx, "POST", "/control-plane/tenants/acme/eval-assignments", {
+    eval_id: "refund_triage",
+    eval_version: "v2",
+    source_id: "hermes-production",
+    agent_id: "hermes-support",
+  }, owner);
+  assert.equal(rejected.status, 409);
+  assert.equal(rejected.body.error_code, "eval_assignment_incompatible");
+  assert.deepEqual(rejected.body.observed_kinds, ["observed_execution"]);
 });
 
 test("control plane enforces roles, single-use invitations, source rotation, and tenant isolation", async () => {

@@ -2281,6 +2281,28 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     ));
   }
 
+  function canonicalEvalCapability(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(canonicalEvalCapability).join(",")}]`;
+    if (value !== null && typeof value === "object") {
+      return `{${Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => `${JSON.stringify(key)}:${canonicalEvalCapability(item)}`)
+        .join(",")}}`;
+    }
+    return JSON.stringify(value) ?? "undefined";
+  }
+
+  function evalAllowsMissingSemanticEvidence(definitionValue: unknown, sourceId: string, agentId: string): boolean {
+    const definition = record(definitionValue);
+    return Boolean(sourceId)
+      && Boolean(agentId)
+      && definition.eval_id === "refund_triage"
+      && definition.version === "v2"
+      && definition.kind === "agent_declared"
+      && canonicalEvalCapability(definition.specification) === canonicalEvalCapability(refundTriageSpecification());
+  }
+
   function refundTriageSpecification(): Record<string, unknown> {
     const observationCriterion = (criterionId: string, label: string, predicate: string): Record<string, unknown> => ({
       criterion_id: criterionId,
@@ -2422,13 +2444,28 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
       projected,
     )).length;
     if (uncovered > 0) warnings.push(`${uncovered} known source/agent target${uncovered === 1 ? " has" : "s have"} no explicit route and will use the automatic compatible eval.`);
-    const incompatible = evalKnownTraffic.filter((traffic) => {
+    const affectedTraffic = evalKnownTraffic.filter((traffic) => (
+      safeText(winningEvalAssignment(safeText(traffic.source_id, ""), safeText(traffic.agent_id, ""), projected)?.assignment_id, "") === "pending"
+    ));
+    const allowsMissingSemanticEvidence = evalAllowsMissingSemanticEvidence(selectedDefinition, sourceId, agentId);
+    const missingSemanticEvidence = affectedTraffic.filter((traffic) => (
+      allowsMissingSemanticEvidence
+      && Array.isArray(traffic.observed_kinds)
+      && traffic.observed_kinds.includes("observed_execution")
+    )).length;
+    if (missingSemanticEvidence > 0) {
+      warnings.push(`${missingSemanticEvidence} affected source/agent target${missingSemanticEvidence === 1 ? " has" : "s have"} observed-execution Jobs without declared semantic claims. This exact route can be saved; future evidence-absent Jobs will freeze the assignment and evaluate as insufficient evidence, never pass. Existing finalized Jobs remain unchanged.`);
+    }
+    const incompatible = affectedTraffic.filter((traffic) => {
       const winner = winningEvalAssignment(safeText(traffic.source_id, ""), safeText(traffic.agent_id, ""), projected);
       const definition = evalDefinitionForAssignment(winner);
       const observedKinds = Array.isArray(traffic.observed_kinds) ? traffic.observed_kinds : [];
-      return Boolean(winner && definition && observedKinds.some((kind) => kind !== definition.kind));
+      return Boolean(winner && definition && observedKinds.some((kind) => (
+        kind !== definition.kind
+        && !(allowsMissingSemanticEvidence && kind === "observed_execution")
+      )));
     }).length;
-    if (incompatible > 0) warnings.push(`${incompatible} known source/agent target${incompatible === 1 ? " has" : "s have"} observed Job types incompatible with its winning eval.`);
+    if (incompatible > 0) warnings.push(`${incompatible} affected source/agent target${incompatible === 1 ? " has" : "s have"} observed Job types incompatible with this pending route; the backend will reject this assignment.`);
     const source = evalSources.find((candidate) => safeText(candidate.source_id, "") === sourceId);
     if (source?.enabled === false) warnings.push("The selected source is disabled, so it cannot send new activity until re-enabled or rotated.");
     if (evalKnownTrafficTruncated) warnings.push("Known-traffic coverage is capped; additional targets may exist.");

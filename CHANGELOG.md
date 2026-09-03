@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.13.1 - 2026-09-03
+
+### Mixed-history eval routing
+
+- Allow `refund_triage.v2` to route Hermes source-and-agent targets that also
+  contain older lifecycle-only Jobs, without deleting or reclassifying that
+  history.
+- Keep declared evidence self-attested, while Jobs without semantic claims
+  freeze the selected evaluation and report insufficient evidence instead of
+  blocking the assignment or inventing a pass.
+- Preserve fail-closed assignment checks for genuinely incompatible evaluator
+  and traffic combinations, with matching console preview guidance.
+
 ## 0.13.0 - 2026-09-02
 
 ### Explainable workspace evaluations

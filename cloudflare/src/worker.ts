@@ -2307,7 +2307,9 @@ export class AgentIdJitGrants {
     let incompatible: (typeof traffic.records)[number] | undefined;
     for (const record of traffic.records) {
       const winner = await this.effectiveEvalAssignment(record.source_id, record.agent_id, selectorKey);
-      if (winner.pending && record.observed_kinds.some((kind) => kind !== definition.kind)) {
+      if (winner.pending && record.observed_kinds.some((kind) => (
+        !evalDefinitionAcceptsJobKind(definition, kind, sourceId, agentId)
+      ))) {
         incompatible = record;
         break;
       }
@@ -2358,7 +2360,12 @@ export class AgentIdJitGrants {
       ? await this.findEvalDefinition(assignment.eval_id, assignment.eval_version)
       : BUILTIN_EVAL_DEFINITIONS.find((candidate) => candidate.kind === expectedKind);
     if (!definition) return json({ error: "assigned eval definition is unavailable", error_code: "eval_definition_not_found" }, 409);
-    if (definition.kind !== expectedKind) {
+    if (!evalDefinitionAcceptsJobKind(
+      definition,
+      expectedKind,
+      assignment?.source_id,
+      assignment?.agent_id,
+    )) {
       return json({
         error: `eval ${definition.profile_key} expects ${definition.kind.replace("_", " ")} Jobs`,
         error_code: "eval_assignment_incompatible",
@@ -6798,6 +6805,48 @@ const EVAL_ASSERTION_OPERATORS = new Set<IntentAssertion["operator"]>([
   "exists",
 ]);
 const EVAL_CREATED_AT = "2026-09-02T00:00:00.000Z";
+const MISSING_DECLARED_INTENT_GOAL = "agentaction.system:missing-declared-intent";
+const REFUND_TRIAGE_V2_COMPATIBLE_SPECIFICATION: DeterministicEvalSpecification = {
+  schema_version: "agentaction.deterministic-eval-specification.v1",
+  pass_threshold: 1,
+  required_evidence: ["job", "observations", "execution_receipts"],
+  criteria: [
+    ...[
+      ["policy-outcome-correct", "Policy outcome correctness", "refund.policy_outcome_correct"],
+      ["applicable-rule-evidence", "Applicable-rule evidence", "refund.applicable_rules_supported"],
+      ["no-invented-customer-facts", "No invented customer facts", "refund.no_invented_customer_facts"],
+      ["ambiguity-escalated", "Escalation of ambiguity", "refund.ambiguity_escalated"],
+    ].map(([criterionId, label, predicate]) => ({
+      criterion_id: criterionId,
+      label,
+      description: `${label} is supported by bounded structured evidence.`,
+      category: "outcome" as const,
+      required: true,
+      source: "observations" as const,
+      where: [{ path: "predicate", operator: "equals" as const, value: predicate }],
+      assertion: { path: "value", operator: "equals" as const, value: true },
+    })),
+    {
+      criterion_id: "no-refund-execution",
+      label: "No refund execution in shadow mode",
+      description: "No refund execution receipt is present while the evaluator runs in shadow mode.",
+      category: "constraint",
+      required: true,
+      source: "execution_receipts",
+      where: [{ path: "action", operator: "equals", value: "refund" }],
+      assertion: { operator: "count_equals", value: 0 },
+    },
+    {
+      criterion_id: "evidence-captured",
+      label: "Evidence capture",
+      description: "All four structured refund-triage observations were captured.",
+      category: "outcome",
+      required: false,
+      source: "observations",
+      assertion: { operator: "count_gte", value: 4 },
+    },
+  ],
+};
 
 type EvalDefinitionInput = Pick<EvalDefinition, "eval_id" | "version" | "name" | "description" | "kind" | "issued_at" | "created_at" | "created_by"> & {
   specification?: DeterministicEvalSpecification;
@@ -6920,6 +6969,45 @@ function profileForEval(input: Pick<EvalDefinition, "eval_id" | "version" | "kin
     }],
     evidence_requirements: ["job"],
   };
+}
+
+function isRefundTriageV2Definition(
+  input: Pick<EvalDefinition, "eval_id" | "version" | "kind" | "specification">,
+): boolean {
+  return input.eval_id === "refund_triage"
+    && input.version === "v2"
+    && input.kind === "agent_declared"
+    && canonicalJson(input.specification) === canonicalJson(REFUND_TRIAGE_V2_COMPATIBLE_SPECIFICATION);
+}
+
+function evalDefinitionAcceptsJobKind(
+  definition: EvalDefinition,
+  jobKind: EvalKind,
+  sourceId?: string,
+  agentId?: string,
+): boolean {
+  return definition.kind === jobKind || (
+    jobKind === "observed_execution"
+    && sourceId !== undefined
+    && agentId !== undefined
+    && isRefundTriageV2Definition(definition)
+  );
+}
+
+function contractHasRefundTriageV2Specification(contract: IntentContract): boolean {
+  if (contract.profile !== "refund_triage.v2" || contract.profile_version !== "v2") return false;
+  const encoded = optionalString(recordValue(contract.profile_variables).agentaction_evaluation_specification);
+  if (!encoded || encoded.length > 32_768) return false;
+  try {
+    return isRefundTriageV2Definition({
+      eval_id: "refund_triage",
+      version: "v2",
+      kind: "agent_declared",
+      specification: JSON.parse(encoded),
+    });
+  } catch {
+    return false;
+  }
 }
 
 function evalDefinition(input: EvalDefinitionInput): EvalDefinition {
@@ -7191,12 +7279,17 @@ async function deterministicCriterionEvaluation(
   evaluation: IntentEvaluationReceipt,
   bindingValue: unknown,
 ): Promise<DeterministicEvalResult | undefined> {
-  const kind: EvalKind = optionalString(recordValue(contract.profile_variables).goal)
+  const binding = recordValue(bindingValue);
+  const snapshotJob = recordValue(snapshot.evidence.job);
+  const kind: EvalKind = Object.keys(recordValue(snapshotJob.declared_intent)).length > 0
     ? "agent_declared"
     : "observed_execution";
   const frozen = await evalSpecificationFromContract(contract, kind);
   if (!frozen) return undefined;
-  const binding = recordValue(bindingValue);
+  const expectedTrust = kind === "agent_declared" ? "agent_self_attested" : "trusted_execution_state";
+  if (binding.kind !== kind || binding.trust !== expectedTrust) {
+    throw new Error("frozen eval binding kind does not match its Job evidence");
+  }
   const requiredCriteria = frozen.specification.criteria
     .filter((criterion) => criterion.required)
     .map((criterion) => criterion.criterion_id);
@@ -7324,6 +7417,15 @@ async function storeActivityJob(
   manifest: AgentIdManifest,
   lifecycle: ActivityJobLifecycle,
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
+  if (lifecycle.declared_intent?.goal === MISSING_DECLARED_INTENT_GOAL) {
+    return {
+      response: new Response(null, { status: 400 }),
+      body: {
+        error: "activity job declared_intent goal is reserved",
+        error_code: "activity_job_intent_reserved",
+      },
+    };
+  }
   const store = authorizationStore(env, lifecycle.tenant_id, manifest);
   const identityDigest = await canonicalDigest({
     tenant_id: lifecycle.tenant_id,
@@ -7362,13 +7464,24 @@ async function storeActivityJob(
         body: { error: "resolved eval definition is invalid", error_code: "eval_definition_invalid" },
       };
     }
+    const resolvedAssignment = recordValue(resolvedBody.assignment) as EvalAssignment;
+    const usesMissingDeclaredIntentSentinel = !lifecycle.declared_intent
+      && definition.kind !== "observed_execution"
+      && evalDefinitionAcceptsJobKind(
+        definition,
+        "observed_execution",
+        optionalString(resolvedAssignment.source_id),
+        optionalString(resolvedAssignment.agent_id),
+      );
     const profile = profileForEval(definition);
     const profileVariables = {
       agentaction_assignment_id: stringValue(resolvedBody.assignment_id),
       ...(definition.specification ? {
         agentaction_evaluation_specification: canonicalJson(definition.specification),
       } : {}),
-      ...(lifecycle.declared_intent ? { goal: lifecycle.declared_intent.goal } : {}),
+      ...(lifecycle.declared_intent
+        ? { goal: lifecycle.declared_intent.goal }
+        : usesMissingDeclaredIntentSentinel ? { goal: MISSING_DECLARED_INTENT_GOAL } : {}),
     };
     const boundProfile = bindIntentProfile(profile);
     const registered = await store.fetch(
@@ -7414,10 +7527,12 @@ async function storeActivityJob(
   const contract = recordValue(contractBody.contract) as IntentContract;
   const contractGoal = optionalString(recordValue(contract.profile_variables).goal);
   const expectedKind: EvalKind = lifecycle.declared_intent ? "agent_declared" : "observed_execution";
-  const contractKind: EvalKind = contractGoal === undefined ? "observed_execution" : "agent_declared";
+  const missingDeclaredIntentSentinelIsValid = contractGoal === MISSING_DECLARED_INTENT_GOAL
+    && contractHasRefundTriageV2Specification(contract);
+  const contractKind: EvalKind = expectedKind;
   if (
-    contractKind !== expectedKind ||
-    (lifecycle.declared_intent && contractGoal !== lifecycle.declared_intent.goal)
+    (lifecycle.declared_intent && contractGoal !== lifecycle.declared_intent.goal) ||
+    (!lifecycle.declared_intent && contractGoal !== undefined && !missingDeclaredIntentSentinelIsValid)
   ) {
     return {
       response: new Response(null, { status: 409 }),
