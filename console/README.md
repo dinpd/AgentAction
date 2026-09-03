@@ -129,15 +129,26 @@ gateway selects its built-in observed-execution or agent-declared-intent eval
 according to the Job payload. The exact eval definition and assignment are
 frozen into the intent contract when a Job starts, so changing a route affects
 only later Jobs. Historical results remain grouped by eval/profile version and
-digest.
+digest. Assignment controls list only sources and agents in the active
+workspace, preview the effective precedence, and warn about known uncovered or
+incompatible traffic before an owner saves a route. The gateway repeats these
+tenant and compatibility checks as the authoritative boundary.
 
-V1 exposes two deterministic evaluator behaviors. **Observed execution** uses
+The built-in v1 definitions expose two deterministic evaluator behaviors.
+**Observed execution** uses
 trusted lifecycle state and checks that a run completed. **Agent-declared**
 checks lifecycle completion plus the agent's bounded self-report of goal,
 criteria, and constraints. Creating another eval version names and versions one
 of those behaviors; it does not turn a self-report into independent evidence
 or run an LLM judge. Assigning an incompatible evaluator kind fails closed for
-that Job export.
+that Job export. The `refund_triage.v2` template adds six frozen deterministic
+criteria for the policy outcome, applicable rules, invented facts, ambiguity
+escalation, shadow-mode non-execution, and evidence capture. Each criterion
+returns pass, fail, or insufficient evidence with a bounded explanation,
+evidence references, and evaluator provenance. Hermes-reported criterion
+evidence is labeled **Self-attested by agent · not independently verified** in
+the definition, assignment, Jobs, and Job-detail surfaces; the immutable trust
+value must agree with the frozen binding before the console will render it.
 
 ## BFF routes
 
@@ -224,7 +235,8 @@ in the URL with only the BFF allowlist parameters.
 The read model exposes identifiers, agent identities, immutable profile
 key/version/digest, verdict, qualified success, constraint state, goal
 attainment, evidence confidence, preview count, retry/replay counts, runtime,
-and final status. It does not return raw decisions, execution receipts,
+provider/model names, reconciled token components when reported, criterion
+summaries, and final status. It does not return raw decisions, execution receipts,
 observations, snapshots, or evidence payloads. Selecting a job creates a stable
 job-ID-only detail URL.
 
@@ -235,16 +247,23 @@ partial-data states remain visible rather than being interpreted as success.
 
 ## Finalized Job detail
 
-Job detail is the third functional console view. It resolves one server-derived
+Job detail is a contextual drill-down rather than a permanent navigation item.
+Selecting a Job or opening a supported deep link resolves one server-derived
 Job ID through the exact, query-free BFF route and renders only finalized
-evidence. The direct browser URL contains the Job ID and view hash; it never
-contains tenant identity, evidence, claims, or gateway credentials.
+evidence. A clear Back to Jobs action preserves the active workspace. The
+direct browser URL contains the Job ID and view hash; it never contains tenant
+identity, evidence, claims, or gateway credentials.
 
 The view keeps the immutable profile, intent, snapshot, and evidence digests
 visible alongside the final verdict, intent-relative goal attainment,
 constraint result, evidence confidence, predicate summaries, and execution
-discipline. Preview evaluations remain clearly separate from the final receipt.
-Frozen source cards expose only counts and digests.
+discipline. Richer deterministic evals add bounded criterion-level results,
+explanations, evidence references, and matching frozen provenance without
+rendering raw expected/actual values. Provider usage distinguishes uncached
+input, cached input, output, and total tokens when the full split is reported;
+missing cache telemetry stays explicitly unavailable. Preview evaluations
+remain clearly separate from the final receipt. Frozen source cards expose only
+counts and digests.
 
 The evidence timeline is deterministic and ascending across authorization
 decisions, execution receipts, verified observations, finalization, and valid

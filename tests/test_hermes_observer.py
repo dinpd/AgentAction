@@ -147,6 +147,10 @@ def test_declared_intent_tools_are_registered_only_when_capture_is_enabled(monke
     ]
     assert all(tool["toolset"] == "agentaction" for tool in registered_tools)
     assert registered_tools[0]["schema"]["parameters"]["additionalProperties"] is False
+    assert "criterion_evidence" not in registered_tools[0]["schema"]["parameters"]["properties"]
+    report_schema = registered_tools[1]["schema"]["parameters"]
+    assert "criterion_evidence" in report_schema["properties"]
+    assert set(report_schema["properties"]["criterion_evidence"]["items"]["properties"]["criterion_id"]["enum"]) == observer.REFUND_TRIAGE_CRITERION_IDS
     assert plugin._observer is not None
     plugin._observer.close()
 
@@ -266,6 +270,18 @@ def test_opt_in_declared_intent_capture_emits_bounded_self_attestation_job():
             "success_criteria_met": "all",
             "constraints_respected": "pass",
             "confidence": 0.88,
+            "criterion_evidence": [
+                {
+                    "criterion_id": "policy-outcome-correct",
+                    "status": "pass",
+                    "evidence_refs": ["policy:decision"],
+                },
+                {
+                    "criterion_id": "ambiguity-escalated",
+                    "status": "pass",
+                    "evidence_refs": ["policy:ambiguity"],
+                },
+            ],
         },
         session_id="session-declared",
         task_id="task-declared",
@@ -295,10 +311,90 @@ def test_opt_in_declared_intent_capture_emits_bounded_self_attestation_job():
         "success_criteria_met": "all",
         "constraints_respected": "pass",
         "confidence": 0.88,
+        "criterion_evidence": {
+            "schema_version": "agentaction.refund-triage-criterion-evidence.v1",
+            "eval_id": "refund_triage",
+            "eval_version": "v2",
+            "job_id": "hermes_declared_1",
+            "trust": "agent_self_attested",
+            "criteria": [
+                {
+                    "criterion_id": "policy-outcome-correct",
+                    "status": "pass",
+                    "evidence_refs": ["policy:decision"],
+                },
+                {
+                    "criterion_id": "ambiguity-escalated",
+                    "status": "pass",
+                    "evidence_refs": ["policy:ambiguity"],
+                },
+            ],
+        },
     }
     encoded = str(job_payloads)
     assert "raw private prompt" not in encoded
     assert "raw private answer" not in encoded
+
+
+def test_refund_criterion_evidence_rejects_unknown_raw_oversized_and_conflicting_claims():
+    instance = observer.HermesShadowObserver(config(capture_declared_intent=True))
+    instance.pre_llm_call(session_id="session-criteria", task_id="task-criteria")
+    assert json.loads(instance.declare_intent(
+        {
+            "goal": "Determine refund eligibility.",
+            "success_criteria": ["Return the policy decision."],
+            "constraints": ["Remain read-only."],
+            "confidence": 0.8,
+        },
+        session_id="session-criteria",
+        task_id="task-criteria",
+    ))["status"] == "captured"
+
+    base = {
+        "status": "achieved",
+        "success_criteria_met": "all",
+        "constraints_respected": "pass",
+        "confidence": 0.8,
+        "criterion_evidence": [{
+            "criterion_id": "policy-outcome-correct",
+            "status": "pass",
+            "evidence_refs": ["policy:decision"],
+        }],
+    }
+    for changed in (
+        {**base, "criterion_evidence": [{**base["criterion_evidence"][0], "criterion_id": "unknown"}]},
+        {**base, "criterion_evidence": [{**base["criterion_evidence"][0], "raw_prompt": "private"}]},
+        {**base, "criterion_evidence": [{**base["criterion_evidence"][0], "evidence_refs": ["x" * 81]}]},
+        {**base, "criterion_evidence": [base["criterion_evidence"][0], base["criterion_evidence"][0]]},
+    ):
+        rejected = json.loads(instance.report_outcome(
+            changed,
+            session_id="session-criteria",
+            task_id="task-criteria",
+        ))
+        assert rejected == {"status": "rejected", "error": "invalid_reported_outcome"}
+
+    captured = json.loads(instance.report_outcome(
+        base,
+        session_id="session-criteria",
+        task_id="task-criteria",
+    ))
+    assert captured == {"status": "captured", "provenance": "agent_self_attested"}
+    replayed = json.loads(instance.report_outcome(
+        base,
+        session_id="session-criteria",
+        task_id="task-criteria",
+    ))
+    assert replayed == {"status": "captured", "provenance": "agent_self_attested", "replayed": True}
+    conflict = json.loads(instance.report_outcome(
+        {
+            **base,
+            "criterion_evidence": [{**base["criterion_evidence"][0], "status": "fail"}],
+        },
+        session_id="session-criteria",
+        task_id="task-criteria",
+    ))
+    assert conflict == {"status": "rejected", "error": "outcome_already_reported"}
 
 
 def test_declared_intent_capture_falls_back_to_observed_job_and_rejects_unbounded_fields():
@@ -541,6 +637,47 @@ def test_model_and_subagent_hooks_export_metadata_without_content():
         assert private not in encoded
 
 
+def test_usage_metadata_preserves_legacy_input_and_exports_explicit_cache_split():
+    assert observer._usage_metadata({
+        "prompt_tokens": 120,
+        "input_tokens": 90,
+        "output_tokens": 30,
+        "cache_read_tokens": 20,
+        "cache_write_tokens": 10,
+        "total_tokens": 150,
+    }) == {
+        "input_tokens": 120,
+        "uncached_input_tokens": 90,
+        "cached_input_tokens": 30,
+        "output_tokens": 30,
+        "total_tokens": 150,
+    }
+    assert observer._usage_metadata({
+        "input_tokens": 9,
+        "uncached_input_tokens": 9,
+        "cached_input_tokens": 0,
+        "output_tokens": 1,
+    }) == {
+        "input_tokens": 9,
+        "uncached_input_tokens": 9,
+        "cached_input_tokens": 0,
+        "output_tokens": 1,
+        "total_tokens": 10,
+    }
+    assert observer._usage_metadata({"input_tokens": 4, "output_tokens": 2}) == {
+        "input_tokens": 4,
+        "output_tokens": 2,
+        "total_tokens": 6,
+    }
+    malformed = observer._usage_metadata({
+        "input_tokens": 4.5,
+        "cached_input_tokens": -1,
+        "output_tokens": "not-a-count",
+        "total_tokens": 1_000_000_000_001,
+    })
+    assert malformed == {}
+
+
 def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplication():
     job_payloads = []
     instance = observer.HermesShadowObserver(
@@ -562,12 +699,26 @@ def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplica
     }
     instance.post_api_request(
         **request,
-        usage={"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150},
+        usage={
+            "prompt_tokens": 120,
+            "input_tokens": 90,
+            "cache_read_tokens": 20,
+            "cache_write_tokens": 10,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+        },
     )
     # A repeated terminal hook for the same provider request must not inflate usage.
     instance.post_api_request(
         **request,
-        usage={"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150},
+        usage={
+            "prompt_tokens": 120,
+            "input_tokens": 90,
+            "cache_read_tokens": 20,
+            "cache_write_tokens": 10,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+        },
     )
     instance.api_request_error(
         session_id="session-usage",
@@ -585,7 +736,12 @@ def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplica
         api_request_id="api-usage-3",
         provider="local",
         model="llama-3.3-70b",
-        usage={"input_tokens": 10, "output_tokens": 5},
+        usage={
+            "input_tokens": 10,
+            "uncached_input_tokens": 10,
+            "cached_input_tokens": 0,
+            "output_tokens": 5,
+        },
     )
     instance.on_session_end(
         session_id="session-usage",
@@ -601,6 +757,8 @@ def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplica
         "requests_with_model": 3,
         "requests_with_usage": 2,
         "input_tokens": 130,
+        "uncached_input_tokens": 100,
+        "cached_input_tokens": 30,
         "output_tokens": 35,
         "total_tokens": 165,
         "models": [
@@ -610,6 +768,8 @@ def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplica
                 "request_count": 2,
                 "requests_with_usage": 1,
                 "input_tokens": 120,
+                "uncached_input_tokens": 90,
+                "cached_input_tokens": 30,
                 "output_tokens": 30,
                 "total_tokens": 150,
             },
@@ -619,6 +779,8 @@ def test_completed_job_aggregates_actual_model_usage_with_coverage_and_deduplica
                 "request_count": 1,
                 "requests_with_usage": 1,
                 "input_tokens": 10,
+                "uncached_input_tokens": 10,
+                "cached_input_tokens": 0,
                 "output_tokens": 5,
                 "total_tokens": 15,
             },

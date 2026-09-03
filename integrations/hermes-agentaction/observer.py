@@ -23,6 +23,15 @@ BATCH_SCHEMA_VERSION = "agentaction.observation-batch.v1"
 JOB_SCHEMA_VERSION = "agentaction.activity-job.v1"
 DECLARED_INTENT_SCHEMA_VERSION = "agentaction.declared-intent.v1"
 REPORTED_OUTCOME_SCHEMA_VERSION = "agentaction.reported-outcome.v1"
+CRITERION_EVIDENCE_SCHEMA_VERSION = "agentaction.refund-triage-criterion-evidence.v1"
+REFUND_TRIAGE_CRITERION_IDS = {
+    "policy-outcome-correct",
+    "applicable-rule-evidence",
+    "no-invented-customer-facts",
+    "ambiguity-escalated",
+    "no-refund-execution",
+    "evidence-captured",
+}
 MODEL_USAGE_MAX_REQUESTS = 10_000
 MODEL_USAGE_MAX_MODELS = 20
 VALID_DECISIONS = {"allow", "deny", "challenge_required"}
@@ -32,7 +41,9 @@ DECLARED_INTENT_CONTEXT = (
     "Before substantive work, call agentaction_declare_intent once with a concise goal, measurable "
     "success criteria, constraints, and confidence. Before the final answer, call "
     "agentaction_report_outcome once with the terminal status and self-assessment. Never include "
-    "secrets, personal data, raw prompt text, tool arguments/results, or the final response."
+    "secrets, personal data, raw prompt text, tool arguments/results, or the final response. For an "
+    "assigned refund_triage.v2 run, include only bounded criterion_evidence claims; AgentAction labels "
+    "them Self-attested by agent and does not treat them as independent verification."
 )
 
 DECLARE_INTENT_TOOL_SCHEMA = {
@@ -71,6 +82,31 @@ REPORT_OUTCOME_TOOL_SCHEMA = {
             "success_criteria_met": {"type": "string", "enum": ["all", "some", "none", "unknown"]},
             "constraints_respected": {"type": "string", "enum": ["pass", "fail", "unknown"]},
             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "criterion_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 6,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "criterion_id": {"type": "string", "enum": sorted(REFUND_TRIAGE_CRITERION_IDS)},
+                        "status": {"type": "string", "enum": ["pass", "fail", "insufficient_evidence"]},
+                        "evidence_refs": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80,
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                            },
+                        },
+                    },
+                    "required": ["criterion_id", "status", "evidence_refs"],
+                },
+            },
         },
         "required": ["status", "success_criteria_met", "constraints_respected", "confidence"],
     },
@@ -505,8 +541,9 @@ class HermesShadowObserver:
             return True
         for index, lifecycle in enumerate(combined):
             try:
-                response = self.job_sender(lifecycle)
-                self._remember_run_binding(lifecycle, response)
+                outbound = self._bind_job_criterion_evidence(lifecycle)
+                response = self.job_sender(outbound)
+                self._remember_run_binding(outbound, response)
             except Exception:
                 self.job_spool.save(combined[index:] + remainder)
                 return False
@@ -718,15 +755,25 @@ class HermesShadowObserver:
             provider = _bounded(model.get("provider"), 160)
             model_name = _bounded(model.get("model"), 160)
             has_model = bool(provider or model_name)
-            has_usage = any(key in usage for key in ("input_tokens", "output_tokens", "total_tokens"))
+            usage_keys = (
+                "input_tokens",
+                "uncached_input_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "total_tokens",
+            )
+            has_usage = any(key in usage for key in usage_keys)
             if has_model:
                 summary["requests_with_model"] += 1
             if has_usage:
                 summary["requests_with_usage"] += 1
-            for key in ("input_tokens", "output_tokens", "total_tokens"):
+            for key in usage_keys:
                 value = _nonnegative_integer(usage.get(key))
                 if value is not None:
                     summary[key] = summary.get(key, 0) + value
+                    if key in ("uncached_input_tokens", "cached_input_tokens"):
+                        coverage_key = f"_{key}_coverage"
+                        summary[coverage_key] = summary.get(coverage_key, 0) + 1
             if not has_model:
                 return
             model_key = (provider, model_name)
@@ -746,31 +793,34 @@ class HermesShadowObserver:
             group["request_count"] += 1
             if has_usage:
                 group["requests_with_usage"] += 1
-            for key in ("input_tokens", "output_tokens", "total_tokens"):
+            for key in usage_keys:
                 value = _nonnegative_integer(usage.get(key))
                 if value is not None:
                     group[key] = group.get(key, 0) + value
+                    if key in ("uncached_input_tokens", "cached_input_tokens"):
+                        coverage_key = f"_{key}_coverage"
+                        group[coverage_key] = group.get(coverage_key, 0) + 1
 
     def _model_usage_summary_locked(self, run_key: str) -> dict[str, Any] | None:
         summary = self._run_model_usage.get(run_key)
         if not summary or summary["request_count"] == 0:
             return None
         models = sorted(
-            summary["models"].values(),
+            (_public_usage_summary(item) for item in summary["models"].values()),
             key=lambda item: (
                 -item["request_count"],
                 str(item.get("provider") or ""),
                 str(item.get("model") or ""),
             ),
         )
-        return {
+        return _public_usage_summary({
             key: value
             for key, value in {
                 **summary,
                 "models": [dict(item) for item in models],
             }.items()
             if key != "models" or value
-        }
+        })
 
     def _active_run(self, kwargs: Mapping[str, Any]) -> tuple[str, dict[str, str], str]:
         session_id = _activity_id(kwargs.get("session_id"), "session_id")
@@ -810,6 +860,31 @@ class HermesShadowObserver:
         if run_key and all(binding.values()):
             with self._lock:
                 self._run_bindings[run_key] = binding
+
+    def _bind_job_criterion_evidence(self, lifecycle: Mapping[str, Any]) -> dict[str, Any]:
+        outbound = dict(lifecycle)
+        reported_outcome = _mapping(outbound.get("reported_outcome"))
+        criteria = reported_outcome.get("criterion_evidence")
+        if criteria is None:
+            return outbound
+        run_key = _run_key(_run_correlation(outbound))
+        with self._lock:
+            binding = dict(self._run_bindings.get(run_key, {}))
+        job_id = _bounded(binding.get("job_id"), 160)
+        if not job_id:
+            raise RuntimeError("active AgentAction Job binding is unavailable for criterion evidence")
+        outbound["reported_outcome"] = {
+            **reported_outcome,
+            "criterion_evidence": {
+                "schema_version": CRITERION_EVIDENCE_SCHEMA_VERSION,
+                "eval_id": "refund_triage",
+                "eval_version": "v2",
+                "job_id": job_id,
+                "trust": "agent_self_attested",
+                "criteria": criteria,
+            },
+        }
+        return outbound
 
     def _bind_run_event(self, event: dict[str, Any]) -> dict[str, Any]:
         correlation = {
@@ -934,18 +1009,56 @@ def _declared_intent(value: Any) -> dict[str, Any]:
 
 
 def _reported_outcome(value: Any) -> dict[str, Any]:
-    fields = {"status", "success_criteria_met", "constraints_respected", "confidence"}
-    submitted = _strict_tool_args(value, fields)
+    required_fields = {"status", "success_criteria_met", "constraints_respected", "confidence"}
+    optional_fields = {"criterion_evidence"}
+    if not isinstance(value, Mapping) or not required_fields <= set(value) or not set(value) <= required_fields | optional_fields:
+        raise ValueError("tool arguments are invalid")
+    submitted = value
     status = _enum_value(submitted["status"], {"achieved", "partial", "failed", "unknown"})
     criteria = _enum_value(submitted["success_criteria_met"], {"all", "some", "none", "unknown"})
     constraints = _enum_value(submitted["constraints_respected"], {"pass", "fail", "unknown"})
+    criterion_evidence = submitted.get("criterion_evidence")
     return {
         "schema_version": REPORTED_OUTCOME_SCHEMA_VERSION,
         "status": status,
         "success_criteria_met": criteria,
         "constraints_respected": constraints,
         "confidence": _confidence(submitted["confidence"]),
+        **({"criterion_evidence": _criterion_evidence(criterion_evidence)} if criterion_evidence is not None else {}),
     }
+
+
+def _criterion_evidence(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not 1 <= len(value) <= 6:
+        raise ValueError("criterion evidence is invalid")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in value:
+        submitted = _strict_tool_args(item, {"criterion_id", "status", "evidence_refs"})
+        criterion_id = _enum_value(submitted["criterion_id"], REFUND_TRIAGE_CRITERION_IDS)
+        if criterion_id in seen:
+            raise ValueError("criterion evidence contains duplicates")
+        seen.add(criterion_id)
+        status = _enum_value(submitted["status"], {"pass", "fail", "insufficient_evidence"})
+        evidence_refs = submitted["evidence_refs"]
+        if not isinstance(evidence_refs, list) or not 1 <= len(evidence_refs) <= 4:
+            raise ValueError("criterion evidence references are invalid")
+        normalized_refs = []
+        for reference in evidence_refs:
+            normalized = _bounded(reference, 80)
+            if not normalized or not normalized.isascii() or normalized != reference or not all(
+                character.isalnum() or character in "._:-" for character in normalized
+            ) or not normalized[0].isalnum():
+                raise ValueError("criterion evidence reference is invalid")
+            normalized_refs.append(normalized)
+        if len(set(normalized_refs)) != len(normalized_refs):
+            raise ValueError("criterion evidence references contain duplicates")
+        result.append({
+            "criterion_id": criterion_id,
+            "status": status,
+            "evidence_refs": normalized_refs,
+        })
+    return result
 
 
 def _strict_tool_args(value: Any, fields: set[str]) -> Mapping[str, Any]:
@@ -1036,6 +1149,15 @@ def _run_correlation(value: Mapping[str, Any]) -> dict[str, str]:
     }
 
 
+def _public_usage_summary(value: Mapping[str, Any]) -> dict[str, Any]:
+    result = {key: entry for key, entry in value.items() if not key.startswith("_")}
+    usage_coverage = _nonnegative_integer(value.get("requests_with_usage")) or 0
+    for key in ("uncached_input_tokens", "cached_input_tokens"):
+        if value.get(f"_{key}_coverage") != usage_coverage:
+            result.pop(key, None)
+    return result
+
+
 def _run_key(correlation: Mapping[str, Any]) -> str:
     session_id = _activity_id(correlation.get("session_id"), "session_id")
     run_id = _bounded(correlation.get("turn_id") or correlation.get("task_id") or session_id, 160)
@@ -1053,21 +1175,68 @@ def _model_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
 def _usage_metadata(value: Any) -> dict[str, int]:
     usage = _mapping(value)
     result: dict[str, int] = {}
+    # Hermes' canonical hook supplies prompt_tokens as total provider input,
+    # input_tokens as uncached input, and separate cache read/write buckets.
+    # Preserve the legacy aggregate while exposing the additive split.
     for source, target in (
-        ("input_tokens", "input_tokens"),
         ("prompt_tokens", "input_tokens"),
+        ("input_tokens", "input_tokens"),
+        ("uncached_input_tokens", "uncached_input_tokens"),
         ("output_tokens", "output_tokens"),
         ("completion_tokens", "output_tokens"),
         ("total_tokens", "total_tokens"),
     ):
         if target in result:
             continue
-        number = _nonnegative_integer(usage.get(source))
+        number = _usage_integer(usage.get(source))
         if number is not None:
             result[target] = number
-    if "total_tokens" not in result and "input_tokens" in result and "output_tokens" in result:
-        result["total_tokens"] = result["input_tokens"] + result["output_tokens"]
+
+    if "uncached_input_tokens" not in result:
+        uncached = _usage_integer(usage.get("input_tokens"))
+        if uncached is not None and (
+            "cache_read_tokens" in usage or "cache_write_tokens" in usage
+        ):
+            result["uncached_input_tokens"] = uncached
+
+    if "cached_input_tokens" in usage:
+        cached = _usage_integer(usage.get("cached_input_tokens"))
+        if cached is not None:
+            result["cached_input_tokens"] = cached
+    elif "cache_read_tokens" in usage or "cache_write_tokens" in usage:
+        cache_read = _usage_integer(usage.get("cache_read_tokens"))
+        cache_write = _usage_integer(usage.get("cache_write_tokens"))
+        if cache_read is not None and cache_write is not None:
+            cached = cache_read + cache_write
+            if cached <= 1_000_000_000_000:
+                result["cached_input_tokens"] = cached
+
+    if "total_tokens" not in result and "output_tokens" in result:
+        if "uncached_input_tokens" in result and "cached_input_tokens" in result:
+            result["total_tokens"] = (
+                result["uncached_input_tokens"]
+                + result["cached_input_tokens"]
+                + result["output_tokens"]
+            )
+        elif "input_tokens" in result:
+            result["total_tokens"] = result["input_tokens"] + result["output_tokens"]
     return result
+
+
+def _usage_integer(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float):
+        if not value.is_integer():
+            return None
+        number = int(value)
+    elif isinstance(value, str) and value.isdigit():
+        number = int(value)
+    else:
+        return None
+    return number if 0 <= number <= 1_000_000_000_000 else None
 
 
 def _batch_id(events: list[dict[str, Any]]) -> str:

@@ -123,15 +123,22 @@ prompts, user messages, conversation history, tool arguments, terminal
 commands, tool results, subagent goals, subagent summaries, or provider
 request/response bodies. When declared-intent capture is enabled, it exports
 only the allowlisted, bounded goal, success criteria, constraints, confidence,
-and terminal self-assessment supplied through its tools. The injected guidance
+terminal self-assessment, and optional refund-triage criterion statuses supplied
+through its tools. Criterion evidence is limited to the six known
+`refund_triage.v2` IDs, one status, and one to four identifier-only references
+per criterion. It cannot contain free-form explanations, prompts, customer
+content, or arbitrary fields. The injected guidance
 explicitly tells the model not to include secrets, personal data, or copied raw
 content. Tool arguments may be hashed in memory only for
 counterfactual duplicate-call budgets; that fingerprint is not exported.
 Model telemetry is metadata-only: provider/model names, request counts, and
 nonnegative token counters reported by the provider. Pre-request input counts
 are labeled approximate in Activity. Completed requests and Jobs show only
-provider-reported actual usage, along with coverage when some requests omit
-usage. Per-job aggregation is capped at 10,000 requests and 20 model groups.
+provider-reported actual usage, including separate uncached and cached input
+when Hermes supplies that split, along with coverage when some requests omit
+usage. An explicitly reported zero cache count remains zero; a missing cache
+count remains not reported. Per-job aggregation is capped at 10,000 requests
+and 20 model groups.
 
 ## Intent binding
 
@@ -150,8 +157,16 @@ confidence. By default, the gateway evaluates these under the built-in
 `agent_declared_intent.v1` eval/profile. A pass requires a completed run plus
 the agent reporting `achieved`, all criteria met, and constraints respected.
 
+When the workspace assigns `refund_triage.v2`, the outcome tool also accepts an
+optional `criterion_evidence` list for its six fixed criteria. The plugin binds
+that list to the active server-issued Job and exports it with immutable
+`agent_self_attested` trust. The gateway rejects unknown or duplicate criteria,
+unbounded or free-form references, a mismatched Job/eval binding, and conflicting
+replays. An omitted criterion remains insufficient evidence; the plugin does not
+invent a pass. System-observed evidence still takes precedence when it exists.
+
 These values are agent-generated claims. The console labels them
-**Agent-declared intent** and **self-attested**; they are not trusted user intent,
+**Agent-declared intent** and **Self-attested by agent**; they are not trusted user intent,
 independent outcome evidence, authorization, or approval. If the model omits
 the declaration, the plugin falls back to the observed-execution lifecycle Job.
 If capture or export fails, Hermes continues normally.
@@ -164,6 +179,13 @@ rubrics or invoke an independent model judge: `agent_declared` remains an
 explicitly self-attested evaluator, while `observed_execution` remains a
 lifecycle-state evaluator. An assignment whose kind does not match the Job is
 rejected rather than silently evaluating different evidence.
+
+The console also offers a versioned `refund_triage.v2` deterministic template.
+It freezes six bounded checks for the policy outcome, applicable rules,
+invented facts, ambiguity escalation, shadow-mode non-execution, and evidence
+capture. Criterion results contain only pass, fail, or insufficient evidence,
+bounded explanations and evidence references, and frozen evaluator provenance;
+the template does not send prompts or results to an independent model judge.
 
 Set both `intent_id` and `intent_digest` only when the Hermes deployment is
 already operating under an explicit AgentAction contract. Explicit bindings
@@ -183,8 +205,8 @@ evaluate whether the declared outcome was achieved within its constraints.
 ## Meaningful demo workflow
 
 The [synthetic support-triage example](../../examples/hermes-support-triage/)
-provides a repeatable Hermes workflow with a bounded refund policy, eligible and
-manual-review cases, read-only constraints, expected decisions, and live
+provides a repeatable Hermes workflow with a bounded refund policy, eligible,
+ineligible, and manual-review cases, read-only constraints, expected decisions, and live
 AgentAction verification steps. Use it to demonstrate meaningful declared goals
 and honest non-qualified outcomes without introducing real customer data or
 external side effects.

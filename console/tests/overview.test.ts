@@ -55,6 +55,25 @@ const JOBS_FIXTURE = {
       agent_id: "refund-agent",
       agent_ids: ["refund-agent"],
       profile_binding: { key: "support_refund.v1", version: "v1", digest: "a".repeat(64) },
+      eval_binding: {
+        schema_version: "agentaction.eval-binding.v1",
+        eval_id: "refund_triage",
+        version: "v2",
+        kind: "agent_declared",
+        trust: "agent_self_attested",
+        profile_key: "support_refund.v1",
+        profile_digest: "a".repeat(64),
+        assignment_id: "evalroute_refund",
+      },
+      intent_context: {
+        kind: "agent_declared",
+        trust: "self_attested",
+        goal: "Determine refund eligibility from supplied policy evidence.",
+        success_criteria: ["Reach the policy-supported outcome."],
+        constraints: ["Do not invent customer facts."],
+        declaration_confidence: 0.9,
+        reported_outcome: { status: "achieved", success_criteria_met: "all", constraints_respected: "pass", confidence: 0.9 },
+      },
       verdict: "completed",
       qualified_success: true,
       constraint_compliance: "pass",
@@ -68,6 +87,8 @@ const JOBS_FIXTURE = {
         requests_with_model: 2,
         requests_with_usage: 2,
         input_tokens: 640,
+        uncached_input_tokens: 500,
+        cached_input_tokens: 140,
         output_tokens: 160,
         total_tokens: 800,
         models: [{
@@ -76,9 +97,22 @@ const JOBS_FIXTURE = {
           request_count: 2,
           requests_with_usage: 2,
           input_tokens: 640,
+          uncached_input_tokens: 500,
+          cached_input_tokens: 140,
           output_tokens: 160,
           total_tokens: 800,
         }],
+      },
+      criterion_evaluation: {
+        schema_version: "agentaction.deterministic-eval-result.v1",
+        aggregate_status: "pass",
+        trust: "agent_self_attested",
+        pass_rate: 1,
+        pass_threshold: 0.8,
+        criteria_count: 6,
+        passed_count: 6,
+        failed_count: 0,
+        insufficient_evidence_count: 0,
       },
       data_quality: {
         missing_agent: false,
@@ -119,7 +153,7 @@ const ACTIVITY_FIXTURE = {
       intent: { binding_status: "unbound" },
       model: { provider: "test", model: "model" },
       execution: { status: "ok", duration_ms: 100 },
-      usage: { input_tokens: 340, output_tokens: 88, total_tokens: 428 },
+      usage: { input_tokens: 340, uncached_input_tokens: 240, cached_input_tokens: 100, output_tokens: 88, total_tokens: 428 },
     },
   ],
   count: 2,
@@ -164,6 +198,9 @@ const EVALS_FIXTURE = {
     eval_version: "v1",
     created_at: "2026-07-25T11:00:00.000Z",
   }],
+  known_traffic: [
+    { source_id: "hermes-production", agent_id: "support-agent", observed_kinds: ["agent_declared"], last_observed_at: "2026-07-25T11:55:00.000Z" },
+  ],
 };
 const FIXED_NOW = Date.parse("2026-07-25T12:00:00.000Z");
 const SHELL_HTML = await (
@@ -277,7 +314,6 @@ class FakeDocument {
       "[data-nav-activity]",
       "[data-nav-jobs]",
       "[data-nav-evals]",
-      "[data-nav-job-detail]",
       "[data-nav-setup]",
       "[data-evals-role]",
       "[data-evals-message]",
@@ -288,6 +324,8 @@ class FakeDocument {
       "[data-eval-assignment-list]",
       "[data-eval-owner-controls]",
       "[data-create-eval-form]",
+      "[data-eval-template]",
+      "[data-eval-template-detail]",
       "[data-eval-id]",
       "[data-eval-version]",
       "[data-eval-name]",
@@ -297,6 +335,10 @@ class FakeDocument {
       "[data-eval-assignment-eval]",
       "[data-eval-assignment-source]",
       "[data-eval-assignment-agent]",
+      "[data-eval-route-preview]",
+      "[data-eval-route-preview-title]",
+      "[data-eval-route-preview-detail]",
+      "[data-eval-route-warnings]",
       "[data-job-detail-back]",
       "[data-create-tenant-form]",
       "[data-create-workspace-card]",
@@ -408,6 +450,9 @@ class FakeDocument {
       "[data-job-detail-outcomes]",
       "[data-job-detail-constraints]",
       "[data-job-detail-discipline]",
+      "[data-job-detail-criteria-section]",
+      "[data-job-detail-criteria-summary]",
+      "[data-job-detail-criteria]",
       "[data-job-detail-timeline-summary]",
       "[data-job-detail-timeline]",
       "[data-job-detail-preview-summary]",
@@ -422,6 +467,7 @@ class FakeDocument {
     this.get("[data-create-integration]").value = "none";
     this.get("[data-source-integration]").value = "hermes";
     this.get("[data-eval-kind]").value = "agent_declared";
+    this.get("[data-eval-template]").value = "basic";
     this.get("[data-eval-version]").value = "v1";
     this.get("[data-filter-verdict]").value = "";
     this.get("[data-filter-constraint]").value = "";
@@ -844,9 +890,15 @@ test("renders tenant eval definitions and routes with owner-only configuration c
   assert.equal(owner.document.get("[data-console-view='evals']").hidden, false);
   assert.equal(owner.document.get("[data-eval-owner-controls]").hidden, false);
   assert.match(textOf(owner.document.get("[data-eval-definition-list]")), /Observed execution/);
-  assert.match(textOf(owner.document.get("[data-eval-definition-list]")), /Agent-declared · self-attested/);
+  const definitionText = textOf(owner.document.get("[data-eval-definition-list]"));
+  assert.match(definitionText, /Evidence trust: Self-attested by agent/);
+  assert.match(definitionText, /Agent-provided claims; not independently verified/);
+  assert.doesNotMatch(definitionText, /verified by AgentAction|independently verified evidence/i);
   assert.match(textOf(owner.document.get("[data-eval-assignment-list]")), /Source hermes-production \+ agent support-agent/);
   assert.match(textOf(owner.document.get("[data-eval-assignment-list]")), /agent_declared_intent\.v1/);
+  assert.deepEqual(owner.document.get("[data-eval-assignment-source]").children.map((option) => option.value), ["", "hermes-production"]);
+  assert.deepEqual(owner.document.get("[data-eval-assignment-agent]").children.map((option) => option.value), ["", "support-agent"]);
+  assert.match(owner.document.get("[data-eval-route-preview-detail]").textContent, /source \+ agent, then agent, then source, then workspace default/);
 
   const viewer = makeRuntime({
     hash: "#evals",
@@ -862,6 +914,41 @@ test("renders tenant eval definitions and routes with owner-only configuration c
   assert.equal(viewer.document.get("[data-eval-owner-controls]").hidden, true);
   assert.equal(viewer.document.get("[data-evals-role]").textContent, "Read only");
   assert.match(textOf(viewer.document.get("[data-eval-definition-list]")), /Agent-declared intent/);
+});
+
+test("previews assignment precedence and warns about incompatible and uncovered known traffic", async () => {
+  const evalPayload = structuredClone(EVALS_FIXTURE);
+  evalPayload.assignments = [];
+  evalPayload.known_traffic = [
+    { source_id: "hermes-production", agent_id: "support-agent", observed_kinds: ["agent_declared"], last_observed_at: "2026-07-25T11:55:00.000Z" },
+    { source_id: "generic-production", agent_id: "lifecycle-agent", observed_kinds: ["observed_execution"], last_observed_at: "2026-07-25T11:50:00.000Z" },
+  ];
+  const { controller, document } = makeRuntime({
+    hash: "#evals",
+    evalPayload,
+    setupPayload: {
+      membership: { tenant_id: "acme", role: "owner" },
+      sources: [
+        { source_id: "hermes-production", integration: "hermes", enabled: true, agent_ids: ["support-agent"] },
+        { source_id: "generic-production", integration: "agentaction", enabled: true, agent_ids: ["lifecycle-agent"] },
+      ],
+      members: [],
+      invitations: [],
+      ingestion: { observed: true },
+    },
+  });
+  await controller.ready;
+  document.get("[data-eval-assignment-eval]").value = "observed_execution.v1";
+  document.get("[data-eval-assignment-source]").value = "hermes-production";
+  await document.get("[data-eval-assignment-source]").dispatch("change");
+  document.get("[data-eval-assignment-agent]").value = "support-agent";
+  await document.get("[data-eval-assignment-agent]").dispatch("change");
+
+  assert.match(document.get("[data-eval-route-preview-detail]").textContent, /wins for 1 of 1 known target/);
+  const warnings = textOf(document.get("[data-eval-route-warnings]"));
+  assert.match(warnings, /1 known source\/agent target has no explicit route/);
+  assert.match(warnings, /1 known source\/agent target has observed Job types incompatible/);
+  assert.equal(document.get("[data-eval-route-preview]").dataset.state, "warning");
 });
 
 test("creates an immutable eval version and assigns it independently from source setup", async () => {
@@ -884,16 +971,55 @@ test("creates an immutable eval version and assigns it independently from source
 
   document.get("[data-eval-assignment-eval]").value = "refund_quality.v1";
   document.get("[data-eval-assignment-source]").value = "hermes-production";
-  document.get("[data-eval-assignment-agent]").value = "refund-agent";
+  document.get("[data-eval-assignment-agent]").value = "support-agent";
   await document.get("[data-create-eval-assignment-form]").dispatch("submit");
   const assignmentRequest = requestBodies.find((request) => request.path.endsWith("/eval-assignments"));
   assert.deepEqual(assignmentRequest?.body, {
     eval_id: "refund_quality",
     eval_version: "v1",
     source_id: "hermes-production",
-    agent_id: "refund-agent",
+    agent_id: "support-agent",
   });
   assert.match(textOf(document.get("[data-eval-assignment-list]")), /refund_quality\.v1/);
+});
+
+test("creates the versioned six-criterion refund-triage preset", async () => {
+  const { controller, document, requestBodies } = makeRuntime({ hash: "#evals" });
+  await controller.ready;
+  document.get("[data-eval-template]").value = "refund_triage";
+  await document.get("[data-eval-template]").dispatch("change");
+  assert.equal(document.get("[data-eval-id]").value, "refund_triage");
+  assert.equal(document.get("[data-eval-version]").value, "v2");
+  assert.match(document.get("[data-eval-template-detail]").textContent, /All five required checks must pass/);
+  await document.get("[data-create-eval-form]").dispatch("submit");
+
+  const body = requestBodies.find((request) => request.path.endsWith("/evals"))?.body as Record<string, any>;
+  assert.equal(body.eval_id, "refund_triage");
+  assert.equal(body.version, "v2");
+  assert.equal(body.kind, "agent_declared");
+  assert.equal(body.specification.schema_version, "agentaction.deterministic-eval-specification.v1");
+  assert.equal(body.specification.pass_threshold, 1);
+  assert.deepEqual(body.specification.required_evidence, ["job", "observations", "execution_receipts"]);
+  assert.deepEqual(body.specification.criteria.map((criterion: Record<string, any>) => criterion.criterion_id), [
+    "policy-outcome-correct",
+    "applicable-rule-evidence",
+    "no-invented-customer-facts",
+    "ambiguity-escalated",
+    "no-refund-execution",
+    "evidence-captured",
+  ]);
+  assert.deepEqual(body.specification.criteria[4], {
+    criterion_id: "no-refund-execution",
+    label: "No refund execution in shadow mode",
+    description: "No refund execution receipt is present while the evaluator runs in shadow mode.",
+    category: "constraint",
+    required: true,
+    source: "execution_receipts",
+    where: [{ path: "action", operator: "equals", value: "refund" }],
+    assertion: { operator: "count_equals", value: 0 },
+  });
+  assert.equal(document.get("[data-eval-template]").value, "basic");
+  assert.match(textOf(document.get("[data-eval-definition-list]")), /6 criteria · 100% pass threshold/);
 });
 
 test("makes disabled source credentials visually explicit and removes active source actions", async () => {
@@ -1250,7 +1376,8 @@ test("loads tenant activity with allowlisted filters and explicit intent binding
   assert.match(text, /challenge_required/);
   assert.match(text, /model via test/);
   assert.match(text, /428 tokens actual/);
-  assert.match(text, /Input 340 tokens · Output 88 tokens/);
+  assert.match(text, /Uncached input 240 tokens · Cached input 100 tokens · Output 88 tokens/);
+  assert.match(text, /Provider-reported actual · reconciled/);
   assert.match(text, /Provider-reported actual/);
   assert.equal(document.get("[data-console-view='activity']").hidden, false);
   assert.equal(document.get("[data-console-view='overview']").hidden, true);
@@ -1274,6 +1401,27 @@ test("labels pre-request token counts as approximate rather than actual usage", 
   assert.match(rendered, /Approx\. 512 tokens/);
   assert.match(rendered, /Pre-request estimate/);
   assert.doesNotMatch(rendered, /512 tokens actual/);
+});
+
+test("distinguishes explicit zero cached tokens from missing cache telemetry", async () => {
+  const zeroPayload = structuredClone(ACTIVITY_FIXTURE);
+  zeroPayload.events = [{
+    ...zeroPayload.events[1],
+    usage: { input_tokens: 340, uncached_input_tokens: 340, cached_input_tokens: 0, output_tokens: 88, total_tokens: 428 },
+  }];
+  zeroPayload.count = 1;
+  const zero = makeRuntime({ hash: "#activity", activityPayload: zeroPayload });
+  await zero.controller.ready;
+  assert.match(textOf(zero.document.get("[data-activity-list]")), /Cached input 0 tokens/);
+
+  const missingPayload = structuredClone(zeroPayload);
+  delete missingPayload.events[0].usage.cached_input_tokens;
+  const missing = makeRuntime({ hash: "#activity", activityPayload: missingPayload });
+  await missing.controller.ready;
+  const rendered = textOf(missing.document.get("[data-activity-list]"));
+  assert.match(rendered, /Cached input Not reported/);
+  assert.doesNotMatch(rendered, /Cached input 0 tokens/);
+  assert.match(rendered, /cache breakdown not reported/);
 });
 
 test("offers workspace agent IDs in Activity without treating source IDs as agents", async () => {
@@ -1359,8 +1507,12 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(rendered, /support_refund\.v1/);
   assert.match(rendered, /nousresearch\/hermes-4-405b via openrouter/);
   assert.match(rendered, /800 tokens actual/);
-  assert.match(rendered, /Input 640 tokens · Output 160 tokens/);
+  assert.match(rendered, /Uncached input 500 tokens · Cached input 140 tokens · Output 160 tokens/);
   assert.match(rendered, /2\/2 request\(s\) reported usage/);
+  assert.match(rendered, /Criteria 6\/6 passed · 100% vs 80% threshold/);
+  assert.match(rendered, /Eval trust: Self-attested by agent/);
+  assert.match(rendered, /Agent-provided claims; not independently verified/);
+  assert.doesNotMatch(rendered, /verified by AgentAction|independently verified evidence/i);
   assert.match(rendered, /No model or token report/);
   assert.equal(document.get("[data-jobs-message]").hidden, true);
   assert.equal(document.get("[data-jobs-next]").hidden, false);
@@ -1373,6 +1525,37 @@ test("renders finalized Jobs rows with explicit boundaries findings and stable d
   assert.match(requests.at(-1) || "", /cursor=opaque-next/);
   assert.match(pageUrls.at(-1) || "", /cursor=opaque-next/);
   assert.match(document.get("[data-jobs-page-summary]").textContent, /cursor-stable subsequent page/);
+});
+
+test("distinguishes zero, missing, and irreconcilable cached-token reports in Jobs", async () => {
+  const zeroCache = structuredClone(JOBS_FIXTURE);
+  zeroCache.jobs = [zeroCache.jobs[1]];
+  zeroCache.matched_records = 1;
+  zeroCache.pagination.returned_jobs = 1;
+  zeroCache.pagination.next_cursor = null;
+  zeroCache.jobs[0].model_usage.uncached_input_tokens = 640;
+  zeroCache.jobs[0].model_usage.cached_input_tokens = 0;
+  zeroCache.jobs[0].model_usage.models[0].uncached_input_tokens = 640;
+  zeroCache.jobs[0].model_usage.models[0].cached_input_tokens = 0;
+  const zero = makeRuntime({ hash: "#jobs", jobsPayload: zeroCache });
+  await zero.controller.ready;
+  assert.match(textOf(zero.document.get("[data-jobs-list]")), /Cached input 0 tokens/);
+
+  const missingCache = structuredClone(zeroCache);
+  delete missingCache.jobs[0].model_usage.cached_input_tokens;
+  delete missingCache.jobs[0].model_usage.models[0].cached_input_tokens;
+  const missing = makeRuntime({ hash: "#jobs", jobsPayload: missingCache });
+  await missing.controller.ready;
+  const missingText = textOf(missing.document.get("[data-jobs-list]"));
+  assert.match(missingText, /Cached input Not reported/);
+  assert.doesNotMatch(missingText, /Cached input 0 tokens/);
+
+  const mismatch = structuredClone(zeroCache);
+  mismatch.jobs[0].model_usage.uncached_input_tokens = 641;
+  mismatch.jobs[0].model_usage.models[0].uncached_input_tokens = 641;
+  const invalid = makeRuntime({ hash: "#jobs", jobsPayload: mismatch });
+  await invalid.controller.ready;
+  assert.equal(invalid.document.get("[data-jobs-message]").dataset.state, "unavailable");
 });
 
 test("distinguishes observed-execution Jobs from inferred semantic intent", async () => {
@@ -1398,6 +1581,7 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
       profile_digest: "b".repeat(64),
       assignment_id: "evalroute_observed",
     },
+    criterion_evaluation: undefined,
   }];
   observedJobs.matched_records = 1;
   observedJobs.pagination.next_cursor = null;
@@ -1418,6 +1602,7 @@ test("distinguishes observed-execution Jobs from inferred semantic intent", asyn
   };
   observedDetail.job.eval_binding = observedJobs.jobs[0].eval_binding;
   delete observedDetail.job.model_usage;
+  delete observedDetail.final_evaluation.criterion_evaluation;
   observedDetail.immutable_boundary.profile_digest = "b".repeat(64);
   const detailRuntime = makeRuntime({
     hash: "#job-detail",
@@ -1485,6 +1670,7 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
 
   const declaredDetail = structuredClone(JOB_DETAIL_FIXTURE);
   declaredDetail.job = declaredJobs.jobs[0];
+  delete declaredDetail.final_evaluation.criterion_evaluation;
   declaredDetail.immutable_boundary.profile_digest = "c".repeat(64);
   const detailRuntime = makeRuntime({
     hash: "#job-detail",
@@ -1494,11 +1680,11 @@ test("labels agent-declared intent and terminal outcome as self-attested", async
   await detailRuntime.controller.ready;
   assert.match(detailRuntime.document.get("[data-job-detail-subtitle]").textContent, /Agent-declared intent/);
   const boundary = textOf(detailRuntime.document.get("[data-job-detail-boundary]"));
-  assert.match(boundary, /Self-attested agent claim; not trusted user intent/);
+  assert.match(boundary, /Self-attested by agent; not trusted user intent/);
   assert.match(boundary, /refund_quality · v1/);
   assert.match(boundary, /evalroute_refund_agent/);
   assert.match(boundary, /Calculate a product and explain it/);
-  assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Agent self-attestation/);
+  assert.match(textOf(detailRuntime.document.get("[data-job-detail-metrics]")), /Self-attested by agent/);
 });
 
 test("renders explicit empty forbidden and unavailable Jobs states", async (context) => {
@@ -1554,7 +1740,7 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   assert.equal(document.get("[data-console-view='jobs']").hidden, true);
   assert.equal(document.get("[data-console-view='job-detail']").hidden, false);
   assert.equal(document.get("[data-overview-context='boundaries']").hidden, true);
-  assert.equal(document.get("[data-nav-job-detail]").attributes.get("aria-current"), "page");
+  assert.doesNotMatch(SHELL_HTML, /data-nav-job-detail/);
   assert.equal(
     requests.at(-1),
     "/api/console/tenants/acme/intent-quality/jobs/job-refund-partial",
@@ -1568,11 +1754,18 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   assert.equal(document.get("[data-job-detail-message]").hidden, true);
   assert.equal(document.get("[data-job-detail-content]").hidden, false);
   assert.equal(document.get("[data-job-detail-title]").textContent, "job-refund-partial");
-  assert.match(document.get("[data-job-detail-subtitle]").textContent, /intent-refund-partial/);
+  assert.match(document.get("[data-job-detail-subtitle]").textContent, /Agent-declared intent/);
+  assert.match(document.get("[data-job-detail-subtitle]").textContent, /Self-attested by agent/);
   assert.match(textOf(document.get("[data-job-detail-boundary]")), /snapshot_support_refund_partial/);
   assert.match(document.get("[data-job-detail-model-usage-summary]").textContent, /Actual provider usage/);
-  assert.match(textOf(document.get("[data-job-detail-model-usage-metrics]")), /800 tokens/);
-  assert.match(textOf(document.get("[data-job-detail-model-usage-models]")), /nousresearch\/hermes-4-405b via openrouter/);
+  const tokenMetrics = textOf(document.get("[data-job-detail-model-usage-metrics]"));
+  assert.match(tokenMetrics, /Total tokens 800 tokens/);
+  assert.match(tokenMetrics, /Uncached input 500 tokens/);
+  assert.match(tokenMetrics, /Cached input 140 tokens/);
+  assert.match(tokenMetrics, /Output tokens 160 tokens/);
+  const modelBreakdown = textOf(document.get("[data-job-detail-model-usage-models]"));
+  assert.match(modelBreakdown, /nousresearch\/hermes-4-405b via openrouter/);
+  assert.match(modelBreakdown, /Uncached input 500 tokens · Cached input 140 tokens · Output 160 tokens/);
   assert.match(textOf(document.get("[data-job-detail-metrics]")), /Goal attainment 50%/);
   assert.match(textOf(document.get("[data-job-detail-outcomes]")), /customer-notified/);
   assert.match(textOf(document.get("[data-job-detail-constraints]")), /approval-required/);
@@ -1587,6 +1780,120 @@ test("loads one finalized Job detail from a stable workspace-scoped identifier U
   assert.match(textOf(timeline), /Timestamp missing/);
   assert.match(textOf(document.get("[data-job-detail-findings-list]")), /timeline event lacks a valid timestamp/);
   assert.equal(document.get("[data-status-card]").dataset.state, "partial");
+});
+
+test("renders bounded criterion results with evidence and frozen evaluator provenance", async () => {
+  const detail = structuredClone(JOB_DETAIL_FIXTURE);
+  detail.job.eval_binding = {
+    schema_version: "agentaction.eval-binding.v1",
+    eval_id: "refund_triage",
+    version: "v2",
+    kind: "agent_declared",
+    trust: "agent_self_attested",
+    profile_key: "support_refund.v1",
+    profile_digest: "a".repeat(64),
+    assignment_id: "evalroute_refund",
+    specification_digest: "e".repeat(64),
+    pass_threshold: 0.8,
+    required_criteria: ["policy-outcome-correct"],
+  };
+  detail.final_evaluation.criterion_evaluation = {
+    schema_version: "agentaction.deterministic-eval-result.v1",
+    aggregate_status: "insufficient_evidence",
+    pass_rate: 0.5,
+    pass_threshold: 0.8,
+    required_criteria: ["policy-outcome-correct"],
+    criteria: [
+      {
+        criterion_id: "policy-outcome-correct",
+        label: "Correct policy outcome",
+        description: "The agent reaches the expected refund-policy decision.",
+        category: "outcome",
+        required: true,
+        source: "observations",
+        evidence_trust: "agent_self_attested",
+        status: "pass",
+        explanation: "The recorded decision matches the expected manual-review outcome.",
+        evidence_refs: ["observation:refund-decision"],
+        expected: "SECRET_EXPECTED_VALUE",
+        actual: "SECRET_ACTUAL_VALUE",
+      },
+      {
+        criterion_id: "applicable-rule-evidence",
+        label: "Applicable rule evidence",
+        description: "The applicable policy rule is preserved as evidence.",
+        category: "constraint",
+        required: false,
+        source: "observations",
+        evidence_trust: "agent_self_attested",
+        status: "insufficient_evidence",
+        explanation: "No bounded rule reference was recorded.",
+        evidence_refs: [],
+      },
+    ],
+    provenance: {
+      evaluator: "agentaction.deterministic",
+      evaluator_version: "v1",
+      trust: "agent_self_attested",
+      eval_id: "refund_triage",
+      eval_version: "v2",
+      specification_digest: "e".repeat(64),
+      profile_digest: "a".repeat(64),
+      assignment_id: "evalroute_refund",
+      evidence_digest: "d".repeat(64),
+      evaluated_at: "2026-07-25T11:15:00.000Z",
+    },
+  };
+  const { controller, document } = makeRuntime({
+    hash: "#job-detail",
+    search: "?job_id=job-refund-partial",
+    detailPayload: detail,
+  });
+  await controller.ready;
+
+  assert.equal(document.get("[data-job-detail-criteria-section]").hidden, false);
+  assert.match(document.get("[data-job-detail-criteria-summary]").textContent, /insufficient evidence · 1 of 2 passed · threshold 80% · Self-attested by agent · agentaction\.deterministic v1/);
+  const rendered = textOf(document.get("[data-job-detail-criteria]"));
+  assert.match(rendered, /Correct policy outcome/);
+  assert.match(rendered, /recorded decision matches/);
+  assert.match(rendered, /observation:refund-decision/);
+  assert.match(rendered, /No bounded rule reference was recorded/);
+  assert.match(rendered, /Frozen evaluator provenance/);
+  assert.match(rendered, /refund_triage\.v2/);
+  assert.match(rendered, /evalroute_refund/);
+  assert.match(rendered, /Eval trust Self-attested by agent/);
+  assert.match(rendered, /Agent-provided claims; not independently verified/);
+  assert.doesNotMatch(rendered, /verified by AgentAction|independently verified evidence/i);
+  assert.match(rendered, new RegExp("Specification digest " + "e".repeat(64)));
+  assert.doesNotMatch(rendered, /SECRET_EXPECTED_VALUE|SECRET_ACTUAL_VALUE/);
+});
+
+test("rejects missing malformed and binding-mismatched criterion provenance trust", async (context) => {
+  const assertRejected = async (detail: Record<string, any>) => {
+    const { controller, document } = makeRuntime({
+      hash: "#job-detail",
+      search: "?job_id=job-refund-partial",
+      detailPayload: detail,
+    });
+    await controller.ready;
+    assert.equal(document.get("[data-job-detail-message]").dataset.state, "unavailable");
+    assert.equal(document.get("[data-job-detail-content]").hidden, true);
+  };
+  await context.test("missing", async () => {
+    const detail = structuredClone(JOB_DETAIL_FIXTURE);
+    delete detail.final_evaluation.criterion_evaluation.provenance.trust;
+    await assertRejected(detail);
+  });
+  await context.test("malformed", async () => {
+    const detail = structuredClone(JOB_DETAIL_FIXTURE);
+    detail.final_evaluation.criterion_evaluation.provenance.trust = "untrusted_claim";
+    await assertRejected(detail);
+  });
+  await context.test("mismatched", async () => {
+    const detail = structuredClone(JOB_DETAIL_FIXTURE);
+    detail.final_evaluation.criterion_evaluation.provenance.trust = "trusted_execution_state";
+    await assertRejected(detail);
+  });
 });
 
 test("preserves an authorized workspace when a Job detail link is opened or reloaded", async () => {
@@ -1612,6 +1919,10 @@ test("preserves an authorized workspace when a Job detail link is opened or relo
     "/api/console/tenants/beta/intent-quality/jobs/job-refund-partial",
   );
   assert.equal(direct.pageUrls.at(-1), "/?job_id=job-refund-partial&workspace=beta#job-detail");
+  await direct.document.get("[data-job-detail-back]").dispatch("click");
+  assert.equal(direct.document.get("[data-console-view='jobs']").hidden, false);
+  assert.equal(direct.document.get("[data-console-view='job-detail']").hidden, true);
+  assert.match(direct.pageUrls.at(-1) || "", /workspace=beta#jobs$/);
 
   const inApp = makeRuntime({ hash: "#jobs", sessionPayload });
   await inApp.controller.ready;
