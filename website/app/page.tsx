@@ -67,11 +67,13 @@ const lifecycle = [
 
 const assuranceModules = [
   {
-    state: "Foundation available",
-    title: "Agent Evaluation",
-    copy: "Define versioned intent profiles, run synthetic scenarios, and aggregate profile-scoped assurance signals before wider deployment.",
-    signal: "Profiles · synthetic runs · quality rollups",
-    note: "Packaged certification workflows are a product direction, not an external certification claim.",
+    state: "Starters available",
+    title: "Agent Creation & Evaluation",
+    copy: "Start with a job and the MCP servers it needs. Adapt a recipe to your intent, test it with synthetic scenarios, and track outcomes across runs.",
+    signal: "Job + MCP servers → starter → evaluation",
+    note: "Download instructions and test cases for your own runtime. Connect run evidence to follow outcomes in AgentAction.",
+    href: "/recipes",
+    linkLabel: "Find an agent recipe",
   },
   {
     state: "Available now",
@@ -409,12 +411,12 @@ export default function Home() {
         <div className="section-heading">
           <div>
             <p className="section-index">04 / The platform</p>
-            <h2 id="platform-title">One trust layer. Three control surfaces.</h2>
+            <h2 id="platform-title">Build, evaluate, and govern your agents.</h2>
           </div>
           <p>
-            The gateway is the enforcement wedge. Evaluation and decision
-            assurance extend that boundary across the full agent lifecycle—from
-            pre-deployment testing to runtime evidence and continuous review.
+            Turn a job into an agent you can put to work. Start with a recipe,
+            evaluate it against your intent, then bring decision assurance,
+            action authorization, and ongoing visibility into every run.
           </p>
         </div>
         <div className="module-grid">
@@ -430,6 +432,11 @@ export default function Home() {
               <p>{module.copy}</p>
               <code>{module.signal}</code>
               <p className="module-note">{module.note}</p>
+              {module.href && (
+                <Link className="text-link module-link" href={module.href}>
+                  {module.linkLabel} <span aria-hidden="true">→</span>
+                </Link>
+              )}
             </article>
           ))}
         </div>

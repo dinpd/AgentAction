@@ -260,10 +260,15 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   assert.match(html, /trust layer between autonomous agents and enterprise systems/i);
   assert.match(html, /Agents need more than permissions/i);
   assert.match(html, /Traditional IAM and agent systems comparison/i);
-  assert.match(html, /Agent Evaluation/);
+  const platformMarkup = html.match(/<section id="platform"[\s\S]*?<\/section>/i)?.[0] ?? "";
+  assert.match(platformMarkup, /Build, evaluate, and govern your agents/);
+  assert.match(platformMarkup, /Agent Creation &amp; Evaluation/);
+  assert.match(platformMarkup, /Starters available/);
+  assert.match(platformMarkup, /Job \+ MCP servers → starter → evaluation/);
+  assert.match(platformMarkup, /instructions and test cases for your own runtime/);
+  assert.match(platformMarkup, /href="\/recipes"[^>]*>Find an agent recipe/);
   assert.match(html, /Decision Assurance/);
   assert.match(html, /Action Authorization/);
-  assert.match(html, /Foundation available/);
   assert.match(html, /normalized decision evidence—not private chain-of-thought/i);
   assert.match(html, /intent → assessed → authorized → executed → evidenced → evaluated/i);
 

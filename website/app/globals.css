@@ -625,6 +625,11 @@ nav a:not(.nav-cta):hover,
   line-height: 1.5;
 }
 
+.module-link {
+  margin-top: 1rem;
+  align-self: flex-start;
+}
+
 .gateway-entry {
   border-top: 1px solid var(--line);
 }
