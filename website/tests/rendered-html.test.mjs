@@ -575,7 +575,7 @@ test("practical recipes expose usable setup and preserve it in both download for
   assert.match(directory, /Powered by/);
   assert.match(directory, /Sentry \+ Linear/);
   assert.match(directory, /Required servers/);
-  assert.match(directory, /Recipe maintained by/);
+  assert.doesNotMatch(directory, /Recipe maintained by/);
 
   assert.ok(directory.indexOf('href="/recipes/competitor-pricing"') < directory.indexOf('href="/recipes/support-refund"'));
   for (const [id, endpoints] of Object.entries(expected)) {

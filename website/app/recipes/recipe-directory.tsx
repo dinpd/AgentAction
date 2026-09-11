@@ -65,6 +65,7 @@ export function RecipeDirectory() {
           <Link href={`/recipes/${r.id}`} key={r.id} className="recipe-card">
             <div className="recipe-card-top">
               <span>{r.category}</span>
+              <span aria-hidden="true">↗</span>
             </div>
             <h2>{r.title}</h2>
             <div className="recipe-provider">
@@ -78,12 +79,6 @@ export function RecipeDirectory() {
                 pass
               </span>
               <span>{r.mode}</span>
-            </div>
-            <div className="recipe-card-footer">
-              <span>
-                Recipe maintained by {r.publisher.name}
-              </span>
-              <strong aria-label="Explore recipe">↗</strong>
             </div>
           </Link>
         ))}
