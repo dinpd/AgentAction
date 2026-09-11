@@ -3,17 +3,18 @@ import "./globals.css";
 
 const siteOrigin = "https://agentaction.dev";
 const socialImage = `${siteOrigin}/og-trust-layer.png`;
+const siteTitle = "AgentAction — Connect agents to tools, safely and reliably";
+const siteDescription = "Start with an agent recipe, test it against your job, and keep visibility and control over every run with AgentAction.";
 
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin),
   title: {
-    default: "AgentAction — Trust infrastructure for autonomous AI agents",
+    default: siteTitle,
     template: "%s — AgentAction",
   },
-  description:
-    "AgentAction evaluates agent decisions, enforces policy, authorizes actions, and preserves verifiable evidence from intent through execution.",
+  description: siteDescription,
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "64x64" },
@@ -30,9 +31,8 @@ export const metadata: Metadata = {
     type: "website",
     url: siteOrigin,
     siteName: "AgentAction",
-    title: "AgentAction — The trust layer for autonomous AI agents",
-    description:
-      "Evaluate decisions, enforce policy, authorize actions, and preserve verifiable evidence from intent through execution.",
+    title: siteTitle,
+    description: siteDescription,
     images: [
       {
         url: socialImage,
@@ -44,9 +44,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "AgentAction — The trust layer for autonomous AI agents",
-    description:
-      "Evaluate decisions, enforce policy, authorize actions, and preserve verifiable evidence from intent through execution.",
+    title: siteTitle,
+    description: siteDescription,
     images: [socialImage],
   },
   robots: {
@@ -76,8 +75,7 @@ const siteStructuredData = {
       "@id": `${siteOrigin}/#website`,
       url: `${siteOrigin}/`,
       name: "AgentAction",
-      description:
-        "Trust infrastructure for autonomous AI agents, from decision assurance through action authorization and execution evidence.",
+      description: siteDescription,
       publisher: { "@id": `${siteOrigin}/#organization` },
       inLanguage: "en",
     },

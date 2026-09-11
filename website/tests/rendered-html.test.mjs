@@ -38,9 +38,10 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(response.headers.get("cache-control") ?? "", /s-maxage=/i);
 
   const html = await response.text();
-  assert.match(html, /<title>AgentAction — Trust infrastructure for autonomous AI agents<\/title>/i);
-  assert.match(html, /Give agents permission to act\./);
-  assert.match(html, /Prove the decision was justified\./);
+  assert.match(html, /<title>AgentAction — Connect agents to tools, safely and reliably<\/title>/i);
+  assert.match(html, /<h1 id="hero-title">Connect agents to tools\.<span>Safely and reliably\.<\/span><\/h1>/);
+  assert.match(html, /Start with a recipe, test your agent against its job, and keep visibility and control over every run\./);
+  assert.match(html, /<meta name="description" content="Start with an agent recipe, test it against your job, and keep visibility and control over every run with AgentAction\."/);
   assert.match(html, /AgentAction is the canonical project brand/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
@@ -257,8 +258,8 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   const response = await render();
   const html = await response.text();
 
-  assert.match(html, /trust layer between autonomous agents and enterprise systems/i);
-  assert.match(html, /Agents need more than permissions/i);
+  assert.match(html, /Useful agents need more than a connection/i);
+  assert.match(html, /policies, approvals, and outcome evidence—without inspecting hidden chain-of-thought/i);
   assert.match(html, /Traditional IAM and agent systems comparison/i);
   const platformMarkup = html.match(/<section id="platform"[\s\S]*?<\/section>/i)?.[0] ?? "";
   assert.match(platformMarkup, /Build, evaluate, and govern your agents/);
@@ -284,8 +285,8 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
 
   assert.ok(lifecycleOrder.every((index) => index >= 0));
   assert.deepEqual(lifecycleOrder, [...lifecycleOrder].sort((left, right) => left - right));
-  assert.match(html, /<meta property="og:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
-  assert.match(html, /<meta name="twitter:title" content="AgentAction — The trust layer for autonomous AI agents"/i);
+  assert.match(html, /<meta property="og:title" content="AgentAction — Connect agents to tools, safely and reliably"/i);
+  assert.match(html, /<meta name="twitter:title" content="AgentAction — Connect agents to tools, safely and reliably"/i);
 
   const graph = structuredData(html).flatMap((entry) => entry["@graph"] ?? []);
   const organization = graph.find((entry) => entry["@type"] === "Organization");
