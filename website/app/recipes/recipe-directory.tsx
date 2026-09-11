@@ -61,19 +61,17 @@ export function RecipeDirectory() {
         <span>Maintainer starters · open to provider contributions</span>
       </div>
       <div className="recipe-grid">
-        {filtered.map((r, index) => (
+        {filtered.map((r) => (
           <Link href={`/recipes/${r.id}`} key={r.id} className="recipe-card">
             <div className="recipe-card-top">
               <span>{r.category}</span>
-              <span className="recipe-number">0{index + 1}</span>
             </div>
             <h2>{r.title}</h2>
-            <p>{r.summary}</p>
-            <div className="recipe-server-chain">
-              {r.servers.map((s) => (
-                <span key={s.name}>{s.name}</span>
-              ))}
+            <div className="recipe-provider">
+              <span>{r.servers.every((s) => s.connection) ? "Powered by" : "Required servers"}</span>
+              <strong>{r.servers.map((s) => s.name).join(" + ")}</strong>
             </div>
+            <p>{r.summary}</p>
             <div className="recipe-card-evidence">
               <span>
                 {runFixtures(r).filter((f) => f.passed).length} fixture checks
@@ -83,9 +81,9 @@ export function RecipeDirectory() {
             </div>
             <div className="recipe-card-footer">
               <span>
-                By {r.publisher.name} · v{r.version}
+                Recipe maintained by {r.publisher.name}
               </span>
-              <strong>Explore recipe ↗</strong>
+              <strong aria-label="Explore recipe">↗</strong>
             </div>
           </Link>
         ))}

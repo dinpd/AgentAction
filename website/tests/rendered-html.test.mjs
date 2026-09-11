@@ -572,6 +572,11 @@ test("practical recipes expose usable setup and preserve it in both download for
   };
   const directory = await (await render('/recipes')).text();
   const sitemap = await (await render('/sitemap.xml')).text();
+  assert.match(directory, /Powered by/);
+  assert.match(directory, /Sentry \+ Linear/);
+  assert.match(directory, /Required servers/);
+  assert.match(directory, /Recipe maintained by/);
+
   assert.ok(directory.indexOf('href="/recipes/competitor-pricing"') < directory.indexOf('href="/recipes/support-refund"'));
   for (const [id, endpoints] of Object.entries(expected)) {
     assert.ok(directory.includes(`href="/recipes/${id}"`));
@@ -579,6 +584,9 @@ test("practical recipes expose usable setup and preserve it in both download for
     const page = await render(`/recipes/${id}`);
     assert.equal(page.status, 200);
     const html = await page.text();
+    assert.match(html, /Powered by/);
+    assert.match(html, /Recipe maintained by/);
+    assert.match(html, /AgentAction/);
     assert.match(html, /Example result/);
     assert.match(html, /Illustrative output using synthetic data/);
     assert.match(html, /Make it work in your environment/);

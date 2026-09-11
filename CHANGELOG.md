@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.15.1 - 2026-09-11
+
+### Catalog presentation
+
+- Make recipe cards more compact with three wide-screen columns, two medium-screen columns and one phone column; retain full titles, summaries and evidence labels.
+- Lead provider-backed cards and detail pages with the connected server names, and label recipe maintenance separately. Generic synthetic entries retain a Required servers label.
+- Backward-compatible presentation fix; no API, schema, runtime or migration changes. Install the Python wheel or source distribution attached to the GitHub v0.15.1 release; npm versions are unchanged.
+
 ## 0.15.0 - 2026-09-11
 
 ### Practical agent recipes
