@@ -2789,3 +2789,6 @@ button:focus-visible {
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* Keep the recipe discovery entry available on compact navigation. */
+.site-header nav .nav-recipe { display: inline-flex; }

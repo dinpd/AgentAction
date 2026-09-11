@@ -474,6 +474,7 @@ export default function LandscapePage() {
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/">Project</Link>
           <Link className="nav-page" href="/gateway">Action gateway</Link>
+          <Link className="nav-page nav-recipe" href="/recipes">Recipes</Link>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>

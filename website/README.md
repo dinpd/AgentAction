@@ -48,3 +48,10 @@ Sites production runtime with `CLOUDFLARE_ACCOUNT_ID` and the secret
 Sending must be enabled for `agentaction.dev`, and the destination used by the
 `info@agentaction.dev` Email Routing rule must be verified before delivery can
 succeed.
+
+
+## Agent recipes
+
+`/recipes` is the job-oriented directory, with reviewed manifests in `../recipes/catalog.json`. Each detail page exposes instructions, required tools, boundaries, outcome fixtures, and portable downloads. `/recipes/publish` explains provider submissions. The initial entries have fixture evidence only; no live-performance badge is inferred from those checks.
+
+Run `node --experimental-strip-types ../recipes/check.ts` and `node --experimental-strip-types --test ../recipes/registry.test.ts` alongside the site tests. Recipe changes trigger website and console CI. The console receives a non-secret catalog ID/version; it still requires normal authentication and explicit workspace setup.

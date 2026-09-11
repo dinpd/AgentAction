@@ -1,3 +1,4 @@
+import { recipes } from "../../recipes/registry.ts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -315,6 +316,10 @@ class FakeDocument {
 
   constructor() {
     for (const selector of [
+      "[data-recipe-context]",
+      "[data-recipe-title]",
+      "[data-recipe-detail]",
+      "[data-recipe-link]",
       "[data-status-card]",
       "[data-status-title]",
       "[data-status-detail]",
@@ -771,7 +776,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
     },
   };
   return {
-    controller: consoleApp(runtime as any),
+    controller: consoleApp(runtime as any, recipes),
     document,
     pageUrls,
     requestBodies,
@@ -2495,4 +2500,24 @@ test("renders explicit unselected not-found forbidden unavailable unauthorized a
     assert.equal(document.get("[data-status-card]").dataset.state, "stale");
     assert.match(document.get("[data-status-detail]").textContent, /12 minutes old/);
   });
+});
+
+
+test("recipe handoff uses reviewed catalog values and persists across Jobs navigation", async () => {
+  const app = makeRuntime({ hash: "#setup", search: "?recipe=support-refund&recipe_version=1.0.0" });
+  await app.controller.ready;
+  assert.equal(app.document.querySelector("[data-recipe-title]")?.textContent, "Resolve an eligible refund · v1.0.0");
+  assert.match(app.document.querySelector("[data-recipe-detail]")?.textContent || "", /does not connect an account/);
+  await app.controller.loadJobs();
+  assert.ok(app.pageUrls.some(url => url.includes("recipe=support-refund") && url.includes("recipe_version=1.0.0") && url.endsWith("#jobs")));
+  assert.ok(app.requests.every(url => !url.includes("recipe=")), "recipe metadata must not become a gateway filter or authority");
+});
+
+test("unknown, duplicated and stale recipe query values never become trusted recipe context", async () => {
+  for (const search of ["?recipe=%3Cscript%3E&recipe_version=1.0.0", "?recipe=support-refund&recipe_version=9.0.0", "?recipe=support-refund&recipe=support-triage&recipe_version=1.0.0"]) {
+    const app = makeRuntime({ hash: "#setup", search }); await app.controller.ready;
+    assert.equal(app.document.querySelector("[data-recipe-title]")?.textContent, "Review the current recipe");
+    assert.doesNotMatch(app.document.querySelector("[data-recipe-detail]")?.textContent || "", /<script>/);
+    assert.equal(app.requestBodies.length, 0);
+  }
 });

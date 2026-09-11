@@ -417,3 +417,8 @@ After deployment:
 10. Confirm browser network requests contain no reusable AgentAction bearer token.
 11. Confirm missing or invalid Access assertions return an explicit `401`, and
    gateway outages render the unavailable shell state without upstream detail.
+
+
+## Recipe adoption handoff
+
+The public recipe directory links to `/?recipe=<catalog-id>&recipe_version=<version>#setup`. Only the bundled catalog's exact ID/version pair is recognized. The client displays setup context and retains this non-secret pair in console navigation. Unknown, duplicate or stale parameters receive a directory link, never injected query text. Recipe metadata is not forwarded to gateway data APIs and grants no permissions. Users still configure runtime connections and Evals explicitly.
