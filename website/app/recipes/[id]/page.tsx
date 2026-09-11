@@ -38,8 +38,12 @@ export default async function RecipePage({
         {recipe.category} / {recipe.mode}
       </p>
       <h1 className="recipe-detail-title">{recipe.title}</h1>
+      <p className="recipe-provider recipe-detail-provider">
+        <span>{recipe.servers.every((s) => s.connection) ? "Powered by" : "Required servers"}</span>
+        <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong>
+      </p>
       <div className="recipe-detail-meta">
-        <a href={recipe.publisher.url}>By {recipe.publisher.name}</a>
+        <a href={recipe.publisher.url}>Recipe maintained by {recipe.publisher.name}</a>
         <span>Version {recipe.version}</span>
         <span>Evidence: synthetic fixtures</span>
       </div>
