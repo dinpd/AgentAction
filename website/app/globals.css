@@ -2798,7 +2798,7 @@ button:focus-visible {
 /* Keep the recipe discovery entry available on compact navigation. */
 .site-header nav .nav-recipe { display: inline-flex; }
 
-/* A compact entry into the recipe directory, before the trust narrative. */
+/* A compact recipe CTA after the platform story, before the final assessment. */
 .home-recipes {
   padding: 3rem 0 3.5rem;
   border-top: 1px solid var(--line);

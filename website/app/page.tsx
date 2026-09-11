@@ -309,35 +309,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="home-recipes section-shell" aria-labelledby="home-recipes-title">
-        <div className="home-recipes-heading">
-          <div>
-            <p className="section-index">Agent recipes</p>
-            <h2 id="home-recipes-title">Start with a job worth handing off.</h2>
-            <p>
-              Choose a recipe built around real MCP servers. Adapt it to your
-              needs, test it in your environment, and follow its outcomes in
-              AgentAction.
-            </p>
-          </div>
-          <Link className="button button-secondary" href="/recipes">Browse all recipes</Link>
-        </div>
-        <div className="home-recipe-grid">
-          {featuredRecipes.map((recipe) => (
-            <Link className="home-recipe-card" href={`/recipes/${recipe.id}`} key={recipe.id}>
-              <p className="home-recipe-provider">Powered by <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong></p>
-              <h3>{recipe.title}</h3>
-              <p>{recipe.summary}</p>
-              <span className="home-recipe-link">View recipe <span aria-hidden="true">→</span></span>
-            </Link>
-          ))}
-        </div>
-        <p className="home-recipes-note">
-          Each starter includes setup guidance and synthetic test cases. Validate
-          your agent with connected services before putting it to work.
-        </p>
-      </section>
-
       <section className="thesis" aria-labelledby="thesis-title">
         <p className="section-index">01 / The gap</p>
         <div>
@@ -735,6 +706,35 @@ export default function Home() {
             <span aria-hidden="true">↗</span>
           </a>
         </div>
+      </section>
+
+      <section className="home-recipes section-shell" aria-labelledby="home-recipes-title">
+        <div className="home-recipes-heading">
+          <div>
+            <p className="section-index">Agent recipes</p>
+            <h2 id="home-recipes-title">Start with a job worth handing off.</h2>
+            <p>
+              Choose a recipe built around real MCP servers. Adapt it to your
+              needs, test it in your environment, and follow its outcomes in
+              AgentAction.
+            </p>
+          </div>
+          <Link className="button button-secondary" href="/recipes">Browse all recipes</Link>
+        </div>
+        <div className="home-recipe-grid">
+          {featuredRecipes.map((recipe) => (
+            <Link className="home-recipe-card" href={`/recipes/${recipe.id}`} key={recipe.id}>
+              <p className="home-recipe-provider">Powered by <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong></p>
+              <h3>{recipe.title}</h3>
+              <p>{recipe.summary}</p>
+              <span className="home-recipe-link">View recipe <span aria-hidden="true">→</span></span>
+            </Link>
+          ))}
+        </div>
+        <p className="home-recipes-note">
+          Each starter includes setup guidance and synthetic test cases. Validate
+          your agent with connected services before putting it to work.
+        </p>
       </section>
 
       <section id="transition" className="transition-assessment" aria-labelledby="transition-title">

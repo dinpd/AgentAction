@@ -8,7 +8,7 @@ No changes yet.
 
 ### Homepage recipe entry
 
-- Add a hero link and compact homepage introduction to the recipe directory, featuring existing pricing, support and incident recipes with provider names drawn from the catalog.
+- Add a hero link and compact recipe CTA near the bottom of the homepage, featuring existing pricing, support and incident recipes with provider names drawn from the catalog.
 - Connect the platform story to agent creation and evaluation, with a direct recipe entry and clear starter/runtime scope alongside decision assurance and action authorization.
 - Preserve observability onboarding and distinguish synthetic starter cases from live-agent validation.
 - Backward-compatible presentation/navigation update; no API, schema or migration changes. Install the Python wheel or source distribution from the GitHub v0.15.3 release; npm versions unchanged.

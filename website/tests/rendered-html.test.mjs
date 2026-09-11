@@ -508,7 +508,8 @@ test("keeps navigation and local links accessible", async () => {
   const html = await response.text();
   assert.match(html, /Browse agent recipes/);
   assert.match(html, /id="home-recipes-title"/);
-  assert.ok(html.indexOf('id="home-recipes-title"') < html.indexOf('id="thesis-title"'));
+  assert.ok(html.indexOf('id="home-recipes-title"') > html.indexOf('id="community-title"'));
+  assert.ok(html.indexOf('id="home-recipes-title"') < html.indexOf('id="transition-title"'));
   for (const id of ['competitor-pricing', 'support-help-articles', 'incident-to-ticket']) {
     assert.ok(html.includes(`href="/recipes/${id}"`));
   }
