@@ -14,12 +14,12 @@ export async function generateMetadata({
   const recipe = recipeById((await params).id);
   return recipe
     ? {
-        title: recipe.title,
-        description: recipe.summary,
-        alternates: {
-          canonical: `https://agentaction.dev/recipes/${recipe.id}`,
-        },
-      }
+      title: recipe.title,
+      description: recipe.summary,
+      alternates: {
+        canonical: `https://agentaction.dev/recipes/${recipe.id}`,
+      },
+    }
     : { title: "Recipe not found" };
 }
 export default async function RecipePage({
@@ -49,6 +49,11 @@ export default async function RecipePage({
             <h2>The job</h2>
             <p>{recipe.intent}</p>
           </section>
+          {recipe.adoption && <section className="recipe-section">
+            <h2>Example result</h2>
+            <p className="recipe-example-label">Illustrative output using synthetic data.</p>
+            <pre className="recipe-example">{recipe.adoption.exampleOutput}</pre>
+          </section>}
           <section className="recipe-section">
             <h2>Connections you’ll need</h2>
             <p>
@@ -59,6 +64,11 @@ export default async function RecipePage({
               <article className="recipe-connection" key={s.name}>
                 <h3>{s.name}</h3>
                 <p>{s.purpose}</p>
+                {s.connection && <div className="recipe-connection-setup">
+                  <p><strong>Endpoint:</strong> <code>{s.connection.endpoint}</code></p>
+                  <p>{s.connection.authentication}</p>
+                  <a href={s.connection.documentation}>Provider setup documentation ↗</a>
+                </div>}
                 <div>
                   {s.tools.map((t) => (
                     <code key={t}>{t}</code>
@@ -67,6 +77,16 @@ export default async function RecipePage({
               </article>
             ))}
           </section>
+          {recipe.adoption && <section className="recipe-section">
+            <h2>Make it work in your environment</h2>
+            <dl className="recipe-inputs">
+              {recipe.adoption.inputs.map((i) => <div key={i.name}>
+                <dt>{i.name}</dt><dd>{i.description}<p>Example: {i.example}</p></dd>
+              </div>)}
+            </dl>
+            <h3>Runtime requirements</h3>
+            <ul>{recipe.adoption.requirements.map((r) => <li key={r}>{r}</li>)}</ul>
+          </section>}
           <section className="recipe-section">
             <h2>Operating boundaries</h2>
             <ul>
@@ -84,6 +104,13 @@ export default async function RecipePage({
             </ul>
           </section>
           <RecipeTests recipe={recipe} />
+          {recipe.adoption && <section className="recipe-section">
+            <h2>Validate with your agent</h2>
+            <p>Run these procedures in your sandbox. They are a test plan, not completed live-agent tests.</p>
+            {recipe.adoption.validation.map((v) => <article className="recipe-connection" key={v.name}>
+              <h3>{v.name}</h3><p>{v.procedure}</p><p><strong>Expected:</strong> {v.expected}</p>
+            </article>)}
+          </section>}
           <section className="recipe-section">
             <h2>The agent’s instructions</h2>
             <ol>

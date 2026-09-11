@@ -6,7 +6,7 @@ import { recipes, runFixtures } from "../../../recipes/registry";
 export function RecipeDirectory() {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("All recipes");
-  const filtered = recipes.filter(
+  const filtered = [...recipes].sort((a, b) => Number(!!b.adoption) - Number(!!a.adoption)).filter(
     (r) =>
       (mode === "All recipes" || r.mode === mode) &&
       [
@@ -93,7 +93,7 @@ export function RecipeDirectory() {
       {!filtered.length && (
         <div className="recipe-empty">
           <h2>No recipes match that search</h2>
-          <p>Try a job such as “refund” or a server such as “Support”.</p>
+          <p>Try a job such as “pricing” or a server such as “Intercom”.</p>
           <button
             className="recipe-button"
             onClick={() => {

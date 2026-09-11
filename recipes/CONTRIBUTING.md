@@ -19,10 +19,37 @@ A recipe gives users a specific job, the MCP tools needed to do it, and inspecta
 
 ## Adoption
 
-Users download Markdown instructions or a JSON starter with blank connection slots, required tool names, a pinned recipe version, outcome rules and fixtures. The JSON is a portable recipe document, not a universal MCP runtime configuration. Users configure their runtime's MCP connections and approvals, load the instructions, then run the real agent against sandbox cases. No account is connected and no action is authorized by downloading a recipe.
+Users download Markdown instructions or a JSON starter with documented endpoints when supplied, otherwise blank connection slots, required tool names, a pinned recipe version, outcome rules and fixtures. The JSON is a portable recipe document, not a universal MCP runtime configuration. Users configure their runtime's MCP connections and approvals, load the instructions, then run the real agent against sandbox cases. No account is connected and no action is authorized by downloading a recipe.
 
 The console handoff preserves the reviewed recipe ID/version and offers setup guidance. Users create or select their own workspace, connect their runtime, and configure Evals. Existing AgentAction integrations emit Jobs; downloaded fixture rules do not automatically install Evals or trusted provider observations. Compare actual outcomes with the recipe criteria and keep self-attestations distinct from independent evidence.
 
 ## Versioning and evidence
 
 Bump the recipe version when instructions, tools, boundaries, or outcome rules change. This first catalog retains one published version per ID; historical starters remain pinned downloads but a stale console link asks users to review the current version. Live benchmarks can be linked during review; richer evidence types need an explicit format and UI change before they can appear as directory badges.
+
+## Practical recipe setup (optional v1 fields)
+
+A server may include `connection: { endpoint, documentation, authentication }`.
+Use public HTTPS URLs without credentials, query strings or fragments. Authentication is
+plain-language setup guidance; store tokens only in the adopting runtime's secret store.
+These links are reviewed catalog content and are not fetched by the website.
+
+A recipe may include `adoption` with `inputs` (name, description, example),
+`requirements` (runtime capabilities to configure), `exampleOutput` (clearly synthetic),
+and `validation` (name, procedure, expected). These are rendered on the detail page and
+included in both downloads. All fields are optional additions to schema v1; existing
+entries retain their behavior. Publishing these procedures does not establish they passed.
+
+The practical maintainer starters are:
+
+- `competitor-pricing`: Firecrawl retrieval plus runtime-owned snapshots and scheduling.
+- `support-help-articles`: Intercom conversation reads and reviewed draft article creation.
+- `incident-to-ticket`: Sentry inspection and reviewed Linear ticket creation.
+
+Completion rules intentionally describe the stated job. A useful intermediate outcome
+such as awaiting review or no article gap does not meet the draft-creation/ticket-creation
+rules. Keep that operational status visible and do not turn missing evidence into success.
+Outcome booleans are assertions that must be independently derived or reviewed; the fixture
+runner cannot establish source accuracy, privacy, approval enforcement or retry safety.
+
+Source and connection verification: [public-server-checks.md](evidence/public-server-checks.md).
