@@ -1,0 +1,32 @@
+name: Recipe submission
+description: Propose a useful, tested agent recipe for your MCP server.
+title: "Recipe: "
+body:
+  - type: input
+    id: publisher
+    attributes:
+      label: Publisher and your relationship
+      description: Include your public server or repository URL.
+    validations:
+      required: true
+  - type: textarea
+    id: job
+    attributes:
+      label: Job and required MCP tools
+      description: What should the agent accomplish, using which servers and tools?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Operating boundaries
+      description: Describe reads, writes, approvals, and data access.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Reproducible tests and evidence
+      description: Link a draft recipe or synthetic fixtures. Distinguish fixture checks from live agent runs. Never include secrets or customer data.
+    validations:
+      required: true

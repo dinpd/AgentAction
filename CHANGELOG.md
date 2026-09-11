@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.14.0 - 2026-09-11
+
+### Agent recipe directory
+
+- Add a public recipe directory with search, action-scope filters, shareable detail pages, explicit MCP tool requirements, operating boundaries, and inspectable synthetic outcome checks.
+- Add downloadable versioned recipe bundles and agent instructions, plus a recipe-aware handoff to authenticated console setup, Jobs, and Evals.
+- Add reviewed provider submissions, a documented recipe format, deterministic validation and fixture checks. Initial recipes are attributed to AgentAction; fixture evidence is explicitly distinct from live agent testing.
+- Apply website production dependency security fixes identified during release validation.
+
+Compatibility: additive website and console capabilities. Existing agent, authorization and evidence contracts are unchanged. Recipe bundles are portable starter documents, not runtime configuration or deployed agents; controls and Evals must be configured in the target environment. No data migration is required.
+
+Installation: `python -m pip install agentaction-dev==0.14.0` when available in your configured index, or install the wheel attached to this GitHub release. Hosted services deploy from the tagged source's merged commit; registry publication is separate.
+
 ## 0.13.1 - 2026-09-03
 
 ### Mixed-history eval routing

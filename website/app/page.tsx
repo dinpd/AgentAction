@@ -215,6 +215,7 @@ export default function Home() {
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/gateway">Action gateway</Link>
           <Link className="nav-page" href="/landscape">Landscape</Link>
+          <Link className="nav-page nav-recipe" href="/recipes">Recipes</Link>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>
@@ -672,6 +673,7 @@ export default function Home() {
           </p>
         </div>
         <div className="community-links">
+          <Link href="/recipes"><span>Agent recipes</span><span aria-hidden="true">↗</span></Link>
           <Link href="/landscape">
             <span>Governance landscape</span>
             <span aria-hidden="true">↗</span>

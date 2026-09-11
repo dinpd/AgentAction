@@ -521,3 +521,45 @@ test("keeps navigation and local links accessible", async () => {
     assert.match(html, new RegExp(`id=["']${id}["']`, "i"));
   }
 });
+
+test("renders recipe discovery, details and provider publishing with honest evidence labels", async () => {
+  const directory = await render('/recipes');
+  assert.equal(directory.status, 200);
+  const html = await directory.text();
+  assert.match(html, /What should your agent get done/);
+  assert.match(html, /href="\/recipes\/support-refund"/);
+  assert.match(html, /fixture checks pass/);
+  for (const id of ['support-refund','support-triage']) {
+    const response = await render(`/recipes/${id}`);
+    assert.equal(response.status, 200);
+    const detail = await response.text();
+    assert.match(detail, /Connections you’ll need/);
+    assert.match(detail, /Run fixture checks/);
+    assert.match(detail, /Download agent instructions/);
+    assert.match(detail, /Download recipe bundle/);
+    assert.match(detail, new RegExp(`recipe=${id}(?:&amp;|&)recipe_version=1.0.0#setup`));
+    assert.match(detail, /No live model or connected service was tested/);
+  }
+  const publish = await render('/recipes/publish');
+  assert.equal(publish.status, 200);
+  assert.match(await publish.text(), /recipe-submission.yml/);
+  assert.equal((await render('/recipes/nonexistent')).status, 404);
+});
+
+
+test("delivers customized recipe downloads with pinned content and safe attachment headers", async () => {
+  const response = await render('/recipes/support-refund/download?name=Acme%20helper&format=json');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-disposition'), /attachment; filename="support-refund-starter.json"/);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  const bundle = await response.json();
+  assert.equal(bundle.agentName, 'Acme helper');
+  assert.equal(bundle.recipe.id, 'support-refund');
+  assert.equal(bundle.recipe.version, '1.0.0');
+  assert.equal(bundle.recipe.fixtures.length, 5);
+  assert.equal(bundle.connections[0].endpoint, '');
+  const markdown = await render('/recipes/support-triage/download?format=markdown');
+  assert.match(await markdown.text(), /support-triage@1.0.0/);
+  assert.equal((await render('/recipes/support-refund/download?format=html')).status, 400);
+  assert.equal((await render('/recipes/unknown/download')).status, 404);
+});

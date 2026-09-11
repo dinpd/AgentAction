@@ -1,3 +1,5 @@
+import { recipes } from "../../recipes/registry.ts";
+
 type Fetcher = {
   fetch(request: Request): Promise<Response>;
 };
@@ -152,6 +154,7 @@ const SHELL_HTML = `<!doctype html>
   </header>
   <div class="layout">
     <nav class="section-nav" aria-label="Console sections">
+      <a href="https://agentaction.dev/recipes">Agent recipes ↗</a>
       <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
       <a href="#activity" data-nav-activity>Activity</a>
       <a href="#jobs" data-nav-jobs>Jobs</a>
@@ -255,6 +258,10 @@ const SHELL_HTML = `<!doctype html>
           </div>
           <span class="role-badge" data-setup-role>Not provisioned</span>
         </header>
+        <section class="setup-notice" data-recipe-context hidden aria-label="Selected agent recipe">
+          <h3 data-recipe-title></h3><p data-recipe-detail></p>
+          <a data-recipe-link class="text-link">Review recipe and instructions ↗</a>
+        </section>
         <section class="setup-notice" data-setup-message role="status" aria-live="polite">
           <h3 data-setup-message-title>Choose how to get started</h3>
           <p data-setup-message-detail>Create a workspace for your team, or redeem an invitation from an owner.</p>
@@ -1409,7 +1416,7 @@ export type ConsoleAppController = {
   showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup"): void;
 };
 
-export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
+export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; version: string; title: string }[] = []): ConsoleAppController {
   const doc = runtime.document;
   const required = <T extends Element>(selector: string): T => {
     const node = doc.querySelector(selector);
@@ -1645,6 +1652,22 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
     const value = values.length === 1 ? values[0].trim().slice(0, 128) : "";
     return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : "";
   })();
+  const recipeQuery = new URLSearchParams(runtime.location.search);
+  const selectedRecipe = recipeQuery.getAll("recipe").length === 1 && recipeQuery.getAll("recipe_version").length === 1
+    ? catalog.find((recipe) => recipe.id === recipeQuery.get("recipe") && recipe.version === recipeQuery.get("recipe_version"))
+    : undefined;
+  const recipeContext = doc.querySelector<HTMLElement>("[data-recipe-context]");
+  if (recipeContext && selectedRecipe) {
+    recipeContext.hidden = false;
+    required<HTMLElement>("[data-recipe-title]").textContent = `${selectedRecipe.title} · v${selectedRecipe.version}`;
+    required<HTMLElement>("[data-recipe-detail]").textContent = "Create or select a workspace, connect your runtime, then configure Evals and inspect Jobs. This recipe link does not connect an account, install controls, or create an evaluation.";
+    required<HTMLAnchorElement>("[data-recipe-link]").href = `https://agentaction.dev/recipes/${encodeURIComponent(selectedRecipe.id)}`;
+  } else if (recipeContext && recipeQuery.has("recipe")) {
+    recipeContext.hidden = false;
+    required<HTMLElement>("[data-recipe-title]").textContent = "Review the current recipe";
+    required<HTMLElement>("[data-recipe-detail]").textContent = "This recipe version is unavailable. Choose a published recipe from the directory before continuing.";
+    required<HTMLAnchorElement>("[data-recipe-link]").href = "https://agentaction.dev/recipes";
+  }
   let pendingInvitationId = invitationIdFromSearch(runtime.location.search);
   let pendingInvitationCode = invitationCodeFromHash(runtime.location.hash);
   const invalidInvitationLink = invitationQueryPresent && !pendingInvitationId && !pendingInvitationCode;
@@ -2714,6 +2737,10 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   }
 
   function appendWorkspacePreference(query: URLSearchParams): void {
+    if (selectedRecipe) {
+      query.set("recipe", selectedRecipe.id);
+      query.set("recipe_version", selectedRecipe.version);
+    }
     if (!publicDemo && workspaceMode === "directory" && tenantId) query.set("workspace", tenantId);
   }
 
@@ -4771,7 +4798,7 @@ export function consoleApp(runtime: ConsoleAppRuntime): ConsoleAppController {
   return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadEvals, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
 
-const APP_JS = `(${consoleApp.toString()})(window);`;
+const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(({ id, version, title }) => ({ id, version, title }))).replace(/</g, "\\u003c")});`;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

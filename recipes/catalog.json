@@ -1,0 +1,237 @@
+[
+  {
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "publisher": {
+      "name": "AgentAction",
+      "url": "https://github.com/dinpd/AgentAction",
+      "kind": "maintainer"
+    },
+    "evidence": {
+      "level": "fixture",
+      "description": "Deterministic checks against supplied synthetic observations. No live model or connected service was tested by these checks."
+    },
+    "id": "support-refund",
+    "title": "Resolve an eligible refund",
+    "category": "Customer support",
+    "summary": "Verify the request, refund within your limits, and close the ticket only when the refund settles.",
+    "mode": "Supervised actions",
+    "intent": "Resolve an eligible refund request exactly once, with the payment outcome reflected in the support ticket.",
+    "servers": [
+      {
+        "name": "Support",
+        "purpose": "Read the request and record the outcome.",
+        "tools": [
+          "get_ticket",
+          "update_ticket"
+        ]
+      },
+      {
+        "name": "Payments",
+        "purpose": "Verify ownership, eligibility and balance; issue and reconcile refunds.",
+        "tools": [
+          "get_payment",
+          "create_refund",
+          "lookup_refund_by_key",
+          "get_refund_status"
+        ]
+      }
+    ],
+    "boundaries": [
+      "Start with synthetic tickets and payments.",
+      "Automatically refund at most $500; require manager approval above $500 through $2,000; escalate larger requests.",
+      "Verify ownership, eligibility, currency and remaining balance. Amounts sent to payment tools are integer cents.",
+      "Use an action-bound approval mechanism in your runtime before enabling real refunds. Instructions alone do not enforce approval.",
+      "Use a stable idempotency key and reconcile uncertain results before retrying."
+    ],
+    "instructions": [
+      "Read the ticket and original payment. Ask for missing information. Verify the requester owns the payment and the request is eligible.",
+      "Use the configured thresholds and runtime approval mechanism. Stop if required approval cannot be verified. Never exceed the remaining balance.",
+      "Look up a stable key derived from the ticket, payment and requested amount. Reuse the original result on retry.",
+      "Create at most one refund. If the response is lost, reconcile by the same key. A pending response is not settled.",
+      "Verify the provider status and update the ticket with the actual outcome. Retry a failed ticket update without issuing another refund.",
+      "Report amounts in dollars with two decimal places; retain integer cents only in tool arguments. Claim completion only after payment and ticket evidence agree."
+    ],
+    "outcomes": [
+      {
+        "id": "settled",
+        "label": "The provider confirms the refund settled",
+        "field": "refund_status",
+        "equals": "succeeded"
+      },
+      {
+        "id": "ticket",
+        "label": "The ticket records the settled outcome",
+        "field": "ticket_status",
+        "equals": "resolved"
+      },
+      {
+        "id": "once",
+        "label": "Exactly one refund exists for this request",
+        "field": "refund_count",
+        "equals": 1
+      }
+    ],
+    "fixtures": [
+      {
+        "id": "settled",
+        "title": "Settled refund and updated ticket",
+        "observation": {
+          "refund_status": "succeeded",
+          "ticket_status": "resolved",
+          "refund_count": 1
+        },
+        "expected": "met"
+      },
+      {
+        "id": "pending",
+        "title": "Payment still pending",
+        "observation": {
+          "refund_status": "pending",
+          "ticket_status": "pending_refund",
+          "refund_count": 1
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "ticket-failure",
+        "title": "Refund settled but ticket update failed",
+        "observation": {
+          "refund_status": "succeeded",
+          "ticket_status": "open",
+          "refund_count": 1
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "duplicate",
+        "title": "Duplicate refund detected",
+        "observation": {
+          "refund_status": "succeeded",
+          "ticket_status": "resolved",
+          "refund_count": 2
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "missing",
+        "title": "Provider evidence missing",
+        "observation": {
+          "ticket_status": "resolved",
+          "refund_count": 1
+        },
+        "expected": "indeterminate"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "version": "1.0.0",
+    "publisher": {
+      "name": "AgentAction",
+      "url": "https://github.com/dinpd/AgentAction",
+      "kind": "maintainer"
+    },
+    "evidence": {
+      "level": "fixture",
+      "description": "Deterministic checks against supplied synthetic observations. No live model or connected service was tested by these checks."
+    },
+    "id": "support-triage",
+    "title": "Triage a support request",
+    "category": "Customer support",
+    "summary": "Read a ticket and its policy, recommend the next step, and cite the rules behind the recommendation.",
+    "mode": "Read only",
+    "intent": "Produce a policy-grounded support recommendation with clear evidence and an explicit escalation when facts are insufficient.",
+    "servers": [
+      {
+        "name": "Support",
+        "purpose": "Read a bounded ticket and customer-provided context.",
+        "tools": [
+          "get_ticket"
+        ]
+      },
+      {
+        "name": "Knowledge",
+        "purpose": "Retrieve the applicable support policy.",
+        "tools": [
+          "search_policy",
+          "get_policy"
+        ]
+      }
+    ],
+    "boundaries": [
+      "Read only: do not change tickets, issue refunds or send messages.",
+      "Ask for missing facts; escalate ambiguous or conflicting policies.",
+      "Keep customer information inside the approved tools and the current response.",
+      "A correct escalation can satisfy the task; do not invent certainty."
+    ],
+    "instructions": [
+      "Read the specified ticket and retrieve the applicable policy using the connected Support and Knowledge tools.",
+      "State the recommendation, cite the relevant policy rules, and identify the facts supporting it.",
+      "If the policy or ticket is ambiguous, recommend manual review and explain which information is missing.",
+      "Do not call mutating tools. Return the recommendation and evidence to the user.",
+      "For observability, report whether the recommendation is present, policy citations are present, and no mutating tool calls occurred. Distinguish your self-assessment from independently observed evidence."
+    ],
+    "outcomes": [
+      {
+        "id": "recommendation",
+        "label": "A recommendation or explicit escalation is present",
+        "field": "recommendation_present",
+        "equals": true
+      },
+      {
+        "id": "citations",
+        "label": "Applicable policy rules are cited",
+        "field": "policy_cited",
+        "equals": true
+      },
+      {
+        "id": "read-only",
+        "label": "No mutating tool calls occurred",
+        "field": "mutating_calls",
+        "equals": 0
+      }
+    ],
+    "fixtures": [
+      {
+        "id": "recommend",
+        "title": "Recommendation with policy citations",
+        "observation": {
+          "recommendation_present": true,
+          "policy_cited": true,
+          "mutating_calls": 0
+        },
+        "expected": "met"
+      },
+      {
+        "id": "uncited",
+        "title": "Recommendation without a policy citation",
+        "observation": {
+          "recommendation_present": true,
+          "policy_cited": false,
+          "mutating_calls": 0
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "mutation",
+        "title": "Unexpected ticket mutation",
+        "observation": {
+          "recommendation_present": true,
+          "policy_cited": true,
+          "mutating_calls": 1
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "missing",
+        "title": "Tool-call evidence unavailable",
+        "observation": {
+          "recommendation_present": true,
+          "policy_cited": true
+        },
+        "expected": "indeterminate"
+      }
+    ]
+  }
+]

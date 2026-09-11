@@ -5,11 +5,13 @@ on:
   pull_request:
     paths:
       - "console/**"
+      - "recipes/**"
       - ".github/workflows/cloudflare-console.yml"
   push:
     branches: [main]
     paths:
       - "console/**"
+      - "recipes/**"
       - ".github/workflows/cloudflare-console.yml"
 
 jobs:
