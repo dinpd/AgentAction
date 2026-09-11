@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.15.4 - 2026-09-11
+
+### Homepage positioning
+
+- Lead with connecting agents to tools safely and reliably, supported by recipes, evaluation against the job, and ongoing visibility and control.
+- Align homepage metadata and introductory copy while retaining observation onboarding, detailed platform capabilities and the lower-page recipe CTA.
+- Backward-compatible copy update; no API, schema or migration changes. Install the Python wheel or source distribution from the GitHub v0.15.4 release; npm versions unchanged.
+
 ## 0.15.3 - 2026-09-11
 
 ### Homepage recipe entry

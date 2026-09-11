@@ -241,14 +241,12 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow">Trust infrastructure for autonomous AI agents</p>
           <h1 id="hero-title">
-            Give agents permission to act.
-            <span>Prove the decision was justified.</span>
+            Connect agents to tools.
+            <span>Safely and reliably.</span>
           </h1>
           <p className="hero-lede">
-            AgentAction is the trust layer between autonomous agents and
-            enterprise systems. Evaluate decisions, enforce policies, authorize
-            actions, and preserve verifiable evidence from intent through
-            execution—without inspecting hidden chain-of-thought.
+            Start with a recipe, test your agent against its job, and keep
+            visibility and control over every run.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={observerQuickStart}>
@@ -312,11 +310,11 @@ export default function Home() {
       <section className="thesis" aria-labelledby="thesis-title">
         <p className="section-index">01 / The gap</p>
         <div>
-          <h2 id="thesis-title">Agents need more than permissions. They need accountable judgment.</h2>
+          <h2 id="thesis-title">Useful agents need more than a connection.</h2>
           <p>
-            Traditional security asks who can access a system. AgentAction asks
-            whether this agent should make this decision, in this context, right
-            now—and what evidence must exist before and after it acts.
+            Know whether your agent chose the right action, whether it was
+            allowed, and whether it achieved the job. AgentAction connects
+            policies, approvals, and outcome evidence—without inspecting hidden chain-of-thought.
           </p>
         </div>
       </section>
