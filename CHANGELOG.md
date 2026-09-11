@@ -4,6 +4,13 @@
 
 No changes yet.
 
+## 0.15.2 - 2026-09-11
+
+### Catalog presentation
+
+- Remove the secondary maintainer footer from recipe tiles, retaining provider attribution on cards and recipe maintenance on detail pages.
+- Backward-compatible presentation fix; no API, schema or migration changes. Install the Python wheel or source distribution from the GitHub v0.15.2 release; npm versions unchanged.
+
 ## 0.15.1 - 2026-09-11
 
 ### Catalog presentation

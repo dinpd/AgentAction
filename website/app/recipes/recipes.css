@@ -148,14 +148,6 @@
   background: var(--lime);
   padding: 3px 6px;
 }
-.recipe-card-footer {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  font-size: 0.875rem;
-}
 .recipe-evidence-note {
   margin-top: 30px;
   padding: 22px 0;
