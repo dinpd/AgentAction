@@ -12,7 +12,18 @@ export type Recipe = {
   intent: string;
   publisher: { name: string; url: string; kind: string };
   evidence: { level: string; description: string };
-  servers: { name: string; purpose: string; tools: string[] }[];
+  servers: {
+    name: string;
+    purpose: string;
+    tools: string[];
+    connection?: { endpoint: string; documentation: string; authentication: string };
+  }[];
+  adoption?: {
+    inputs: { name: string; example: string; description: string }[];
+    requirements: string[];
+    exampleOutput: string;
+    validation: { name: string; procedure: string; expected: string }[];
+  };
   boundaries: string[];
   instructions: string[];
   outcomes: {
@@ -66,7 +77,11 @@ export function starter(recipe: Recipe, name: string) {
     recipe: { ...recipe },
     connections: recipe.servers.map((server) => ({
       name: server.name,
-      endpoint: "",
+      endpoint: server.connection?.endpoint ?? "",
+      ...(server.connection ? {
+        documentation: server.connection.documentation,
+        authentication: server.connection.authentication,
+      } : {}),
       requiredTools: server.tools,
     })),
     setup: [
@@ -79,5 +94,40 @@ export function starter(recipe: Recipe, name: string) {
 }
 export function starterMarkdown(recipe: Recipe, name: string) {
   const bundle = starter(recipe, name);
-  return `# ${bundle.agentName}\n\nRecipe: ${recipe.id}@${recipe.version}\nPublisher: ${recipe.publisher.name}\n\n## Goal\n${recipe.intent}\n\n## Required MCP connections\n${recipe.servers.map((s) => `- ${s.name}: ${s.tools.join(", ")}`).join("\n")}\n\n## Boundaries\n${recipe.boundaries.map((s) => `- ${s}`).join("\n")}\n\n## Instructions\n${recipe.instructions.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n## Completion evidence\n${recipe.outcomes.map((c) => `- ${c.label}: ${c.field} = ${JSON.stringify(c.equals)}`).join("\n")}\n\n## Adoption steps\n${bundle.setup.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\nEvidence level: ${recipe.evidence.description}\n`;
+  const bullets = (items: string[]) => items.map((s) => `- ${s}`).join("\n");
+  const steps = (items: string[]) => items.map((s, i) => `${i + 1}. ${s}`).join("\n");
+  const connections = recipe.servers.map((server) => {
+    const lines = [`- ${server.name}: ${server.tools.join(", ")}`];
+    if (server.connection) {
+      lines.push(
+        `  Endpoint: ${server.connection.endpoint}`,
+        `  Setup: ${server.connection.documentation}`,
+        `  Access: ${server.connection.authentication}`,
+      );
+    }
+    return lines.join("\n");
+  });
+  const sections = [
+    `# ${bundle.agentName}`,
+    `Recipe: ${recipe.id}@${recipe.version}\nPublisher: ${recipe.publisher.name}`,
+    `## Goal\n${recipe.intent}`,
+    `## Required MCP connections\n${connections.join("\n")}`,
+  ];
+  if (recipe.adoption) {
+    const a = recipe.adoption;
+    sections.push(
+      `## Your inputs\n${bullets(a.inputs.map((i) => `${i.name}: ${i.description}\n  Example: ${i.example}`))}`,
+      `## Runtime requirements\n${bullets(a.requirements)}`,
+      `## Example output (synthetic)\n${a.exampleOutput}`,
+      `## Validate with your agent\nThese are procedures to run in your sandbox, not completed live-agent tests.\n${steps(a.validation.map((v) => `${v.name}: ${v.procedure}\n   Expected: ${v.expected}`))}`,
+    );
+  }
+  sections.push(
+    `## Boundaries\n${bullets(recipe.boundaries)}`,
+    `## Instructions\n${steps(recipe.instructions)}`,
+    `## Completion evidence\n${bullets(recipe.outcomes.map((c) => `${c.label}: ${c.field} = ${JSON.stringify(c.equals)}`))}`,
+    `## Adoption steps\n${steps(bundle.setup)}`,
+    `Evidence level: ${recipe.evidence.description}`,
+  );
+  return sections.join("\n\n") + "\n";
 }

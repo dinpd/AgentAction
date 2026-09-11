@@ -563,3 +563,41 @@ test("delivers customized recipe downloads with pinned content and safe attachme
   assert.equal((await render('/recipes/support-refund/download?format=html')).status, 400);
   assert.equal((await render('/recipes/unknown/download')).status, 404);
 });
+
+test("practical recipes expose usable setup and preserve it in both download formats", async () => {
+  const expected = {
+    'competitor-pricing': ['https://mcp.firecrawl.dev/v2/mcp'],
+    'support-help-articles': ['https://mcp.intercom.com/mcp'],
+    'incident-to-ticket': ['https://mcp.sentry.dev/mcp', 'https://mcp.linear.app/mcp'],
+  };
+  const directory = await (await render('/recipes')).text();
+  const sitemap = await (await render('/sitemap.xml')).text();
+  assert.ok(directory.indexOf('href="/recipes/competitor-pricing"') < directory.indexOf('href="/recipes/support-refund"'));
+  for (const [id, endpoints] of Object.entries(expected)) {
+    assert.ok(directory.includes(`href="/recipes/${id}"`));
+    assert.ok(sitemap.includes(`https://agentaction.dev/recipes/${id}`));
+    const page = await render(`/recipes/${id}`);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /Example result/);
+    assert.match(html, /Illustrative output using synthetic data/);
+    assert.match(html, /Make it work in your environment/);
+    assert.match(html, /Runtime requirements/);
+    assert.match(html, /not completed live-agent tests/);
+    assert.ok(html.includes(`recipe=${id}&amp;recipe_version=1.0.0#setup`));
+    const bundleResponse = await render(`/recipes/${id}/download?format=json&name=My%20business%20agent`);
+    assert.equal(bundleResponse.status, 200);
+    const bundle = await bundleResponse.json();
+    assert.equal(bundle.agentName, 'My business agent');
+    assert.equal(bundle.recipe.publisher.kind, 'maintainer');
+    assert.deepEqual(bundle.connections.map(c => c.endpoint), endpoints);
+    const markdown = await (await render(`/recipes/${id}/download?format=markdown`)).text();
+    for (const endpoint of endpoints) {
+      assert.ok(html.includes(endpoint));
+      assert.ok(markdown.includes(endpoint));
+    }
+    assert.ok(markdown.includes(bundle.recipe.adoption.exampleOutput));
+    for (const input of bundle.recipe.adoption.inputs) assert.ok(markdown.includes(input.description));
+    for (const scenario of bundle.recipe.adoption.validation) assert.ok(markdown.includes(scenario.expected));
+  }
+});

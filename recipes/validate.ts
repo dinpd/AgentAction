@@ -12,6 +12,12 @@ function text(value: unknown) {
 function list(value: unknown): value is unknown[] {
   return Array.isArray(value) && value.length > 0 && value.length <= 100;
 }
+function httpsUrl(value: unknown) {
+  assert(text(value), "Missing connection URL");
+  const url = new URL(value as string);
+  assert(url.protocol === "https:" && !url.username && !url.password &&
+    !url.search && !url.hash, "Connection URLs must be HTTPS without credentials, queries or fragments");
+}
 export function validateCatalog(value: unknown): asserts value is Recipe[] {
   assert(list(value), "Catalog must contain recipes");
   const ids = new Set();
@@ -36,8 +42,8 @@ export function validateCatalog(value: unknown): asserts value is Recipe[] {
     );
     assert(
       r.publisher &&
-        text(r.publisher.name) &&
-        ["maintainer", "provider", "community"].includes(r.publisher.kind),
+      text(r.publisher.name) &&
+      ["maintainer", "provider", "community"].includes(r.publisher.kind),
       "Invalid publisher",
     );
     const url = new URL(r.publisher.url);
@@ -52,34 +58,51 @@ export function validateCatalog(value: unknown): asserts value is Recipe[] {
     for (const key of ["boundaries", "instructions"] as const)
       assert(list(r[key]) && r[key].every(text), `Missing ${key}`);
     assert(list(r.servers), "Missing servers");
-    for (const s of r.servers)
+    for (const s of r.servers) {
       assert(
         s &&
-          text(s.name) &&
-          text(s.purpose) &&
-          list(s.tools) &&
-          s.tools.every(
-            (t) =>
-              typeof t === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/.test(t),
-          ),
+        text(s.name) &&
+        text(s.purpose) &&
+        list(s.tools) &&
+        s.tools.every(
+          (t) =>
+            typeof t === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/.test(t),
+        ),
         "Invalid server tools",
       );
+      if (s.connection !== undefined) {
+        assert(s.connection && typeof s.connection === "object", "Invalid connection");
+        httpsUrl(s.connection.endpoint);
+        httpsUrl(s.connection.documentation);
+        assert(text(s.connection.authentication), "Missing authentication instructions");
+      }
+    }
+    if (r.adoption !== undefined) {
+      const a = r.adoption;
+      assert(a && typeof a === "object", "Invalid adoption setup");
+      assert(list(a.inputs) && a.inputs.every((i) => i && typeof i === "object" &&
+        text(i.name) && text(i.description) && text(i.example)), "Invalid adoption inputs");
+      assert(list(a.requirements) && a.requirements.every(text), "Missing runtime requirements");
+      assert(text(a.exampleOutput), "Missing example output");
+      assert(list(a.validation) && a.validation.every((v) => v && typeof v === "object" &&
+        text(v.name) && text(v.procedure) && text(v.expected)), "Invalid sandbox procedures");
+    }
     assert(list(r.outcomes), "Missing outcome checks");
     const checkIds = new Set();
     for (const c of r.outcomes) {
       assert(
         c &&
-          typeof c.id === "string" &&
-          id.test(c.id) &&
-          !checkIds.has(c.id) &&
-          text(c.label) &&
-          typeof c.field === "string" &&
-          field.test(c.field),
+        typeof c.id === "string" &&
+        id.test(c.id) &&
+        !checkIds.has(c.id) &&
+        text(c.label) &&
+        typeof c.field === "string" &&
+        field.test(c.field),
         "Invalid outcome check",
       );
       assert(
         ["string", "boolean", "number"].includes(typeof c.equals) &&
-          (typeof c.equals !== "number" || Number.isFinite(c.equals)),
+        (typeof c.equals !== "number" || Number.isFinite(c.equals)),
         "Invalid equality value",
       );
       checkIds.add(c.id);
@@ -89,24 +112,24 @@ export function validateCatalog(value: unknown): asserts value is Recipe[] {
     for (const f of r.fixtures) {
       assert(
         f &&
-          typeof f.id === "string" &&
-          id.test(f.id) &&
-          !fixtureIds.has(f.id) &&
-          text(f.title),
+        typeof f.id === "string" &&
+        id.test(f.id) &&
+        !fixtureIds.has(f.id) &&
+        text(f.title),
         "Invalid fixture",
       );
       fixtureIds.add(f.id);
       assert(
         f.observation &&
-          typeof f.observation === "object" &&
-          !Array.isArray(f.observation),
+        typeof f.observation === "object" &&
+        !Array.isArray(f.observation),
         "Invalid observation",
       );
       for (const [key, value] of Object.entries(f.observation))
         assert(
           field.test(key) &&
-            ["string", "number", "boolean"].includes(typeof value) &&
-            (typeof value !== "number" || Number.isFinite(value)),
+          ["string", "number", "boolean"].includes(typeof value) &&
+          (typeof value !== "number" || Number.isFinite(value)),
           "Invalid observation field",
         );
       assert(

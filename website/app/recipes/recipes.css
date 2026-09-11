@@ -415,6 +415,24 @@
 .recipe-header nav a:not(.nav-cta) {
   display: inline-block;
 }
+.recipe-example {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 22px;
+  background: var(--paper-strong);
+  border-left: 3px solid var(--lime-dark);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.recipe-example-label { color: var(--muted); margin-bottom: 12px; }
+.recipe-inputs > div { margin-bottom: 20px; }
+.recipe-inputs dt { font-weight: 600; margin-bottom: 6px; }
+.recipe-inputs dd { margin: 0; line-height: 1.65; }
+.recipe-inputs dd p { color: var(--muted); }
+.recipe-connection-setup { margin: 12px 0; }
+.recipe-connection-setup code { margin: 0; max-width: 100%; }
+.recipe-connection-setup a { text-decoration: underline; text-underline-offset: 4px; }
 .recipe-intro .eyebrow::before,
 .recipe-adopt .eyebrow::before {
   display: none;

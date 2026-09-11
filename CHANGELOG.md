@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.15.0 - 2026-09-11
+
+### Practical agent recipes
+
+- Add AgentAction-maintained recipes for competitor pricing changes (Firecrawl), recurring support questions to draft articles (Intercom), and production errors to reviewed engineering tickets (Sentry and Linear).
+- Include optional documented connections, access instructions, inputs, runtime requirements, synthetic example outputs and sandbox test procedures on recipe pages and in portable downloads.
+- Add failure fixtures for incomplete retrieval, billing mismatch, privacy, approval, duplicate creation and destination verification. Record a public Firecrawl connection/retrieval probe separately from live agent validation.
+
+### Compatibility and installation
+
+- Recipe schema v1 and starter format v1 remain supported; metadata additions are optional and existing entries retain their behavior. No migration is required.
+- Accounts, snapshot storage, scheduling, approval enforcement and independent evaluation remain runtime setup steps. This release does not deploy an agent or certify live performance.
+- Install the Python wheel or source distribution attached to the GitHub v0.15.0 release. npm package versions are unchanged and no registry publication is implied.
+
 ## 0.14.0 - 2026-09-11
 
 ### Agent recipe directory

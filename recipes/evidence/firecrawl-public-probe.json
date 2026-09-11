@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-09-11T21:46:27.821631+00:00",
+  "scope": "Public MCP handshake, tool discovery and one read-only retrieval; no agent execution",
+  "endpoint": "https://mcp.firecrawl.dev/v2/mcp",
+  "authentication": "none",
+  "protocolVersion": "2025-03-26",
+  "serverInfo": {
+    "name": "firecrawl-fastmcp",
+    "version": "3.24.1"
+  },
+  "tools": [
+    "firecrawl_scrape",
+    "firecrawl_search",
+    "firecrawl_parse"
+  ],
+  "call": {
+    "tool": "firecrawl_scrape",
+    "url": "https://www.firecrawl.dev/pricing",
+    "formats": [
+      "markdown"
+    ],
+    "onlyMainContent": true,
+    "maxAge": 0
+  },
+  "result": {
+    "isError": false,
+    "sourceURL": "https://www.firecrawl.dev/pricing",
+    "statusCode": 200,
+    "markdownCharacters": 17826,
+    "markdownSha256": "3a500d6c8d7ad52c971e7659501ebe37f0b147cd45759a22fa9680bd7db076af",
+    "pricingHeadingPresent": true
+  },
+  "notTested": [
+    "Agent extraction and historical comparisons",
+    "Scheduling or persistence",
+    "Authenticated Intercom, Sentry or Linear calls",
+    "Draft/article/ticket writes and retries"
+  ]
+}
