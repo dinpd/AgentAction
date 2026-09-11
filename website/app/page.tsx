@@ -2,6 +2,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
+import { recipes } from "../../recipes/registry";
+
+const featuredRecipes = ["competitor-pricing", "support-help-articles", "incident-to-ticket"]
+  .flatMap((id) => recipes.filter((recipe) => recipe.id === id));
 
 const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
@@ -63,11 +67,13 @@ const lifecycle = [
 
 const assuranceModules = [
   {
-    state: "Foundation available",
-    title: "Agent Evaluation",
-    copy: "Define versioned intent profiles, run synthetic scenarios, and aggregate profile-scoped assurance signals before wider deployment.",
-    signal: "Profiles · synthetic runs · quality rollups",
-    note: "Packaged certification workflows are a product direction, not an external certification claim.",
+    state: "Starters available",
+    title: "Agent Creation & Evaluation",
+    copy: "Start with a job and the MCP servers it needs. Adapt a recipe to your intent, test it with synthetic scenarios, and track outcomes across runs.",
+    signal: "Job + MCP servers → starter → evaluation",
+    note: "Download instructions and test cases for your own runtime. Connect run evidence to follow outcomes in AgentAction.",
+    href: "/recipes",
+    linkLabel: "Find an agent recipe",
   },
   {
     state: "Available now",
@@ -248,9 +254,9 @@ export default function Home() {
             <a className="button button-primary" href={observerQuickStart}>
               Observe an MCP workflow <span aria-hidden="true">↗</span>
             </a>
-            <a className="button button-secondary" href="#architecture">
-              See the trust lifecycle <span aria-hidden="true">↓</span>
-            </a>
+            <Link className="button button-secondary" href="/recipes">
+              Browse agent recipes <span aria-hidden="true">→</span>
+            </Link>
           </div>
           <p className="hero-onboarding">
             Recommended onboarding: run the customer-controlled adapter in
@@ -376,12 +382,12 @@ export default function Home() {
         <div className="section-heading">
           <div>
             <p className="section-index">04 / The platform</p>
-            <h2 id="platform-title">One trust layer. Three control surfaces.</h2>
+            <h2 id="platform-title">Build, evaluate, and govern your agents.</h2>
           </div>
           <p>
-            The gateway is the enforcement wedge. Evaluation and decision
-            assurance extend that boundary across the full agent lifecycle—from
-            pre-deployment testing to runtime evidence and continuous review.
+            Turn a job into an agent you can put to work. Start with a recipe,
+            evaluate it against your intent, then bring decision assurance,
+            action authorization, and ongoing visibility into every run.
           </p>
         </div>
         <div className="module-grid">
@@ -397,6 +403,11 @@ export default function Home() {
               <p>{module.copy}</p>
               <code>{module.signal}</code>
               <p className="module-note">{module.note}</p>
+              {module.href && (
+                <Link className="text-link module-link" href={module.href}>
+                  {module.linkLabel} <span aria-hidden="true">→</span>
+                </Link>
+              )}
             </article>
           ))}
         </div>
@@ -695,6 +706,35 @@ export default function Home() {
             <span aria-hidden="true">↗</span>
           </a>
         </div>
+      </section>
+
+      <section className="home-recipes section-shell" aria-labelledby="home-recipes-title">
+        <div className="home-recipes-heading">
+          <div>
+            <p className="section-index">Agent recipes</p>
+            <h2 id="home-recipes-title">Start with a job worth handing off.</h2>
+            <p>
+              Choose a recipe built around real MCP servers. Adapt it to your
+              needs, test it in your environment, and follow its outcomes in
+              AgentAction.
+            </p>
+          </div>
+          <Link className="button button-secondary" href="/recipes">Browse all recipes</Link>
+        </div>
+        <div className="home-recipe-grid">
+          {featuredRecipes.map((recipe) => (
+            <Link className="home-recipe-card" href={`/recipes/${recipe.id}`} key={recipe.id}>
+              <p className="home-recipe-provider">Powered by <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong></p>
+              <h3>{recipe.title}</h3>
+              <p>{recipe.summary}</p>
+              <span className="home-recipe-link">View recipe <span aria-hidden="true">→</span></span>
+            </Link>
+          ))}
+        </div>
+        <p className="home-recipes-note">
+          Each starter includes setup guidance and synthetic test cases. Validate
+          your agent with connected services before putting it to work.
+        </p>
       </section>
 
       <section id="transition" className="transition-assessment" aria-labelledby="transition-title">

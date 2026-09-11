@@ -108,8 +108,14 @@ def test_canonical_positioning_defines_brand_lifecycle_and_control_surfaces():
 def test_repository_positioning_matches_agentaction_website():
     assert "Trust infrastructure for autonomous AI agents" in WEBSITE_PAGE
     assert "trust layer between autonomous agents and" in WEBSITE_PAGE
-    for surface in CONTROL_SURFACES:
+    # The homepage introduces recipe creation alongside the evaluation surface.
+    for surface in [
+        "Agent Creation & Evaluation",
+        "Decision Assurance",
+        "Action Authorization",
+    ]:
         assert surface in WEBSITE_PAGE
+    assert "instructions and test cases for your own runtime" in WEBSITE_PAGE
     for label in [
         "Declare intent",
         "Assure the decision",

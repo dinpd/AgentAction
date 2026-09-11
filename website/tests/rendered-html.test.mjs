@@ -260,10 +260,15 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   assert.match(html, /trust layer between autonomous agents and enterprise systems/i);
   assert.match(html, /Agents need more than permissions/i);
   assert.match(html, /Traditional IAM and agent systems comparison/i);
-  assert.match(html, /Agent Evaluation/);
+  const platformMarkup = html.match(/<section id="platform"[\s\S]*?<\/section>/i)?.[0] ?? "";
+  assert.match(platformMarkup, /Build, evaluate, and govern your agents/);
+  assert.match(platformMarkup, /Agent Creation &amp; Evaluation/);
+  assert.match(platformMarkup, /Starters available/);
+  assert.match(platformMarkup, /Job \+ MCP servers → starter → evaluation/);
+  assert.match(platformMarkup, /instructions and test cases for your own runtime/);
+  assert.match(platformMarkup, /href="\/recipes"[^>]*>Find an agent recipe/);
   assert.match(html, /Decision Assurance/);
   assert.match(html, /Action Authorization/);
-  assert.match(html, /Foundation available/);
   assert.match(html, /normalized decision evidence—not private chain-of-thought/i);
   assert.match(html, /intent → assessed → authorized → executed → evidenced → evaluated/i);
 
@@ -501,6 +506,16 @@ test("removes starter-only assets and metadata", async () => {
 test("keeps navigation and local links accessible", async () => {
   const response = await render();
   const html = await response.text();
+  assert.match(html, /Browse agent recipes/);
+  assert.match(html, /id="home-recipes-title"/);
+  assert.ok(html.indexOf('id="home-recipes-title"') > html.indexOf('id="community-title"'));
+  assert.ok(html.indexOf('id="home-recipes-title"') < html.indexOf('id="transition-title"'));
+  for (const id of ['competitor-pricing', 'support-help-articles', 'incident-to-ticket']) {
+    assert.ok(html.includes(`href="/recipes/${id}"`));
+  }
+  assert.match(html, /Powered by/);
+  assert.match(html, /Sentry \+ Linear/);
+  assert.match(html, /synthetic test cases/);
   const headings = html.match(/<h1\b/gi) ?? [];
   const localLinks = [...html.matchAll(/href=["']#([^"']+)["']/gi)].map(
     (match) => match[1],
