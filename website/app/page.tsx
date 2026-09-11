@@ -2,6 +2,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
+import { recipes } from "../../recipes/registry";
+
+const featuredRecipes = ["competitor-pricing", "support-help-articles", "incident-to-ticket"]
+  .flatMap((id) => recipes.filter((recipe) => recipe.id === id));
 
 const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
@@ -248,9 +252,9 @@ export default function Home() {
             <a className="button button-primary" href={observerQuickStart}>
               Observe an MCP workflow <span aria-hidden="true">↗</span>
             </a>
-            <a className="button button-secondary" href="#architecture">
-              See the trust lifecycle <span aria-hidden="true">↓</span>
-            </a>
+            <Link className="button button-secondary" href="/recipes">
+              Browse agent recipes <span aria-hidden="true">→</span>
+            </Link>
           </div>
           <p className="hero-onboarding">
             Recommended onboarding: run the customer-controlled adapter in
@@ -301,6 +305,35 @@ export default function Home() {
             The agent proposes. The trust layer assesses and enforces.
           </div>
         </div>
+      </section>
+
+      <section className="home-recipes section-shell" aria-labelledby="home-recipes-title">
+        <div className="home-recipes-heading">
+          <div>
+            <p className="section-index">Agent recipes</p>
+            <h2 id="home-recipes-title">Start with a job worth handing off.</h2>
+            <p>
+              Choose a recipe built around real MCP servers. Adapt it to your
+              needs, test it in your environment, and follow its outcomes in
+              AgentAction.
+            </p>
+          </div>
+          <Link className="button button-secondary" href="/recipes">Browse all recipes</Link>
+        </div>
+        <div className="home-recipe-grid">
+          {featuredRecipes.map((recipe) => (
+            <Link className="home-recipe-card" href={`/recipes/${recipe.id}`} key={recipe.id}>
+              <p className="home-recipe-provider">Powered by <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong></p>
+              <h3>{recipe.title}</h3>
+              <p>{recipe.summary}</p>
+              <span className="home-recipe-link">View recipe <span aria-hidden="true">→</span></span>
+            </Link>
+          ))}
+        </div>
+        <p className="home-recipes-note">
+          Each starter includes setup guidance and synthetic test cases. Validate
+          your agent with connected services before putting it to work.
+        </p>
       </section>
 
       <section className="thesis" aria-labelledby="thesis-title">

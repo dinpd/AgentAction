@@ -501,6 +501,15 @@ test("removes starter-only assets and metadata", async () => {
 test("keeps navigation and local links accessible", async () => {
   const response = await render();
   const html = await response.text();
+  assert.match(html, /Browse agent recipes/);
+  assert.match(html, /id="home-recipes-title"/);
+  assert.ok(html.indexOf('id="home-recipes-title"') < html.indexOf('id="thesis-title"'));
+  for (const id of ['competitor-pricing', 'support-help-articles', 'incident-to-ticket']) {
+    assert.ok(html.includes(`href="/recipes/${id}"`));
+  }
+  assert.match(html, /Powered by/);
+  assert.match(html, /Sentry \+ Linear/);
+  assert.match(html, /synthetic test cases/);
   const headings = html.match(/<h1\b/gi) ?? [];
   const localLinks = [...html.matchAll(/href=["']#([^"']+)["']/gi)].map(
     (match) => match[1],

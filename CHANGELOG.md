@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.15.3 - 2026-09-11
+
+### Homepage recipe entry
+
+- Add a hero link and compact homepage introduction to the recipe directory, featuring existing pricing, support and incident recipes with provider names drawn from the catalog.
+- Preserve observability onboarding and distinguish synthetic starter cases from live-agent validation.
+- Backward-compatible presentation/navigation update; no API, schema or migration changes. Install the Python wheel or source distribution from the GitHub v0.15.3 release; npm versions unchanged.
+
 ## 0.15.2 - 2026-09-11
 
 ### Catalog presentation
