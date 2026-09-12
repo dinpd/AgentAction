@@ -4,16 +4,18 @@
 
 No changes yet.
 
-## 0.16.0 - 2026-09-12
+## 0.16.0-rc.1 - 2026-09-12
 
 ### MCP agent instances
+
+Release candidate for the new runtime storage migration and AI execution surface.
 
 - Add an authenticated My Agents builder: connect an approved HTTPS MCP endpoint with optional bearer credentials, discover tools and generate agent suggestions with Workers AI.
 - Create persistent workspace-scoped instances, run trials with exact-call approvals, inspect tool execution evidence and separate AI outcome assessments, and activate or pause daily supervised schedules.
 - Keep credentials server-side; support replacement/disconnection, bounded model/tool usage, catalog drift checks, and interruption records without automatic replay of uncertain external effects.
 - Add website and catalog entry points while preserving recipe downloads and the existing observability views.
 - Add the AgentWorkspace Durable Object migration and AGENT_AI binding to the operator console. Public demo remains fixture-only. Firecrawl is the default enabled endpoint; administrators can configure exact additional HTTPS endpoints. OAuth-only and stdio MCP transports are not included.
-- Additive runtime and UI capability; no existing gateway API, receipt or recipe-schema changes. Deploy the console migration/bindings from main; install Python artifacts from the GitHub v0.16.0 release. npm packages retain their existing versions.
+- Additive runtime and UI capability; no existing gateway API, receipt or recipe-schema changes. Deploy the console migration/bindings from main; install Python artifacts from the GitHub v0.16.0-rc.1 prerelease. npm packages retain their existing versions.
 
 ## 0.15.4 - 2026-09-11
 
