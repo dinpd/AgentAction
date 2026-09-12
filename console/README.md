@@ -7,6 +7,10 @@ eval routing. Observability reads remain read only; authenticated owners and
 operators can manage tenant onboarding and source credentials, while only
 owners can manage membership and eval configuration.
 
+## Agent instances
+
+The operator console also provides [My Agents](https://observability-console.agentaction.dev/agents): connect an MCP server, get AI suggestions, create a persistent instance, and review supervised runs. See [runtime setup, boundaries and limits](AGENT-RUNTIME.md).
+
 ## Hosted surfaces
 
 AgentAction publishes two deliberately separate console deployments:

@@ -1,10 +1,13 @@
 import { recipes } from "../../recipes/registry.ts";
+import { AGENT_HTML, AGENT_CSS, AGENT_JS } from "./agent-builder.ts";
+import { boundedText, RuntimeError } from "./mcp-client.ts";
 
 type Fetcher = {
   fetch(request: Request): Promise<Response>;
 };
 
 export type Env = {
+  AGENT_WORKSPACES?: { getByName(name: string): { request(request: Request): Promise<Response> } };
   AGENTID_GATEWAY?: Fetcher;
   AGENTID_GATEWAY_TOKEN?: string;
   AGENTID_INTERNAL_SERVICE_TOKEN?: string;
@@ -4814,6 +4817,13 @@ export default {
       if (request.method === "GET" && url.pathname === "/") {
         return htmlResponse(consoleShell(env));
       }
+      if (url.pathname === "/agents" || url.pathname.startsWith("/api/agents/") || url.pathname.startsWith("/assets/agents.")) {
+        if (env.CONSOLE_PUBLIC_DEMO === "true") throw new ConsoleError(404, "public_demo_route_not_found", "Agent runtime is not available in the public demo.");
+        if (request.method === "GET" && url.pathname === "/agents") return htmlResponse(AGENT_HTML);
+        if (request.method === "GET" && url.pathname === "/assets/agents.css") return assetResponse(AGENT_CSS, "text/css; charset=utf-8");
+        if (request.method === "GET" && url.pathname === "/assets/agents.js") return assetResponse(AGENT_JS, "text/javascript; charset=utf-8");
+        return await forwardAgentRuntime(request, identity, env);
+      }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
         return assetResponse(APP_CSS, "text/css; charset=utf-8");
       }
@@ -4853,7 +4863,7 @@ export default {
 };
 
 function consoleShell(env: Env): string {
-  if (env.CONSOLE_PUBLIC_DEMO !== "true") return withoutPublicDemoLifecycle(SHELL_HTML);
+  if (env.CONSOLE_PUBLIC_DEMO !== "true") return withoutPublicDemoLifecycle(SHELL_HTML).replace('<a href="https://agentaction.dev/recipes">', '<a href="/agents">My agents →</a><a href="https://agentaction.dev/recipes">');
   return SHELL_HTML
     .replace('aria-label="Authenticated context"', 'aria-label="Public demo context"')
     .replace("Authenticating console session", "Loading synthetic console data")
@@ -5177,6 +5187,36 @@ function membershipTenantId(value: unknown): string | undefined {
   if (!tenant || typeof tenant !== "object" || Array.isArray(tenant)) return undefined;
   const tenantId = (tenant as Record<string, unknown>).tenant_id;
   return typeof tenantId === "string" && tenantId ? tenantId : undefined;
+}
+
+async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/");
+  if (parts.length !== 5 || parts[1] !== "api" || parts[2] !== "agents" || url.search) throw new ConsoleError(404, "agent_route_invalid", "Agent route not found.");
+  const tenantId = validateTenantId(decodePathSegment(parts[3]), "workspace");
+  const action = parts[4];
+  const isRead = request.method === "GET" && action === "state";
+  if (!isRead && (request.method !== "POST" || !["connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
+  const session = await consoleSession(identity, env);
+  if (!session.ok) return session;
+  const data = await session.json() as { memberships?: Array<{ tenant: { tenant_id: string }; membership: { role: string } }> };
+  const membership = data.memberships?.find(entry => entry.tenant?.tenant_id === tenantId)?.membership;
+  if (!membership) throw new ConsoleError(403, "agent_membership_required", "Workspace membership is required.", "forbidden");
+  if (!isRead && membership.role !== "owner" && membership.role !== "operator") throw new ConsoleError(403, "agent_operator_required", "An owner or operator must approve this operation.", "forbidden");
+  if (!env.AGENT_WORKSPACES) throw new ConsoleError(503, "agent_runtime_unavailable", "Agent runtime has not been configured.", "unavailable");
+  let body: string | undefined;
+  if (!isRead) {
+    try { body = await boundedText(new Response(request.body), 24000); }
+    catch (error) { throw new ConsoleError(413, "agent_body_too_large", error instanceof RuntimeError ? error.message : "Agent request is too large."); }
+  }
+  const upstream = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request(`https://agent-runtime.internal/${action}`, {
+    method: request.method,
+    headers: { "content-type": "application/json", "x-runtime-actor": identity.subject },
+    ...(body === undefined ? {} : { body }),
+  }));
+  const headers = secureHeaders("application/json; charset=utf-8");
+  return new Response(upstream.body, { status: upstream.status, headers });
 }
 
 async function requireTenantAccess(identity: ConsoleIdentity, tenantId: string, env: Env): Promise<void> {

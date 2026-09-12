@@ -11,6 +11,7 @@ const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
 const consoleDemo = "https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview";
 const operatorConsole = "https://observability-console.agentaction.dev/?window=7#overview";
+const agentBuilder = "https://observability-console.agentaction.dev/agents";
 const consoleDocs = `${github}/tree/main/console`;
 
 const gatewayCapabilities = [
@@ -245,18 +246,19 @@ export default function Home() {
             <span>Safely and reliably.</span>
           </h1>
           <p className="hero-lede">
-            Start with a recipe, test your agent against its job, and keep
-            visibility and control over every run.
+            Connect an MCP server, discover useful agents with AI, and try one
+            with your account. Review its actions and keep visibility over every run.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href={observerQuickStart}>
-              Observe an MCP workflow <span aria-hidden="true">↗</span>
+            <a className="button button-primary" href={agentBuilder}>
+              Connect an MCP <span aria-hidden="true">↗</span>
             </a>
             <Link className="button button-secondary" href="/recipes">
               Browse agent recipes <span aria-hidden="true">→</span>
             </Link>
           </div>
           <p className="hero-onboarding">
+            Already running an agent? <a href={observerQuickStart}>Observe an MCP workflow</a>.{" "}
             Recommended onboarding: run the customer-controlled adapter in
             passive observe mode, learn from counterfactual findings, then
             choose when to enforce.

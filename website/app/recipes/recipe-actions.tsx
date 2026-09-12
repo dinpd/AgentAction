@@ -8,6 +8,9 @@ export function RecipeAdoption({ recipe }: { recipe: Recipe }) {
   return (
     <aside className="recipe-adopt" aria-label="Adopt this recipe">
       <p className="eyebrow">MAKE IT YOURS</p>
+      <h2>Create an agent instance</h2>
+      <p>Connect an MCP server with your account. Get AI suggestions based on its tools, run a supervised trial, and keep its history in your workspace.</p>
+      <a className="recipe-button" href="https://observability-console.agentaction.dev/agents">Connect an MCP ↗</a>
       <h2>Start with this recipe</h2>
       <p>
         Take the instructions and connection checklist into the agent runtime
