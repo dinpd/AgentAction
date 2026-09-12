@@ -1,0 +1,158 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { AgentRuntime, type Agent, type Connection, type Run, type RuntimeStorage } from "../src/agent-runtime.ts";
+import { McpClient, endpointURL, validateArguments, type McpTool } from "../src/mcp-client.ts";
+import worker from "../src/worker.ts";
+import demo from "../src/demo-worker.ts";
+import { AGENT_HTML, AGENT_JS } from "../src/agent-builder.ts";
+const endpoint = "https://mcp.firecrawl.dev/v2/mcp";
+const tool: McpTool = { name: "scrape", description: "Read a web page", inputSchema: { type: "object", properties: { url: { type: "string", format: "uri" } }, required: ["url"], additionalProperties: false } };
+class Storage implements RuntimeStorage {
+  data = new Map<string, unknown>(); alarm: number | undefined;
+  async get<T>(key: string): Promise<T | undefined> { return structuredClone(this.data.get(key)) as T | undefined; }
+  async put<T>(key: string, value: T) { assert.ok(JSON.stringify(value).length < 128000); this.data.set(key, structuredClone(value)); }
+  async delete(key: string) { return this.data.delete(key); }
+  async list<T>({ prefix }: { prefix: string }): Promise<Map<string, T>> { return new Map([...this.data].filter(([k]) => k.startsWith(prefix)).map(([k,v]) => [k, structuredClone(v) as T])); }
+  async setAlarm(n: number) { this.alarm = n; }
+  async deleteAlarm() { this.alarm = undefined; }
+}
+const suggestion = { suggestions: [{ title: "Monitor pricing", goal: "Read the target pricing page", setup: "A target URL", success: "A sourced price summary", tools: ["scrape"] }] };
+const call = { type: "call", tool: "scrape", arguments: { url: "https://example.com/pricing" } };
+const finish = { type: "finish", summary: "The observed price is $20.", outcome: "met", reason: "The tool returned a pricing page containing $20." };
+function harness(outputs: unknown[] = [suggestion, call, finish]) {
+  const storage = new Storage(), calls: string[] = [], prompts: string[] = [];
+  let failCall = false, changed = false;
+  const fetcher = async (_url: any, init: any) => {
+    assert.equal(init.redirect, "manual");
+    if (init.method === "DELETE") return new Response(null, { status: 204 });
+    const message = JSON.parse(init.body); calls.push(message.method);
+    if (message.method === "notifications/initialized") return new Response(null, { status: 202 });
+    if (message.method === "tools/call" && failCall) throw new Error("timeout with SECRET-TOKEN");
+    const result = message.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: { tools: {} } } : message.method === "tools/list" ? { tools: [{ ...tool, description: changed ? "Changed tool definition" : tool.description }] } : { content: [{ type: "text", text: "Price $20; SECRET-TOKEN" }] };
+    return Response.json({ jsonrpc: "2.0", id: message.id, result }, { headers: { "Mcp-Session-Id": "session-123" } });
+  };
+  const env = { AGENT_AI: { async run(_model: string, input: any) { prompts.push(JSON.stringify(input)); assert.ok(outputs.length); return { response: outputs.shift(), usage: { total_tokens: 42 } }; } } };
+  const runtime = new AgentRuntime(storage, env, fetcher as typeof fetch);
+  const request = async (path: string, body: any) => { const response = await runtime.handle(new Request(`https://runtime.test/${path}`, { method: "POST", body: JSON.stringify(body) })); return { status: response.status, body: await response.json() as any }; };
+  const prepare = async () => {
+    const c = await request("connect", { label: "Test account", endpoint, token: "SECRET-TOKEN" }); assert.equal(c.status, 200);
+    const s = await request("suggest", { connectionId: c.body.connectionId }); assert.equal(s.status, 200);
+    const a = await request("create", { connectionId: c.body.connectionId, suggestionId: s.body.suggestions[0].id, setup: "https://example.com/pricing" }); assert.equal(a.status, 200);
+    return { connectionId: c.body.connectionId, agentId: a.body.agentId };
+  };
+  const trial = async (agentId: string) => { const t = await request("trial", { agentId }); assert.equal(t.status, 200); return (await storage.get<Run>(`run:${t.body.runId}`))!; };
+  const approve = (r: Run) => request("approve", { runId: r.id, approvalId: r.pending!.id });
+  return { runtime, storage, request, calls, prompts, env, fetcher, prepare, trial, approve, fail: () => failCall = true, change: () => changed = true };
+}
+
+test("MCP → AI suggestions → instance → approved trial → observable outcome → schedule", async () => {
+  const h = harness(); const { agentId } = await h.prepare(); const r = await h.trial(agentId);
+  assert.equal(r.status, "awaiting_approval"); assert.ok(!h.calls.includes("tools/call"));
+  assert.equal((await h.request("activate", { agentId, reviewed: true })).status, 409);
+  assert.equal((await h.request("approve", { runId: r.id, approvalId: "wrong" })).status, 409);
+  assert.equal((await h.approve(r)).status, 200);
+  const completed = (await h.storage.get<Run>(`run:${r.id}`))!;
+  assert.equal(completed.status, "completed"); assert.equal(completed.outcome, "met"); assert.equal(completed.events[0].status, "succeeded"); assert.equal(completed.tokens, 84);
+  assert.equal((await h.approve(r)).status, 409); assert.equal(h.calls.filter(x => x === "tools/call").length, 1);
+  assert.equal((await h.request("activate", { agentId, reviewed: true })).status, 200); assert.ok(h.storage.alarm);
+  const snapshot = JSON.stringify(await h.runtime.snapshot()); assert.ok(!snapshot.includes("SECRET-TOKEN")); assert.ok(snapshot.includes("credential removed")); assert.ok(h.prompts.every(p => !p.includes("SECRET-TOKEN")));
+  const reloaded = new AgentRuntime(h.storage, h.env, h.fetcher as typeof fetch); await reloaded.recover(); assert.equal((await reloaded.snapshot() as any).agents[0].status, "active");
+  await h.request("pause", { agentId }); assert.equal(h.storage.alarm, undefined);
+});
+
+test("rejects hallucinated tool names and malformed arguments; unavailable AI never fabricates suggestions", async () => {
+  const h = harness([{ suggestions: [{ ...suggestion.suggestions[0], tools: ["send_email"] }] }]);
+  const c = await h.request("connect", { endpoint, label: "test" }); assert.equal((await h.request("suggest", { connectionId: c.body.connectionId })).status, 502); assert.ok(!h.calls.includes("tools/call"));
+  assert.throws(() => validateArguments(tool, { other: "x" }));
+  const g = harness([suggestion, { ...call, arguments: { url: 9 } }]); const { agentId, connectionId } = await g.prepare(); assert.equal((await g.trial(agentId)).status, "failed");
+  const runtime = new AgentRuntime(g.storage, {}, g.fetcher as typeof fetch);
+  assert.equal((await runtime.handle(new Request("https://runtime.test/suggest", { method: "POST", body: JSON.stringify({ connectionId }) }))).status, 503);
+});
+
+test("changed catalogs invalidate approvals; uncertain effects are recorded without replay", async () => {
+  const h = harness(); const a = await h.prepare(); const r = await h.trial(a.agentId); h.change(); assert.equal((await h.approve(r)).status, 409); assert.ok(!h.calls.includes("tools/call"));
+  const g = harness(); const b = await g.prepare(); const s = await g.trial(b.agentId); g.fail(); assert.equal((await g.approve(s)).status, 502);
+  const failed = (await g.storage.get<Run>(`run:${s.id}`))!; assert.equal(failed.status, "failed"); assert.equal(failed.events[0].status, "uncertain");
+  assert.equal((await g.approve(s)).status, 409); assert.equal(g.calls.filter(x => x === "tools/call").length, 1);
+});
+
+test("disconnect removes the credential, cancels approvals and prevents future execution", async () => {
+  const h = harness(); const { agentId, connectionId } = await h.prepare(); const r = await h.trial(agentId);
+  await h.request("disconnect", { connectionId }); assert.equal((await h.storage.get<Connection>(`connection:${connectionId}`))?.token, undefined);
+  assert.equal((await h.storage.get<Run>(`run:${r.id}`))?.status, "cancelled"); assert.equal((await h.approve(r)).status, 409); assert.equal((await h.request("trial", { agentId })).status, 409);
+});
+
+test("restart marks in-flight effects uncertain and does not replay execution", async () => {
+  const h = harness(); const { agentId } = await h.prepare();
+  const r: Run = { id: "interrupted", agentId, kind: "trial", actor: "operator", startedAt: new Date().toISOString(), status: "executing", events: [{ tool: "scrape", arguments: call.arguments, status: "executing" }], tokens: 0 };
+  await h.storage.put(`run:${r.id}`, r); await h.runtime.recover(); assert.equal((await h.storage.get<Run>(`run:${r.id}`))?.status, "interrupted"); assert.equal((await h.storage.get<Run>(`run:${r.id}`))?.events[0].status, "uncertain"); assert.ok(!h.calls.includes("tools/call"));
+});
+
+test("daily alarms advance before inference; duplicate alarm delivery does not duplicate runs", async () => {
+  const h = harness([suggestion, call, finish, call]); const { agentId } = await h.prepare(); const r = await h.trial(agentId); await h.approve(r); await h.request("activate", { agentId, reviewed: true });
+  const agent = (await h.storage.get<Agent>(`agent:${agentId}`))!; agent.nextRun = Date.now() - 1; await h.storage.put(`agent:${agentId}`, agent);
+  await h.runtime.alarm(); await h.runtime.alarm(); const runs = [...(await h.storage.list<Run>({ prefix: "run:" })).values()]; assert.equal(runs.length, 2); assert.equal(runs.find(x => x.kind === "scheduled")?.status, "awaiting_approval"); assert.equal(h.calls.filter(x => x === "tools/call").length, 1);
+});
+
+test("bounds concurrent runs, tool calls and daily inference requests", async () => {
+  const h = harness([suggestion, call, call, call, call, call]); const { agentId } = await h.prepare(); const r = await h.trial(agentId); assert.equal((await h.request("trial", { agentId })).status, 409);
+  for (let i = 0; i < 4; i++) assert.equal((await h.approve((await h.storage.get<Run>(`run:${r.id}`))!)).status, 200);
+  assert.equal((await h.storage.get<Run>(`run:${r.id}`))?.status, "failed"); assert.equal(h.calls.filter(x => x === "tools/call").length, 4);
+  await h.storage.put("limit:runs", { day: new Date().toISOString().slice(0,10), count: 20 }); assert.equal((await h.request("trial", { agentId })).status, 429);
+});
+
+test("rejects unsafe endpoints and bounded response overflow", async () => {
+  for (const url of ["http://localhost/mcp", "https://127.0.0.1/mcp", `${endpoint}?token=secret`, "https://evil.test/mcp", "https://user:pass@mcp.firecrawl.dev/v2/mcp"]) assert.throws(() => endpointURL(url)); assert.equal(endpointURL(endpoint), endpoint);
+  const client = new McpClient({ endpoint, protocol: "2026-07-28", tools: [] }, async () => new Response("x".repeat(530000))); await assert.rejects(() => client.discover(), /size limit/);
+});
+
+test("SSE parsing and pagination retain actual tool definitions", async () => {
+  let calls = 0;
+  const client = new McpClient({ endpoint, protocol: "2026-07-28", tools: [] }, async (_url, init) => {
+    const body = JSON.parse(String(init?.body)); calls++; assert.equal((init?.headers as any)["Mcp-Method"], "tools/list"); assert.equal(body.params._meta["io.modelcontextprotocol/protocolVersion"], "2026-07-28");
+    const result = calls === 1 ? { tools: [tool], nextCursor: "page-2" } : { tools: [{ ...tool, name: "search" }] };
+    return new Response(`event: message\r\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: body.id, result })}\r\n\r\n`, { headers: { "content-type": "text/event-stream" } });
+  }); assert.deepEqual((await client.discover()).map(t => t.name), ["scrape", "search"]);
+});
+
+test("BFF authenticates, isolates tenants, requires same-origin writes, and excludes public demo", async () => {
+  const seen: string[] = [];
+  const env = { CONSOLE_ENVIRONMENT: "development", CONSOLE_ENABLE_MOCK_IDENTITY: "true", CONSOLE_MOCK_TENANT_ID: "workspace-a", CONSOLE_MOCK_SUBJECT: "local-operator", AGENT_WORKSPACES: { getByName(name: string) { seen.push(name); return { async request() { return Response.json({ ok: true }); } }; } } };
+  assert.notEqual((await worker.fetch(new Request("https://console.test/agents"), {})).status, 200);
+  assert.equal((await worker.fetch(new Request("https://console.test/api/agents/workspace-b/state"), env)).status, 403); assert.equal(seen.length, 0);
+  assert.equal((await worker.fetch(new Request("https://console.test/api/agents/workspace-a/state"), env)).status, 200); assert.deepEqual(seen, ["workspace:workspace-a"]);
+  for (const origin of [undefined, "https://evil.test"]) { const headers: Record<string,string> = { "content-type": "application/json", "x-agentaction-request": "agent-builder" }; if (origin) headers.origin = origin;
+    assert.equal((await worker.fetch(new Request("https://console.test/api/agents/workspace-a/connect", { method: "POST", headers, body: "{}" }), env)).status, 403); }
+  for (const path of ["/agents", "/api/agents/workspace-a/state", "/assets/agents.js"]) assert.equal((await demo.fetch(new Request(`https://demo.test${path}`))).status, 404);
+  const shell = await worker.fetch(new Request("https://console.test/agents"), env); assert.equal(shell.status, 200); assert.match(shell.headers.get("content-security-policy")!, /script-src 'self'/);
+  assert.match(AGENT_HTML, /type="password"/); assert.match(AGENT_HTML, /sent to the configured AI model/); assert.doesNotMatch(AGENT_JS, /\.innerHTML|localStorage|sessionStorage/);
+});
+
+test("credential replacement pauses instances and invalidates activation evidence", async () => {
+  const h = harness(); const { agentId, connectionId } = await h.prepare(); const r = await h.trial(agentId); await h.approve(r); await h.request("activate", { agentId, reviewed: true });
+  const replaced = await h.request("connect", { connectionId, token: "NEW-TOKEN", endpoint: "https://evil.test/mcp" });
+  assert.equal(replaced.status, 200); assert.equal(replaced.body.connectionId, connectionId);
+  const c = (await h.storage.get<Connection>(`connection:${connectionId}`))!; assert.equal(c.endpoint, endpoint); assert.equal(c.token, "NEW-TOKEN");
+  const a = (await h.storage.get<Agent>(`agent:${agentId}`))!; assert.equal(a.status, "paused"); assert.equal(a.lastTrial, undefined); assert.equal(h.storage.alarm, undefined);
+  assert.equal((await h.request("activate", { agentId, reviewed: true })).status, 409); assert.ok(!JSON.stringify(await h.runtime.snapshot()).includes("NEW-TOKEN"));
+});
+
+test("concurrent approvals execute once and schema repair remains approval-gated", async () => {
+  const h = harness([suggestion, { ...call, arguments: { url: 4 } }, call, finish]); const { agentId } = await h.prepare(); const r = await h.trial(agentId);
+  assert.equal(r.status, "awaiting_approval"); assert.equal(r.tokens, 84); assert.ok(!h.calls.includes("tools/call"));
+  const responses = await Promise.all([h.approve(r), h.approve(r)]); assert.deepEqual(responses.map(x => x.status), [200, 409]); assert.equal(h.calls.filter(x => x === "tools/call").length, 1);
+});
+
+test("redirects cannot forward bearer credentials to another endpoint", async () => {
+  let calls = 0;
+  const c = new McpClient({ endpoint, protocol: "2026-07-28", tools: [], token: "SECRET" }, async (url, init) => { calls++; assert.equal(url, endpoint); assert.equal(init?.redirect, "manual"); return new Response(null, { status: 302, headers: { location: "https://evil.test/mcp" } }); });
+  await assert.rejects(() => c.discover(), /MCP request failed/); assert.equal(calls, 1);
+});
+
+test("revising a proposal validates optional arguments and invalidates the old approval ID", async () => {
+  const h = harness(); const { agentId } = await h.prepare(); const r = await h.trial(agentId);
+  assert.equal((await h.request("revise", { runId: r.id, approvalId: r.pending!.id, arguments: { url: 2 } })).status, 400);
+  assert.equal((await h.request("revise", { runId: r.id, approvalId: r.pending!.id, arguments: { url: "https://example.com/new" } })).status, 200);
+  const revised = (await h.storage.get<Run>(`run:${r.id}`))!; assert.notEqual(revised.pending!.id, r.pending!.id); assert.equal((await h.approve(r)).status, 409); assert.ok(!h.calls.includes("tools/call"));
+  assert.equal((await h.approve(revised)).status, 200);
+});

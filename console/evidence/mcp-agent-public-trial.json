@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-09-12T17:46:15.193Z",
+  "environment": "local Cloudflare Durable Object with remote Workers AI and public MCP; not a production tenant run",
+  "endpoint": "https://mcp.firecrawl.dev/v2/mcp",
+  "authentication": "public, no credential supplied",
+  "protocol": "2025-03-26",
+  "discovered_tools": [
+    "firecrawl_scrape",
+    "firecrawl_search",
+    "firecrawl_parse"
+  ],
+  "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "trial": {
+    "job": "Read public Firecrawl pricing",
+    "status": "completed",
+    "tool": "firecrawl_scrape",
+    "approved_arguments": {
+      "url": "https://www.firecrawl.dev/pricing"
+    },
+    "execution_status": "succeeded",
+    "duration_ms": 944,
+    "retained_result_sha256": "f4154ef3a8efed77578208aa3c2489b3f58433e6280439ddfdcebbd3fbd51f24",
+    "result_truncated": true,
+    "ai_assessed_outcome": "met",
+    "reported_model_tokens": 4583
+  },
+  "limitations": [
+    "Trial used a human-revised proposal to remove a provider feature unavailable on the public account. Final planner now constrains initial proposals to required inputs and provider defaults.",
+    "Model assessment is not independent outcome verification.",
+    "OAuth-only and multi-server jobs were not exercised.",
+    "No customer credentials, customer data or external writes were used."
+  ]
+}

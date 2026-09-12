@@ -723,3 +723,21 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
     headers: { "content-type": "application/json", ...headers },
   });
 }
+
+test("agent runtime resolves current server-side membership and rejects viewer or revoked access", async () => {
+  let role = "viewer", present = true;
+  const calls: GatewayCall[] = [], runtimeCalls: string[] = [];
+  const env: Env = {
+    ...baseEnv(calls, () => json({ workspace_mode: "directory", memberships: present ? [{ tenant: { tenant_id: "acme" }, membership: { role } }] : [] })),
+    CONSOLE_DIRECTORY_MODE: "true",
+    AGENT_WORKSPACES: { getByName(name) { runtimeCalls.push(name); return { async request(request) { assert.equal(request.headers.get("authorization"), null); assert.equal(request.headers.get("x-runtime-actor"), "operator-123"); return json({ ok: true }); } }; } },
+  };
+  const post = () => accessRequest("/api/agents/acme/connect", { method: "POST", headers: { origin: "https://console.test", "content-type": "application/json", "x-agentaction-request": "agent-builder", "x-runtime-actor": "attacker" }, body: "{}" }, { custom: {} });
+  assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(runtimeCalls.length, 0);
+  assert.equal((await worker.fetch(accessRequest("/api/agents/acme/state", {}, { custom: {} }), env)).status, 200);
+  role = "operator"; assert.equal((await worker.fetch(post(), env)).status, 200);
+  present = false; assert.equal((await worker.fetch(post(), env)).status, 403);
+  role = "owner"; present = true;
+  const oversized = accessRequest("/api/agents/acme/connect", { method: "POST", headers: { origin: "https://console.test", "content-type": "application/json", "x-agentaction-request": "agent-builder" }, body: JSON.stringify({ data: "x".repeat(25000) }) }, { custom: {} });
+  assert.equal((await worker.fetch(oversized, env)).status, 413);
+});

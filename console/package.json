@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --env development --local --port 8791",
+    "dev": "wrangler dev --env development --port 8791",
     "dev:public": "wrangler dev --config wrangler.demo.toml --local --port 8792",
     "dev:fixture": "node --experimental-strip-types dev/fixture-server.ts",
     "deploy": "wrangler deploy --env=\"\"",
@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "wrangler": "^4.94.0"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1"
   }
 }

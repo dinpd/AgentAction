@@ -109,7 +109,7 @@ def test_repository_positioning_matches_agentaction_website():
     assert "Trust infrastructure for autonomous AI agents" in WEBSITE_PAGE
     assert "Connect agents to tools." in WEBSITE_PAGE
     assert "Safely and reliably." in WEBSITE_PAGE
-    assert "test your agent against its job" in WEBSITE_PAGE
+    assert "discover useful agents with AI" in WEBSITE_PAGE
     # The homepage introduces recipe creation alongside the evaluation surface.
     for surface in [
         "Agent Creation & Evaluation",

@@ -30,6 +30,7 @@ export function RecipeDirectory() {
             Start with a useful job, the connections it needs, and checks you
             can inspect.
           </p>
+          <p><a className="recipe-button" href="https://observability-console.agentaction.dev/agents">Connect an MCP and discover agents ↗</a></p>
         </div>
         <Link className="recipe-publish-link" href="/recipes/publish">
           Build a recipe for your server <span aria-hidden="true">↗</span>

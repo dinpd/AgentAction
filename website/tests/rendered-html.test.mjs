@@ -40,8 +40,9 @@ test("server-renders the complete AgentAction project site", async () => {
   const html = await response.text();
   assert.match(html, /<title>AgentAction — Connect agents to tools, safely and reliably<\/title>/i);
   assert.match(html, /<h1 id="hero-title">Connect agents to tools\.<span>Safely and reliably\.<\/span><\/h1>/);
-  assert.match(html, /Start with a recipe, test your agent against its job, and keep visibility and control over every run\./);
-  assert.match(html, /<meta name="description" content="Start with an agent recipe, test it against your job, and keep visibility and control over every run with AgentAction\."/);
+  assert.match(html, /Connect an MCP server, discover useful agents with AI/);
+  assert.match(html, /href="https:\/\/observability-console\.agentaction\.dev\/agents"[^>]*>Connect an MCP/);
+  assert.match(html, /<meta name="description" content="Connect an MCP server, get AI agent suggestions, and create a supervised instance with observable run history\."/);
   assert.match(html, /AgentAction is the canonical project brand/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
