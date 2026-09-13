@@ -10,14 +10,21 @@ export const CAPABILITIES = [
   { id: "business", label: "CRM & sales", terms: ["crm", "sales", "customer", "customers", "salesforce", "hubspot"] },
   { id: "calendar", label: "Calendar & scheduling", terms: ["calendar", "scheduling", "appointment", "appointments", "meeting", "meetings"] },
 ] as const;
+export const AUTH_TYPES = [
+  { id: "api-key", label: "API key" },
+  { id: "authorization-header", label: "Authorization header" },
+  { id: "other-secret", label: "Other secret input" },
+  { id: "unspecified", label: "Not specified" },
+] as const;
+type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
   name: string; title: string; description: string; version: string; publisher: string;
-  website?: string; endpoints: string[]; hosting: string; setup: string; capabilities: string[];
+  website?: string; endpoints: string[]; hosting: string; setup: string; capabilities: string[]; authTypes: AuthType[];
 };
-export type CatalogQuery = { query: string; capability: string; offset: number };
+export type CatalogQuery = { query: string; capability: string; auth?: string; offset: number };
 export type CatalogResult = {
   servers: CatalogServer[]; total: number; nextOffset: number | null;
-  capabilities: Array<{ id: string; label: string }>; updatedAt: string | null;
+  capabilities: Array<{ id: string; label: string }>; authTypes: Array<{ id: string; label: string }>; updatedAt: string | null;
   indexing: boolean; stale: boolean; unavailable: boolean; notice: string;
 };
 type Cursor = { toArray(): Record<string, unknown>[] };
@@ -48,6 +55,23 @@ function setupInstructions(endpoints: string[]): string {
   return endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
       : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.";
 }
+function declaredAuth(remotes: Record<string, unknown>[], packages: Record<string, unknown>[]): AuthType[] {
+  const found = new Set<AuthType>();
+  const inspect = (inputs: unknown, headers = false) => {
+    if (!Array.isArray(inputs)) return;
+    for (const raw of inputs) {
+      const input = record(raw), name = short(input.name, 200).toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      // Labels describe declared configuration, including optional credentials.
+      // Never read values, infer OAuth/Basic/Bearer, or assume missing means public.
+      if (headers && name === "authorization") found.add("authorization-header");
+      else if (/(^|_)api_?key($|_)/.test(name)) found.add("api-key");
+      else if (input.isSecret === true || Object.values(record(input.variables)).some(v => record(v).isSecret === true)) found.add("other-secret");
+    }
+  };
+  for (const remote of remotes) inspect(remote.headers, true);
+  for (const pkg of packages) { inspect(pkg.environmentVariables); inspect(record(pkg.transport).headers, true); }
+  return found.size ? AUTH_TYPES.filter(t => found.has(t.id)).map(t => t.id) : ["unspecified"];
+}
 export function normalizeServer(raw: unknown): CatalogServer | undefined {
   const entry = record(raw), server = record(entry.server), meta = record(record(entry._meta)["io.modelcontextprotocol.registry/official"]);
   if (meta.status !== "active" || meta.isLatest !== true) return;
@@ -65,14 +89,16 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
     website: safeURL(server.websiteUrl) || safeURL(record(server.repository).url), endpoints,
     hosting: remotes.length ? (packages.length ? "Remote and local packages" : "Remote server") : "Local package",
     setup: setupInstructions(endpoints),
+    authTypes: declaredAuth(remotes, packages),
     capabilities: CAPABILITIES.filter(c => c.terms.some(t => contains(text, t))).map(c => c.id),
   };
 }
 export function parseCatalogQuery(params: URLSearchParams): CatalogQuery {
-  for (const key of params.keys()) if (!["q", "capability", "offset"].includes(key) || params.getAll(key).length !== 1) throw new Error("Invalid catalog search parameters.");
+  for (const key of params.keys()) if (!["q", "capability", "auth", "offset"].includes(key) || params.getAll(key).length !== 1) throw new Error("Invalid catalog search parameters.");
   const query = (params.get("q") || "").trim(), capability = params.get("capability") || "", offsetText = params.get("offset") || "0";
-  if (query.length > 200 || (capability && !CAPABILITIES.some(c => c.id === capability)) || !/^\d{1,6}$/.test(offsetText) || Number(offsetText) > MAX_CATALOG_PAGES * 100) throw new Error("Invalid catalog search parameters.");
-  return { query, capability, offset: Number(offsetText) };
+  const auth = params.get("auth") || "";
+  if (query.length > 200 || (capability && !CAPABILITIES.some(c => c.id === capability)) || (auth && !AUTH_TYPES.some(t => t.id === auth)) || !/^\d{1,6}$/.test(offsetText) || Number(offsetText) > MAX_CATALOG_PAGES * 100) throw new Error("Invalid catalog search parameters.");
+  return { query, capability, auth, offset: Number(offsetText) };
 }
 
 // One coordination object per registry source, separate from all tenant/agent
@@ -90,7 +116,7 @@ export class RegistryCatalog {
   private save(state: State) { this.storage.sql.exec("INSERT OR REPLACE INTO registry_state VALUES (1, ?)", JSON.stringify(state)); }
   async search(input: CatalogQuery): Promise<CatalogResult> {
     // Validate again at the RPC boundary.
-    const { query, capability, offset } = parseCatalogQuery(new URLSearchParams({ q: input.query, capability: input.capability, offset: String(input.offset) }));
+    const { query, capability, auth, offset } = parseCatalogQuery(new URLSearchParams({ q: input.query, capability: input.capability, auth: input.auth ?? "", offset: String(input.offset) }));
     if (await this.storage.getAlarm() === null) await this.storage.setAlarm(Math.max(this.clock() + 1, this.state().nextRefresh));
     // Read the snapshot after the scheduling awaits; no await may split this
     // state read from its SQL queries while a refresh swaps generations.
@@ -99,6 +125,12 @@ export class RegistryCatalog {
     const params: (string | number)[] = [selected];
     let where = "generation = ?";
     if (capability) { where += " AND instr(tags, ?) > 0"; params.push(`|${capability}|`); }
+    if (auth) {
+      // Legacy snapshots have no auth tags: keep them searchable as unspecified
+      // until the normal atomic refresh replaces them. No schema migration.
+      where += auth === "unspecified" ? " AND (instr(tags, ?) > 0 OR instr(tags, '|auth:') = 0)" : " AND instr(tags, ?) > 0";
+      params.push(`|auth:${auth}|`);
+    }
     const stop = new Set(["i", "want", "to", "a", "an", "the", "my", "with", "for", "and", "or", "can", "that", "me", "help"]);
     const tokens = [...new Set(words(query).filter(t => !stop.has(t)))].slice(0, 16);
     const categories = CAPABILITIES.filter(c => c.terms.some(t => contains(query, t)));
@@ -116,9 +148,10 @@ export class RegistryCatalog {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
       // stored provider snapshot. No upstream refresh or data rewrite is needed.
-      return { ...server, setup: setupInstructions(server.endpoints) };
+      return { ...server, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
     }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
+      authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),
       indexing, stale, unavailable: !state.active && Boolean(state.error),
       notice: state.error || (indexing ? state.active ? "Refreshing the registry catalog in the background." : "The registry catalog is being indexed. Results are incomplete; search again shortly. You can also enter an endpoint manually." : "Capabilities are advertised by publishers and categorized from descriptions. Connect to inspect the actual tools."),
     };
@@ -155,7 +188,7 @@ export class RegistryCatalog {
       return;
     }
     this.storage.transactionSync(() => {
-      for (const server of servers) this.storage.sql.exec("INSERT OR REPLACE INTO registry_servers VALUES (?, ?, ?, ?, ?, ?)", pending.generation, server.name, server.title.toLowerCase(), `${server.name} ${server.title} ${server.description}`.toLowerCase(), `|${server.capabilities.join("|")}|`, JSON.stringify(server));
+      for (const server of servers) this.storage.sql.exec("INSERT OR REPLACE INTO registry_servers VALUES (?, ?, ?, ?, ?, ?)", pending.generation, server.name, server.title.toLowerCase(), `${server.name} ${server.title} ${server.description}`.toLowerCase(), `|${[...server.capabilities, ...server.authTypes.map(t => `auth:${t}`)].join("|")}|`, JSON.stringify(server));
       pending.pages++;
       if (typeof cursor === "string" && cursor) { pending.cursor = cursor; pending.cursors.push(cursor); }
       else {

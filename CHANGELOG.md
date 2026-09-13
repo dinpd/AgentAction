@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.19.0-rc.1 - 2026-09-13
+
+### Added
+
+- Filter My Agents registry results by declared API keys, Authorization headers, other secret inputs or Not specified, alongside capability and text search. Result cards show the declared authentication labels; filters remain consistent across pagination.
+- Authentication metadata describes advertised configuration, including optional credentials and local packages. Missing metadata does not mean public access. The registry has no standard pricing field; check provider documentation for costs and actual authentication requirements.
+- The catalog API accepts optional `auth` and returns additive authentication metadata. Cached listings remain readable as Not specified until their normal hourly refresh; no storage migration, new bindings or connection authorization changes are required.
+- Install Python artifacts from the GitHub v0.19.0-rc.1 prerelease. This minor release continues the console/runtime release-candidate validation period. npm versions and publication are unchanged.
+
 ## 0.18.0-rc.4 - 2026-09-13
 
 ### Fixed
