@@ -12,12 +12,13 @@ const storage = { sql: { exec(q: string,...v: any[]) { const a=db.prepare(q).all
 const entry=(name:string,description:string, remotes:unknown[]=[{type:'streamable-http',url:`https://${name}.example/mcp`}])=>({server:{name:`org.example/${name}`,title:name,description,version:'1',remotes,websiteUrl:'https://example.com/docs'},_meta:{'io.modelcontextprotocol.registry/official':{status:'active',isLatest:true}}});
 const catalog=new RegistryCatalog(storage,async()=>Response.json({servers:[entry('letters','Deliver messages to email accounts'), entry('warehouse','Query a SQL database'),entry('local-files','Read documents from local files',[]),entry('markup','<img src=x onerror=alert(1)> Email'),...Array.from({length:22},(_,i)=>entry(`mail${i}`,'Email delivery'))], metadata:{}}));
 await catalog.alarm();
-let posts=0, failure=false, delayed=false, approvalFailure=false, connectDelay=false;
+let posts=0, failure=false, delayed=false, approvalFailure=false, connectDelay=false, sessionFailure=0;
 const approvals: any[] = [], posted: any[] = [];
 const endpointAccess = {deployment:['https://manual.example/mcp'],workspace:approvals};
 const server=createServer(async(req,res)=>{
  const u=new URL(req.url!,'http://127.0.0.1');
  let value:any;
+ if(sessionFailure&&u.pathname.startsWith('/api/')){res.statusCode=sessionFailure;if(sessionFailure===302)res.setHeader('location','/sign-in-fixture');res.setHeader('content-type','application/json');res.end(JSON.stringify({error:'Sign in required'}));return;}
  if(['/agents','/assets/agents.css','/assets/agents.js','/favicon.png','/favicon.ico','/csp-probe'].includes(u.pathname)){
    const response=await worker.fetch(new Request(new URL(u.pathname==='/csp-probe'?'/agents':u.pathname,u.origin)),{CONSOLE_ENVIRONMENT:'development',CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_MOCK_TENANT_ID:'a',CONSOLE_MOCK_SUBJECT:'fixture-owner'});
    res.statusCode=response.status;response.headers.forEach((v,k)=>res.setHeader(k,v));
@@ -25,7 +26,7 @@ const server=createServer(async(req,res)=>{
    else res.end(Buffer.from(await response.arrayBuffer()));return;
  }
  if(u.pathname==='/assets/csp-probe.css'){res.setHeader('content-type','text/css');res.end('@font-face{font-family:Probe;src:url(data:font/woff2;base64,d09GMg==)}body{font-family:Probe}');return;}
- if(u.pathname==='/api/console/session')value={tenant_id:'a',memberships:[{tenant:{tenant_id:'a',display_name:'Test workspace'},membership:{role:'owner'}},{tenant:{tenant_id:'b',display_name:'Second workspace'},membership:{role:'viewer'}},{tenant:{tenant_id:'c',display_name:'Operator workspace'},membership:{role:'operator'}}]};
+ if(u.pathname==='/api/console/session')value={email:'owner+<img src=x onerror=alert(1)>@example.com',subject:'owner-subject',tenant_id:'a',memberships:[{tenant:{tenant_id:'a',display_name:'Test workspace'},membership:{role:'owner'}},{tenant:{tenant_id:'b',display_name:'Second workspace'},membership:{role:'viewer'}},{tenant:{tenant_id:'c',display_name:'Operator workspace'},membership:{role:'operator'}}]};
  else if(u.pathname.endsWith('/state'))value={connections:[],agents:[],runs:[],endpointAccess:u.pathname.includes('/a/')?endpointAccess:{deployment:endpointAccess.deployment,workspace:[]}};
  else if(u.pathname.endsWith('/catalog')){if(delayed)await new Promise(r=>setTimeout(r,300)); if(failure){res.statusCode=503;value={error:'Registry discovery is unavailable. Enter an endpoint manually.'};}else value=await catalog.search(parseCatalogQuery(u.searchParams));}
  else if(req.method==='POST'){
@@ -44,6 +45,9 @@ await page.addInitScript(()=>{(window as any).cspViolations=[];document.addEvent
 try {
 const address = server.address() as {port:number};
 await page.goto(`http://127.0.0.1:${address.port}/agents`);await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();
+assert.equal(await page.locator('#account-identity').innerText(),'owner+<img src=x onerror=alert(1)>@example.com');assert.equal(await page.locator('.account img').count(),0);assert.equal(await page.locator('#account-role').innerText(),'owner');
+assert.equal(await page.getByRole('link',{name:'Log out',exact:true}).getAttribute('href'),'/cdn-cgi/access/logout');assert.equal(await page.locator('#account-login').isVisible(),false);assert.equal(posts,0);
+await page.screenshot({path:'/tmp/agentaction-account-desktop.png'});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'/tmp/agentaction-account-mobile.png'});await page.setViewportSize({width:1440,height:1000});
 await page.getByRole('button',{name:'Show more servers'}).click();await page.waitForFunction(()=>document.querySelectorAll('#catalog-results article').length===26);
 await page.locator('#catalog-query').fill('send emails');await page.getByRole('button',{name:'Search registry'}).click();await page.locator('#catalog-status').filter({hasText:'24 matching servers'}).waitFor();
 assert.equal(await page.locator('#catalog-results img').count(),0);
@@ -67,11 +71,11 @@ await page.locator('#catalog-capability').selectOption('');await page.locator('#
 failure=true;await page.getByRole('button',{name:'Search registry'}).click();await page.locator('#catalog-status').filter({hasText:'unavailable'}).waitFor();assert.equal(await page.locator('[name=endpoint]').isEnabled(),true);failure=false;
 await page.locator('#catalog-query').fill('send emails');await page.getByRole('button',{name:'Search registry'}).click();await page.locator('#catalog-status').filter({hasText:'24 matching servers'}).waitFor();await page.screenshot({path:'/tmp/agentaction-registry-desktop.png',fullPage:false});
 await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/agentaction-registry-mobile.png',fullPage:false});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-await page.locator('#workspace').selectOption('c');await page.locator('#status').filter({hasText:'Workspace ready · operator'}).waitFor();await page.locator('[name=endpoint]').fill('https://unapproved.example/mcp');assert.equal(await page.locator('#endpoint-review').isHidden(),true);assert.equal(await connectButton.isDisabled(),true);assert.match(await page.locator('#connect-readiness').innerText(),/Ask a workspace owner/);await page.locator('[name=endpoint]').fill('https://manual.example/mcp');assert.equal(await connectButton.isEnabled(),true);
+await page.locator('#workspace').selectOption('c');await page.locator('#status').filter({hasText:'Workspace ready · operator'}).waitFor();assert.equal(await page.locator('#account-role').innerText(),'operator');await page.locator('[name=endpoint]').fill('https://unapproved.example/mcp');assert.equal(await page.locator('#endpoint-review').isHidden(),true);assert.equal(await connectButton.isDisabled(),true);assert.match(await page.locator('#connect-readiness').innerText(),/Ask a workspace owner/);await page.locator('[name=endpoint]').fill('https://manual.example/mcp');assert.equal(await connectButton.isEnabled(),true);
 await page.locator('#workspace').selectOption('a');await page.locator('#status').filter({hasText:'Workspace ready · owner'}).waitFor();
 delayed=true;await page.getByRole('button',{name:'Search registry'}).click();await page.locator('#workspace').selectOption('b');await page.waitForTimeout(500);assert.equal(await page.locator('#catalog-results article').count(),0);assert.equal(await page.locator('[name=endpoint]').isDisabled(),true);
 await page.getByRole('button',{name:'Search registry'}).click();await page.locator('#catalog-status').filter({hasText:'24 matching servers'}).waitFor();assert.equal(await page.getByRole('button',{name:'Use this server'}).first().isDisabled(),true);
-assert.match(await page.locator('#connect-readiness').innerText(),/view-only access/);
+assert.match(await page.locator('#connect-readiness').innerText(),/view-only access/);assert.equal(await page.locator('#account-role').innerText(),'viewer');
 assert.deepEqual(errors,[
   'Failed to load resource: the server responded with a status of 400 (Bad Request)',
   'Failed to load resource: the server responded with a status of 503 (Service Unavailable)'
@@ -80,5 +84,12 @@ assert.equal(await page.evaluate(async()=>{const icon=new Image();icon.src='/fav
 delayed=false;await page.goto(`http://127.0.0.1:${address.port}/csp-probe`);await page.waitForFunction(()=>(window as any).cspViolations.length>=2);
 await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();
 const violations=await page.evaluate(()=>(window as any).cspViolations);assert.ok(violations.some((v:any)=>v.directive==='font-src'&&v.uri==='data'));assert.ok(violations.some((v:any)=>v.directive==='script-src-elem'&&v.uri==='https://example.invalid/probe.js'));
-console.log('PASS: name/capability search, pagination, safe metadata, selection without connection, cleared secrets/consent, manual connect, unsupported setup, empty/error states, workspace races, viewer/operator access, explicit owner approval without credentials, approval failures, removal, clear blocked/busy states, real CSP headers, decoded favicon, blocked external scripts/data fonts and mobile overflow.');
+for(const code of [401,302]){
+  await page.goto(`http://127.0.0.1:${address.port}/agents`);await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();
+  await page.locator('[name=token]').fill('TEMPORARY-SECRET');sessionFailure=code;
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.locator('#account-login').waitFor({state:'visible'});
+  assert.equal(await page.locator('#builder').isHidden(),true);assert.equal(await page.locator('[name=token]').inputValue(),'');assert.equal(await page.locator('#account-logout').isHidden(),true);assert.equal(await page.locator('#workspace').isDisabled(),true);assert.equal(await page.locator('#account-role').innerText(),'Sign in required');assert.match(await page.locator('#account-help').innerText(),/session has expired|signed out/);assert.equal(await page.locator('#account-login').getAttribute('href'),'/agents');
+  sessionFailure=0;await page.getByRole('link',{name:'Sign in',exact:true}).click();await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();assert.equal(await page.locator('#account-role').innerText(),'owner');assert.equal(await page.locator('#account-login').isHidden(),true);
+}
+console.log('PASS: name/capability search, pagination, safe metadata, selection without connection, cleared secrets/consent, manual connect, unsupported setup, empty/error states, workspace races, viewer/operator access, explicit owner approval without credentials, approval failures, removal, clear blocked/busy states, real CSP headers, decoded favicon, blocked external scripts/data fonts mobile overflow, account identity, workspace roles, safe logout navigation and 401/redirect sign-in recovery.');
 } finally { await browser.close();await new Promise<void>(r=>server.close(()=>r()));db.close(); }

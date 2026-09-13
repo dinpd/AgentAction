@@ -1,7 +1,7 @@
 import type { CatalogResult } from "./mcp-registry.ts";
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>My agents — AgentAction</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/agents.js" defer></script></head><body>
-<header><a class="brand" href="/">AgentAction<span> / My agents</span></a><nav><a href="/#overview">Observability</a><a href="/#setup">Workspace setup</a><a href="https://agentaction.dev/recipes">Explore examples ↗</a></nav></header>
+<header><a class="brand" href="/">AgentAction<span> / My agents</span></a><nav><a href="/#overview">Observability</a><a href="/#setup">Workspace setup</a><a href="https://agentaction.dev/recipes">Explore examples ↗</a></nav><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup">Workspace setup</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
 <main><div class="heading"><div><p class="eyebrow">Find → connect → create → observe</p><h1>What could your MCP do for you?</h1><p class="lede">Find a server by name or capability. Discover useful agents with AI. Try one with your account, review its actions, and keep its run history.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
 <div id="builder" hidden>
@@ -20,7 +20,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <section class="panel"><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel"><div class="section-heading"><h2>Observed runs</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. History retains up to 40 recent runs, including trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div></main></body></html>`;
-export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
 export function agentBuilderApp(runtime: Window): void {
   const doc = runtime.document;
@@ -33,6 +33,19 @@ export function agentBuilderApp(runtime: Window): void {
   let catalogGeneration = 0, catalogOffset: number | null = null;
   let catalogQuery = "", catalogCapability = "";
   const capabilityLabels = new Map<string, string>();
+  function renderAccountRole() { get("account-role").textContent = tenant ? role : "No workspace selected"; }
+  function sessionUnavailable(detail: string) {
+    generation++; catalogGeneration++; tenant = ""; role = "viewer"; memberships = [];
+    state = { connections: [], agents: [], runs: [] }; chosen = undefined;
+    get<HTMLFormElement>("connect").reset(); get<HTMLFormElement>("create").reset();
+    workspace.replaceChildren(); workspace.disabled = true;
+    get("builder").hidden = true;
+    get("account-identity").textContent = "Session unavailable";
+    get("account-role").textContent = "Sign in required";
+    get("account-login").hidden = false; get("account-logout").hidden = true;
+    get("account-help").textContent = detail;
+    message(detail, true);
+  }
   function canonicalEndpoint(value: string): string { try { return new URL(value).href; } catch { return ""; } }
   function endpointEnabled(value: string): boolean {
     const endpoint = canonicalEndpoint(value), access = state.endpointAccess;
@@ -142,7 +155,17 @@ export function agentBuilderApp(runtime: Window): void {
     el.addEventListener("click", () => perform(el, action)); return el;
   }
   async function request(path: string, body?: any): Promise<any> {
-    const response = await runtime.fetch(path, { method: body ? "POST" : "GET", credentials: "same-origin", headers: body ? { "content-type": "application/json", "x-agentaction-request": "agent-builder" } : {}, ...(body ? { body: JSON.stringify(body) } : {}) });
+    let response: Response;
+    try {
+      response = await runtime.fetch(path, { method: body ? "POST" : "GET", credentials: "same-origin", redirect: "manual", headers: body ? { "content-type": "application/json", "x-agentaction-request": "agent-builder" } : {}, ...(body ? { body: JSON.stringify(body) } : {}) });
+    } catch {
+      const detail = "Unable to verify your session. Check your connection, then select Sign in to reload this page.";
+      sessionUnavailable(detail); throw new Error(detail);
+    }
+    if (response.status === 401 || response.type === "opaqueredirect" || response.redirected) {
+      const detail = "Your session has expired or you are signed out. Select Sign in to continue.";
+      sessionUnavailable(detail); throw new Error(detail);
+    }
     const value = await response.json();
     if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : value.error?.message || "The request could not be completed.");
     return value;
@@ -151,7 +174,7 @@ export function agentBuilderApp(runtime: Window): void {
   async function perform(el: HTMLButtonElement, action: () => Promise<void>) {
     el.disabled = true; el.setAttribute("aria-busy", "true"); workspace.disabled = true; updateEndpointAccess();
     try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); message(failure, true); }
-    finally { el.removeAttribute("aria-busy"); el.disabled = role === "viewer"; workspace.disabled = false; updateEndpointAccess(); }
+    finally { el.removeAttribute("aria-busy"); el.disabled = role === "viewer"; workspace.disabled = !memberships.length; updateEndpointAccess(); }
   }
   async function refresh() {
     const current = ++generation;
@@ -252,14 +275,17 @@ export function agentBuilderApp(runtime: Window): void {
     void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, suggestionId: chosen!.suggestion.id, title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); chosen = undefined; await refresh(); message("Agent instance created. Run a trial to review its first action."); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { get("builder").hidden = true; catalogGeneration++; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { get("builder").hidden = true; catalogGeneration++; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];
+      get("account-identity").textContent = session.email || session.subject || "Authenticated account";
+      get("account-logout").hidden = false; get("account-login").hidden = true;
+      workspace.disabled = !memberships.length;
       for (const entry of memberships) { const option = node("option", entry.tenant.display_name || entry.tenant.tenant_id) as HTMLOptionElement; option.value = entry.tenant.tenant_id; workspace.append(option); }
       tenant = session.tenant_id || workspace.value; workspace.value = tenant;
       role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer";
-      await refresh(); if (tenant) void searchCatalog(); if (tenant) message(`Workspace ready · ${role}. Connect a server to start.`);
+      renderAccountRole(); await refresh(); if (tenant) void searchCatalog(); if (tenant) message(`Workspace ready · ${role}. Connect a server to start.`);
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }
