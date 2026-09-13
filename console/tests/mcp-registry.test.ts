@@ -96,3 +96,21 @@ test("catalog capacity errors preserve the old snapshot and duplicate completed 
   await h.tick(); const result = await h.search();
   assert.equal(result.stale, true); assert.equal(result.total, 1); assert.equal(result.servers[0].title, "existing"); h.db.close();
 });
+
+
+test("persisted catalog rows use current setup guidance without refreshing provider metadata", async () => {
+  const h = harness([page([entry("remote", "Email"), entry("local", "Files", {remotes: []})])]);
+  await h.search(); await h.tick(); const before = await h.search();
+  for (const row of h.db.prepare("SELECT name,payload FROM registry_servers").all()) {
+    const cached = JSON.parse(String(row.payload)); cached.setup = "Administrator must enable the exact URL.";
+    h.db.prepare("UPDATE registry_servers SET payload=? WHERE name=?").run(JSON.stringify(cached), String(row.name));
+  }
+  const restarted = new RegistryCatalog(h.storage, async () => { throw new Error("Search must not refresh upstream"); });
+  const result = await restarted.search({query:"",capability:"",offset:0});
+  assert.match(result.servers.find(s=>s.title==="remote")!.setup, /Workspace-owner approval/);
+  assert.match(result.servers.find(s=>s.title==="local")!.setup, /setup outside this builder/);
+  assert.equal(result.updatedAt,before.updatedAt);assert.equal(result.total,before.total);assert.equal(h.requests.length,1);
+  assert.deepEqual(result.servers.map(({setup,...metadata})=>metadata),before.servers.map(({setup,...metadata})=>metadata));
+  assert.match(String(h.db.prepare("SELECT payload FROM registry_servers LIMIT 1").get()!.payload),/Administrator must enable/);
+  h.db.close();
+});
