@@ -10,15 +10,17 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
 <div id="connection-details"><h3>Connection details</h3><p id="catalog-selection" class="note">Already have a server? Enter its HTTPS endpoint below.</p>
 <form id="connect"><div class="fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input name="endpoint" type="url" placeholder="https://mcp.example.com/mcp" required></label><label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
-<p class="note">Firecrawl is enabled to start. Other exact HTTPS endpoints must be enabled by an administrator before connecting. A registry listing does not grant access. Local stdio and OAuth-only connections are not supported yet.</p>
+<p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
+<div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div>
+<p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Local stdio and OAuth-only connections are not supported yet.</p>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<button type="submit">Connect server</button></form></div><div id="connections" class="connections"></div></section>
+<button type="submit">Connect server</button></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><div id="connections" class="connections"></div></section>
 <section class="panel"><div class="section-heading"><h2>2. Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
 <section id="configure" class="panel" hidden><h2>3. Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
 <section class="panel"><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel"><div class="section-heading"><h2>Observed runs</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. History retains up to 40 recent runs, including trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div></main></body></html>`;
-export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}details{margin-top:16px}summary{cursor:pointer;font-weight:600}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
 export function agentBuilderApp(runtime: Window): void {
   const doc = runtime.document;
@@ -31,9 +33,43 @@ export function agentBuilderApp(runtime: Window): void {
   let catalogGeneration = 0, catalogOffset: number | null = null;
   let catalogQuery = "", catalogCapability = "";
   const capabilityLabels = new Map<string, string>();
+  function canonicalEndpoint(value: string): string { try { return new URL(value).href; } catch { return ""; } }
+  function endpointEnabled(value: string): boolean {
+    const endpoint = canonicalEndpoint(value), access = state.endpointAccess;
+    return Boolean(endpoint && access && (access.deployment.includes(endpoint) || access.workspace.some((a: { endpoint: string }) => a.endpoint === endpoint)));
+  }
+  function updateEndpointAccess(resetReview = false) {
+    const form = get<HTMLFormElement>("connect"), endpoint = (form.elements.namedItem("endpoint") as HTMLInputElement).value;
+    const enabled = endpointEnabled(endpoint), canonical = canonicalEndpoint(endpoint);
+    const reviewed = get<HTMLInputElement>("endpoint-reviewed");
+    if (resetReview) reviewed.checked = false;
+    get("endpoint-status").textContent = !endpoint ? "Enter an endpoint to check workspace access." : enabled ? "Enabled for this workspace. Connect to inspect the server’s actual tools." : role === "owner" ? "Owner approval required. Review and approve the exact endpoint below before connecting." : "Owner approval required. Ask an owner of this workspace to review this endpoint in My Agents.";
+    get("endpoint-review").hidden = role !== "owner" || enabled || !endpoint;
+    get("endpoint-review-url").textContent = canonical || endpoint;
+    get<HTMLButtonElement>("approve-endpoint").disabled = role !== "owner" || !reviewed.checked || !canonical || enabled;
+    form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled = role === "viewer" || !enabled;
+    doc.querySelectorAll<HTMLButtonElement>("[data-owner-only]").forEach(el => el.disabled = role !== "owner");
+    doc.querySelectorAll<HTMLOptionElement>("#catalog-results option").forEach(el => { el.textContent = `${el.value} — ${endpointEnabled(el.value) ? "enabled" : "owner approval required"}`; });
+    doc.querySelectorAll<HTMLElement>("[data-endpoint-access]").forEach(el => { el.textContent = endpointEnabled(el.dataset.endpointAccess || "") ? "Enabled for this workspace" : "Owner approval required"; });
+  }
+  function renderEndpointApprovals() {
+    const container = get("endpoint-approvals"); container.replaceChildren();
+    for (const approval of state.endpointAccess?.workspace || []) {
+      const row = node("div", "", "connection");
+      row.append(node("p", `${approval.endpoint} · approved ${new Date(approval.approvedAt).toLocaleString()} by ${approval.approvedBy}`, "note"));
+      const remove = button("Remove workspace approval", async () => {
+        const deploymentEnabled = state.endpointAccess.deployment.includes(approval.endpoint);
+        if (!runtime.confirm(`Remove workspace approval for ${approval.endpoint}? ${deploymentEnabled ? "Deployment-managed access will remain enabled." : "Affected connections will be disconnected and their agents paused."}`)) return;
+        await mutate("remove-endpoint", { endpoint: approval.endpoint }); await refresh(); message(deploymentEnabled ? "Workspace approval removed. Deployment-managed access remains enabled." : "Workspace approval removed. Affected connections and schedules were stopped.");
+      });
+      remove.dataset.ownerOnly = "true"; row.append(remove); container.append(row);
+    }
+    if (!container.children.length) container.append(node("p", "No workspace-specific approvals yet.", "empty"));
+  }
   function clearSelection() {
     get<HTMLFormElement>("connect").reset();
     get("catalog-selection").textContent = "Already have a server? Enter its HTTPS endpoint below.";
+    updateEndpointAccess(true);
   }
   async function searchCatalog(append = false) {
     if (!tenant) return;
@@ -67,13 +103,18 @@ export function agentBuilderApp(runtime: Window): void {
         if (server.endpoints.length) {
           const endpointLabel = node("label", "Remote endpoint"), select = doc.createElement("select");
           select.setAttribute("aria-label", `Endpoint for ${server.title}`);
-          for (const endpoint of server.endpoints) { const option = node("option", endpoint) as HTMLOptionElement; option.value = endpoint; select.append(option); }
-          endpointLabel.append(select); card.append(endpointLabel, button("Use this server", async () => {
+          for (const endpoint of server.endpoints) { const option = node("option", `${endpoint} — ${endpointEnabled(endpoint) ? "enabled" : "owner approval required"}`) as HTMLOptionElement; option.value = endpoint; select.append(option); }
+          const accessLabel = node("p", "", "pill");
+          accessLabel.dataset.endpointAccess = select.value;
+          accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required";
+          select.addEventListener("change", () => { accessLabel.dataset.endpointAccess = select.value; accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required"; });
+          endpointLabel.append(select); card.append(accessLabel, endpointLabel, button("Use this server", async () => {
             clearSelection();
             const form = get<HTMLFormElement>("connect");
             (form.elements.namedItem("label") as HTMLInputElement).value = server.title.slice(0, 100);
             (form.elements.namedItem("endpoint") as HTMLInputElement).value = select.value;
-            get("catalog-selection").textContent = `Selected ${server.title}. ${server.setup} Review the endpoint before entering credentials.`;
+            get("catalog-selection").textContent = `Selected ${server.title}. Review the endpoint before entering credentials.`;
+            updateEndpointAccess(true);
             get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" });
             (form.elements.namedItem("label") as HTMLInputElement).focus();
           }));
@@ -105,7 +146,7 @@ export function agentBuilderApp(runtime: Window): void {
   async function perform(el: HTMLButtonElement, action: () => Promise<void>) {
     el.disabled = true; workspace.disabled = true;
     try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); message(failure, true); }
-    finally { el.disabled = role === "viewer"; workspace.disabled = false; }
+    finally { el.disabled = role === "viewer"; workspace.disabled = false; updateEndpointAccess(); }
   }
   async function refresh() {
     const current = ++generation;
@@ -115,6 +156,7 @@ export function agentBuilderApp(runtime: Window): void {
     state = data; get("builder").hidden = false; render();
   }
   function render() {
+    renderEndpointApprovals();
     const connections = get("connections"), suggestions = get("suggestions"), agents = get("agents"), runs = get("runs");
     connections.replaceChildren(); suggestions.replaceChildren(); agents.replaceChildren(); runs.replaceChildren();
     for (const c of state.connections) {
@@ -177,12 +219,24 @@ export function agentBuilderApp(runtime: Window): void {
     }
     if (!runs.children.length) runs.append(node("p", "Trial and scheduled runs will appear here with their execution history.", "empty"));
     get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer");
+    updateEndpointAccess();
   }
+  get<HTMLFormElement>("connect").querySelector<HTMLInputElement>("[name=endpoint]")!.addEventListener("input", () => updateEndpointAccess(true));
+  get("endpoint-reviewed").addEventListener("change", () => updateEndpointAccess());
+  get<HTMLButtonElement>("approve-endpoint").addEventListener("click", event => {
+    const form = get<HTMLFormElement>("connect"), endpoint = canonicalEndpoint((form.elements.namedItem("endpoint") as HTMLInputElement).value);
+    if (role !== "owner" || !get<HTMLInputElement>("endpoint-reviewed").checked) return;
+    void perform(event.currentTarget as HTMLButtonElement, async () => {
+      message("Validating the public endpoint and saving workspace approval…");
+      await mutate("approve-endpoint", { endpoint, reviewed: true });
+      await refresh(); updateEndpointAccess(true); message("Endpoint approved for this workspace. Enter any required credential and connect when ready.");
+    });
+  });
   get<HTMLFormElement>("catalog-search").addEventListener("submit", event => { event.preventDefault(); void searchCatalog(); });
   get("catalog-more").addEventListener("click", () => { void searchCatalog(true); });
   get("manual-connect").addEventListener("click", () => { clearSelection(); get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" }); get<HTMLFormElement>("connect").querySelector<HTMLInputElement>("[name=endpoint]")!.focus(); });
   get<HTMLFormElement>("connect").addEventListener("submit", event => {
-    event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector("button")!;
+    event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
     void perform(submit, async () => { message("Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); message("Connected. Choose “Suggest agents” to discover useful jobs."); });
@@ -193,7 +247,7 @@ export function agentBuilderApp(runtime: Window): void {
     void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, suggestionId: chosen!.suggestion.id, title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); chosen = undefined; await refresh(); message("Agent instance created. Run a trial to review its first action."); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { catalogGeneration++; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { get("builder").hidden = true; catalogGeneration++; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];

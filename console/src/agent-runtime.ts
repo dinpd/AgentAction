@@ -1,4 +1,5 @@
-import { McpClient, RuntimeError, boundedText, endpointURL, object, redact, textField, validateArguments, type McpConnection, type McpTool } from "./mcp-client.ts";
+import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type EndpointAccess } from "./endpoint-policy.ts";
+import { McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool } from "./mcp-client.ts";
 
 export type RuntimeStorage = {
   get<T>(key: string): Promise<T | undefined>;
@@ -66,7 +67,7 @@ export class AgentRuntime {
         const path = new URL(request.url).pathname;
         if (request.method !== "POST") throw new RuntimeError("Route not found.", 404);
         const body = object(JSON.parse(await boundedText(new Response(request.body), 24000)));
-        return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator"));
+        return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator", request.headers.get("x-runtime-role") || "operator"));
       });
     } catch (error) {
       return json({ error: error instanceof RuntimeError ? error.message : "The agent operation failed. Review the connection and retry when ready." }, error instanceof RuntimeError ? error.status : 502);
@@ -74,7 +75,21 @@ export class AgentRuntime {
   }
   async snapshot(): Promise<Record<string, unknown>> {
     const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, protocol: c.protocol, suggestions: c.suggestions, status: c.status, hasCredential: Boolean(c.token) }));
-    return { connections, agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
+    return { connections, endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
+  }
+  private async endpointAccess(): Promise<EndpointAccess> {
+    return { deployment: (this.env.AGENT_MCP_ENDPOINTS ?? DEFAULT_ENDPOINTS).split(",").map(v => v.trim()).filter(Boolean), workspace: await this.storage.get<EndpointApproval[]>("endpoint-approvals") || [] };
+  }
+  private async allowedEndpoint(value: unknown): Promise<string> {
+    const access = await this.endpointAccess();
+    return endpointURL(value, [...access.deployment, ...access.workspace.map(a => a.endpoint)].join(","));
+  }
+  private client(connection: Connection): McpClient {
+    return new McpClient(connection, this.fetcher, async () => {
+      await this.allowedEndpoint(connection.endpoint);
+      const access = await this.endpointAccess();
+      if (!access.deployment.includes(connection.endpoint)) await validatePublicEndpoint(connection.endpoint, this.fetcher);
+    });
   }
   private async required<T>(prefix: string, value: unknown): Promise<T> {
     const key = textField(value, "identifier", 80);
@@ -110,21 +125,41 @@ export class AgentRuntime {
   private async connected(agent: Agent): Promise<Connection> {
     const c = await this.required<Connection>("connection", agent.connectionId);
     if (c.status !== "connected") throw new RuntimeError("Reconnect this MCP account before running the agent.", 409);
-    endpointURL(c.endpoint, this.env.AGENT_MCP_ENDPOINTS);
+    await this.allowedEndpoint(c.endpoint);
     if (agent.tools.some(name => !c.tools.some(tool => tool.name === name))) throw new RuntimeError("This account no longer exposes the agent’s tools. Generate fresh suggestions and create a new instance.", 409);
     return c;
   }
-  async mutate(path: string, body: Record<string, unknown>, actor: string): Promise<unknown> {
+  async mutate(path: string, body: Record<string, unknown>, actor: string, role = "operator"): Promise<unknown> {
+    if (path === "/approve-endpoint" || path === "/remove-endpoint") {
+      if (role !== "owner") throw new RuntimeError("Only a workspace owner can change endpoint approvals.", 403);
+      const endpoint = publicEndpointURL(body.endpoint);
+      const approvals = (await this.endpointAccess()).workspace;
+      if (path === "/approve-endpoint") {
+        if (body.reviewed !== true) throw new RuntimeError("Review the exact endpoint and confirm workspace access before approving.");
+        if (approvals.some(a => a.endpoint === endpoint)) return { endpoint, approved: true };
+        if (approvals.length >= 32) throw new RuntimeError("This workspace supports up to 32 endpoint approvals.");
+        await this.charge("endpoint-approval", 30);
+        await validatePublicEndpoint(endpoint, this.fetcher);
+        approvals.push({ endpoint, approvedBy: actor, approvedAt: now() });
+        await this.storage.put("endpoint-approvals", approvals);
+        return { endpoint, approved: true };
+      }
+      await this.storage.put("endpoint-approvals", approvals.filter(a => a.endpoint !== endpoint));
+      if (!(await this.endpointAccess()).deployment.includes(endpoint)) {
+        for (const c of (await this.storage.list<Connection>({ prefix: "connection:" })).values()) if (c.endpoint === endpoint) await this.mutate("/disconnect", { connectionId: c.id }, actor, role);
+      }
+      return { endpoint, removed: true };
+    }
     if (path === "/connect") {
       if (!body.connectionId && (await this.storage.list({ prefix: "connection:" })).size >= 8) throw new RuntimeError("This workspace supports up to eight connections.");
       const previous = body.connectionId ? await this.required<Connection>("connection", body.connectionId) : undefined;
-      const endpoint = endpointURL(previous?.endpoint || body.endpoint, this.env.AGENT_MCP_ENDPOINTS);
+      const endpoint = await this.allowedEndpoint(previous?.endpoint || body.endpoint);
       const token = body.token === undefined || body.token === "" ? undefined : textField(body.token, "bearer credential", 4096);
       if (token && !/^[\x21-\x7e]+$/.test(token)) throw new RuntimeError("The bearer credential must contain printable ASCII characters without spaces.");
       const protocol = (previous?.protocol || body.protocol) === "2026-07-28" ? "2026-07-28" : "2025-03-26";
       await this.charge("connect", 30);
       const connection: Connection = { id: previous?.id || id(), label: textField(previous?.label || body.label || new URL(endpoint).hostname, "connection name", 100), endpoint, token, protocol, tools: [], suggestions: [], status: "connected", createdAt: now() };
-      const client = new McpClient(connection, this.fetcher);
+      const client = this.client(connection);
       try { connection.tools = JSON.parse(redact(await client.discover(), token)); } finally { await client.close(); }
       await this.storage.put(`connection:${connection.id}`, connection);
       if (previous) {
@@ -139,7 +174,7 @@ export class AgentRuntime {
     if (path === "/suggest") {
       const connection = await this.required<Connection>("connection", body.connectionId);
       if (connection.status !== "connected") throw new RuntimeError("This connection has been disconnected.", 409);
-      endpointURL(connection.endpoint, this.env.AGENT_MCP_ENDPOINTS);
+      await this.allowedEndpoint(connection.endpoint);
       // This runtime accepts job text and remote tool calls, but has no file-upload
       // surface. Do not advertise jobs that require an out-of-band local upload.
       const eligibleTools = connection.tools.filter(tool => !/"(?:filePath|file_path|uploadUrl|upload_url|uploadToken|upload_token|fileName|file_name)"\s*:/.test(JSON.stringify(tool.inputSchema)));
@@ -186,7 +221,7 @@ export class AgentRuntime {
       const agent = await this.required<Agent>("agent", run.agentId);
       const connection = await this.connected(agent);
       const pending = run.pending;
-      const client = new McpClient(connection, this.fetcher);
+      const client = this.client(connection);
       try {
         const tools = await client.discover();
         const tool = tools.find(t => t.name === pending.tool);
@@ -208,9 +243,9 @@ export class AgentRuntime {
           if (result.isError === true) throw new RuntimeError("The MCP tool reported a failure. Review the run before another trial.", 502);
         } catch (error) {
           const event = run.events[run.events.length - 1];
-          if (event.status === "executing") event.status = "uncertain";
+          if (event.status === "executing") event.status = error instanceof McpPreflightError ? "failed" : "uncertain";
           run.status = "failed"; run.finishedAt = now();
-          run.summary = "Tool execution failed or its result is uncertain. Check the provider before trying again; this call was not replayed.";
+          run.summary = error instanceof McpPreflightError ? "Endpoint validation blocked this tool call before it was sent. Review endpoint access and DNS before starting another trial." : "Tool execution failed or its result is uncertain. Check the provider before trying again; this call was not replayed.";
           await this.storage.put(`run:${run.id}`, run);
           throw error;
         }

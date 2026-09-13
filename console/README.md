@@ -457,8 +457,32 @@ are restricted to HTTPS.
 
 Selecting a supported remote fills the connection name and endpoint and clears
 credentials and consent. It never connects, installs packages or enables an
-endpoint. Administrators must still configure `AGENT_MCP_ENDPOINTS` with exact
-HTTPS URLs. Only public/bearer-token Streamable HTTP connections are supported;
+endpoint. Cards and Connection details show whether the exact URL is enabled for
+the selected workspace. Owners can review the URL, check the explicit consent
+box and choose **Approve endpoint for workspace**. Approval sends only the hostname
+to the fixed Cloudflare DNS resolver; it does not contact the MCP server or send
+credentials. Operators can then connect and inspect its actual tools.
+
+Workspace approvals persist with owner identity and timestamp, independently of
+connections, with a maximum of 32 URLs and 30 validation attempts per day.
+**Workspace endpoint approvals** lets owners remove access. This clears affected
+connection credentials, pauses agents and cancels pending runs; already completed
+or in-flight provider actions cannot be undone. Deployment-managed access through
+`AGENT_MCP_ENDPOINTS` remains available (Firecrawl is the default). Removing a
+workspace approval does not override that deployment policy.
+
+Workspace approval requires an exact HTTPS URL on port 443 without credentials,
+query parameters, fragments or templates. Literal IPs, local/reserved hostnames,
+private/reserved A or AAAA answers, invalid aliases and unresolved DNS are rejected.
+Public DNS is checked before each workspace-approved MCP request, including
+session cleanup; failures block the request. MCP redirects are never followed.
+The supported production deployment uses the Workers global public-internet
+`fetch`, with `global_fetch_strictly_public` enabled in `wrangler.toml`. This
+network boundary is required because DNS prechecks alone cannot prevent rebinding
+between validation and connection. Do not replace MCP fetch with a private/VPC
+binding or disable the flag. See [Cloudflare's compatibility flag documentation](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#global-fetch-strictly-public).
+
+ Only public/bearer-token Streamable HTTP connections are supported;
 OAuth-only servers, stdio, legacy SSE, custom headers and parameterized URLs need
 setup outside the builder. Registry listings do not establish provider trust or
 authorize access. Manual endpoint entry remains available during catalog outages.
@@ -469,4 +493,5 @@ and Chromium are installed. An existing installation can be supplied with
 `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs`; optionally set
 `PLAYWRIGHT_CHANNEL=chrome` to use installed Chrome. The suite starts a random-port
 loopback fixture, never contacts MCP providers, and verifies search, selection,
-manual connection, unavailable/empty results, tenant races and mobile layout.
+manual connection, explicit owner approval without credentials, revocation, role
+restrictions, unavailable/empty results, tenant races and mobile layout.
