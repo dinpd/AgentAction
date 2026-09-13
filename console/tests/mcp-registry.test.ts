@@ -165,5 +165,7 @@ test("legacy rows match unspecified until atomic refresh supplies declared authe
   const search = (auth: string) => h.catalog.search({ query: "", capability: "email", offset: 0, auth });
   assert.equal((await search("api-key")).total, 0);
   const unknown = await search("unspecified"); assert.equal(unknown.total, 1); assert.deepEqual(unknown.servers[0].authTypes, ["unspecified"]);
-  await h.tick(); assert.equal((await search("api-key")).total, 1); assert.equal((await search("unspecified")).total, 0); h.db.close();
+  assert.match(unknown.notice, /Authentication details.*awaiting the next registry refresh/);
+  assert.match((await search("api-key")).notice, /authentication-filtered results may be incomplete/);
+  await h.tick(); assert.equal((await search("api-key")).total, 1); assert.equal((await search("unspecified")).total, 0); assert.doesNotMatch((await search("")).notice, /awaiting the next registry refresh/); h.db.close();
 });

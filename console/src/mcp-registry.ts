@@ -144,6 +144,7 @@ export class RegistryCatalog {
     const result = this.storage.sql.exec(`SELECT payload FROM registry_servers WHERE ${where} ORDER BY CASE WHEN title = ? THEN 2 WHEN instr(title, ?) > 0 THEN 1 ELSE 0 END DESC, name ASC LIMIT 20 OFFSET ?`, ...params, query.toLowerCase(), query.toLowerCase(), offset).toArray();
     const indexing = Boolean(state.pending) || (!state.active && !state.error);
     const stale = Boolean(state.active && (state.error || this.clock() - state.active.updatedAt >= HOUR));
+    const authPending = this.storage.sql.exec("SELECT 1 FROM registry_servers WHERE generation = ? AND instr(tags, '|auth:') = 0 LIMIT 1", selected).toArray().length > 0;
     return { servers: result.map(row => {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
@@ -153,7 +154,7 @@ export class RegistryCatalog {
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),
       indexing, stale, unavailable: !state.active && Boolean(state.error),
-      notice: state.error || (indexing ? state.active ? "Refreshing the registry catalog in the background." : "The registry catalog is being indexed. Results are incomplete; search again shortly. You can also enter an endpoint manually." : "Capabilities are advertised by publishers and categorized from descriptions. Connect to inspect the actual tools."),
+      notice: (state.error || (indexing ? state.active ? "Refreshing the registry catalog in the background." : "The registry catalog is being indexed. Results are incomplete; search again shortly. You can also enter an endpoint manually." : "Capabilities are advertised by publishers and categorized from descriptions. Connect to inspect the actual tools.")) + (authPending ? " Authentication details for some cached listings are awaiting the next registry refresh; authentication-filtered results may be incomplete." : ""),
     };
   }
   async alarm(): Promise<void> {
