@@ -79,6 +79,8 @@ test("discovery requires membership, allows viewer reads, preserves mutation pro
   assert.equal(reads, 0);
   const response = await worker.fetch(new Request(path, { headers: { authorization: "Bearer SECRET" } }), env); assert.equal(response.status, 200); assert.equal(reads, 1); assert.match(response.headers.get("cache-control")!, /no-store/);
   assert.equal((await worker.fetch(new Request(path + "&url=https://evil.test"), env)).status, 400);
+  assert.equal((await worker.fetch(new Request(path + "&auth=api-key"), env)).status, 200);
+  for (const suffix of ["&auth=oauth", "&auth=api-key&auth=unspecified"]) assert.equal((await worker.fetch(new Request(path + suffix), env)).status, 400);
   assert.equal((await worker.fetch(new Request(path, { method: "POST" }), env)).status, 405);
   assert.equal((await demo.fetch(new Request(path))).status, 404);
   assert.equal((await worker.fetch(new Request(path), { ...env, MCP_REGISTRY: undefined })).status, 503);
@@ -113,4 +115,57 @@ test("persisted catalog rows use current setup guidance without refreshing provi
   assert.deepEqual(result.servers.map(({setup,...metadata})=>metadata),before.servers.map(({setup,...metadata})=>metadata));
   assert.match(String(h.db.prepare("SELECT payload FROM registry_servers LIMIT 1").get()!.payload),/Administrator must enable/);
   h.db.close();
+});
+
+test("auth labels use structured declarations without importing secrets or guessing schemes/pricing", () => {
+  const normalized = normalizeServer(entry("auth", "Free public OAuth bearer API key email service", {
+    remotes: [{ type: "streamable-http", url: "https://auth.example/mcp", headers: [
+      { name: "authorization", value: "Basic SECRET-VALUE" },
+      { name: "X-Api-Key", isRequired: false, default: "SECRET-DEFAULT" },
+      { name: "X-Account", variables: { account: { isSecret: true, value: "SECRET-VARIABLE" } } },
+      null,
+    ] }],
+    packages: [{ environmentVariables: [null, { name: "PROVIDER_API_KEY", isSecret: true }, { name: "PASSWORD", isSecret: true }], transport: { headers: [{ name: "Authorization" }] } }],
+  }))!;
+  assert.deepEqual(normalized.authTypes, ["api-key", "authorization-header", "other-secret"]);
+  assert.equal(normalized.endpoints.length, 0); assert.doesNotMatch(JSON.stringify(normalized), /SECRET-/);
+  assert.deepEqual(normalizeServer(entry("unknown", "Free public OAuth bearer API key"))!.authTypes, ["unspecified"]);
+  assert.deepEqual(normalizeServer(entry("malformed", "Email", { remotes: [{ headers: "Authorization" }, { headers: [null, { name: {}, isSecret: "true" }, { name: "Accept", value: "application/json" }] }], packages: [null, { environmentVariables: {} }] }))!.authTypes, ["unspecified"]);
+  assert.deepEqual(normalizeServer(entry("local", "Email", { remotes: [], packages: [{ environmentVariables: [{ name: "EXAMPLE_APIKEY", isRequired: false }] }] }))!.authTypes, ["api-key"]);
+  assert.deepEqual(normalizeServer(entry("secret", "Email", { packages: [{ environmentVariables: [{ name: "ACCESS_TOKEN", isSecret: true }] }] }))!.authTypes, ["other-secret"]);
+});
+
+test("auth intersects capability/text and paginates without forwarding filter data", async () => {
+  const keyed = { packages: [{ environmentVariables: [{ name: "API_KEY" }] }] };
+  const h = harness([page([...Array.from({ length: 24 }, (_, i) => entry(`mail${i}`, "Email", keyed)), entry("sql", "SQL database", keyed), entry("unknown", "Email"), entry("header", "Email", { remotes: [{ headers: [{ name: "Authorization" }] }] }), entry("secret", "Email", { packages: [{ environmentVariables: [{ isSecret: true }] }] })])]);
+  await h.search(); await h.tick();
+  const search = (auth: string, offset = 0, query = "send emails", capability = "email") => h.catalog.search({ query, capability, auth, offset });
+  const first = await search("api-key"); assert.equal(first.total, 24); assert.equal(first.servers.length, 20); assert.equal(first.nextOffset, 20);
+  const second = await search("api-key", 20); assert.equal(second.servers.length, 4); assert.equal(second.nextOffset, null);
+  assert.equal(new Set([...first.servers, ...second.servers].map(s => s.name)).size, 24);
+  assert.equal((await search("api-key", 0, "sql", "database")).total, 1);
+  assert.equal((await search("api-key", 0, "no-match")).total, 0);
+  for (const auth of ["authorization-header", "other-secret", "unspecified"]) assert.equal((await search(auth)).total, 1);
+  assert.equal(first.authTypes.length, 4); assert.equal((await search("")).total, 27);
+  assert.equal(h.requests.length, 1); assert.doesNotMatch(h.requests[0], /auth=|q=|capability=/);
+  for (const auth of ["oauth", "none", "free", "api-key|", "' OR 1=1 --"]) {
+    assert.throws(() => parseCatalogQuery(new URLSearchParams({ auth })));
+    await assert.rejects(search(auth), /Invalid catalog/);
+  }
+  assert.throws(() => parseCatalogQuery(new URLSearchParams("auth=api-key&auth=unspecified")));
+  assert.equal(parseCatalogQuery(new URLSearchParams()).auth, ""); h.db.close();
+});
+
+test("legacy rows match unspecified until atomic refresh supplies declared authentication", async () => {
+  const keyed = entry("mail", "Email", { packages: [{ environmentVariables: [{ name: "API_KEY" }] }] });
+  const h = harness([page([keyed]), page([keyed])]); await h.search(); await h.tick();
+  const row = h.db.prepare("SELECT payload FROM registry_servers").get()!;
+  const legacy = JSON.parse(String(row.payload)); delete legacy.authTypes;
+  h.db.prepare("UPDATE registry_servers SET payload=?, tags='|email|'").run(JSON.stringify(legacy));
+  const search = (auth: string) => h.catalog.search({ query: "", capability: "email", offset: 0, auth });
+  assert.equal((await search("api-key")).total, 0);
+  const unknown = await search("unspecified"); assert.equal(unknown.total, 1); assert.deepEqual(unknown.servers[0].authTypes, ["unspecified"]);
+  assert.match(unknown.notice, /Authentication details.*awaiting the next registry refresh/);
+  assert.match((await search("api-key")).notice, /authentication-filtered results may be incomplete/);
+  await h.tick(); assert.equal((await search("api-key")).total, 1); assert.equal((await search("unspecified")).total, 0); assert.doesNotMatch((await search("")).notice, /awaiting the next registry refresh/); h.db.close();
 });

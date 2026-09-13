@@ -436,6 +436,24 @@ description keywords plus curated capability categories support queries such as
 the existing connection flow still discovers actual account tools before AI
 suggestions or execution.
 
+The **Authentication** filter intersects with text and capability filters. The
+optional `auth` parameter accepts `api-key`, `authorization-header`,
+`other-secret` or `unspecified`; omit it (or use an empty value) for all types.
+Result `authTypes` describe declared remote/package transport headers and package
+environment variables, including optional inputs. API-key names and Authorization
+headers are recognized; other explicitly secret inputs are grouped separately.
+Values and credential defaults are never imported. Multiple types may match a
+listing with multiple deployment variants. These labels do not verify an auth
+scheme, required credentials, or builder compatibility.
+
+The [official registry schema](https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json)
+has no standard authentication-scheme or pricing field. Missing metadata is
+**Not specified**, never **No authentication** or **Free**. OAuth discovery and
+pricing enrichment are not performed during search; use provider documentation.
+Legacy cached listings are treated as unspecified until the normal hourly
+refresh replaces them atomically. The response includes `authTypes` filter choices
+and each server's `authTypes` IDs; existing callers may omit the new filter.
+
 Deploy the `MCP_REGISTRY` binding, `McpRegistry` export and `mcp-registry-v1`
 SQLite Durable Object migration together (included in `wrangler.toml`). The
 source-specific `official-v1` object coordinates an hourly background snapshot.
@@ -447,7 +465,7 @@ keeps the last complete snapshot, shows a stale warning and retries in an hour.
 Deprecated, deleted and non-latest entries are excluded on successful refresh.
 There is no new cron, external database, API key or Context7 dependency.
 
-`GET /api/agents/:tenant/catalog?q=...&capability=...&offset=...` requires the
+`GET /api/agents/:tenant/catalog?q=...&capability=...&auth=...&offset=...` requires the
 same authenticated workspace membership as agent state; viewers may search.
 Results have 20 entries per page and a `nextOffset`. Registry metadata is shared;
 workspace IDs, queries and credentials are not forwarded upstream. All external
