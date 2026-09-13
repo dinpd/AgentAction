@@ -6,6 +6,16 @@ import { validateDecisionBasis } from "../src/decision-basis.ts";
 import gateway, { AgentIdJitGrants } from "../src/worker.ts";
 import { digestIntentObservation } from "../../packages/guard/src/intent.ts";
 
+// Lifecycle finalization timestamps use the current clock, unlike the static
+// observation fixtures. Keep their list queries centered on that same clock.
+function currentLifecycleWindow(): string {
+  const now = Date.now();
+  return new URLSearchParams({
+    from: new Date(now - 86_400_000).toISOString(),
+    to: new Date(now + 86_400_000).toISOString(),
+  }).toString();
+}
+
 type Stored = Map<string, unknown>;
 
 class MemoryNamespace {
@@ -2823,7 +2833,7 @@ test("activity source lifecycle creates one immutable observed-execution Job", a
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z&agent_id=hermes-support",
+    `/tenants/acme/intent-quality/jobs?${currentLifecycleWindow()}&agent_id=hermes-support`,
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
@@ -3041,7 +3051,7 @@ test("activity source lifecycle evaluates bounded agent-declared intent as self-
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z&agent_id=hermes-support",
+    `/tenants/acme/intent-quality/jobs?${currentLifecycleWindow()}&agent_id=hermes-support`,
     undefined,
     { authorization: "Bearer dashboard-secret" },
   );
@@ -4072,7 +4082,7 @@ test("refund triage v2 freezes deterministic criteria and exposes explainable ag
     env,
     ctx,
     "GET",
-    "/tenants/acme/intent-quality/jobs?from=2026-08-31T00:00:00.000Z&to=2026-09-04T00:00:00.000Z",
+    `/tenants/acme/intent-quality/jobs?${currentLifecycleWindow()}`,
     undefined,
     { authorization: "Bearer console-service-secret" },
   );

@@ -1,13 +1,18 @@
+import type { CatalogResult } from "./mcp-registry.ts";
+
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>My agents — AgentAction</title><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/">AgentAction<span> / My agents</span></a><nav><a href="/#overview">Observability</a><a href="/#setup">Workspace setup</a><a href="https://agentaction.dev/recipes">Explore examples ↗</a></nav></header>
-<main><div class="heading"><div><p class="eyebrow">Connect → discover → create → observe</p><h1>What could your MCP do for you?</h1><p class="lede">Connect a server. Discover useful agents with AI. Try one with your account, review its actions, and keep its run history.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
+<main><div class="heading"><div><p class="eyebrow">Find → connect → create → observe</p><h1>What could your MCP do for you?</h1><p class="lede">Find a server by name or capability. Discover useful agents with AI. Try one with your account, review its actions, and keep its run history.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
 <div id="builder" hidden>
 <section class="panel"><div class="section-heading"><h2>1. Connect an MCP</h2><span>Server-side credentials · supervised execution</span></div>
-<form id="connect"><div class="fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input name="endpoint" type="url" value="https://mcp.firecrawl.dev/v2/mcp" required></label><label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
-<p class="note">Firecrawl is enabled to start. An administrator can enable other exact HTTPS endpoints. Local stdio and OAuth-only connections are not supported yet.</p>
+<form id="catalog-search" role="search"><div class="fields"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label></div><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
+<p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
+<div id="connection-details"><h3>Connection details</h3><p id="catalog-selection" class="note">Already have a server? Enter its HTTPS endpoint below.</p>
+<form id="connect"><div class="fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input name="endpoint" type="url" placeholder="https://mcp.example.com/mcp" required></label><label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
+<p class="note">Firecrawl is enabled to start. Other exact HTTPS endpoints must be enabled by an administrator before connecting. A registry listing does not grant access. Local stdio and OAuth-only connections are not supported yet.</p>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<button type="submit">Connect server</button></form><div id="connections" class="connections"></div></section>
+<button type="submit">Connect server</button></form></div><div id="connections" class="connections"></div></section>
 <section class="panel"><div class="section-heading"><h2>2. Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
 <section id="configure" class="panel" hidden><h2>3. Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
 <section class="panel"><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
@@ -23,6 +28,66 @@ export function agentBuilderApp(runtime: Window): void {
   let state: any = { connections: [], agents: [], runs: [] };
   let chosen: { connectionId: string; suggestion: any } | undefined;
   let memberships: any[] = [];
+  let catalogGeneration = 0, catalogOffset: number | null = null;
+  let catalogQuery = "", catalogCapability = "";
+  const capabilityLabels = new Map<string, string>();
+  function clearSelection() {
+    get<HTMLFormElement>("connect").reset();
+    get("catalog-selection").textContent = "Already have a server? Enter its HTTPS endpoint below.";
+  }
+  async function searchCatalog(append = false) {
+    if (!tenant) return;
+    const current = ++catalogGeneration, currentTenant = tenant;
+    if (!append) {
+      catalogQuery = get<HTMLInputElement>("catalog-query").value.trim();
+      catalogCapability = get<HTMLSelectElement>("catalog-capability").value;
+      catalogOffset = null; get("catalog-results").replaceChildren();
+    }
+    get("catalog-more").hidden = true;
+    get("catalog-status").textContent = "Searching the registry catalog…";
+    const params = new URLSearchParams({ q: catalogQuery, capability: catalogCapability, offset: String(append ? catalogOffset || 0 : 0) });
+    try {
+      const data = await request(`/api/agents/${encodeURIComponent(currentTenant)}/catalog?${params}`) as CatalogResult;
+      if (current !== catalogGeneration || currentTenant !== tenant) return;
+      if (!capabilityLabels.size) for (const c of data.capabilities) {
+        capabilityLabels.set(c.id, c.label);
+        const option = node("option", c.label) as HTMLOptionElement; option.value = c.id; get("catalog-capability").append(option);
+      }
+      for (const server of data.servers) {
+        const card = node("article", "", "card");
+        card.append(node("span", "Advertised · tools unverified", "pill"), node("h3", server.title), node("p", server.description), node("p", `Publisher namespace: ${server.publisher} · ${server.hosting}`, "note"), node("p", `${server.name} · version ${server.version}`, "note"));
+        if (server.capabilities.length) card.append(node("p", `Capabilities: ${server.capabilities.map((id: string) => capabilityLabels.get(id) || id).join(", ")}`, "note"));
+        card.append(node("p", server.setup, "note"));
+        if (server.website) {
+          // Defense in depth: never render an executable URL from catalog data.
+          try { const url = new URL(server.website); if (url.protocol === "https:" && !url.username && !url.password) {
+            const link = node("a", "Provider documentation ↗") as HTMLAnchorElement; link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer"; card.append(link);
+          } } catch { /* Unsupported links are omitted. */ }
+        }
+        if (server.endpoints.length) {
+          const endpointLabel = node("label", "Remote endpoint"), select = doc.createElement("select");
+          select.setAttribute("aria-label", `Endpoint for ${server.title}`);
+          for (const endpoint of server.endpoints) { const option = node("option", endpoint) as HTMLOptionElement; option.value = endpoint; select.append(option); }
+          endpointLabel.append(select); card.append(endpointLabel, button("Use this server", async () => {
+            clearSelection();
+            const form = get<HTMLFormElement>("connect");
+            (form.elements.namedItem("label") as HTMLInputElement).value = server.title.slice(0, 100);
+            (form.elements.namedItem("endpoint") as HTMLInputElement).value = select.value;
+            get("catalog-selection").textContent = `Selected ${server.title}. ${server.setup} Review the endpoint before entering credentials.`;
+            get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" });
+            (form.elements.namedItem("label") as HTMLInputElement).focus();
+          }));
+        } else card.append(node("p", "Setup required outside this builder", "pill"));
+        get("catalog-results").append(card);
+      }
+      catalogOffset = data.nextOffset; get("catalog-more").hidden = catalogOffset === null;
+      get("catalog-status").textContent = `${data.total} matching servers. ${data.notice}${data.updatedAt ? ` Last complete update: ${new Date(data.updatedAt).toLocaleString()}.` : ""}${data.stale ? " Catalog may be out of date." : ""}`;
+      if (!data.servers.length && !append) get("catalog-results").append(node("p", data.indexing || data.unavailable ? "Catalog results are not available yet. Search again shortly or enter an endpoint manually." : "No matching servers. Try a service name, a broader capability, or enter an endpoint manually.", "empty"));
+    } catch (error) {
+      if (current !== catalogGeneration || currentTenant !== tenant) return;
+      get("catalog-status").textContent = error instanceof Error ? error.message : "Registry discovery is unavailable. Enter an endpoint manually.";
+    }
+  }
   function message(value: string, error = false) { get("status").textContent = value; get("status").dataset.error = String(error); }
   function node(tag: string, value = "", cls = "") { const el = doc.createElement(tag); el.textContent = value; if (cls) el.className = cls; return el; }
   function button(label: string, action: () => Promise<void>, secondary = true) {
@@ -113,6 +178,9 @@ export function agentBuilderApp(runtime: Window): void {
     if (!runs.children.length) runs.append(node("p", "Trial and scheduled runs will appear here with their execution history.", "empty"));
     get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer");
   }
+  get<HTMLFormElement>("catalog-search").addEventListener("submit", event => { event.preventDefault(); void searchCatalog(); });
+  get("catalog-more").addEventListener("click", () => { void searchCatalog(true); });
+  get("manual-connect").addEventListener("click", () => { clearSelection(); get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" }); get<HTMLFormElement>("connect").querySelector<HTMLInputElement>("[name=endpoint]")!.focus(); });
   get<HTMLFormElement>("connect").addEventListener("submit", event => {
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector("button")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
@@ -125,14 +193,14 @@ export function agentBuilderApp(runtime: Window): void {
     void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, suggestionId: chosen!.suggestion.id, title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); chosen = undefined; await refresh(); message("Agent instance created. Run a trial to review its first action."); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { catalogGeneration++; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];
       for (const entry of memberships) { const option = node("option", entry.tenant.display_name || entry.tenant.tenant_id) as HTMLOptionElement; option.value = entry.tenant.tenant_id; workspace.append(option); }
       tenant = session.tenant_id || workspace.value; workspace.value = tenant;
       role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer";
-      await refresh(); if (tenant) message(`Workspace ready · ${role}. Connect a server to start.`);
+      await refresh(); if (tenant) void searchCatalog(); if (tenant) message(`Workspace ready · ${role}. Connect a server to start.`);
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }
