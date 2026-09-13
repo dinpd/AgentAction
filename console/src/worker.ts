@@ -1,3 +1,4 @@
+import { faviconBytes } from "./favicon.ts";
 import { recipes } from "../../recipes/registry.ts";
 import { AGENT_HTML, AGENT_CSS, AGENT_JS } from "./agent-builder.ts";
 import { parseCatalogQuery, type CatalogQuery, type CatalogResult } from "./mcp-registry.ts";
@@ -130,6 +131,7 @@ const SHELL_HTML = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>AgentAction Observability</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/assets/app.css">
   <script src="/assets/app.js" defer></script>
 </head>
@@ -4816,6 +4818,7 @@ export default {
     }
 
     try {
+      if (request.method === "GET" && ["/favicon.png", "/favicon.ico"].includes(url.pathname)) return new Response(faviconBytes(), { headers: secureHeaders("image/png") });
       if (request.method === "GET" && url.pathname === "/") {
         return htmlResponse(consoleShell(env));
       }
@@ -5482,6 +5485,8 @@ function problemResponse(request: Request, error: ConsoleError): Response {
 
 function htmlResponse(body: string, status = 200, csp?: string): Response {
   const headers = secureHeaders("text/html; charset=utf-8");
+  // Keep edge-injected scripts out of the same-origin-only console.
+  headers.set("cache-control", "private, no-store, max-age=0, no-transform");
   headers.set(
     "content-security-policy",
     csp || "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",

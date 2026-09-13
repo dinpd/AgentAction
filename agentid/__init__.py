@@ -1,3 +1,3 @@
 """AgentAction package."""
 
-__version__ = "0.18.0rc2"
+__version__ = "0.18.0rc3"
