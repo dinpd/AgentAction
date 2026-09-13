@@ -514,3 +514,18 @@ beside it identifies missing endpoint approval or insufficient workspace access
 and the next step. Only an active request shows **Connecting…**, a wait cursor
 and `aria-busy`. These availability states are independent of browser resource
 warnings.
+
+
+### My Agents account and roles
+
+The account section on `/agents` shows the verified session email (or subject)
+and the membership role for the selected workspace. **Log out** uses the same
+origin's `/cdn-cgi/access/logout`, matching the main console. Return to `/agents`
+to sign in again. Your identity provider may retain its own session; use its
+account chooser or sign out there if it selects the same identity automatically.
+Signing in does not assign a role: a workspace owner manages membership access.
+**Workspace setup** opens the existing workspace and invitation controls.
+
+An expired or unverifiable API session clears forms, hides the builder and shows
+**Sign in**, which reloads `/agents` through the existing Access login boundary.
+The app never changes membership roles or logs out automatically.

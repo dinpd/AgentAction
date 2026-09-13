@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.18.0-rc.4 - 2026-09-13
+
+### Fixed
+
+- My Agents now shows the signed-in account, selected workspace role, Log out and Workspace setup in a persistent account section. Roles come from workspace membership; switching accounts does not assign a new role.
+- Expired or unverifiable sessions clear the visible connection forms and hide protected controls, with a Sign in link back to My Agents. API authentication redirects are handled explicitly instead of leaving a confusing failed request.
+- Install Python artifacts from the GitHub v0.18.0-rc.4 prerelease. No migration, dependency update, authorization-policy change or npm publication is required.
+
 ## 0.18.0-rc.3 - 2026-09-13
 
 ### Fixed
