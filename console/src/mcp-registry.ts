@@ -60,7 +60,7 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
     name, title, description, version, publisher: name.split("/")[0],
     website: safeURL(server.websiteUrl) || safeURL(record(server.repository).url), endpoints,
     hosting: remotes.length ? (packages.length ? "Remote and local packages" : "Remote server") : "Local package",
-    setup: endpoints.length ? "Administrator must enable the exact URL. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
+    setup: endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
       : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.",
     capabilities: CAPABILITIES.filter(c => c.terms.some(t => contains(text, t))).map(c => c.id),
   };

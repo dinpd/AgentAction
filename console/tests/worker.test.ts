@@ -741,3 +741,20 @@ test("agent runtime resolves current server-side membership and rejects viewer o
   const oversized = accessRequest("/api/agents/acme/connect", { method: "POST", headers: { origin: "https://console.test", "content-type": "application/json", "x-agentaction-request": "agent-builder" }, body: JSON.stringify({ data: "x".repeat(25000) }) }, { custom: {} });
   assert.equal((await worker.fetch(oversized, env)).status, 413);
 });
+
+test("endpoint approvals require current owner membership and overwrite spoofed runtime roles", async () => {
+  let role = "operator", present = true;
+  const calls: GatewayCall[] = [], runtimeRoles: string[] = [];
+  const env: Env = {
+    ...baseEnv(calls, () => json({ workspace_mode: "directory", memberships: present ? [{ tenant: { tenant_id: "acme" }, membership: { role } }] : [] })),
+    CONSOLE_DIRECTORY_MODE: "true",
+    AGENT_WORKSPACES: { getByName(name) { assert.equal(name, "workspace:acme"); return { async request(request) { runtimeRoles.push(request.headers.get("x-runtime-role")!); assert.equal(request.headers.get("x-runtime-actor"), "operator-123"); return json({ ok: true }); } }; } },
+  };
+  const post = (action = "approve-endpoint", origin = "https://console.test") => accessRequest(`/api/agents/acme/${action}`, { method: "POST", headers: { origin, "content-type": "application/json", "x-agentaction-request": "agent-builder", "x-runtime-role": "owner", "x-runtime-actor": "attacker" }, body: JSON.stringify({endpoint:"https://vendor.com/mcp",reviewed:true,role:"owner"}) }, { custom: {} });
+  for (const denied of ["operator", "viewer"]) { role=denied; assert.equal((await worker.fetch(post(),env)).status,403); assert.equal((await worker.fetch(post("remove-endpoint"),env)).status,403); }
+  assert.equal(runtimeRoles.length,0); role="owner";
+  assert.equal((await worker.fetch(post("approve-endpoint","https://evil.test"),env)).status,403);
+  assert.equal((await worker.fetch(post(),env)).status,200); assert.deepEqual(runtimeRoles,["owner"]);
+  role="operator"; assert.equal((await worker.fetch(post("connect"),env)).status,200); assert.deepEqual(runtimeRoles,["owner","operator"]);
+  present=false; assert.equal((await worker.fetch(post(),env)).status,403);
+});

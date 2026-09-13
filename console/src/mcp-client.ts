@@ -6,16 +6,22 @@ export class RuntimeError extends Error {
   status: number;
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
+export class McpPreflightError extends RuntimeError {}
 export const DEFAULT_ENDPOINTS = "https://mcp.firecrawl.dev/v2/mcp";
 const SUPPORTED = ["2025-03-26", "2025-06-18", "2025-11-25", "2026-07-28"];
 
-export function endpointURL(value: unknown, allowed = DEFAULT_ENDPOINTS): string {
+export function parseEndpointURL(value: unknown): string {
   if (typeof value !== "string" || value.length > 2048) throw new RuntimeError("Enter an approved MCP HTTPS endpoint.");
   let url: URL;
   try { url = new URL(value); } catch { throw new RuntimeError("Enter a valid MCP HTTPS endpoint."); }
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || (url.port && url.port !== "443")) throw new RuntimeError("Use an HTTPS endpoint without credentials, query parameters or fragments.");
-  if (!allowed.split(",").map(v => v.trim()).includes(url.href)) throw new RuntimeError("This endpoint is not enabled. Ask the workspace administrator to enable its exact HTTPS URL.", 403);
   return url.href;
+}
+
+export function endpointURL(value: unknown, allowed = DEFAULT_ENDPOINTS): string {
+  const endpoint = parseEndpointURL(value);
+  if (!allowed.split(",").map(v => v.trim()).includes(endpoint)) throw new RuntimeError("This endpoint needs workspace owner approval. Review it in Connection details before connecting.", 403);
+  return endpoint;
 }
 
 export async function boundedText(response: Response, limit = 524288): Promise<string> {
@@ -53,8 +59,12 @@ export class McpClient {
   private counter = 0;
   connection: McpConnection;
   fetcher: typeof fetch;
-  constructor(connection: McpConnection, fetcher: typeof fetch = (input, init) => fetch(input, init)) { this.connection = connection; this.fetcher = fetcher; }
+  private beforeRequest: () => Promise<void>;
+  constructor(connection: McpConnection, fetcher: typeof fetch = (input, init) => fetch(input, init), beforeRequest: () => Promise<void> = async () => {}) { this.connection = connection; this.fetcher = fetcher; this.beforeRequest = beforeRequest; }
   async rpc(method: string, params: Record<string, unknown> = {}, notification = false): Promise<Record<string, unknown>> {
+    try { await this.beforeRequest(); } catch (error) {
+      throw new McpPreflightError(error instanceof RuntimeError ? error.message : "Endpoint validation failed before sending the request.", error instanceof RuntimeError ? error.status : 400);
+    }
     const id = notification ? undefined : ++this.counter;
     const modern = this.connection.protocol === "2026-07-28";
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json, text/event-stream", "MCP-Protocol-Version": this.connection.protocol, "Mcp-Method": method };
@@ -122,6 +132,7 @@ export class McpClient {
   async close(): Promise<void> {
     if (!this.session) return;
     try {
+      await this.beforeRequest();
       const response = await this.fetcher(this.connection.endpoint, { method: "DELETE", redirect: "manual", signal: AbortSignal.timeout(3000), headers: { "Mcp-Session-Id": this.session, "MCP-Protocol-Version": this.connection.protocol, ...(this.connection.token ? { authorization: `Bearer ${this.connection.token}` } : {}) } });
       await response.body?.cancel();
     } catch { /* Session cleanup must not replay or conceal the preceding result. */ }

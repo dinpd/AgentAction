@@ -5203,7 +5203,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !["connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !["connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;
@@ -5211,6 +5211,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
   const membership = data.memberships?.find(entry => entry.tenant?.tenant_id === tenantId)?.membership;
   if (!membership) throw new ConsoleError(403, "agent_membership_required", "Workspace membership is required.", "forbidden");
   if (!isRead && membership.role !== "owner" && membership.role !== "operator") throw new ConsoleError(403, "agent_operator_required", "An owner or operator must approve this operation.", "forbidden");
+  if (["approve-endpoint", "remove-endpoint"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "endpoint_owner_required", "Only a workspace owner can change endpoint approvals.", "forbidden");
   if (catalogQuery) {
     if (!env.MCP_REGISTRY) throw new ConsoleError(503, "catalog_unavailable", "Registry discovery is unavailable. Enter an MCP endpoint manually.", "unavailable");
     const catalog = await env.MCP_REGISTRY.getByName("official-v1").search(catalogQuery);
@@ -5224,7 +5225,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
   }
   const upstream = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request(`https://agent-runtime.internal/${action}`, {
     method: request.method,
-    headers: { "content-type": "application/json", "x-runtime-actor": identity.subject },
+    headers: { "content-type": "application/json", "x-runtime-actor": identity.subject, "x-runtime-role": membership.role },
     ...(body === undefined ? {} : { body }),
   }));
   const headers = secureHeaders("application/json; charset=utf-8");

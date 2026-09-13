@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.18.0-rc.1 - 2026-09-12
+
+### Added
+
+- Show whether each MCP Registry endpoint is enabled for the selected workspace. Owners can review and approve an exact public HTTPS URL directly in Connection details; operators can connect after approval.
+- Persist workspace approvals with owner identity and timestamp. Removing workspace access clears affected connection credentials, pauses agents and cancels pending runs, unless deployment-managed access still enables that URL.
+
+### Security and compatibility
+
+- Approval validates public DNS without contacting the MCP server or sending credentials. Workspace-approved destinations are checked before every MCP request, including session cleanup; private/reserved addresses, ambiguous URLs, redirects and unresolved DNS are blocked. The console uses Workers global fetch with `global_fetch_strictly_public` as the network boundary.
+- Current server-side workspace membership controls approval and removal. Approvals are isolated per workspace, limited to 32 entries and 30 validation attempts per day. Existing deployment-managed endpoint access remains supported; no storage migration or new bindings are required.
+- This release candidate changes outbound endpoint authorization and requires operational validation before stable promotion. OAuth-only servers, local stdio and private-network MCP endpoints remain unsupported.
+- Install Python artifacts from the GitHub v0.18.0-rc.1 prerelease. npm package versions and registry publication are unchanged.
+
 ## 0.17.0-rc.1 - 2026-09-12
 
 ### Discover MCP servers during onboarding
