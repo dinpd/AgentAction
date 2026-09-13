@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.18.0-rc.3 - 2026-09-13
+
+### Fixed
+
+- Show actionable connection blockers immediately beside Connect: missing endpoint, owner approval or view-only access. Disabled My Agents buttons now show an unavailable cursor. A busy cursor and accessible busy state appear only while a request is running, so missing endpoint approval no longer looks like a stuck connection.
+- Serve the product favicon from the console origin, including the legacy favicon.ico URL, and add explicit icon links to the console and My Agents pages.
+- Mark console HTML as private, non-cacheable and no-transform to prevent automatic edge script injection that conflicts with the existing same-origin CSP. System fonts and script/network restrictions remain unchanged; browser-extension fonts are not added to the allowlist.
+- Install Python artifacts from the GitHub v0.18.0-rc.3 prerelease. This continues the v0.18.0 release candidate; no migration, dependency update or npm publication is required.
+
 ## 0.18.0-rc.2 - 2026-09-12
 
 ### Fixed

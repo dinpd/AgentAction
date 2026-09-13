@@ -495,3 +495,22 @@ and Chromium are installed. An existing installation can be supplied with
 loopback fixture, never contacts MCP providers, and verifies search, selection,
 manual connection, explicit owner approval without credentials, revocation, role
 restrictions, unavailable/empty results, tenant races and mobile layout.
+
+
+### Browser resource warnings and connection availability
+
+The console uses system fonts and same-origin JavaScript. Its CSP intentionally
+blocks injected third-party scripts and data-URL fonts. HTML retains private,
+no-store cache control and adds `no-transform`, which prevents automatic edge
+HTML injection such as the Cloudflare analytics beacon (see [Cloudflare's Web
+Analytics FAQ](https://developers.cloudflare.com/web-analytics/faq/)). Browser
+extensions can still inject their own styles; do not broaden the console CSP
+solely to silence an extension's font warning. Compare with a clean browser
+profile to isolate that source. Both `/favicon.png` and `/favicon.ico` serve the
+same product PNG; the pages declare `/favicon.png` explicitly.
+
+A disabled **Connect server** button is not an active request. The explanation
+beside it identifies missing endpoint approval or insufficient workspace access
+and the next step. Only an active request shows **Connecting…**, a wait cursor
+and `aria-busy`. These availability states are independent of browser resource
+warnings.
