@@ -4,6 +4,13 @@
 
 No changes yet.
 
+## 0.18.0-rc.2 - 2026-09-12
+
+### Fixed
+
+- Cached MCP Registry cards now display current workspace-owner approval guidance immediately after deployment, without waiting for a catalog refresh. Provider metadata and endpoint authorization are unchanged.
+- Install Python artifacts from the GitHub v0.18.0-rc.2 prerelease. This continues the v0.18.0 authorization release candidate; no migration or npm publication is required.
+
 ## 0.18.0-rc.1 - 2026-09-12
 
 ### Added

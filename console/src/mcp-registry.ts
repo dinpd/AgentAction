@@ -44,6 +44,10 @@ function safeURL(value: unknown, endpoint = false): string | undefined {
     return u.href;
   } catch { return; }
 }
+function setupInstructions(endpoints: string[]): string {
+  return endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
+      : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.";
+}
 export function normalizeServer(raw: unknown): CatalogServer | undefined {
   const entry = record(raw), server = record(entry.server), meta = record(record(entry._meta)["io.modelcontextprotocol.registry/official"]);
   if (meta.status !== "active" || meta.isLatest !== true) return;
@@ -60,8 +64,7 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
     name, title, description, version, publisher: name.split("/")[0],
     website: safeURL(server.websiteUrl) || safeURL(record(server.repository).url), endpoints,
     hosting: remotes.length ? (packages.length ? "Remote and local packages" : "Remote server") : "Local package",
-    setup: endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
-      : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.",
+    setup: setupInstructions(endpoints),
     capabilities: CAPABILITIES.filter(c => c.terms.some(t => contains(text, t))).map(c => c.id),
   };
 }
@@ -109,7 +112,12 @@ export class RegistryCatalog {
     const result = this.storage.sql.exec(`SELECT payload FROM registry_servers WHERE ${where} ORDER BY CASE WHEN title = ? THEN 2 WHEN instr(title, ?) > 0 THEN 1 ELSE 0 END DESC, name ASC LIMIT 20 OFFSET ?`, ...params, query.toLowerCase(), query.toLowerCase(), offset).toArray();
     const indexing = Boolean(state.pending) || (!state.active && !state.error);
     const stale = Boolean(state.active && (state.error || this.clock() - state.active.updatedAt >= HOUR));
-    return { servers: result.map(row => JSON.parse(String(row.payload)) as CatalogServer), total, nextOffset: offset + 20 < total ? offset + 20 : null,
+    return { servers: result.map(row => {
+      const server = JSON.parse(String(row.payload)) as CatalogServer;
+      // Application guidance follows the deployed policy, not the age of the
+      // stored provider snapshot. No upstream refresh or data rewrite is needed.
+      return { ...server, setup: setupInstructions(server.endpoints) };
+    }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       indexing, stale, unavailable: !state.active && Boolean(state.error),
       notice: state.error || (indexing ? state.active ? "Refreshing the registry catalog in the background." : "The registry catalog is being indexed. Results are incomplete; search again shortly. You can also enter an endpoint manually." : "Capabilities are advertised by publishers and categorized from descriptions. Connect to inspect the actual tools."),
