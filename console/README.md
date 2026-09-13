@@ -426,3 +426,47 @@ After deployment:
 ## Recipe adoption handoff
 
 The public recipe directory links to `/?recipe=<catalog-id>&recipe_version=<version>#setup`. Only the bundled catalog's exact ID/version pair is recognized. The client displays setup context and retains this non-secret pair in console navigation. Unknown, duplicate or stale parameters receive a directory link, never injected query text. Recipe metadata is not forwarded to gateway data APIs and grants no permissions. Users still configure runtime connections and Evals explicitly.
+
+## MCP registry discovery
+
+The authenticated `/agents` builder searches a shared catalog from the
+[official MCP Registry](https://registry.modelcontextprotocol.io). Name and
+description keywords plus curated capability categories support queries such as
+“send emails” and “query a database.” These are publisher-advertised capabilities;
+the existing connection flow still discovers actual account tools before AI
+suggestions or execution.
+
+Deploy the `MCP_REGISTRY` binding, `McpRegistry` export and `mcp-registry-v1`
+SQLite Durable Object migration together (included in `wrangler.toml`). The
+source-specific `official-v1` object coordinates an hourly background snapshot.
+Initial indexing starts on the first catalog read. Each alarm processes one
+100-entry registry page, bounded to 1 MiB and 15 seconds, up to 1,000 pages (100,000 entries). The UI
+labels incomplete initial results; subsequent refreshes retain the previous
+complete snapshot until successful replacement. A failed or oversized refresh
+keeps the last complete snapshot, shows a stale warning and retries in an hour.
+Deprecated, deleted and non-latest entries are excluded on successful refresh.
+There is no new cron, external database, API key or Context7 dependency.
+
+`GET /api/agents/:tenant/catalog?q=...&capability=...&offset=...` requires the
+same authenticated workspace membership as agent state; viewers may search.
+Results have 20 entries per page and a `nextOffset`. Registry metadata is shared;
+workspace IDs, queries and credentials are not forwarded upstream. All external
+fetches use the fixed registry API, reject redirects and bound response sizes.
+Only public metadata is retained. Provider text is rendered as text and links
+are restricted to HTTPS.
+
+Selecting a supported remote fills the connection name and endpoint and clears
+credentials and consent. It never connects, installs packages or enables an
+endpoint. Administrators must still configure `AGENT_MCP_ENDPOINTS` with exact
+HTTPS URLs. Only public/bearer-token Streamable HTTP connections are supported;
+OAuth-only servers, stdio, legacy SSE, custom headers and parameterized URLs need
+setup outside the builder. Registry listings do not establish provider trust or
+authorize access. Manual endpoint entry remains available during catalog outages.
+
+Run `npm test` for catalog SQLite, refresh, security-boundary and bundle tests.
+`npm run test:browser` runs the synthetic browser acceptance suite when Playwright
+and Chromium are installed. An existing installation can be supplied with
+`PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs`; optionally set
+`PLAYWRIGHT_CHANNEL=chrome` to use installed Chrome. The suite starts a random-port
+loopback fixture, never contacts MCP providers, and verifies search, selection,
+manual connection, unavailable/empty results, tenant races and mobile layout.

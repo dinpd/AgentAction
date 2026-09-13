@@ -30,6 +30,14 @@ class_name = "AgentWorkspace"
 tag = "agent-runtime-v1"
 new_sqlite_classes = ["AgentWorkspace"]
 
+[[durable_objects.bindings]]
+name = "MCP_REGISTRY"
+class_name = "McpRegistry"
+
+[[migrations]]
+tag = "mcp-registry-v1"
+new_sqlite_classes = ["McpRegistry"]
+
 [env.development]
 name = "agentpass-observability-console-development"
 
@@ -54,3 +62,7 @@ remote = true
 [[env.development.durable_objects.bindings]]
 name = "AGENT_WORKSPACES"
 class_name = "AgentWorkspace"
+
+[[env.development.durable_objects.bindings]]
+name = "MCP_REGISTRY"
+class_name = "McpRegistry"

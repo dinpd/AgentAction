@@ -4,6 +4,16 @@
 
 No changes yet.
 
+## 0.17.0-rc.1 - 2026-09-12
+
+### Discover MCP servers during onboarding
+
+- Search the official MCP Registry by server name, description or advertised capability, with category filters, paged results and provider setup links in My Agents.
+- Prefill supported remote endpoints while preserving manual HTTPS entry, administrator endpoint allowlists, credential consent, live tool inspection and supervised execution. Catalog capabilities are advertised metadata, not verified tool availability.
+- Add a shared SQLite-backed McpRegistry catalog with hourly background refresh, cursor pagination, explicit cold-index and stale/error states, and atomic snapshot replacement. Search queries and account credentials are never sent to the registry.
+- Release candidate for the new console Durable Object migration and ongoing agent runtime RC. Add the MCP_REGISTRY binding and mcp-registry-v1 migration when deploying the console from main. Existing tenant, agent, gateway and receipt schemas remain compatible; no data migration is needed for existing workspaces. OAuth-only and local stdio connections remain unsupported.
+- Install Python artifacts from the GitHub v0.17.0-rc.1 prerelease. npm package versions and registry publication are unchanged.
+
 ## 0.16.0-rc.1 - 2026-09-12
 
 ### MCP agent instances
