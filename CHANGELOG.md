@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.20.0-rc.1 - 2026-09-14
+
+### Added
+
+- Run a credential-free endpoint pre-check before approving or connecting an MCP provider. Registry cards and manual entry lead to prominent, saved workspace findings with the exact endpoint, observation time, OAuth discovery, provider metadata, advertised/challenged scopes, public tool descriptions, HTTP evidence and explicit uncertainty.
+- Discover OAuth independently of connection support. OAuth login remains unsupported; no client registration, consent flow, tokens, AI inference or tool execution occurs during inspection. Public tool listings do not establish authorization for tool calls or provider trust.
+- Owners/operators can run up to 30 pre-checks per workspace per day; retain the latest report per endpoint, up to 32. Viewers can read reports. Each outbound destination is validated as public HTTPS with redirects blocked, bounded DNS and response reads, a 30-second deadline and 16-request limit. Inspection never changes endpoint approval or creates a connection.
+- Minor release candidate for the new inspection API and outbound metadata discovery. No new binding or destructive migration; existing connections remain compatible. Existing registry snapshots gain additional inspectable URLs on their normal refresh. Install Python artifacts from the GitHub v0.20.0-rc.1 prerelease; npm publication is unchanged.
+
 ## 0.19.0-rc.1 - 2026-09-13
 
 ### Added
