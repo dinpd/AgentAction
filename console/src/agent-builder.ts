@@ -7,22 +7,26 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
 <div id="builder" hidden>
 <section class="panel"><div class="section-heading"><h2>1. Connect an MCP</h2><span>Server-side credentials · supervised execution</span></div>
-<form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
+<div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">MCP connections</button></div>
+<div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
 <p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
-<section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check before connecting an account</h3><p class="note">Inspect public authentication metadata and available tool descriptions before sharing credentials. OAuth can be detected even though OAuth login is not supported yet. This check does not approve an endpoint or certify a provider as safe.</p><label>Endpoint to inspect<input id="precheck-endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp"></label><button id="precheck-run" type="button">Pre-check endpoint</button><p id="precheck-status" role="status" aria-live="polite">No endpoint inspected. Enter a URL or select Pre-check on a registry result.</p><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
-<div id="connection-details"><h3>Connection details</h3><p id="catalog-selection" class="note">Already have a server? Enter its HTTPS endpoint below.</p>
-<form id="connect"><div class="fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input name="endpoint" type="url" placeholder="https://mcp.example.com/mcp" required></label><label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
+</div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
+<div id="connection-details"><h3 tabindex="-1" id="setup-heading">MCP connection setup</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
+<form id="connect"><div class="fields setup-fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
+<div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
+<div class="connection-access"><h3>Approve and connect</h3><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
-<div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div>
+<div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
 <p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Local stdio and OAuth-only connections are not supported yet.</p>
+<label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><div id="connections" class="connections"></div></section>
+<p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP accounts</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
 <section class="panel"><div class="section-heading"><h2>2. Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
 <section id="configure" class="panel" hidden><h2>3. Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
 <section class="panel"><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel"><div class="section-heading"><h2>Observed runs</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. History retains up to 40 recent runs, including trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div></main></body></html>`;
-export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:24px;margin:28px 0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
 export function agentBuilderApp(runtime: Window): void {
   const doc = runtime.document;
@@ -37,9 +41,39 @@ export function agentBuilderApp(runtime: Window): void {
   const capabilityLabels = new Map<string, string>();
   const authLabels = new Map<string, string>();
   let inspectionGeneration = 0, inspecting = false, precheckTouched = false;
+  let precheckTimer: number | undefined;
+  let precheckError: { endpoint: string; protocol: string; detail: string } | undefined;
+  const pendingInspections = new Map<string, Promise<PrecheckReport>>();
+  function cancelScheduledPrecheck() { runtime.clearTimeout(precheckTimer); precheckTimer = undefined; }
+  function requestedProtocol() { return (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value; }
+  function recentReport(report: PrecheckReport) { const age = Date.now() - Date.parse(report.checkedAt); return report.requestedProtocol === requestedProtocol() && age >= 0 && age < 3_600_000; }
+  function validInspectionEndpoint(value: string) {
+    try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password && !u.search && !u.hash && u.hostname.includes(".") && !u.hostname.endsWith(".localhost") && !u.hostname.endsWith(".local") && !/^[\d.]+$/.test(u.hostname); } catch { return false; }
+  }
+  function showMcpView(setup: boolean) {
+    cancelScheduledPrecheck(); inspectionGeneration++; inspecting = false;
+    get("catalog-view").hidden = setup; get("setup-view").hidden = !setup;
+    get("browse-servers").setAttribute("aria-pressed", String(!setup)); get("manage-connections").setAttribute("aria-pressed", String(setup));
+    get("browse-servers").classList.toggle("secondary", setup); get("manage-connections").classList.toggle("secondary", !setup);
+    renderPrechecks();
+    get(setup ? "setup-heading" : "catalog-query").focus();
+  }
+  function feedback(id: string, value: string, error = false) { const el = get(id); el.textContent = value; el.dataset.error = String(error); el.hidden = !value; }
+  function schedulePrecheck() {
+    cancelScheduledPrecheck(); inspectionGeneration++; inspecting = false; precheckTouched = true; precheckError = undefined;
+    feedback("connect-feedback", ""); feedback("approval-feedback", ""); updateEndpointAccess(true); renderPrechecks();
+    const endpoint = get<HTMLInputElement>("precheck-endpoint").value.trim();
+    if (!get("setup-view").hidden && validInspectionEndpoint(endpoint) && role !== "viewer") precheckTimer = runtime.setTimeout(() => { void runPrecheck(endpoint); }, 700);
+  }
+  function openSetup(endpoint: string, label = "", setup = "") {
+    clearSelection(); selectPrecheck(endpoint);
+    (get<HTMLFormElement>("connect").elements.namedItem("label") as HTMLInputElement).value = label.slice(0, 100);
+    get("catalog-selection").textContent = label ? `Selected ${label}. ${setup || "Review the findings before entering credentials."}` : "Enter a server’s HTTPS endpoint to start an automatic pre-check.";
+    if (endpoint) void runPrecheck(endpoint); else get<HTMLInputElement>("precheck-endpoint").focus();
+  }
   function renderAccountRole() { get("account-role").textContent = tenant ? role : "No workspace selected"; }
   function sessionUnavailable(detail: string) {
-    generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
+    cancelScheduledPrecheck(); pendingInspections.clear(); precheckError = undefined; generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
     state = { connections: [], agents: [], runs: [] }; chosen = undefined;
     get<HTMLFormElement>("connect").reset(); get<HTMLFormElement>("create").reset();
     workspace.replaceChildren(); workspace.disabled = true;
@@ -83,7 +117,7 @@ export function agentBuilderApp(runtime: Window): void {
       const remove = button("Remove workspace approval", async () => {
         const deploymentEnabled = state.endpointAccess.deployment.includes(approval.endpoint);
         if (!runtime.confirm(`Remove workspace approval for ${approval.endpoint}? ${deploymentEnabled ? "Deployment-managed access will remain enabled." : "Affected connections will be disconnected and their agents paused."}`)) return;
-        await mutate("remove-endpoint", { endpoint: approval.endpoint }); await refresh(); message(deploymentEnabled ? "Workspace approval removed. Deployment-managed access remains enabled." : "Workspace approval removed. Affected connections and schedules were stopped.");
+        await mutate("remove-endpoint", { endpoint: approval.endpoint }); await refresh(); feedback("connections-feedback", deploymentEnabled ? "Workspace approval removed. Deployment-managed access remains enabled." : "Workspace approval removed. Affected connections and schedules were stopped.");
       });
       remove.dataset.ownerOnly = "true"; row.append(remove); container.append(row);
     }
@@ -94,24 +128,24 @@ export function agentBuilderApp(runtime: Window): void {
   }
   function updatePrecheckButton() {
     const el = get<HTMLButtonElement>("precheck-run");
-    el.disabled = inspecting || role === "viewer" || !get<HTMLInputElement>("precheck-endpoint").value.trim();
-    el.textContent = inspecting ? "Inspecting endpoint…" : "Pre-check endpoint";
+    el.disabled = inspecting || role === "viewer" || !validInspectionEndpoint(get<HTMLInputElement>("precheck-endpoint").value.trim());
+    el.textContent = inspecting ? "Inspecting endpoint…" : "Recheck endpoint";
     if (inspecting) el.setAttribute("aria-busy", "true"); else el.removeAttribute("aria-busy");
   }
   function selectPrecheck(endpoint: string) {
-    inspectionGeneration++; inspecting = false; precheckTouched = true;
+    showMcpView(true); precheckTouched = true;
     get<HTMLInputElement>("precheck-endpoint").value = endpoint;
-    renderPrechecks(); get("endpoint-precheck").scrollIntoView({ behavior: "smooth", block: "start" });
+    updateEndpointAccess(true); renderPrechecks();
   }
   function renderPrechecks() {
     const reports: PrecheckReport[] = state.inspections || [];
     const field = get<HTMLInputElement>("precheck-endpoint");
-    if (!precheckTouched && !field.value && reports.length) field.value = [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))[0].endpoint;
+    if (!precheckTouched && !field.value && reports.length) { const latest = [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))[0]; field.value = latest.endpoint; (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value = latest.requestedProtocol || "2025-03-26"; }
     const endpoint = canonicalEndpoint(field.value.trim());
-    const report = reports.find(r => r.endpoint === endpoint);
+    const report = reports.find(r => r.endpoint === endpoint && (!r.requestedProtocol || r.requestedProtocol === requestedProtocol()));
     const results = get("precheck-results"); results.replaceChildren();
     if (report) {
-      results.append(node("h4", inspectionLabel(report)), node("p", `Inspected endpoint: ${report.endpoint}`), node("p", `Observed ${new Date(report.checkedAt).toLocaleString()} · ${report.protocol}. Saved snapshot; rerun before granting access.`, "note"));
+      results.append(node("h4", inspectionLabel(report)), node("p", `Inspected endpoint: ${report.endpoint}`), node("p", `Observed ${new Date(report.checkedAt).toLocaleString()} · ${report.protocol}. ${recentReport(report) ? "Recent snapshot reused for up to one hour." : "Older snapshot; Recheck for current observations."}`, "note"));
       results.append(node("p", report.visibility === "public-tools" ? `${report.toolCount} public tools inspected. Account-specific tools may differ.` : report.visibility === "authentication-required" ? "Tool visibility: requires authentication. Account-specific behavior is unknown." : "Tool visibility: unavailable or incomplete."));
       for (const provider of report.providers) {
         results.append(node("p", `Authorization provider: ${provider.issuer} · ${provider.verified ? "issuer metadata matched" : "metadata unverified"}`));
@@ -122,33 +156,47 @@ export function agentBuilderApp(runtime: Window): void {
       for (const f of report.findings) { const row = node("div", "", "precheck-finding"); row.dataset.level = f.level; row.append(node("strong", `${f.level === "blocked" ? "Blocked / incomplete" : f.level === "review" ? "Review" : "Observed"}: ${f.title}`), node("p", f.detail, "note")); results.append(row); }
       if (report.tools.length) { const tools = node("details"); tools.append(node("summary", "Inspected tool descriptions (untrusted provider text)")); for (const t of report.tools) tools.append(node("p", `${t.name}: ${t.description} · Inputs: ${t.inputs.join(", ") || "Not declared"}`, "note")); results.append(tools); }
       const evidence = node("details"); evidence.append(node("summary", "HTTP evidence")); for (const e of report.evidence) evidence.append(node("p", `${e.status} · ${e.url}`, "note")); results.append(evidence);
-      results.append(button("Use inspected endpoint", async () => { clearSelection(); const form = get<HTMLFormElement>("connect"); (form.elements.namedItem("endpoint") as HTMLInputElement).value = report.endpoint; updateEndpointAccess(true); get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" }); }));
+
     }
-    get("precheck-status").textContent = inspecting ? "Inspecting without credentials. This may take up to 30 seconds; no tools will be executed." : report ? "Saved pre-check findings for this exact endpoint. Review the observations and limitations below." : role === "viewer" ? "An owner or operator can run a pre-check. Saved workspace reports are available below." : "No pre-check for this endpoint. Inspect it before entering account credentials.";
+    get("precheck-status").dataset.error = "false";
+    get("precheck-status").textContent = inspecting ? "Inspecting without credentials. This may take up to 30 seconds; no tools will be executed." : report ? "Saved pre-check findings for this exact endpoint. Review the observations and limitations below." : role === "viewer" ? "An owner or operator can run a pre-check. Saved workspace reports are available below." : !field.value ? "Enter an HTTPS endpoint to start an automatic pre-check." : !validInspectionEndpoint(field.value) ? "Enter a public HTTPS URL without credentials, query parameters or fragments. No check has been sent." : "No current findings. Edit the endpoint to check automatically, or select Recheck endpoint.";
+    if (precheckError?.endpoint === endpoint && precheckError.protocol === requestedProtocol()) { get("precheck-status").textContent = precheckError.detail; get("precheck-status").dataset.error = "true"; }
     const history = get("precheck-history"); history.replaceChildren();
-    for (const r of [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))) { const el = node("button", `${inspectionLabel(r)} · ${r.endpoint}`, "secondary") as HTMLButtonElement; el.type = "button"; el.addEventListener("click", () => selectPrecheck(r.endpoint)); history.append(el); }
+    for (const r of [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))) { const el = node("button", `${inspectionLabel(r)} · ${r.endpoint}`, "secondary") as HTMLButtonElement; el.type = "button"; el.addEventListener("click", () => { clearSelection(); (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value = r.requestedProtocol || "2025-03-26"; selectPrecheck(r.endpoint); }); history.append(el); }
     if (!reports.length) history.append(node("p", "No saved pre-checks in this workspace.", "note"));
     doc.querySelectorAll<HTMLElement>("[data-inspection-endpoint]").forEach(el => { const r = reports.find(r => r.endpoint === el.dataset.inspectionEndpoint); el.textContent = r ? `${inspectionLabel(r)} · checked ${new Date(r.checkedAt).toLocaleString()}` : "Not pre-checked"; });
     updatePrecheckButton();
   }
-  async function runPrecheck(endpoint: string) {
-    if (!tenant || role === "viewer") return;
+  async function runPrecheck(endpoint: string, force = false) {
+    cancelScheduledPrecheck();
+    if (!tenant || role === "viewer" || !validInspectionEndpoint(endpoint)) return;
+    endpoint = canonicalEndpoint(endpoint);
+    if (!force && (state.inspections || []).some((r: PrecheckReport) => r.endpoint === endpoint && recentReport(r))) { inspecting = false; renderPrechecks(); return; }
     const current = ++inspectionGeneration, workspaceId = tenant;
-    inspecting = true; renderPrechecks();
+    precheckError = undefined; inspecting = true; renderPrechecks();
     try {
-      const protocol = (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value;
-      const report = await request(`/api/agents/${encodeURIComponent(workspaceId)}/inspect-endpoint`, { endpoint, protocol }) as PrecheckReport;
+      const protocol = requestedProtocol(), key = JSON.stringify([workspaceId, endpoint, protocol]);
+      let pending = pendingInspections.get(key);
+      if (!pending) {
+        pending = request(`/api/agents/${encodeURIComponent(workspaceId)}/inspect-endpoint`, { endpoint, protocol, ...(force ? { force: true } : {}) });
+        pendingInspections.set(key, pending!);
+        const release = () => { if (pendingInspections.get(key) === pending) pendingInspections.delete(key); };
+        void pending!.then(release, release);
+      }
+      const report = await pending!;
       if (current !== inspectionGeneration || workspaceId !== tenant) return;
       state.inspections = [...(state.inspections || []).filter((r: PrecheckReport) => r.endpoint !== report.endpoint), report];
       inspecting = false; renderPrechecks();
     } catch (error) {
       if (current !== inspectionGeneration || workspaceId !== tenant) return;
-      inspecting = false; renderPrechecks();
-      get("precheck-status").textContent = `Pre-check failed: ${error instanceof Error ? error.message : "Unable to inspect this endpoint."} Any saved report below is from an earlier check.`;
+      inspecting = false;
+      precheckError = { endpoint, protocol: requestedProtocol(), detail: `Pre-check failed: ${error instanceof Error ? error.message : "Unable to inspect this endpoint."} Select Recheck endpoint to retry. Any saved report below is from an earlier check.` };
+      renderPrechecks();
     } finally { if (current === inspectionGeneration) updatePrecheckButton(); }
   }
   function clearSelection() {
-    get<HTMLFormElement>("connect").reset();
+    cancelScheduledPrecheck(); inspectionGeneration++; inspecting = false; precheckTouched = true; precheckError = undefined;
+    get<HTMLFormElement>("connect").reset(); feedback("connect-feedback", ""); feedback("approval-feedback", "");
     get("catalog-selection").textContent = "Already have a server? Enter its HTTPS endpoint below.";
     updateEndpointAccess(true);
   }
@@ -195,20 +243,14 @@ export function agentBuilderApp(runtime: Window): void {
           accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required";
           select.addEventListener("change", () => { accessLabel.dataset.endpointAccess = select.value; accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required"; });
           endpointLabel.append(select); card.append(accessLabel, endpointLabel, button("Use this server", async () => {
-            clearSelection();
-            const form = get<HTMLFormElement>("connect");
-            (form.elements.namedItem("label") as HTMLInputElement).value = server.title.slice(0, 100);
-            (form.elements.namedItem("endpoint") as HTMLInputElement).value = select.value;
-            get("catalog-selection").textContent = `Selected ${server.title}. Review the endpoint before entering credentials.`;
-            updateEndpointAccess(true);
-            get("connection-details").scrollIntoView({ behavior: "smooth", block: "start" });
-            (form.elements.namedItem("label") as HTMLInputElement).focus();
+            openSetup(select.value, server.title);
           }));
         } else card.append(node("p", "Setup required outside this builder", "pill"));
         const inspectable = server.inspectableEndpoints || server.endpoints;
         for (const endpoint of inspectable) {
           const badge = node("p", "Not pre-checked", "note"); badge.dataset.inspectionEndpoint = endpoint;
-          card.append(badge, button(inspectable.length > 1 ? `Pre-check ${endpoint}` : "Pre-check", async () => { selectPrecheck(endpoint); await runPrecheck(endpoint); }));
+          card.append(badge);
+          if (!server.endpoints.includes(endpoint)) card.append(button(inspectable.length > 1 ? `Review setup ${endpoint}` : "Review setup", async () => { openSetup(endpoint, server.title, server.setup); }));
         }
         get("catalog-results").append(card);
       }
@@ -245,9 +287,10 @@ export function agentBuilderApp(runtime: Window): void {
     return value;
   }
   async function mutate(action: string, body: any) { return request(`/api/agents/${encodeURIComponent(tenant)}/${action}`, body); }
-  async function perform(el: HTMLButtonElement, action: () => Promise<void>) {
+  async function perform(el: HTMLButtonElement, action: () => Promise<void>, feedbackId?: string) {
+    const localFeedback = feedbackId || (el.closest("#setup-view") ? "connections-feedback" : undefined);
     el.disabled = true; el.setAttribute("aria-busy", "true"); workspace.disabled = true; updateEndpointAccess();
-    try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); message(failure, true); }
+    try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); if (localFeedback && tenant) feedback(localFeedback, failure, true); else message(failure, true); }
     finally { el.removeAttribute("aria-busy"); el.disabled = role === "viewer"; workspace.disabled = !memberships.length; updateEndpointAccess(); }
   }
   async function refresh() {
@@ -267,7 +310,7 @@ export function agentBuilderApp(runtime: Window): void {
       row.append(detail);
       if (c.status === "connected") {
         const actions = node("div", "", "actions");
-        actions.append(button("Suggest agents", async () => { message("AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); message("Suggestions are ready. Review a job, its tools and setup requirements."); }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this account, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); message("Disconnected. The credential was removed and its agents were paused."); }));
+        actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this account, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Disconnected. The credential was removed and its agents were paused."); }));
         row.append(actions);
       }
       const credentialLabel = node("label", "Replace credential / reconnect");
@@ -275,8 +318,8 @@ export function agentBuilderApp(runtime: Window): void {
       credentialLabel.append(credential);
       const replace = button("Reconnect account", async () => {
         const token = credential.value; credential.value = "";
-        message("Checking the replacement connection…");
-        await mutate("connect", { connectionId: c.id, token }); await refresh(); message("Account reconnected. Its agents are paused; run a new trial before reactivation.");
+        feedback("connections-feedback", "Checking the replacement connection…");
+        await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Account reconnected. Its agents are paused; run a new trial before reactivation.");
       });
       const replacement = node("details"); replacement.append(node("summary", "Account connection"), credentialLabel, replace); detail.append(replacement);
       connections.append(row);
@@ -290,6 +333,7 @@ export function agentBuilderApp(runtime: Window): void {
         }, false)); suggestions.append(card);
       }
     }
+    if (!connections.children.length) connections.append(node("p", "No MCP accounts connected yet.", "empty"));
     if (!suggestions.children.length) suggestions.append(node("p", "Connect a server, then choose “Suggest agents.”", "empty"));
     for (const a of state.agents) {
       const card = node("article", "", "card"), actions = node("div", "", "actions");
@@ -320,30 +364,33 @@ export function agentBuilderApp(runtime: Window): void {
       runs.append(card);
     }
     if (!runs.children.length) runs.append(node("p", "Trial and scheduled runs will appear here with their execution history.", "empty"));
-    get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer");
+    get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer" && !el.closest("#precheck-history"));
     updateEndpointAccess();
   }
-  get<HTMLFormElement>("connect").querySelector<HTMLInputElement>("[name=endpoint]")!.addEventListener("input", () => updateEndpointAccess(true));
+  get("browse-servers").addEventListener("click", () => showMcpView(false));
+  get("back-to-results").addEventListener("click", () => showMcpView(false));
+  get("manage-connections").addEventListener("click", () => showMcpView(true));
+  get<HTMLFormElement>("connect").querySelector<HTMLSelectElement>("[name=protocol]")!.addEventListener("change", schedulePrecheck);
   get("endpoint-reviewed").addEventListener("change", () => updateEndpointAccess());
   get<HTMLButtonElement>("approve-endpoint").addEventListener("click", event => {
     const form = get<HTMLFormElement>("connect"), endpoint = canonicalEndpoint((form.elements.namedItem("endpoint") as HTMLInputElement).value);
     if (role !== "owner" || !get<HTMLInputElement>("endpoint-reviewed").checked) return;
     void perform(event.currentTarget as HTMLButtonElement, async () => {
-      message("Validating the public endpoint and saving workspace approval…");
+      feedback("approval-feedback", "Validating the public endpoint and saving workspace approval…");
       await mutate("approve-endpoint", { endpoint, reviewed: true });
-      await refresh(); updateEndpointAccess(true); message("Endpoint approved for this workspace. Enter any required credential and connect when ready.");
-    });
+      await refresh(); updateEndpointAccess(true); feedback("approval-feedback", "Endpoint approved for this workspace. Enter any required credential and connect when ready.");
+    }, "approval-feedback");
   });
-  get<HTMLInputElement>("precheck-endpoint").addEventListener("input", () => { inspectionGeneration++; inspecting = false; precheckTouched = true; renderPrechecks(); });
-  get<HTMLButtonElement>("precheck-run").addEventListener("click", () => { void runPrecheck(get<HTMLInputElement>("precheck-endpoint").value.trim()); });
+  get<HTMLInputElement>("precheck-endpoint").addEventListener("input", schedulePrecheck);
+  get<HTMLButtonElement>("precheck-run").addEventListener("click", () => { void runPrecheck(get<HTMLInputElement>("precheck-endpoint").value.trim(), true); });
   get<HTMLFormElement>("catalog-search").addEventListener("submit", event => { event.preventDefault(); void searchCatalog(); });
   get("catalog-more").addEventListener("click", () => { void searchCatalog(true); });
-  get("manual-connect").addEventListener("click", () => { clearSelection(); selectPrecheck(""); get<HTMLInputElement>("precheck-endpoint").focus(); });
+  get("manual-connect").addEventListener("click", () => openSetup(""));
   get<HTMLFormElement>("connect").addEventListener("submit", event => {
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
-    void perform(submit, async () => { message("Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); message("Connected. Choose “Suggest agents” to discover useful jobs."); });
+    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); }, "connect-feedback");
   });
   get<HTMLFormElement>("create").addEventListener("submit", event => {
     event.preventDefault(); if (!chosen) return;
@@ -351,7 +398,7 @@ export function agentBuilderApp(runtime: Window): void {
     void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, suggestionId: chosen!.suggestion.id, title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); chosen = undefined; await refresh(); message("Agent instance created. Run a trial to review its first action."); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];

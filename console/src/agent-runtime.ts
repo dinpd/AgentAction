@@ -133,14 +133,21 @@ export class AgentRuntime {
   async mutate(path: string, body: Record<string, unknown>, actor: string, role = "operator"): Promise<unknown> {
     if (path === "/inspect-endpoint") {
       if (role !== "owner" && role !== "operator") throw new RuntimeError("An owner or operator must run endpoint pre-checks.", 403);
-      if (Object.keys(body).some(key => !["endpoint", "protocol"].includes(key))) throw new RuntimeError("Pre-check accepts only an endpoint and protocol; never submit credentials.");
+      if (Object.keys(body).some(key => !["endpoint", "protocol", "force"].includes(key))) throw new RuntimeError("Pre-check accepts only endpoint, protocol and force; never submit credentials.");
       const endpoint = publicEndpointURL(body.endpoint);
       const protocol = body.protocol === undefined ? "2025-03-26" : body.protocol;
       if (protocol !== "2025-03-26" && protocol !== "2026-07-28") throw new RuntimeError("Choose a supported pre-check protocol.");
-      await this.charge("endpoint-inspection", 30);
-      const report = await inspectEndpoint(endpoint, protocol, this.fetcher);
+      if (body.force !== undefined && typeof body.force !== "boolean") throw new RuntimeError("Pre-check force must be a boolean.");
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
       const key = `inspection:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("")}`;
+      // Serialized mutations reuse the first completed probe, including across clients.
+      // Older reports lack the requested protocol; do not assume their negotiated
+      // protocol is the protocol the caller requested.
+      const cached = await this.storage.get<PrecheckReport>(key);
+      const age = cached ? Date.now() - Date.parse(cached.checkedAt) : NaN;
+      if (!body.force && cached?.endpoint === endpoint && cached.requestedProtocol === protocol && age >= 0 && age < 3_600_000) return cached;
+      await this.charge("endpoint-inspection", 30);
+      const report = await inspectEndpoint(endpoint, protocol, this.fetcher);
       const previous = await this.storage.list<PrecheckReport>({ prefix: "inspection:" });
       if (!previous.has(key) && previous.size >= 32) {
         const oldest = [...previous].sort((a, b) => a[1].checkedAt.localeCompare(b[1].checkedAt))[0];

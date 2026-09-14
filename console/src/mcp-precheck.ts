@@ -3,7 +3,7 @@ import { publicEndpointURL, validatePublicEndpoint } from "./endpoint-policy.ts"
 
 export type PrecheckFinding = { level: "info" | "review" | "blocked"; title: string; detail: string };
 export type PrecheckReport = {
-  endpoint: string; checkedAt: string; protocol: string;
+  endpoint: string; checkedAt: string; protocol: string; requestedProtocol?: string;
   authentication: "oauth" | "required" | "not-observed" | "unknown";
   visibility: "public-tools" | "authentication-required" | "unavailable";
   toolCount: number; tools: Array<{ name: string; description: string; inputs: string[] }>;
@@ -18,7 +18,7 @@ const LIMIT_MS = 30_000, MAX_REQUESTS = 16;
 // policy: every destination is public-validated, and nothing grants endpoint access.
 export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", fetcher: typeof fetch = fetch): Promise<PrecheckReport> {
   const endpoint = publicEndpointURL(value);
-  const report: PrecheckReport = { endpoint, checkedAt: new Date().toISOString(), protocol, authentication: "unknown", visibility: "unavailable", toolCount: 0, tools: [], providers: [], scopes: [], challengedScopes: [], evidence: [], findings: [] };
+  const report: PrecheckReport = { endpoint, checkedAt: new Date().toISOString(), protocol, requestedProtocol: protocol, authentication: "unknown", visibility: "unavailable", toolCount: 0, tools: [], providers: [], scopes: [], challengedScopes: [], evidence: [], findings: [] };
   const finding = (level: PrecheckFinding["level"], title: string, detail: string) => { if (report.findings.length < 20) report.findings.push({ level, title, detail }); };
   const deadline = AbortSignal.timeout(LIMIT_MS);
   let requests = 0, challenge = "", authRequired = false;

@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.21.0-rc.1 - 2026-09-14
+
+### Added
+
+- Separate Browse servers and MCP connections views with preserved search filters and pagination. Selecting a server opens focused setup with automatic credential-free pre-checks; valid manual endpoints are checked after a short pause. Findings remain visible alongside approval and connection actions, with local errors and recovery controls.
+- Reuse recent workspace reports for the exact endpoint and requested protocol for one hour, deduplicate concurrent automatic checks, and offer an explicit Recheck. Cached checks consume no new outbound probe or daily allowance; the 30-probe daily limit and all public-endpoint, credential-exclusion and role checks remain in force.
+- Minor release candidate for the new default inspection behavior and additive `force` request / `requestedProtocol` report fields. Older reports remain readable but refresh before cache reuse. No new bindings or destructive migration; existing connections remain compatible. Install Python artifacts from the GitHub v0.21.0-rc.1 prerelease; npm publication is unchanged.
+
 ## 0.20.0-rc.1 - 2026-09-14
 
 ### Added
