@@ -30,6 +30,7 @@ boundaries.
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
 | [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |
+| [My agents](https://observability-console.agentaction.dev/agents) | Browse MCP servers, review automatic pre-check findings before sharing provider credentials, and create supervised agents with observable runs. |
 | [Operator console](https://observability-console.agentaction.dev/?window=7#overview) | Cloudflare Access-protected workspace switching, agent integrations, eval routing, Activity, intent-relative outcomes, constraints, confidence, and evidence. |
 
 Prefer to start without blocking an existing workflow? Run the passive MCP
@@ -45,6 +46,37 @@ re-authorized server-side before its data is read.
 [![AgentAction public observability console showing synthetic outcome, constraint, confidence, execution, and data-quality metrics](website/public/observability-console.png)](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview)
 
 ## Quick Start
+
+### Find An MCP Server And Build A Supervised Agent
+
+Open [My agents](https://observability-console.agentaction.dev/agents) and sign
+in to AgentAction. You can inspect a provider before creating or authorizing an
+account with that provider:
+
+1. **Browse:** Search the official MCP Registry by name or advertised capability,
+   filter declared authentication requirements, or enter an HTTPS endpoint.
+2. **Automatic pre-check:** Selecting a server or entering a valid endpoint
+   inspects public authentication metadata and available tool descriptions.
+   It sends no provider credentials, AI calls or tool executions.
+3. **Review:** Read OAuth discovery, advertised scopes, public tool risk signals
+   and visibility gaps beside the connection setup. Return to browsing with
+   your filters and results preserved.
+4. **Approve and connect:** A workspace owner approves the exact endpoint.
+   Connect a supported account, get AI agent suggestions, create an instance,
+   and approve its proposed tool calls before execution. Follow its run history
+   and assessed outcomes in the same workspace.
+
+Pre-checks are not safety certification. Tools behind authentication may remain
+invisible until login. OAuth can be discovered, but OAuth login is not supported
+yet. Registry labels are provider declarations; missing authentication metadata
+does not mean public access. Pre-checks do not establish pricing or account
+permissions. Public servers and supported bearer-token connections can be used
+in the builder; see the [pre-check behavior and limits](console/README.md#endpoint-pre-check-before-provider-authentication)
+and [OAuth implementation plan](docs/oauth-connections.md).
+
+Already running an agent? Use the observer paths below. Prefer a portable
+starting point? [Browse agent recipes](https://agentaction.dev/recipes) for
+instructions and synthetic test cases for your own runtime.
 
 ### Hermes Agent: Native Shadow Observer
 
