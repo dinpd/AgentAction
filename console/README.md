@@ -547,3 +547,42 @@ Signing in does not assign a role: a workspace owner manages membership access.
 An expired or unverifiable API session clears forms, hides the builder and shows
 **Sign in**, which reloads `/agents` through the existing Access login boundary.
 The app never changes membership roles or logs out automatically.
+
+
+## Endpoint pre-check before provider authentication
+
+**Pre-check** on a registry card or **Pre-check endpoint** in the prominent panel
+runs `POST /api/agents/:tenant/inspect-endpoint` with only `{ endpoint, protocol? }`.
+The route requires current owner/operator membership and the existing same-origin
+intent header. Provider credentials and extra body fields are rejected. Endpoint
+approval is not required to inspect, and inspection does not grant approval.
+This is available after signing into AgentAction, before creating or authorizing
+a provider account; the public demo does not expose an anonymous scanner.
+
+`/state` includes workspace-scoped `inspections`. The UI shows observations and
+limitations prominently, including **OAuth discovered · login not supported yet**,
+issuer metadata matching, advertised and challenged scopes separately, tool
+visibility, bounded tool summaries and HTTP evidence. These are point-in-time
+provider claims, not a safety certification, verified identity, granted scopes,
+pricing or proof of backend behavior. Text-based risk signals are explicitly
+heuristics. OAuth can coexist with an unauthenticated public tool catalog.
+
+The inspector attempts MCP initialize/tools/list without credentials and reads
+RFC9728 protected-resource metadata via a challenge or endpoint/root well-known
+paths, then RFC8414/OIDC issuer metadata. Resource and issuer identifiers must
+match; malformed metadata, unavailable discovery and blocked destinations remain
+visible as incomplete findings. Only up to three advertised issuers are inspected.
+Authorization/token endpoints are displayed as advertised URLs, never contacted.
+No registration, browser login, tokens, model calls or tools/call is performed.
+
+Each request uses the existing public DNS validator and Workers global public-only
+fetch boundary, including metadata on different origins and session cleanup.
+Redirects, literal IPs, private/reserved destinations, URL credentials and query
+parameters are blocked. Limits: 30 seconds overall, 7 seconds per fetch, 16
+non-DNS requests plus initial/each-hop A+AAAA DNS checks, 64 KiB per metadata
+response, existing MCP limits (512 KiB per response, 80 tools/five pages), and
+20 displayed tool summaries. Outcomes retain at most 32 reports per workspace
+and 30 attempts per UTC day. A report never enables execution or stores a token.
+
+See [OAuth connection implementation plan](../docs/oauth-connections.md) for the
+separate work required to turn discovery into a supported account login flow.

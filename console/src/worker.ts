@@ -5206,7 +5206,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !["connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !["inspect-endpoint", "connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;

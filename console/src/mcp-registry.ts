@@ -19,7 +19,7 @@ export const AUTH_TYPES = [
 type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
   name: string; title: string; description: string; version: string; publisher: string;
-  website?: string; endpoints: string[]; hosting: string; setup: string; capabilities: string[]; authTypes: AuthType[];
+  website?: string; endpoints: string[]; inspectableEndpoints: string[]; hosting: string; setup: string; capabilities: string[]; authTypes: AuthType[];
 };
 export type CatalogQuery = { query: string; capability: string; auth?: string; offset: number };
 export type CatalogResult = {
@@ -88,6 +88,7 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
     name, title, description, version, publisher: name.split("/")[0],
     website: safeURL(server.websiteUrl) || safeURL(record(server.repository).url), endpoints,
     hosting: remotes.length ? (packages.length ? "Remote and local packages" : "Remote server") : "Local package",
+    inspectableEndpoints: [...new Set(remotes.filter(r => r.type === "streamable-http").map(r => safeURL(r.url, true)).filter((v): v is string => Boolean(v)))].slice(0, 3),
     setup: setupInstructions(endpoints),
     authTypes: declaredAuth(remotes, packages),
     capabilities: CAPABILITIES.filter(c => c.terms.some(t => contains(text, t))).map(c => c.id),
@@ -149,7 +150,7 @@ export class RegistryCatalog {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
       // stored provider snapshot. No upstream refresh or data rewrite is needed.
-      return { ...server, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
+      return { ...server, inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
     }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),

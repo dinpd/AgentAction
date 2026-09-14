@@ -758,3 +758,17 @@ test("endpoint approvals require current owner membership and overwrite spoofed 
   role="operator"; assert.equal((await worker.fetch(post("connect"),env)).status,200); assert.deepEqual(runtimeRoles,["owner","operator"]);
   present=false; assert.equal((await worker.fetch(post(),env)).status,403);
 });
+
+
+test("endpoint pre-checks use current membership even before endpoint approval", async () => {
+  let role = "viewer", present = true, inspections = 0;
+  const env: Env = {
+    ...baseEnv([], () => json({ workspace_mode: "directory", memberships: present ? [{ tenant: { tenant_id: "acme" }, membership: { role } }] : [] })),
+    CONSOLE_DIRECTORY_MODE: "true",
+    AGENT_WORKSPACES: { getByName(name) { assert.equal(name, "workspace:acme"); return { async request(request) { inspections++; assert.equal(request.headers.get("x-runtime-role"), role); return json({}); } }; } },
+  };
+  const post = () => accessRequest("/api/agents/acme/inspect-endpoint", { method: "POST", headers: { origin: "https://console.test", "content-type": "application/json", "x-agentaction-request": "agent-builder", "x-runtime-role": "owner" }, body: JSON.stringify({ endpoint: "https://mcp.vendor.com/mcp" }) }, { custom: {} });
+  assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(inspections, 0);
+  for (const allowed of ["operator", "owner"]) { role = allowed; assert.equal((await worker.fetch(post(), env)).status, 200); }
+  present = false; assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(inspections, 2);
+});

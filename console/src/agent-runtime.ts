@@ -1,3 +1,4 @@
+import { inspectEndpoint, type PrecheckReport } from "./mcp-precheck.ts";
 import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type EndpointAccess } from "./endpoint-policy.ts";
 import { McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool } from "./mcp-client.ts";
 
@@ -75,7 +76,7 @@ export class AgentRuntime {
   }
   async snapshot(): Promise<Record<string, unknown>> {
     const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, protocol: c.protocol, suggestions: c.suggestions, status: c.status, hasCredential: Boolean(c.token) }));
-    return { connections, endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
+    return { connections, inspections: [...(await this.storage.list<PrecheckReport>({ prefix: "inspection:" })).values()], endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
   }
   private async endpointAccess(): Promise<EndpointAccess> {
     return { deployment: (this.env.AGENT_MCP_ENDPOINTS ?? DEFAULT_ENDPOINTS).split(",").map(v => v.trim()).filter(Boolean), workspace: await this.storage.get<EndpointApproval[]>("endpoint-approvals") || [] };
@@ -130,6 +131,24 @@ export class AgentRuntime {
     return c;
   }
   async mutate(path: string, body: Record<string, unknown>, actor: string, role = "operator"): Promise<unknown> {
+    if (path === "/inspect-endpoint") {
+      if (role !== "owner" && role !== "operator") throw new RuntimeError("An owner or operator must run endpoint pre-checks.", 403);
+      if (Object.keys(body).some(key => !["endpoint", "protocol"].includes(key))) throw new RuntimeError("Pre-check accepts only an endpoint and protocol; never submit credentials.");
+      const endpoint = publicEndpointURL(body.endpoint);
+      const protocol = body.protocol === undefined ? "2025-03-26" : body.protocol;
+      if (protocol !== "2025-03-26" && protocol !== "2026-07-28") throw new RuntimeError("Choose a supported pre-check protocol.");
+      await this.charge("endpoint-inspection", 30);
+      const report = await inspectEndpoint(endpoint, protocol, this.fetcher);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
+      const key = `inspection:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("")}`;
+      const previous = await this.storage.list<PrecheckReport>({ prefix: "inspection:" });
+      if (!previous.has(key) && previous.size >= 32) {
+        const oldest = [...previous].sort((a, b) => a[1].checkedAt.localeCompare(b[1].checkedAt))[0];
+        await this.storage.delete(oldest[0]);
+      }
+      await this.storage.put(key, report);
+      return report;
+    }
     if (path === "/approve-endpoint" || path === "/remove-endpoint") {
       if (role !== "owner") throw new RuntimeError("Only a workspace owner can change endpoint approvals.", 403);
       const endpoint = publicEndpointURL(body.endpoint);
