@@ -551,8 +551,17 @@ The app never changes membership roles or logs out automatically.
 
 ## Endpoint pre-check before provider authentication
 
-**Pre-check** on a registry card or **Pre-check endpoint** in the prominent panel
-runs `POST /api/agents/:tenant/inspect-endpoint` with only `{ endpoint, protocol? }`.
+**Browse servers** keeps registry search separate from **MCP connections**.
+Selecting **Use this server** (or **Review setup** for other inspectable remotes)
+opens focused setup, clears credentials/consent, and automatically pre-checks the
+selected endpoint. Manual HTTPS entry is debounced for 700 ms. Invalid URL syntax
+is not probed; server-side public-destination validation remains authoritative.
+Catalog rendering, pagination and merely switching views do not probe providers.
+Back to results preserves filters and loaded pages. Findings and approval/connect
+feedback stay in the setup view beside the relevant actions.
+
+Automatic checks call `POST /api/agents/:tenant/inspect-endpoint` with only
+`{ endpoint, protocol? }`; **Recheck endpoint** adds `{ force: true }`.
 The route requires current owner/operator membership and the existing same-origin
 intent header. Provider credentials and extra body fields are rejected. Endpoint
 approval is not required to inspect, and inspection does not grant approval.
@@ -582,7 +591,20 @@ parameters are blocked. Limits: 30 seconds overall, 7 seconds per fetch, 16
 non-DNS requests plus initial/each-hop A+AAAA DNS checks, 64 KiB per metadata
 response, existing MCP limits (512 KiB per response, 80 tools/five pages), and
 20 displayed tool summaries. Outcomes retain at most 32 reports per workspace
-and 30 attempts per UTC day. A report never enables execution or stores a token.
+and 30 actual probes per UTC day. Reports for the exact endpoint and requested
+protocol are reused for one hour within the workspace, before charging quota or
+making outbound requests. Serialized runtime requests and an in-flight browser
+map avoid duplicate automatic work. Force bypasses freshness, not quota or policy.
+The additive `requestedProtocol` field distinguishes input from negotiated MCP
+versions; older reports remain readable but are rechecked before cache reuse.
+The latest report per endpoint is retained. A report never enables execution or
+stores a token.
+
+Cost: pre-checks use no model tokens. Each new probe uses bounded Worker/Durable
+Object execution, DNS/HTTP requests and small report storage; network latency can
+still reach 30 seconds. Individual checks are lightweight, but scanning every
+catalog listing would multiply infrastructure work and provider traffic. Actual
+billing depends on the deployment’s Cloudflare plan and usage.
 
 See [OAuth connection implementation plan](../docs/oauth-connections.md) for the
 separate work required to turn discovery into a supported account login flow.

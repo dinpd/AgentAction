@@ -111,7 +111,7 @@ test("inspection is rate-limited, persisted per workspace and never approves end
  // Start at the supported storage cap with a different endpoint.
  const key=[...storage.data.keys()].find(k=>k.startsWith("inspection:")&&!k.includes("fixture"))!;await storage.delete(key);
  assert.equal((await request({endpoint})).status,200);assert.equal((await storage.list({prefix:"inspection:"})).size,32);
- await storage.put("limit:endpoint-inspection",{day:new Date().toISOString().slice(0,10),count:30});const calls=h.calls.length;assert.equal((await request({endpoint})).status,429);assert.equal(h.calls.length,calls);
+ await storage.put("limit:endpoint-inspection",{day:new Date().toISOString().slice(0,10),count:30});const calls=h.calls.length;assert.equal((await request({endpoint,force:true})).status,429);assert.equal(h.calls.length,calls);
  assert.doesNotMatch(JSON.stringify([...storage.data]),/PRIVATE-TOKEN/);
 });
 
@@ -154,4 +154,31 @@ test("hanging transport observes the bounded cancellation signal", {timeout:1000
 test("truncated permission metadata is explicitly labeled incomplete", async () => {
   const h = transport({pages:{[resourceURL]:{...resource,scopes_supported:[...Array.from({length:40},(_,i)=>`read:${i}`), "x".repeat(500)]},[issuer+"/.well-known/oauth-authorization-server"]:auth}});
   const r = await inspectEndpoint(endpoint,undefined,h.fetcher);assert.equal(r.scopes.length,32);assert.ok(r.findings.some(f=>f.title==="Supported scope list is incomplete"));
+});
+
+test("recent pre-checks reuse quota and network work across concurrent callers and restarts; forced, expired and changed protocols probe again", async () => {
+  const storage = new Storage(), h = transport(), runtime = new AgentRuntime(storage, {}, h.fetcher);
+  const request = (body: unknown, target = runtime, role = "operator") => target.handle(new Request("https://runtime.test/inspect-endpoint", {method:"POST", headers:{"x-runtime-role":role}, body:JSON.stringify(body)}));
+  const [a,b] = await Promise.all([request({endpoint}), request({endpoint})]);
+  assert.equal(a.status,200); assert.deepEqual(await a.json(), await b.json());
+  const count = () => (storage.data.get("limit:endpoint-inspection") as any).count;
+  assert.equal(count(),1); const calls = h.calls.length;
+  assert.equal((await request({endpoint},new AgentRuntime(storage,{},h.fetcher))).status,200); assert.equal(h.calls.length,calls);
+  assert.equal((await request({endpoint},runtime,"viewer")).status,403);
+  assert.equal((await request({endpoint,force:"true"})).status,400); assert.equal(h.calls.length,calls);
+  assert.equal((await request({endpoint,force:true})).status,200); assert.equal(count(),2);
+  assert.equal((await request({endpoint,protocol:"2026-07-28"})).status,200); assert.equal(count(),3);
+  const key = [...storage.data.keys()].find(k=>k.startsWith("inspection:"))!;
+  for (const checkedAt of [new Date(Date.now()-3_600_001).toISOString(),new Date(Date.now()+3_600_000).toISOString(),"invalid"]) {
+    await storage.put(key,{...(storage.data.get(key) as any),checkedAt});
+    assert.equal((await request({endpoint,protocol:"2026-07-28"})).status,200);
+  }
+  assert.equal(count(),6);
+  const legacy = {...storage.data.get(key) as any}; delete legacy.requestedProtocol; await storage.put(key,legacy);
+  assert.equal((await request({endpoint,protocol:"2026-07-28"})).status,200); assert.equal(count(),7);
+  await storage.put("limit:endpoint-inspection",{day:new Date().toISOString().slice(0,10),count:30});
+  const before = h.calls.length;
+  assert.equal((await request({endpoint,protocol:"2026-07-28"})).status,200);
+  assert.equal((await request({endpoint,protocol:"2026-07-28",force:true})).status,429); assert.equal(h.calls.length,before);
+  assert.equal((await request({endpoint},new AgentRuntime(new Storage(),{},h.fetcher))).status,200); assert.ok(h.calls.length>before);
 });
