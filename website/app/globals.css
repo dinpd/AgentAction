@@ -2855,12 +2855,3 @@ button:focus-visible {
 @media (max-width: 760px) {
   .home-recipe-grid { grid-template-columns: 1fr; }
 }
-
-/* MCP onboarding extends the existing technical project-page layout. */
-.mcp-onboarding { padding-top: 3rem; padding-bottom: 4rem; }
-.mcp-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 1.5rem; padding: 0; margin: 0; list-style: none; }
-.mcp-steps li { min-width: 0; border-top: 2px solid var(--ink); padding-top: 1.25rem; }
-.mcp-steps h3 { font-size: 1.2rem; line-height: 1.4; }
-.mcp-steps p, .mcp-limits { font-size: 1rem; line-height: 1.65; color: var(--muted); }
-.mcp-steps p { margin-top: .7rem; }
-.mcp-limits { margin-top: 2rem; padding: 1.25rem; border: 1px solid var(--line); }

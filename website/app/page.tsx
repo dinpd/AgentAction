@@ -70,9 +70,9 @@ const assuranceModules = [
   {
     state: "Available now",
     title: "Agent Creation & Evaluation",
-    copy: "Find an MCP server, review its pre-check, then connect a supported account and discover useful agents with AI. Create a supervised instance, approve its tool calls, and track each run.",
+    copy: "Find servers by capability, review public authentication and tool risk signals, and build a supervised agent. Test it against your intent and track outcomes across runs.",
     signal: "Discover → inspect → connect → supervise",
-    note: "The builder is available in the operator console. Recipes also provide instructions and test cases for your own runtime.",
+    note: "Public findings are not safety certification; authenticated tools may remain unseen. OAuth discovery is available; OAuth login is not yet supported.",
     href: agentBuilder,
     linkLabel: "Open My agents",
   },
@@ -246,13 +246,12 @@ export default function Home() {
             <span>Safely and reliably.</span>
           </h1>
           <p className="hero-lede">
-            Find MCP servers by capability and inspect public authentication
-            requirements and risk signals before connecting your account. Build
-            useful agents with AI and supervise their actions and outcomes.
+            Find an MCP server, review its automatic pre-check, and discover useful agents with AI.
+            Connect your account, approve its actions, and follow every run.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={agentBuilder}>
-              Browse MCP servers <span aria-hidden="true">↗</span>
+              Connect an MCP <span aria-hidden="true">↗</span>
             </a>
             <Link className="button button-secondary" href="/recipes">
               Browse agent recipes <span aria-hidden="true">→</span>
@@ -307,27 +306,6 @@ export default function Home() {
           <div className="console-footer">
             The agent proposes. The trust layer assesses and enforces.
           </div>
-        </div>
-      </section>
-
-      <section id="mcp-onboarding" className="mcp-onboarding section-shell" aria-labelledby="mcp-onboarding-title">
-        <div className="section-heading compact">
-          <div>
-            <p className="section-index">MCP onboarding · available now</p>
-            <h2 id="mcp-onboarding-title">Understand a server before connecting your account.</h2>
-          </div>
-          <p>Sign in to AgentAction to explore providers before sharing credentials with them. Browsing and connection setup have separate views, with findings and errors beside the relevant actions.</p>
-        </div>
-        <ol className="mcp-steps">
-          <li><h3>1. Browse</h3><p>Search the official MCP Registry by name or advertised capability. Filter declared authentication requirements, or enter an HTTPS endpoint.</p></li>
-          <li><h3>2. Automatic pre-check</h3><p>Select a server to inspect public authentication metadata and available tool descriptions. No provider credentials, AI calls or tool execution are sent.</p></li>
-          <li><h3>3. Review findings</h3><p>See OAuth discovery, advertised scopes, public tool risk signals and gaps in visibility before deciding whether to proceed.</p></li>
-          <li><h3>4. Approve and connect</h3><p>A workspace owner approves the exact endpoint. Connect a supported account, get agent suggestions, and review proposed tool calls before execution.</p></li>
-        </ol>
-        <p className="mcp-limits">Pre-checks are not safety certification. Tools behind authentication may remain invisible until login. OAuth can be discovered, but OAuth login is not supported yet. Registry authentication labels are provider declarations; missing metadata does not mean public access.</p>
-        <div className="hero-actions">
-          <a className="button button-primary" href={agentBuilder}>Open My agents <span aria-hidden="true">↗</span></a>
-          <a className="text-link" href={`${consoleDocs}#endpoint-pre-check-before-provider-authentication`}>How pre-checks work</a>
         </div>
       </section>
 
