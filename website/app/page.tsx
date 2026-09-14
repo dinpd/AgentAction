@@ -246,8 +246,8 @@ export default function Home() {
             <span>Safely and reliably.</span>
           </h1>
           <p className="hero-lede">
-            Find an MCP server, review its automatic pre-check, and discover useful agents with AI.
-            Connect your account, approve its actions, and follow every run.
+            Find an MCP server and review its automatic pre-check before connecting your account.
+            Then discover useful agents with AI, approve their actions, and follow every run.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={agentBuilder}>

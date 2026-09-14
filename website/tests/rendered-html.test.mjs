@@ -40,7 +40,7 @@ test("server-renders the complete AgentAction project site", async () => {
   const html = await response.text();
   assert.match(html, /<title>AgentAction — Connect agents to tools, safely and reliably<\/title>/i);
   assert.match(html, /<h1 id="hero-title">Connect agents to tools\.<span>Safely and reliably\.<\/span><\/h1>/);
-  assert.match(html, /Find an MCP server, review its automatic pre-check/);
+  assert.match(html, /Find an MCP server and review its automatic pre-check/);
   assert.match(html, /href="https:\/\/observability-console\.agentaction\.dev\/agents"[^>]*>Connect an MCP/);
   assert.match(html, /<meta name="description" content="Find MCP servers, inspect public authentication and risk signals before connecting your account, and build supervised agents with observable run history\."/);
   assert.doesNotMatch(html, /id="mcp-onboarding"|class="mcp-steps"/);
