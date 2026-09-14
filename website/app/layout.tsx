@@ -4,7 +4,7 @@ import "./globals.css";
 const siteOrigin = "https://agentaction.dev";
 const socialImage = `${siteOrigin}/og-trust-layer.png`;
 const siteTitle = "AgentAction — Connect agents to tools, safely and reliably";
-const siteDescription = "Connect an MCP server, get AI agent suggestions, and create a supervised instance with observable run history.";
+const siteDescription = "Find MCP servers, inspect public authentication and risk signals before connecting your account, and build supervised agents with observable run history.";
 
 export const dynamic = "force-static";
 

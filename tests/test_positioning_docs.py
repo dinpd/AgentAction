@@ -110,14 +110,15 @@ def test_repository_positioning_matches_agentaction_website():
     assert "Connect agents to tools." in WEBSITE_PAGE
     assert "Safely and reliably." in WEBSITE_PAGE
     assert "discover useful agents with AI" in WEBSITE_PAGE
-    # The homepage introduces recipe creation alongside the evaluation surface.
+    # The existing creation card describes the shipped builder alongside evaluation.
     for surface in [
         "Agent Creation & Evaluation",
         "Decision Assurance",
         "Action Authorization",
     ]:
         assert surface in WEBSITE_PAGE
-    assert "instructions and test cases for your own runtime" in WEBSITE_PAGE
+    assert "Find servers by capability" in WEBSITE_PAGE
+    assert "OAuth login is not yet supported" in WEBSITE_PAGE
     for label in [
         "Declare intent",
         "Assure the decision",

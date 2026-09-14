@@ -32,6 +32,12 @@ boundaries.
 | [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |
 | [Operator console](https://observability-console.agentaction.dev/?window=7#overview) | Cloudflare Access-protected workspace switching, agent integrations, eval routing, Activity, intent-relative outcomes, constraints, confidence, and evidence. |
 
+In [My agents](https://observability-console.agentaction.dev/agents), find MCP
+servers by capability and review automatic public-information pre-checks before
+sharing provider credentials. Connect a supported account and create supervised
+agents with run history. OAuth discovery is available; OAuth login is not yet
+supported. See [pre-check findings and limitations](console/README.md#endpoint-pre-check-before-provider-authentication).
+
 Prefer to start without blocking an existing workflow? Run the passive MCP
 observer quick start below, inspect the counterfactual policy decisions, and
 enable enforcement only after the boundary matches your intent. Use the public

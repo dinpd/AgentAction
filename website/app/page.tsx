@@ -68,13 +68,13 @@ const lifecycle = [
 
 const assuranceModules = [
   {
-    state: "Starters available",
+    state: "Available now",
     title: "Agent Creation & Evaluation",
-    copy: "Start with a job and the MCP servers it needs. Adapt a recipe to your intent, test it with synthetic scenarios, and track outcomes across runs.",
-    signal: "Job + MCP servers → starter → evaluation",
-    note: "Download instructions and test cases for your own runtime. Connect run evidence to follow outcomes in AgentAction.",
-    href: "/recipes",
-    linkLabel: "Find an agent recipe",
+    copy: "Find servers by capability, review public authentication and tool risk signals, and build a supervised agent. Test it against your intent and track outcomes across runs.",
+    signal: "Discover → inspect → connect → supervise",
+    note: "Public findings are not safety certification; authenticated tools may remain unseen. OAuth discovery is available; OAuth login is not yet supported.",
+    href: agentBuilder,
+    linkLabel: "Open My agents",
   },
   {
     state: "Available now",
@@ -246,8 +246,8 @@ export default function Home() {
             <span>Safely and reliably.</span>
           </h1>
           <p className="hero-lede">
-            Connect an MCP server, discover useful agents with AI, and try one
-            with your account. Review its actions and keep visibility over every run.
+            Find an MCP server and review its automatic pre-check before connecting your account.
+            Then discover useful agents with AI, approve their actions, and follow every run.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={agentBuilder}>
