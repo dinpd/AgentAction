@@ -4,18 +4,15 @@ import { type Recipe, runFixtures } from "../../../recipes/registry";
 export function RecipeAdoption({ recipe }: { recipe: Recipe }) {
   const [name, setName] = useState(recipe.title);
   const downloadUrl = `/recipes/${recipe.id}/download?name=${encodeURIComponent(name)}`;
-  const consoleUrl = `https://observability-console.agentaction.dev/?recipe=${encodeURIComponent(recipe.id)}&recipe_version=${encodeURIComponent(recipe.version)}#setup`;
+  const consoleUrl = `https://observability-console.agentaction.dev/agents?recipe=${encodeURIComponent(recipe.id)}&recipe_version=${encodeURIComponent(recipe.version)}#create`;
   return (
     <aside className="recipe-adopt" aria-label="Adopt this recipe">
       <p className="eyebrow">MAKE IT YOURS</p>
-      <h2>Create an agent instance</h2>
-      <p>Connect an MCP server with your account. Get AI suggestions based on its tools, run a supervised trial, and keep its history in your workspace.</p>
-      <a className="recipe-button" href="https://observability-console.agentaction.dev/agents">Connect an MCP ↗</a>
-      <h2>Start with this recipe</h2>
-      <p>
-        Take the instructions and connection checklist into the agent runtime
-        you use.
-      </p>
+      <h2>Use this recipe</h2>
+      <p>Choose your workspace, review required MCP tools, and configure a draft in Create. Run a supervised trial when you are ready.</p>
+      <a className="recipe-button" href={consoleUrl}>Use this recipe →</a>
+      <h3>Use another runtime</h3>
+      <p>Download the same version’s instructions and connection checklist for your own runtime.</p>
       <label>
         Agent name
         <input
@@ -38,16 +35,6 @@ export function RecipeAdoption({ recipe }: { recipe: Recipe }) {
       >
         Download recipe bundle
       </a>
-      <div className="recipe-adopt-next">
-        <p>Then connect it to your workspace.</p>
-        <a className="recipe-button" href={consoleUrl}>
-          Set up observability ↗
-        </a>
-        <p>
-          Sign in, connect your runtime, run sandbox cases, and review Jobs and
-          Evals.
-        </p>
-      </div>
     </aside>
   );
 }

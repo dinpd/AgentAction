@@ -1666,8 +1666,10 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   if (recipeContext && selectedRecipe) {
     recipeContext.hidden = false;
     required<HTMLElement>("[data-recipe-title]").textContent = `${selectedRecipe.title} · v${selectedRecipe.version}`;
-    required<HTMLElement>("[data-recipe-detail]").textContent = "Create or select a workspace, connect your runtime, then configure Evals and inspect Jobs. This recipe link does not connect an account, install controls, or create an evaluation.";
-    required<HTMLAnchorElement>("[data-recipe-link]").href = `https://agentaction.dev/recipes/${encodeURIComponent(selectedRecipe.id)}`;
+    required<HTMLElement>("[data-recipe-detail]").textContent = "Create or select a workspace, then continue to Create to configure this recipe. Your server connections and draft inputs belong to the selected workspace.";
+    required<HTMLAnchorElement>("[data-recipe-link]").href = `/agents?recipe=${encodeURIComponent(selectedRecipe.id)}&recipe_version=${encodeURIComponent(selectedRecipe.version)}#create`;
+    required<HTMLAnchorElement>("[data-recipe-link]").textContent = "Continue with this recipe →";
+    required<HTMLAnchorElement>("[data-recipe-link]").setAttribute("data-workspace-link", "");
   } else if (recipeContext && recipeQuery.has("recipe")) {
     recipeContext.hidden = false;
     required<HTMLElement>("[data-recipe-title]").textContent = "Review the current recipe";

@@ -63,6 +63,11 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
     const url = new URL(href, runtime.location.origin);
     if (url.origin === runtime.location.origin && tenant && !demo) url.searchParams.set('workspace', tenant);
     else url.searchParams.delete('workspace');
+    const context = new URLSearchParams(runtime.location.search);
+    for (const key of ['recipe', 'recipe_version']) {
+      if (!demo && context.getAll(key).length === 1) url.searchParams.set(key, context.get(key)!);
+      else url.searchParams.delete(key);
+    }
     return url.pathname + url.search + url.hash;
   }
   function render(data: Progress) {

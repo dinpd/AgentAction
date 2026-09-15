@@ -559,7 +559,7 @@ test("renders recipe discovery, details and provider publishing with honest evid
     assert.match(detail, /Run fixture checks/);
     assert.match(detail, /Download agent instructions/);
     assert.match(detail, /Download recipe bundle/);
-    assert.match(detail, new RegExp(`recipe=${id}(?:&amp;|&)recipe_version=1.0.0#setup`));
+    assert.match(detail, new RegExp(`recipe=${id}(?:&amp;|&)recipe_version=1.0.0#create`));
     assert.match(detail, /No live model or connected service was tested/);
   }
   const publish = await render('/recipes/publish');
@@ -614,7 +614,8 @@ test("practical recipes expose usable setup and preserve it in both download for
     assert.match(html, /Make it work in your environment/);
     assert.match(html, /Runtime requirements/);
     assert.match(html, /not completed live-agent tests/);
-    assert.ok(html.includes(`recipe=${id}&amp;recipe_version=1.0.0#setup`));
+    assert.ok(html.includes(`href="https://observability-console.agentaction.dev/agents?recipe=${id}&amp;recipe_version=1.0.0#create"`));
+    assert.match(html, /Use this recipe →/);
     const bundleResponse = await render(`/recipes/${id}/download?format=json&name=My%20business%20agent`);
     assert.equal(bundleResponse.status, 200);
     const bundle = await bundleResponse.json();

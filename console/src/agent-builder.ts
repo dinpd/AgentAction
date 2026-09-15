@@ -1,4 +1,4 @@
-import { recipes } from "../../recipes/registry.ts";
+import { recipes, type Recipe } from "../../recipes/registry.ts";
 import { JOURNEY_NAV } from "./journey.ts";
 import type { PrecheckReport } from "./mcp-precheck.ts";
 import type { CatalogResult } from "./mcp-registry.ts";
@@ -7,7 +7,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
 <div class="builder-layout">${JOURNEY_NAV}<main><div class="heading"><div><p class="eyebrow" id="stage-label">01 / Connect</p><h1 id="stage-title">Connect your tools.</h1><p class="lede" id="stage-description">Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
-<div id="builder" hidden>
+<p id="recipe-return" hidden><a href="#create">← Continue with your selected recipe</a></p><div id="builder" hidden>
 <section class="panel" data-builder-stage="connect"><div class="section-heading"><h2>MCP servers</h2><span>Server-side credentials · supervised execution</span></div>
 <div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">MCP connections</button></div>
 <div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
@@ -23,14 +23,14 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
 <p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
-<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a href="https://agentaction.dev/recipes">Explore agent recipes ↗</a><a href="#connect">Manage connections</a></div><h2>Start with a recipe</h2><p class="note">Browse jobs other agents can do. Recipes describe tools and success criteria; connect the required servers to create an agent.</p><div id="recipe-browser" class="grid"></div><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
+<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose a recipe</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><h2>Start with a recipe</h2><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
 <section id="configure" class="panel" data-builder-stage="create" hidden><h2>Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. History retains up to 40 recent runs, including trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
 export const AGENT_CSS = `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
-export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string;title:string;summary:string;intent:string}> = []): void {
+export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = []): void {
   const doc = runtime.document;
   const get = <T extends HTMLElement>(id: string) => doc.getElementById(id) as T;
   const workspace = get<HTMLSelectElement>("workspace");
@@ -38,7 +38,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
   let state: any = { connections: [], agents: [], runs: [] };
   let builderStage = 'connect';
   function showStage(value: string) {
-    builderStage = ['connect', 'create', 'run'].includes(value) ? value : 'connect';
+    builderStage = ['connect', 'create', 'run'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'connect';
     const copy: Record<string, string[]> = {
       connect: ['01 / Connect', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
       create: ['02 / Create', 'Give your agent a job.', 'Explore recipes and suggestions. Define the inputs, choose the tools, and decide what success means.'],
@@ -50,11 +50,79 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     next.href = builderStage === 'connect' ? '#create' : builderStage === 'create' ? '#run' : `/?workspace=${encodeURIComponent(tenant)}#activity`;
     next.textContent = builderStage === 'connect' ? 'Next: create an agent →' : builderStage === 'create' ? 'Next: run a trial →' : 'Next: monitor activity →';
     runtime.agentActionJourney?.setView(builderStage);
+    get('recipe-return').hidden = !selectedRecipe || builderStage !== 'connect';
     if (builderStage !== 'connect') cancelScheduledPrecheck();
   }
   runtime.addEventListener('hashchange', () => showStage(runtime.location.hash.slice(1)));
   let chosen: { connectionId: string; suggestion: any } | undefined;
   let memberships: any[] = [];
+  let selectedRecipe: Recipe | undefined;
+  function recipeContext(recipe?: Recipe) {
+    selectedRecipe = recipe; chosen = undefined;
+    get<HTMLFormElement>('create').reset(); get('configure').hidden = true;
+    const url = new URL(runtime.location.href);
+    for (const key of ['recipe', 'recipe_version']) url.searchParams.delete(key);
+    if (recipe) { url.searchParams.set('recipe', recipe.id); url.searchParams.set('recipe_version', recipe.version); }
+    runtime.history.replaceState(null, '', url.pathname + url.search + '#create');
+    renderAccountRole(); renderRecipe();
+    get('recipe-error').hidden = true;
+    runtime.location.hash = 'create'; showStage('create');
+  }
+  function renderRecipe() {
+    const panel = get('recipe-detail'); panel.replaceChildren(); panel.hidden = !selectedRecipe; get('recipe-browser').hidden = Boolean(selectedRecipe); get('custom-builder').hidden = Boolean(selectedRecipe);
+    get('recipe-return').hidden = !selectedRecipe || builderStage !== 'connect';
+    if (!selectedRecipe) return;
+    const recipe = selectedRecipe;
+    if (chosen?.suggestion.recipeId) { chosen = undefined; get("configure").hidden = true; }
+    panel.append(node('p', `Recipe · ${recipe.publisher.name} · v${recipe.version}`, 'eyebrow'), node('h2', recipe.title), node('p', recipe.intent));
+    const close = node('button', 'Choose another recipe', 'secondary') as HTMLButtonElement; close.type = 'button'; close.onclick = () => recipeContext(); panel.append(close);
+    panel.append(node('h3', '1. Review requirements'));
+    for (const server of recipe.servers) {
+      panel.append(node('strong', server.name), node('p', server.purpose), node('p', `Required tools: ${server.tools.join(', ')}`, 'note'));
+      if (server.connection) panel.append(node('p', server.connection.authentication, 'note'));
+    }
+    for (const requirement of recipe.adoption?.requirements || []) panel.append(node('p', requirement, 'note'));
+    panel.append(node('p', 'Hosted trials use one MCP server and at most four calls. They do not provide cross-run baselines, arbitrary file storage or custom schedules. Supply required context in your inputs; stop the trial if a requirement cannot be met. Tool availability alone does not verify the whole recipe.', 'note'));
+    const instructions = node('details'); instructions.append(node('summary', 'Instructions and boundaries'));
+    for (const line of [...recipe.instructions, ...recipe.boundaries]) instructions.append(node('p', line, 'note'));
+    panel.append(instructions, node('p', recipe.evidence.description, 'note'));
+    if (recipe.adoption) {
+      const checks = node('details'); checks.append(node('summary', 'Example output and trial checks'), node('p', 'Illustrative output; these checks have not run against your connections.', 'note'), node('pre', recipe.adoption.exampleOutput));
+      for (const check of recipe.adoption.validation) checks.append(node('strong', check.name), node('p', check.procedure, 'note'), node('p', `Expected: ${check.expected}`, 'note'));
+      panel.append(checks);
+    }
+    panel.append(node('h3', '2. Choose a connection'));
+    if (recipe.servers.length !== 1) {
+      panel.append(node('p', 'This recipe requires multiple MCP servers. Hosted agents currently use one server, so this recipe cannot run here yet. You can review it here or export it for a runtime that supports its requirements.', 'note'));
+      const download = node('a', 'Download recipe instructions') as HTMLAnchorElement; download.href = 'https://agentaction.dev/recipes/' + encodeURIComponent(recipe.id) + '/download?format=markdown'; panel.append(download); return;
+    }
+    const server = recipe.servers[0], select = doc.createElement('select'); select.id = 'recipe-connection';
+    const label = node('label', 'MCP connection'); label.append(select); panel.append(label);
+    const placeholder = node('option', 'Choose a connected server') as HTMLOptionElement; placeholder.value = ''; select.append(placeholder);
+    for (const connection of state.connections) {
+      const missing = server.tools.filter(name => !connection.tools.some((tool: any) => tool.name === name));
+      const option = node('option', connection.label + (connection.status !== 'connected' ? ' — disconnected' : missing.length ? ` — missing ${missing.join(', ')}` : ' — required tools available')) as HTMLOptionElement;
+      option.value = connection.id; option.disabled = connection.status !== 'connected' || missing.length > 0; select.append(option);
+    }
+    const connect = button('Connect a missing server', async () => { runtime.location.hash = 'connect'; showStage('connect'); openSetup(server.connection?.endpoint || '', server.name); }); panel.append(connect);
+    panel.append(node('h3', '3. Configure a draft'));
+    const reviewLabel = node('label', '', 'consent'), reviewed = doc.createElement('input'); reviewed.type = 'checkbox'; reviewed.id = 'recipe-reviewed'; reviewLabel.append(reviewed, node('span', 'I reviewed the requirements and will keep this trial within the available tools and runtime limits.')); panel.append(reviewLabel);
+    const configure = button('Configure this recipe', async () => {
+      const connection = state.connections.find((c: any) => c.id === select.value);
+      if (!connection || !reviewed.checked) return;
+      chosen = { connectionId: connection.id, suggestion: { recipeId: recipe.id, recipeVersion: recipe.version } };
+      const form = get<HTMLFormElement>('create'); form.reset();
+      (form.elements.namedItem('title') as HTMLInputElement).value = recipe.title;
+      (form.elements.namedItem('success') as HTMLTextAreaElement).value = recipe.outcomes.map(rule => rule.label).join('\n');
+      (form.elements.namedItem('setup') as HTMLTextAreaElement).placeholder = recipe.adoption?.inputs.map(input => input.name + ': ' + input.example).join('\n') || 'Provide the ticket, scope, policy and other context required by this recipe.';
+      get('setup-hint').textContent = recipe.adoption?.inputs.map(input => input.name + ': ' + input.description).join(' · ') || recipe.intent;
+      get('selected-tools').textContent = `Allowed tools: ${server.tools.join(', ')}. Recipe instructions and boundaries are saved with this draft.`;
+      showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, false);
+    const update = () => { configure.disabled = role === 'viewer' || !select.value || !reviewed.checked; };
+    select.addEventListener('change', () => { chosen = undefined; get('configure').hidden = true; update(); }); reviewed.addEventListener('change', () => { if (!reviewed.checked) { chosen = undefined; get('configure').hidden = true; } update(); });
+    update(); panel.append(configure);
+  }
   let catalogGeneration = 0, catalogOffset: number | null = null;
   let catalogQuery = "", catalogCapability = "", catalogAuth = "";
   const capabilityLabels = new Map<string, string>();
@@ -90,7 +158,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     get("catalog-selection").textContent = label ? `Selected ${label}. ${setup || "Review the findings before entering credentials."}` : "Enter a server’s HTTPS endpoint to start an automatic pre-check.";
     if (endpoint) void runPrecheck(endpoint); else get<HTMLInputElement>("precheck-endpoint").focus();
   }
-  function renderAccountRole() { get("account-role").textContent = tenant ? role : "No workspace selected"; runtime.agentActionJourney?.setWorkspace(tenant); showStage(builderStage); }
+  function renderAccountRole() { const url = new URL(runtime.location.href); if (tenant) url.searchParams.set('workspace', tenant); else url.searchParams.delete('workspace'); runtime.history.replaceState(null, '', url.pathname + url.search + url.hash); get("account-role").textContent = tenant ? role : "No workspace selected"; runtime.agentActionJourney?.setWorkspace(tenant); showStage(builderStage); }
   function sessionUnavailable(detail: string) {
     cancelScheduledPrecheck(); pendingInspections.clear(); precheckError = undefined; generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
     state = { connections: [], agents: [], runs: [] }; chosen = undefined;
@@ -99,7 +167,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     get("builder").hidden = true; get<HTMLInputElement>("precheck-endpoint").value = ""; renderPrechecks();
     get("account-identity").textContent = "Session unavailable";
     get("account-role").textContent = "Sign in required";
-    get("account-login").hidden = false; get("account-logout").hidden = true;
+    get("account-login").hidden = false; get<HTMLAnchorElement>("account-login").href = runtime.location.pathname + runtime.location.search + runtime.location.hash; get("account-logout").hidden = true;
     get("account-help").textContent = detail;
     message(detail, true);
   }
@@ -320,7 +388,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     state = data; get("builder").hidden = false; render();
   }
   function render() {
-    renderEndpointApprovals(); renderPrechecks();
+    renderEndpointApprovals(); renderPrechecks(); renderRecipe();
     const createConnections = get('create-connections'); createConnections.replaceChildren();
     for (const c of state.connections.filter((c: any) => c.status === 'connected')) {
       const row = node('div', '', 'connection'); row.append(node('strong', c.label), button('Suggest agents', async () => { message('Finding useful jobs for this server…'); await mutate('suggest', {connectionId:c.id}); await refresh(); message('Suggestions are ready. Choose a job to configure.'); })); createConnections.append(row);
@@ -356,7 +424,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
       for (const s of c.suggestions) {
         const card = node("article", "", "card");
         card.append(node("span", "AI suggested · untested", "pill"), node("h3", s.title), node("p", s.goal), node("p", `Requires: ${s.setup}`, "note"), node("p", `Success: ${s.success}`, "note"), node("p", `Tools: ${s.tools.join(", ")}`, "note"), button("Build this agent", async () => {
-          chosen = { connectionId: c.id, suggestion: s }; get("configure").hidden = false;
+          recipeContext(); chosen = { connectionId: c.id, suggestion: s }; get("configure").hidden = false;
           const form = get<HTMLFormElement>("create"); (form.elements.namedItem("title") as HTMLInputElement).value = s.title; (form.elements.namedItem("success") as HTMLTextAreaElement).value = s.success;
           get("setup-hint").textContent = s.setup; get("selected-tools").textContent = `Allowed tools: ${s.tools.join(", ")}`;
           get("configure").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -372,9 +440,10 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met") actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
+      if (a.recipe) card.append(node("p", `Recipe: ${a.recipe.id} · v${a.recipe.version}`, "note"));
       card.append(actions); if (a.nextRun) card.append(node("p", `Next proposal: ${new Date(a.nextRun).toLocaleString()}`, "note")); agents.append(card);
     }
-    if (!agents.children.length) agents.append(node("p", "Choose an AI suggestion to create your first agent instance.", "empty"));
+    if (!agents.children.length) agents.append(node("p", "Choose a recipe or an AI suggestion in Create to build your first agent.", "empty"));
     for (const r of state.runs) {
       const card = node("article", "", "card run"), heading = node("div", "", "run-heading");
       heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.status.replaceAll("_", " "), "pill"));
@@ -397,6 +466,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer" && !el.closest("#precheck-history"));
     updateEndpointAccess();
   }
+  get('account-login').addEventListener('click', event => { event.preventDefault(); runtime.location.reload(); });
+  get('choose-recipe').addEventListener('click', () => recipeContext());
+  get('choose-custom').addEventListener('click', () => recipeContext());
   get("browse-servers").addEventListener("click", () => showMcpView(false));
   get("back-to-results").addEventListener("click", () => showMcpView(false));
   get("manage-connections").addEventListener("click", () => showMcpView(true));
@@ -420,20 +492,25 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
-    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); }, "connect-feedback");
+    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); if (selectedRecipe) { runtime.location.hash = "create"; showStage("create"); message("Server connected. Select it for your recipe and review its requirements."); } }, "connect-feedback");
   });
   get<HTMLFormElement>("create").addEventListener("submit", event => {
     event.preventDefault(); if (!chosen) return;
     const form = event.currentTarget as HTMLFormElement, data = new FormData(form);
-    void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, suggestionId: chosen!.suggestion.id, title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); chosen = undefined; await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run"; });
+    void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : { suggestionId: chosen!.suggestion.id }), title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run"; });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
-    const card = node('details', '', 'card'); card.append(node('summary', recipe.title), node('p', recipe.summary), node('p', recipe.intent, 'note'));
-    const link = node('a', 'Read recipe and setup guide ↗') as HTMLAnchorElement; link.href = 'https://agentaction.dev/recipes/' + encodeURIComponent(recipe.id); card.append(link); return card;
+    const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
+    const use = node('button', 'Use this recipe') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;
   }));
-  showStage(runtime.location.hash.slice(1));
+  const query = new URLSearchParams(runtime.location.search);
+  if (query.has('recipe')) {
+    selectedRecipe = query.getAll('recipe').length === 1 && query.getAll('recipe_version').length === 1 ? recipeCatalog.find(recipe => recipe.id === query.get('recipe') && recipe.version === query.get('recipe_version')) : undefined;
+    if (!selectedRecipe) { get('recipe-error').hidden = false; get('recipe-error').textContent = 'This recipe version is unavailable. Choose a current recipe below; no draft has been created.'; }
+  }
+  showStage(query.has('recipe') && !['connect','run'].includes(runtime.location.hash.slice(1)) ? 'create' : runtime.location.hash.slice(1));
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];
@@ -448,4 +525,4 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }
-export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes.map(({id,title,summary,intent})=>({id,title,summary,intent}))).replace(/</g, "\\u003c")});`;
+export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes).replace(/</g, "\\u003c")});`;

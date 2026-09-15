@@ -2507,7 +2507,7 @@ test("recipe handoff uses reviewed catalog values and persists across Jobs navig
   const app = makeRuntime({ hash: "#setup", search: "?recipe=support-refund&recipe_version=1.0.0" });
   await app.controller.ready;
   assert.equal(app.document.querySelector("[data-recipe-title]")?.textContent, "Resolve an eligible refund · v1.0.0");
-  assert.match(app.document.querySelector("[data-recipe-detail]")?.textContent || "", /does not connect an account/);
+  assert.match(app.document.querySelector("[data-recipe-detail]")?.textContent || "", /continue to Create/);
   await app.controller.loadJobs();
   assert.ok(app.pageUrls.some(url => url.includes("recipe=support-refund") && url.includes("recipe_version=1.0.0") && url.endsWith("#jobs")));
   assert.ok(app.requests.every(url => !url.includes("recipe=")), "recipe metadata must not become a gateway filter or authority");
