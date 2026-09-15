@@ -4,6 +4,15 @@
 
 No changes yet.
 
+## 0.22.0-rc.3 - 2026-09-14
+
+### Added
+
+- Consolidate recipe adoption into Create. Public recipe pages open the same pinned catalog recipe in the console; review requirements, connect a missing MCP server, choose its connection, and configure a draft without generating AI suggestions. Preserve recipe selection across sign-in reload, workspace changes and workspace setup while clearing private draft inputs when switching workspaces.
+- Save recipe instructions, boundaries, requirements and version with each draft. The server resolves recipe content from the catalog and validates the selected connection’s discovered tools. Creation performs no inference or tool execution; trials retain approval before each call.
+- Show hosted limitations explicitly: one server per agent, four calls per run, no cross-run baseline or arbitrary file storage. Multi-server recipes remain inspectable/exportable but cannot create a hosted instance yet. Fixture evidence remains separate from live trial outcomes.
+- Significant functionality continuing the 0.22 minor release candidate. Optional recipe metadata is additive; existing agents and suggestion-based creation remain compatible, with no storage migration or new bindings. Install Python artifacts from the GitHub v0.22.0-rc.3 prerelease; npm publication is unchanged.
+
 ## 0.22.0-rc.2 - 2026-09-14
 
 ### Fixed
