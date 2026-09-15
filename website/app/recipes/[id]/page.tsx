@@ -40,7 +40,7 @@ export default async function RecipePage({
       <h1 className="recipe-detail-title">{recipe.title}</h1>
       <p className="recipe-provider recipe-detail-provider">
         <span>{recipe.servers.every((s) => s.connection) ? "Powered by" : "Required servers"}</span>
-        <strong>{recipe.servers.map((s) => s.name).join(" + ")}</strong>
+        <strong>{recipe.runtime === "recurring" ? "AgentAction recurring workflows" : recipe.servers.map((s) => s.name).join(" + ")}</strong>
       </p>
       <div className="recipe-detail-meta">
         <a href={recipe.publisher.url}>Recipe maintained by {recipe.publisher.name}</a>
@@ -61,8 +61,7 @@ export default async function RecipePage({
           <section className="recipe-section">
             <h2>Connections you’ll need</h2>
             <p>
-              Use servers that expose these tools. Review their schemas and
-              permissions in your agent runtime before running the recipe.
+              {recipe.runtime === "recurring" ? "This recipe uses built-in public web checks. Configure page targets and workspace email notifications; no MCP account is required." : "Use servers that expose these tools. Review their schemas and permissions in your agent runtime before running the recipe."}
             </p>
             {recipe.servers.map((s) => (
               <article className="recipe-connection" key={s.name}>
@@ -126,11 +125,7 @@ export default async function RecipePage({
           <section className="recipe-section">
             <h2>Follow it into operation</h2>
             <p>
-              Connect your agent to an AgentAction workspace. Jobs shows what
-              happened on each run; Evals lets you configure evaluation
-              definitions and routing. Review the provenance of each result:
-              agent self-assessments and independent observations provide
-              different evidence.
+              {recipe.runtime === "recurring" ? "Open Recurring agents to inspect check history, saved snapshots, findings and notification delivery. These deterministic observations are operational evidence; they are not signed gateway Jobs or independent SEO rankings." : "Connect your agent to an AgentAction workspace. Jobs shows what happened on each run; Evals lets you configure evaluation definitions and routing. Review the provenance of each result: agent self-assessments and independent observations provide different evidence."}
             </p>
             <p>
               Downloading a recipe does not connect accounts, deploy an agent,

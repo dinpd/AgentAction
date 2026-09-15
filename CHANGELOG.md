@@ -4,6 +4,22 @@
 
 No changes yet.
 
+## 0.23.0-rc.1 - 2026-09-15
+
+### Added
+
+- Reusable recurring-agent handlers with owner-approved intervals, durable baselines, run evidence, restart recovery, findings and acknowledge/resolve/reopen transitions. An observed outage is a completed monitoring run with a finding; stale or incomplete checks remain unknown.
+- Workspace email notification settings: private recipients, severity routing, daily digests, UTC quiet hours, weekly summaries, per-agent recipient subsets, test messages and bounded durable delivery retries/history. Existing supervised MCP agents publish privacy-safe approval/failure events to the same service after their next authenticated mutation.
+- Website Health sample recipe using public HTTPS checks and daily title, description, canonical and noindex comparisons. Configure arbitrary targets; no customer domains or recipients are embedded in the product. Two consecutive failures confirm a single-location incident. Full-site crawls, regional confirmation, Search Console and PageSpeed are not included in this slice.
+- Authenticated Recurring agents and Workspace notifications screens with baseline review, explicit activation, pause, findings and delivery evidence. Public recipe adoption routes to this shared runtime.
+
+### Compatibility and migration
+
+- Significant functionality: new 0.23 minor release candidate because unattended execution and persisted state add an operational boundary. Existing supervised MCP agents remain compatible. Additive `RecurringWorkspace` SQLite Durable Object migration and email binding; no existing workspace data is rewritten. Sender-domain provisioning and private workspace recipients are required for delivery.
+- Retained runs are operational observations with result digests, not signed gateway Jobs or independently verified SEO outcomes. Email delivery is at-least-once; provider acceptance does not prove inbox receipt.
+- Install Python artifacts from the GitHub v0.23.0-rc.1 prerelease. npm package versions/publication are unchanged. Hosted services deploy the merged commit separately.
+- Add an HTML parser for accurate metadata inspection and apply compatible security updates to console development tooling.
+
 ## 0.22.0-rc.3 - 2026-09-14
 
 ### Added

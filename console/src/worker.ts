@@ -1,3 +1,4 @@
+import { RECURRING_HTML, RECURRING_JS } from "./recurring-ui.ts";
 import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
 import { faviconBytes } from "./favicon.ts";
 import { recipes } from "../../recipes/registry.ts";
@@ -11,6 +12,7 @@ type Fetcher = {
 
 export type Env = {
   MCP_REGISTRY?: { getByName(name: string): { search(query: CatalogQuery): Promise<CatalogResult> } };
+  RECURRING_WORKSPACES?: { getByName(name: string): { request(request: Request): Promise<Response> } };
   AGENT_WORKSPACES?: { getByName(name: string): { request(request: Request): Promise<Response> } };
   AGENTID_GATEWAY?: Fetcher;
   AGENTID_GATEWAY_TOKEN?: string;
@@ -4849,6 +4851,13 @@ export default {
       if (request.method === "GET" && url.pathname === "/") {
         return htmlResponse(consoleShell(env));
       }
+      if (url.pathname === "/automations" || url.pathname.startsWith("/api/automations/") || url.pathname.startsWith("/assets/recurring.")) {
+        if (env.CONSOLE_PUBLIC_DEMO === "true") throw new ConsoleError(404, "public_demo_route_not_found", "Recurring agents are not available in the public demo.");
+        if (request.method === "GET" && url.pathname === "/automations") return htmlResponse(RECURRING_HTML);
+        if (request.method === "GET" && url.pathname === "/assets/recurring.css") return assetResponse(AGENT_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
+        if (request.method === "GET" && url.pathname === "/assets/recurring.js") return assetResponse(RECURRING_JS, "text/javascript; charset=utf-8");
+        return await forwardAgentRuntime(request, identity, env, true);
+      }
       if (url.pathname === "/agents" || url.pathname.startsWith("/api/agents/") || url.pathname.startsWith("/assets/agents.")) {
         if (env.CONSOLE_PUBLIC_DEMO === "true") throw new ConsoleError(404, "public_demo_route_not_found", "Agent runtime is not available in the public demo.");
         if (request.method === "GET" && url.pathname === "/agents") return htmlResponse(AGENT_HTML);
@@ -5222,19 +5231,19 @@ function membershipTenantId(value: unknown): string | undefined {
   return typeof tenantId === "string" && tenantId ? tenantId : undefined;
 }
 
-async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, env: Env): Promise<Response> {
+async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, env: Env, recurring = false): Promise<Response> {
   const url = new URL(request.url);
   const parts = url.pathname.split("/");
-  if (parts.length !== 5 || parts[1] !== "api" || parts[2] !== "agents" || (url.search && parts[4] !== "catalog")) throw new ConsoleError(404, "agent_route_invalid", "Agent route not found.");
+  if (parts.length !== 5 || parts[1] !== "api" || parts[2] !== (recurring ? "automations" : "agents") || (url.search && parts[4] !== "catalog")) throw new ConsoleError(404, "agent_route_invalid", "Agent route not found.");
   const tenantId = validateTenantId(decodePathSegment(parts[3]), "workspace");
   const action = parts[4];
-  const isRead = request.method === "GET" && ["state", "catalog"].includes(action);
+  const isRead = request.method === "GET" && (recurring ? ["state"] : ["state", "catalog"]).includes(action);
   let catalogQuery: CatalogQuery | undefined;
   if (isRead && action === "catalog") {
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !["inspect-endpoint", "connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"].includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["inspect-endpoint", "connect", "suggest", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;
@@ -5248,15 +5257,16 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     const catalog = await env.MCP_REGISTRY.getByName("official-v1").search(catalogQuery);
     return new Response(JSON.stringify(catalog), { headers: secureHeaders("application/json; charset=utf-8") });
   }
-  if (!env.AGENT_WORKSPACES) throw new ConsoleError(503, "agent_runtime_unavailable", "Agent runtime has not been configured.", "unavailable");
+  const namespace = recurring ? env.RECURRING_WORKSPACES : env.AGENT_WORKSPACES;
+  if (!namespace) throw new ConsoleError(503, "agent_runtime_unavailable", "Agent runtime has not been configured.", "unavailable");
   let body: string | undefined;
   if (!isRead) {
     try { body = await boundedText(new Response(request.body), 24000); }
     catch (error) { throw new ConsoleError(413, "agent_body_too_large", error instanceof RuntimeError ? error.message : "Agent request is too large."); }
   }
-  const upstream = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request(`https://agent-runtime.internal/${action}`, {
+  const upstream = await namespace.getByName(`workspace:${tenantId}`).request(new Request(`https://agent-runtime.internal/${action}`, {
     method: request.method,
-    headers: { "content-type": "application/json", "x-runtime-actor": identity.subject, "x-runtime-role": membership.role },
+    headers: { "content-type": "application/json", "x-runtime-actor": identity.subject, "x-runtime-role": membership.role, "x-runtime-workspace": tenantId },
     ...(body === undefined ? {} : { body }),
   }));
   const headers = secureHeaders("application/json; charset=utf-8");

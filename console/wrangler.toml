@@ -8,6 +8,7 @@ keep_vars = true
 keep_names = false
 
 [vars]
+NOTIFICATION_FROM_EMAIL = "alerts@agentaction.dev"
 CONSOLE_ENVIRONMENT = "production"
 CONSOLE_DIRECTORY_MODE = "true"
 ACCESS_TEAM_DOMAIN = "https://upperhandteam.cloudflareaccess.com"
@@ -39,6 +40,18 @@ class_name = "McpRegistry"
 tag = "mcp-registry-v1"
 new_sqlite_classes = ["McpRegistry"]
 
+[[durable_objects.bindings]]
+name = "RECURRING_WORKSPACES"
+class_name = "RecurringWorkspace"
+
+[[migrations]]
+tag = "recurring-workspace-v1"
+new_sqlite_classes = ["RecurringWorkspace"]
+
+[[send_email]]
+name = "NOTIFICATION_EMAIL"
+allowed_sender_addresses = ["alerts@agentaction.dev"]
+
 [env.development]
 name = "agentpass-observability-console-development"
 
@@ -67,3 +80,7 @@ class_name = "AgentWorkspace"
 [[env.development.durable_objects.bindings]]
 name = "MCP_REGISTRY"
 class_name = "McpRegistry"
+
+[[env.development.durable_objects.bindings]]
+name = "RECURRING_WORKSPACES"
+class_name = "RecurringWorkspace"

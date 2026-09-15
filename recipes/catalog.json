@@ -929,5 +929,122 @@
         "expected": "indeterminate"
       }
     ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "website-health",
+    "version": "1.0.0",
+    "runtime": "recurring",
+    "title": "Monitor website availability and technical SEO",
+    "category": "Engineering",
+    "summary": "Watch public pages, compare daily SEO snapshots and receive configurable workspace email notifications.",
+    "mode": "Read only",
+    "intent": "Perform bounded availability checks and daily technical SEO comparisons; preserve evidence, report new problems and verify recovery.",
+    "publisher": {
+      "name": "AgentAction",
+      "url": "https://agentaction.dev",
+      "kind": "maintainer"
+    },
+    "evidence": {
+      "level": "fixture",
+      "description": "Synthetic tests exercise outage confirmation, deduplication, SEO regression, recovery, scheduling and email routing. Live coverage depends on configured targets and email service."
+    },
+    "servers": [],
+    "adoption": {
+      "inputs": [
+        {
+          "name": "Page URL",
+          "example": "https://example.com/",
+          "description": "One public HTTPS page per instance; create additional instances for other pages or sites."
+        },
+        {
+          "name": "Expected content",
+          "example": "Welcome",
+          "description": "Optional text required in the returned HTML."
+        }
+      ],
+      "requirements": [
+        "Use the recurring-agent runtime with persistent state and an owner-approved schedule.",
+        "Configure workspace email recipients for notifications.",
+        "Same-origin redirects are permitted; explicitly approve additional origins before following them."
+      ],
+      "exampleOutput": "Example (synthetic): page unavailable after two consecutive checks; one critical finding opened; notification queued. Recovery resolves the finding after a successful check.",
+      "validation": [
+        {
+          "name": "Outage and recovery",
+          "procedure": "Use a controlled target that returns 503 twice, then 200.",
+          "expected": "One finding and alert, followed by a recovery event."
+        },
+        {
+          "name": "SEO regression",
+          "procedure": "After the baseline, introduce noindex and run the next daily SEO check.",
+          "expected": "A critical finding references the inspected URL and indexing directive."
+        }
+      ]
+    },
+    "boundaries": [
+      "Public HTTPS reads of configured origins only; no credentials, writes or automatic remediation.",
+      "At most three redirects and 512 KiB HTML; no JavaScript rendering or full-site crawl.",
+      "Two failures from the same location confirm an incident; independent geographic confirmation is not included.",
+      "SEO checks cover title, description, canonical and noindex; no ranking/indexing claims without Search Console.",
+      "Email provider acceptance is not proof of inbox receipt; retries may duplicate delivery."
+    ],
+    "instructions": [
+      "Configure the page, expected content, allowed redirect origins and check interval.",
+      "Run a baseline and review saved evidence before enabling automatic reads.",
+      "Use shared findings to deduplicate problems, acknowledge attention and verify recovery.",
+      "Inherit workspace email settings or choose a permitted subset of recipients.",
+      "Treat incomplete or stale evidence as unknown; keep execution success distinct from target health."
+    ],
+    "outcomes": [
+      {
+        "id": "check-complete",
+        "label": "Configured checks completed",
+        "field": "checks_complete",
+        "equals": true
+      },
+      {
+        "id": "evidence-saved",
+        "label": "Observation evidence preserved",
+        "field": "evidence_saved",
+        "equals": true
+      },
+      {
+        "id": "finding-routed",
+        "label": "Meaningful findings routed under workspace policy",
+        "field": "routing_applied",
+        "equals": true
+      }
+    ],
+    "fixtures": [
+      {
+        "id": "outage-detected",
+        "title": "Successful check discovers an outage",
+        "observation": {
+          "checks_complete": true,
+          "evidence_saved": true,
+          "routing_applied": true
+        },
+        "expected": "met"
+      },
+      {
+        "id": "incomplete-probe",
+        "title": "Incomplete probe is not successful monitoring",
+        "observation": {
+          "checks_complete": false,
+          "evidence_saved": true,
+          "routing_applied": true
+        },
+        "expected": "not_met"
+      },
+      {
+        "id": "missing-evidence",
+        "title": "No claim of success without evidence",
+        "observation": {
+          "checks_complete": true
+        },
+        "expected": "indeterminate"
+      }
+    ]
   }
 ]

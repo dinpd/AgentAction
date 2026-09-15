@@ -25,6 +25,19 @@ async function render(pathname = "/") {
   );
 }
 
+test("website health recipe explains native recurring execution and exports appropriate setup", async () => {
+  const response = await render("/recipes/website-health");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /AgentAction recurring workflows/);
+  assert.match(html, /no MCP account is required/);
+  assert.match(html, /not signed gateway Jobs/);
+  const starter = await (await render("/recipes/website-health/download?format=json")).json();
+  assert.equal(starter.recipe.runtime, "recurring");
+  assert.deepEqual(starter.connections, []);
+  assert.match(starter.setup[0], /Recurring agents/);
+});
+
 function structuredData(html) {
   return [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)].map(
     (match) => JSON.parse(match[1]),

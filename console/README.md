@@ -11,6 +11,10 @@ owners can manage membership and eval configuration.
 
 The operator console also provides [My Agents](https://observability-console.agentaction.dev/agents): connect an MCP server, get AI suggestions, create a persistent instance, and review supervised runs. See [runtime setup, boundaries and limits](AGENT-RUNTIME.md).
 
+## Recurring agents and notifications
+
+[Recurring agents](https://observability-console.agentaction.dev/automations) provide shared scheduling, saved state, findings and workspace email routing. Website Health is the first sample recipe. See [setup, boundaries and validation](RECURRING-AGENTS.md). Existing supervised MCP agents retain their approval requirements.
+
 ## Hosted surfaces
 
 AgentAction publishes two deliberately separate console deployments:
