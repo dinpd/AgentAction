@@ -6,8 +6,10 @@ export const JOURNEY_NAV = `<div class="console-navigation"><nav class="journey-
 <a data-stage="run" href="/agents#run"><span>03</span><strong>Run</strong><small>Trials, approvals &amp; schedules</small></a>
 <a data-stage="monitor" href="/#activity"><span>04</span><strong>Monitor</strong><small>Activity &amp; execution quality</small></a>
 <a data-stage="improve" href="/#evals"><span>05</span><strong>Improve</strong><small>Evals &amp; success criteria</small></a>
+<a data-recurring-link data-workspace-link href="/automations#agents"><span>↻</span><strong>Recurring agents</strong><small>Schedules &amp; findings</small></a>
 </nav><nav class="workspace-nav" aria-label="Workspace administration" data-workspace-navigation>
 <a data-utility="settings" data-workspace-link data-nav-setup href="/#setup"><span aria-hidden="true">⚙</span><strong>Workspace settings</strong><small>Members, invitations &amp; sources</small></a>
+<a data-notifications-link data-workspace-link href="/automations#notifications"><span>✉</span><strong>Notifications</strong><small>Workspace email routing</small></a>
 </nav></div>`;
 export const JOURNEY_HOME = `<section class="journey-home" data-journey-home aria-labelledby="journey-title" hidden>
 <p class="eyebrow">Your agent workspace</p><h2 id="journey-title">From first connection<br>to better agents.</h2><p class="journey-lede">Connect your tools. Give an agent a job. Run it, understand what happened, and improve the next attempt.</p>
@@ -83,7 +85,7 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
     home.querySelector('.journey-track')!.replaceChildren(...names.map((name, i) => {
       const li = doc.createElement('li'); li.dataset.next = String(i === data.next);
       const link = doc.createElement(demo && i !== 3 ? 'div' : 'a');
-      if (link instanceof runtime.HTMLAnchorElement) link.href = scoped(targets[i]);
+      if (link.tagName === "A") (link as HTMLAnchorElement).href = scoped(targets[i]);
       for (const [tag, text] of [['span', `0${i + 1}`], ['strong', name], ['p', descriptions[i]], ['small', data.states[i]]]) {
         const element = doc.createElement(tag); element.textContent = text; link.append(element);
       }
@@ -112,6 +114,7 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
       tenant = selected; demo = publicDemo;
       for (const link of links()) {
         link.setAttribute('href', scoped(link.getAttribute('href')!));
+        if (link.hasAttribute("data-recurring-link") || link.hasAttribute("data-notifications-link")) link.hidden = demo;
         if (link.dataset.stage || link.dataset.utility) link.hidden = demo && !['home', 'monitor'].includes(link.dataset.stage || '');
       }
       const settingsNav = doc.querySelector<HTMLElement>('[data-workspace-navigation]');

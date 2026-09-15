@@ -76,6 +76,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = []): 
     if (chosen?.suggestion.recipeId) { chosen = undefined; get("configure").hidden = true; }
     panel.append(node('p', `Recipe · ${recipe.publisher.name} · v${recipe.version}`, 'eyebrow'), node('h2', recipe.title), node('p', recipe.intent));
     const close = node('button', 'Choose another recipe', 'secondary') as HTMLButtonElement; close.type = 'button'; close.onclick = () => recipeContext(); panel.append(close);
+    if (recipe.runtime === 'recurring') { const link = node('a', 'Configure recurring agent →') as HTMLAnchorElement; link.href = '/automations?workspace=' + encodeURIComponent(tenant) + '#agents'; panel.append(node('p', 'This recipe uses platform scheduling, saved baselines, findings and workspace notifications. Configure its targets and run a baseline before enabling automatic reads.'), link); return; }
     panel.append(node('h3', '1. Review requirements'));
     for (const server of recipe.servers) {
       panel.append(node('strong', server.name), node('p', server.purpose), node('p', `Required tools: ${server.tools.join(', ')}`, 'note'));

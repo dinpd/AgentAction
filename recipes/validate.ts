@@ -57,7 +57,8 @@ export function validateCatalog(value: unknown): asserts value is Recipe[] {
     );
     for (const key of ["boundaries", "instructions"] as const)
       assert(list(r[key]) && r[key].every(text), `Missing ${key}`);
-    assert(list(r.servers), "Missing servers");
+    assert(r.runtime === undefined || r.runtime === "recurring", "Unknown recipe runtime");
+    assert(r.runtime === "recurring" ? Array.isArray(r.servers) && r.servers.length === 0 : list(r.servers), "Missing servers or invalid recurring recipe");
     for (const s of r.servers) {
       assert(
         s &&

@@ -3,6 +3,7 @@ import catalog from "./catalog.json" with { type: "json" };
 export type Observation = Record<string, string | number | boolean>;
 export type Recipe = {
   schemaVersion: number;
+  runtime?: "recurring";
   id: string;
   version: string;
   title: string;
@@ -84,7 +85,12 @@ export function starter(recipe: Recipe, name: string) {
       } : {}),
       requiredTools: server.tools,
     })),
-    setup: [
+    setup: recipe.runtime === "recurring" ? [
+      "Open Recurring agents in your AgentAction workspace and choose this recipe.",
+      "Configure targets and workspace email destinations; keep private values out of exported starters.",
+      "Run a baseline, review evidence, then authorize the bounded recurring schedule.",
+      "Inspect Findings, Recent runs and notification delivery history in Recurring agents.",
+    ] : [
       "Configure each MCP server in your agent runtime; keep credentials out of this file.",
       "Load the recipe instructions and review boundaries with your team.",
       "Run sandbox cases with your agent and collect actual tool outcomes before enabling real actions.",
@@ -111,7 +117,7 @@ export function starterMarkdown(recipe: Recipe, name: string) {
     `# ${bundle.agentName}`,
     `Recipe: ${recipe.id}@${recipe.version}\nPublisher: ${recipe.publisher.name}`,
     `## Goal\n${recipe.intent}`,
-    `## Required MCP connections\n${connections.join("\n")}`,
+    recipe.runtime === "recurring" ? "## Runtime\nAgentAction recurring workflows with built-in public web checks and workspace email notifications." : `## Required MCP connections\n${connections.join("\n")}`,
   ];
   if (recipe.adoption) {
     const a = recipe.adoption;
