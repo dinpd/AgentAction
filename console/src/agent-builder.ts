@@ -4,11 +4,11 @@ import type { PrecheckReport } from "./mcp-precheck.ts";
 import type { CatalogResult } from "./mcp-registry.ts";
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Connect, Create, Run</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
-<header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace setup</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
-<div class="builder-layout">${JOURNEY_NAV}<main><div class="heading"><div><p class="eyebrow" id="stage-label">01 / Connect</p><h1 id="stage-title">Connect your tools.</h1><p class="lede" id="stage-description">Find a server, review its capabilities, and connect the account your agent will use.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
+<header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
+<div class="builder-layout">${JOURNEY_NAV}<main><div class="heading"><div><p class="eyebrow" id="stage-label">01 / Connect</p><h1 id="stage-title">Connect your tools.</h1><p class="lede" id="stage-description">Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
 <div id="builder" hidden>
-<section class="panel" data-builder-stage="connect"><nav class="stage-tabs" aria-label="Connect views"><a href="/#setup" data-workspace-link>Workspace setup</a><a href="#connect" aria-current="page">MCP accounts</a></nav><div class="section-heading"><h2>MCP accounts</h2><span>Server-side credentials · supervised execution</span></div>
+<section class="panel" data-builder-stage="connect"><div class="section-heading"><h2>MCP servers</h2><span>Server-side credentials · supervised execution</span></div>
 <div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">MCP connections</button></div>
 <div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
 <p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
@@ -22,8 +22,8 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Local stdio and OAuth-only connections are not supported yet.</p>
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP accounts</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
-<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a href="https://agentaction.dev/recipes">Explore agent recipes ↗</a><a href="#connect">Manage connections</a></div><h2>Start with a recipe</h2><p class="note">Browse jobs other agents can do. Recipes describe tools and success criteria; connect your own account to create an agent.</p><div id="recipe-browser" class="grid"></div><h2 class="recipe-suggestions-title">Build with your accounts</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
+<p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
+<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a href="https://agentaction.dev/recipes">Explore agent recipes ↗</a><a href="#connect">Manage connections</a></div><h2>Start with a recipe</h2><p class="note">Browse jobs other agents can do. Recipes describe tools and success criteria; connect the required servers to create an agent.</p><div id="recipe-browser" class="grid"></div><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></section>
 <section id="configure" class="panel" data-builder-stage="create" hidden><h2>Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. History retains up to 40 recent runs, including trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
@@ -40,7 +40,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
   function showStage(value: string) {
     builderStage = ['connect', 'create', 'run'].includes(value) ? value : 'connect';
     const copy: Record<string, string[]> = {
-      connect: ['01 / Connect', 'Connect your tools.', 'Find a server, review its capabilities, and connect the account your agent will use.'],
+      connect: ['01 / Connect', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
       create: ['02 / Create', 'Give your agent a job.', 'Explore recipes and suggestions. Define the inputs, choose the tools, and decide what success means.'],
       run: ['03 / Run', 'Put your agent to work.', 'Try a supervised run, review proposed actions, and schedule agents after a successful trial.'],
     };
@@ -314,7 +314,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
   }
   async function refresh() {
     const current = ++generation;
-    if (!tenant) { get("builder").hidden = true; message("Create or join a workspace in Workspace setup to build an agent."); return; }
+    if (!tenant) { get("builder").hidden = true; message("Create or join a workspace in Workspace settings to build an agent."); return; }
     const data = await request(`/api/agents/${encodeURIComponent(tenant)}/state`);
     if (current !== generation) return;
     state = data; get("builder").hidden = false; render();
@@ -323,30 +323,35 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
     renderEndpointApprovals(); renderPrechecks();
     const createConnections = get('create-connections'); createConnections.replaceChildren();
     for (const c of state.connections.filter((c: any) => c.status === 'connected')) {
-      const row = node('div', '', 'connection'); row.append(node('strong', c.label), button('Suggest agents', async () => { message('Finding useful jobs for this account…'); await mutate('suggest', {connectionId:c.id}); await refresh(); message('Suggestions are ready. Choose a job to configure.'); })); createConnections.append(row);
+      const row = node('div', '', 'connection'); row.append(node('strong', c.label), button('Suggest agents', async () => { message('Finding useful jobs for this server…'); await mutate('suggest', {connectionId:c.id}); await refresh(); message('Suggestions are ready. Choose a job to configure.'); })); createConnections.append(row);
     }
-    if (!createConnections.children.length) { const link = node('a', 'Connect an account to get agent suggestions →') as HTMLAnchorElement; link.href = '#connect'; createConnections.append(link); }
+    if (!createConnections.children.length) { const link = node('a', 'Connect an MCP server to get agent suggestions →') as HTMLAnchorElement; link.href = '#connect'; createConnections.append(link); }
     showStage(builderStage);
     const connections = get("connections"), suggestions = get("suggestions"), agents = get("agents"), runs = get("runs");
     connections.replaceChildren(); suggestions.replaceChildren(); agents.replaceChildren(); runs.replaceChildren();
     for (const c of state.connections) {
       const row = node("div", "", "connection"), detail = node("div");
-      detail.append(node("strong", c.label), node("p", `${c.tools.length} discovered tools · ${c.status}${c.hasCredential ? " · credential stored" : ""}`, "note"));
+      detail.append(
+        node("strong", c.label),
+        node("p", `Server: ${c.endpoint}`, "note"),
+        node("p", `${c.tools.length} discovered tools · ${c.status}`, "note"),
+        node("p", c.hasCredential ? "Connected account: credential stored" : "Authentication: no stored credential", "note"),
+      );
       row.append(detail);
       if (c.status === "connected") {
         const actions = node("div", "", "actions");
-        actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); runtime.location.hash = "create"; }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this account, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Disconnected. The credential was removed and its agents were paused."); }));
+        actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); runtime.location.hash = "create"; }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this server, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Disconnected. The credential was removed and its agents were paused."); }));
         row.append(actions);
       }
       const credentialLabel = node("label", "Replace credential / reconnect");
       const credential = doc.createElement("input"); credential.type = "password"; credential.autocomplete = "off"; credential.maxLength = 4096; credential.placeholder = "New bearer token (blank for public access)"; credential.disabled = role === "viewer";
       credentialLabel.append(credential);
-      const replace = button("Reconnect account", async () => {
+      const replace = button("Reconnect server", async () => {
         const token = credential.value; credential.value = "";
         feedback("connections-feedback", "Checking the replacement connection…");
-        await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Account reconnected. Its agents are paused; run a new trial before reactivation.");
+        await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Server reconnected. Its agents are paused; run a new trial before reactivation.");
       });
-      const replacement = node("details"); replacement.append(node("summary", "Account connection"), credentialLabel, replace); detail.append(replacement);
+      const replacement = node("details"); replacement.append(node("summary", "Connection credentials"), credentialLabel, replace); detail.append(replacement);
       connections.append(row);
       for (const s of c.suggestions) {
         const card = node("article", "", "card");
@@ -358,7 +363,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Array<{id:string
         }, false)); suggestions.append(card);
       }
     }
-    if (!connections.children.length) connections.append(node("p", "No MCP accounts connected yet.", "empty"));
+    if (!connections.children.length) connections.append(node("p", "No MCP servers connected yet.", "empty"));
     if (!suggestions.children.length) suggestions.append(node("p", "Connect a server, then choose “Suggest agents.”", "empty"));
     for (const a of state.agents) {
       const card = node("article", "", "card"), actions = node("div", "", "actions");

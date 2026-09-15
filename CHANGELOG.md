@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.22.0-rc.2 - 2026-09-14
+
+### Fixed
+
+- Separate Workspace settings from the numbered agent lifecycle, with a dedicated utility destination on both console and builder. Overview remains the progress home and guides new users into workspace setup. Existing setup and invitation URLs keep working, including the selected workspace.
+- Label tool connections MCP servers. Show server endpoints and tools separately from stored account credentials; servers without stored credentials are not assumed to be public.
+- Backward-compatible correction within the v0.22.0 candidate series. No API, schema, authorization, dependency or storage change. Install Python artifacts from the GitHub v0.22.0-rc.2 prerelease; npm publication is unchanged.
+
 ## 0.22.0-rc.1 - 2026-09-14
 
 ### Added

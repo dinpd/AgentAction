@@ -4,7 +4,8 @@ import {journeyProgress} from '../src/journey.ts';
 const setup = {sources:[], ingestion:{observed:false}};
 const state = {connections:[],agents:[],runs:[]};
 test('journey distinguishes onboarding, connected account, draft and successful trial',()=>{
- assert.equal(journeyProgress('',null,null).href,'/#setup');
+ const onboarding=journeyProgress('',null,null);
+ assert.equal(onboarding.href,'/#setup');assert.equal(onboarding.next,-1);assert.equal(onboarding.action,'Set up your workspace');
  assert.equal(journeyProgress('a',setup,state).next,0);
  const connected={...state,connections:[{status:'connected'}]};
  assert.equal(journeyProgress('a',setup,connected).next,1);

@@ -542,7 +542,7 @@ origin's `/cdn-cgi/access/logout`, matching the main console. Return to `/agents
 to sign in again. Your identity provider may retain its own session; use its
 account chooser or sign out there if it selects the same identity automatically.
 Signing in does not assign a role: a workspace owner manages membership access.
-**Workspace setup** opens the existing workspace and invitation controls.
+**Workspace settings** opens the existing workspace and invitation controls.
 
 An expired or unverifiable API session clears forms, hides the builder and shows
 **Sign in**, which reloads `/agents` through the existing Access login boundary.
@@ -618,15 +618,21 @@ It reads existing setup and runtime state only while the home is open; missing d
 stays unknown, pending approvals take priority, and switching workspaces invalidates
 in-flight progress requests. Progress is advisory and never approves or executes work.
 
-- **Connect** (`/agents#connect`): registry browsing, provider setup and account management;
-  its Workspace setup tab (`/#setup`) holds workspace, sources and invitations.
+- **Connect** (`/agents#connect`): MCP server browsing, provider setup and connection management.
+  Each connected server lists its endpoint/tools and whether an account credential is stored.
 - **Create** (`/agents#create`): expandable recipe summaries, suggestions from connected
-  accounts, job inputs and success criteria.
+  servers, job inputs and success criteria.
 - **Run** (`/agents#run`): instances, supervised trials, exact-call approvals, daily schedules
   and retained run history. Creating an agent leads here.
 - **Monitor**: Activity (`/#activity`), finalized Jobs (`/#jobs`), and Quality (`/#quality`).
   The Exceptions tab remains explicitly planned; no new exception engine is implied.
 - **Improve** (`/#evals`): eval definitions and assignment rules, with a path back to agent creation.
+
+**Workspace settings** (`/#setup`) is a separate, unnumbered utility destination below
+the lifecycle. It holds workspace creation/joining, members, invitations and sources.
+Overview guides new users there with **Set up your workspace**; the home keeps its
+Overview name after onboarding. Settings links preserve the selected workspace and
+are hidden in the public demo.
 
 Setup, activity, jobs, evals and job-detail deep links remain supported. The old fleet
 Overview content now lives at `/#quality`. Internal cross-screen links carry a workspace

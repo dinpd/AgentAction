@@ -150,7 +150,7 @@ const SHELL_HTML = `<!doctype html>
       <div class="account-context" aria-label="Workspace and account">
         <div class="workspace-control" data-tenant-switcher hidden>
           <div class="workspace-heading"><span>Workspace</span><small data-workspace-mode>Loading access…</small></div>
-          <div class="workspace-actions"><select data-tenant-select aria-label="Active workspace"></select><a href="#setup" data-workspace-manage>Manage</a></div>
+          <div class="workspace-actions"><select data-tenant-select aria-label="Active workspace"></select><a href="#setup" data-workspace-manage aria-label="Workspace settings">Settings</a></div>
         </div>
         <div class="identity" aria-label="Authenticated identity">
           <small data-identity-label>Signed in as</small>
@@ -169,7 +169,6 @@ const SHELL_HTML = `<!doctype html>
       <nav class="stage-tabs" data-monitor-tabs aria-label="Monitor views" hidden>
         <a href="#activity" data-nav-activity>Activity</a><a href="#jobs" data-nav-jobs>Jobs</a><a href="#quality" data-nav-overview>Quality</a><a href="#exceptions">Exceptions · planned</a>
       </nav>
-      <nav class="stage-tabs" data-connect-tabs aria-label="Connect views" hidden><a href="#setup" data-nav-setup>Workspace setup</a><a href="/agents#connect" data-workspace-link>MCP accounts</a></nav>
       <nav class="stage-tabs" data-improve-tabs aria-label="Improve views" hidden><a href="#evals" data-nav-evals>Evals</a><a href="/agents#create" data-workspace-link>Create an improved agent</a></nav>
       <section class="status-card" data-status-card data-state="loading" aria-live="polite" aria-atomic="true">
         <div class="status-dot" aria-hidden="true"></div>
@@ -260,8 +259,8 @@ const SHELL_HTML = `<!doctype html>
       <section id="setup" class="setup-panel" data-console-view="setup" aria-labelledby="setup-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">01 / Connect</p>
-            <h2 id="setup-heading">Set up your workspace.</h2>
+            <p class="eyebrow">Workspace administration</p>
+            <h2 id="setup-heading">Workspace settings</h2>
             <p>Create or join a workspace, then connect the agent integration that fits your deployment.</p>
           </div>
           <span class="role-badge" data-setup-role>Not provisioned</span>
@@ -1830,7 +1829,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     const message = statusMessages[state] || statusMessages.unavailable;
     statusCard.dataset.state = state;
     if (["unauthorized", "forbidden", "unavailable"].includes(state)) statusCard.hidden = false;
-    statusTitle.textContent = message[0];
+    statusTitle.textContent = state === "ready" && activeView === "setup" ? "Workspace settings are ready" : message[0];
     statusDetail.textContent = customDetail || message[1];
   }
 
@@ -2230,6 +2229,11 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
 
   async function loadSetup(): Promise<void> {
     showView("setup");
+    const settingsQuery = new URLSearchParams(runtime.location.search);
+    settingsQuery.delete("invitation");
+    appendWorkspacePreference(settingsQuery);
+    const settingsSuffix = settingsQuery.toString();
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${settingsSuffix ? `?${settingsSuffix}` : ""}#setup`);
     if (!tenantId) {
       setupOnboarding.hidden = false;
       workspaceMigration.hidden = true;
@@ -2239,11 +2243,11 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
       setSetupMessage("ready", "Choose how to get started", "Create a workspace for your team, or redeem an invitation from an owner.");
       return;
     }
-    setStatus("loading", "Loading workspace setup and ingestion health.");
+    setStatus("loading", "Loading workspace settings and ingestion health.");
     const result = await read(`/api/console/onboarding/tenants/${encodeURIComponent(tenantId)}/setup`);
     if (!result.response.ok) {
-      const detail = failureMessage(result.body, "Workspace setup is unavailable.");
-      setSetupMessage("error", "Workspace setup unavailable", detail);
+      const detail = failureMessage(result.body, "Workspace settings are unavailable.");
+      setSetupMessage("error", "Workspace settings unavailable", detail);
       setStatus(failureState(result.response.status), detail);
       return;
     }
@@ -2276,7 +2280,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
         ? "Enable workspace switching to create, join, and move among workspaces from this console."
         : "Your signed Access claim selects this workspace. Ask an owner if directory-based switching is needed.");
     } else {
-      setSetupMessage("ready", "Workspace setup ready", ingestion.observed === true ? "Agent activity is flowing into this workspace." : "Connect an agent integration, then verify the first event here.");
+      setSetupMessage("ready", "Workspace settings ready", ingestion.observed === true ? "Agent activity is flowing into this workspace." : "Connect an agent integration, then verify the first event here.");
     }
     setStatus("ready", `Workspace ${tenantId} is ready.`);
   }
@@ -2907,9 +2911,9 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   function showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" | "home" | "exceptions"): void {
     activeView = view;
     statusCard.hidden = view === "home";
-    const stage = view === 'home' ? 'home' : view === 'setup' ? 'connect' : view === 'evals' ? 'improve' : 'monitor';
+    const stage = view === 'home' ? 'home' : view === 'setup' ? 'settings' : view === 'evals' ? 'improve' : 'monitor';
     runtime.agentActionJourney?.setView(stage);
-    for (const [selector, visible] of [['[data-monitor-heading]', stage === 'monitor'], ['[data-monitor-tabs]', stage === 'monitor'], ['[data-connect-tabs]', stage === 'connect'], ['[data-improve-tabs]', stage === 'improve'], ['.future-grid', view === 'exceptions']] as const) {
+    for (const [selector, visible] of [['[data-monitor-heading]', stage === 'monitor'], ['[data-monitor-tabs]', stage === 'monitor'], ['[data-improve-tabs]', stage === 'improve'], ['.future-grid', view === 'exceptions']] as const) {
       const element = doc.querySelector<HTMLElement>(selector); if (element) element.hidden = !visible;
     }
     overviewPanel.hidden = view !== "overview";
