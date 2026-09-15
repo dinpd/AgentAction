@@ -46,6 +46,12 @@ test("Wrangler bundle keeps the serialized browser client free of external helpe
       "The standalone browser asset would depend on bundler helpers that are not served with it.",
     );
     assert.doesNotThrow(() => new Function(`(${serializedFunction})(window);`));
+    const journeyStart = bundle.indexOf("function journeyProgress(");
+    const journeyEnd = bundle.indexOf("\nvar JOURNEY_JS =", journeyStart);
+    assert.ok(journeyStart >= 0 && journeyEnd > journeyStart, "Bundled journey functions must be present.");
+    const journey = bundle.slice(journeyStart, journeyEnd);
+    assert.doesNotMatch(journey, /\b__[A-Za-z0-9_$]+\s*\(/, "Journey must serialize without bundler helpers.");
+    assert.doesNotThrow(() => new Function(journey));
     const builderStart = bundle.indexOf("function agentBuilderApp(");
     const builderEnd = bundle.indexOf("\nvar AGENT_JS =", builderStart);
     assert.ok(builderStart >= 0 && builderEnd > builderStart, "Bundled agent builder must be present.");

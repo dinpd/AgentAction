@@ -13,7 +13,7 @@ test("serves the public console shell without an Access token", async () => {
 
   assert.equal(response.status, 200);
   const body = await response.text();
-  assert.match(body, /AgentAction Observability/);
+  assert.match(body, /<title>AgentAction<\/title>/);
   assert.match(body, /Loading synthetic console data/);
   assert.match(body, /Public synthetic fixtures/);
   assert.match(body, /Public synthetic demo/);

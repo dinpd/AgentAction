@@ -598,7 +598,7 @@ function makeRuntime(options: RuntimeOptions = {}) {
   const runtime = {
     Date: FixedDate,
     document,
-    location: { hash: options.hash || "#overview", pathname: "/", search: options.search || "" },
+    location: { hash: options.hash || "#quality", pathname: "/", search: options.search || "" },
     history: {
       replaceState(_data: unknown, _unused: string, url?: string | URL | null): void {
         pageUrls.push(String(url || ""));
@@ -1523,7 +1523,7 @@ test("allows workspace creation only for a new identity or an existing workspace
 });
 
 test("creates an unprovisioned tenant and shows its source secret only in memory", async () => {
-  const { controller, document, requests } = makeRuntime({ hash: "#overview", startUnprovisioned: true });
+  const { controller, document, requests } = makeRuntime({ hash: "#setup", startUnprovisioned: true });
   await controller.ready;
   assert.equal(document.get("[data-console-view='setup']").hidden, false);
   assert.equal(document.get("[data-tenant-setup]").hidden, true);

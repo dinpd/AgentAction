@@ -1,4 +1,4 @@
-# AgentAction Observability Console
+# AgentAction Console
 
 This directory contains the Cloudflare-hosted UI/BFF for AgentAction
 Observability. It combines self-service tenant setup, privacy-safe Activity,
@@ -608,3 +608,30 @@ billing depends on the deployment’s Cloudflare plan and usage.
 
 See [OAuth connection implementation plan](../docs/oauth-connections.md) for the
 separate work required to turn discovery into a supported account login flow.
+
+
+## Agent lifecycle workspace
+
+The primary navigation follows **Overview → Connect → Create → Run → Monitor → Improve**.
+Overview (`/#overview`) is a dedicated home with workspace progress and a next action.
+It reads existing setup and runtime state only while the home is open; missing data
+stays unknown, pending approvals take priority, and switching workspaces invalidates
+in-flight progress requests. Progress is advisory and never approves or executes work.
+
+- **Connect** (`/agents#connect`): registry browsing, provider setup and account management;
+  its Workspace setup tab (`/#setup`) holds workspace, sources and invitations.
+- **Create** (`/agents#create`): expandable recipe summaries, suggestions from connected
+  accounts, job inputs and success criteria.
+- **Run** (`/agents#run`): instances, supervised trials, exact-call approvals, daily schedules
+  and retained run history. Creating an agent leads here.
+- **Monitor**: Activity (`/#activity`), finalized Jobs (`/#jobs`), and Quality (`/#quality`).
+  The Exceptions tab remains explicitly planned; no new exception engine is implied.
+- **Improve** (`/#evals`): eval definitions and assignment rules, with a path back to agent creation.
+
+Setup, activity, jobs, evals and job-detail deep links remain supported. The old fleet
+Overview content now lives at `/#quality`. Internal cross-screen links carry a workspace
+preference, which each screen checks against the session's authorized memberships.
+The public demo home explains synthetic evidence and exposes only Overview and Monitor.
+Run `node --experimental-strip-types tests/journey-browser.mts` with the same Playwright
+options as the registry browser suite for state, navigation, workspace-race, mobile and
+demo acceptance. No provider requests or account mutations occur in these fixtures.

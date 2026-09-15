@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.22.0-rc.1 - 2026-09-14
+
+### Added
+
+- Restructure AgentAction into Overview, Connect, Create, Run, Monitor and Improve. The home screen shows workspace progress and a next action; the builder separates provider setup, agent creation, and supervised execution into focused screens. Monitor brings together activity, finalized jobs and execution quality; Improve holds evals.
+- Preserve existing setup, activity, jobs, eval and job-detail routes. Fleet quality moves to Monitor → Quality. Cross-screen links carry the selected authorized workspace. Missing progress data stays unknown and the public demo keeps management actions unavailable.
+- Minor release candidate continuing console/runtime validation. No schema, authorization, dependency or storage migration. Install Python artifacts from the GitHub v0.22.0-rc.1 prerelease; npm publication is unchanged.
+
 ## 0.21.0-rc.1 - 2026-09-14
 
 ### Added

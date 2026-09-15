@@ -22,7 +22,7 @@ const server=createServer(async(req,res)=>{
  const u=new URL(req.url!,'http://127.0.0.1');
  let value:any;
  if(sessionFailure&&u.pathname.startsWith('/api/')){res.statusCode=sessionFailure;if(sessionFailure===302)res.setHeader('location','/sign-in-fixture');res.setHeader('content-type','application/json');res.end(JSON.stringify({error:'Sign in required'}));return;}
- if(['/agents','/assets/agents.css','/assets/agents.js','/favicon.png','/favicon.ico','/csp-probe'].includes(u.pathname)){
+ if(['/agents','/assets/agents.css','/assets/agents.js','/assets/journey.js','/favicon.png','/favicon.ico','/csp-probe'].includes(u.pathname)){
    const response=await worker.fetch(new Request(new URL(u.pathname==='/csp-probe'?'/agents':u.pathname,u.origin)),{CONSOLE_ENVIRONMENT:'development',CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_MOCK_TENANT_ID:'a',CONSOLE_MOCK_SUBJECT:'fixture-owner'});
    res.statusCode=response.status;response.headers.forEach((v,k)=>res.setHeader(k,v));
    if(u.pathname==='/csp-probe')res.end((await response.text()).replace('</head>','<link rel="stylesheet" href="/assets/csp-probe.css"><script src="https://example.invalid/probe.js"></script></head>'));
@@ -134,7 +134,7 @@ const violations=await page.evaluate(()=>(window as any).cspViolations);assert.o
 ownerRole='viewer';await page.goto(`http://127.0.0.1:${address.port}/agents`);await page.locator('#account-role').filter({hasText:'viewer'}).waitFor();await page.getByRole('button',{name:'MCP connections',exact:true}).click();await page.getByText('Recent workspace pre-checks',{exact:true}).click();const saved=page.locator('#precheck-history button').first();assert.equal(await saved.isEnabled(),true);const viewerChecks=inspectionRequests.length;await saved.click();await page.locator('#precheck-results h4').waitFor();assert.equal(await precheck.isDisabled(),true);await page.waitForTimeout(800);assert.equal(inspectionRequests.length,viewerChecks);ownerRole='owner';
 for(const code of [401,302]){
   await page.goto(`http://127.0.0.1:${address.port}/agents`);await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();
-  await page.getByRole('button',{name:'MCP connections',exact:true}).click();await page.locator('[name=token]').fill('TEMPORARY-SECRET');sessionFailure=code;
+  await page.getByRole('button',{name:'MCP connections',exact:true}).click();await page.locator('[name=token]').fill('TEMPORARY-SECRET');await page.locator('#stage-next').click();await page.locator('#stage-next').click();sessionFailure=code;
   await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.locator('#account-login').waitFor({state:'visible'});
   assert.equal(await page.locator('#builder').isHidden(),true);assert.equal(await page.locator('[name=token]').inputValue(),'');assert.equal(await page.locator('#account-logout').isHidden(),true);assert.equal(await page.locator('#workspace').isDisabled(),true);assert.equal(await page.locator('#account-role').innerText(),'Sign in required');assert.match(await page.locator('#account-help').innerText(),/session has expired|signed out/);assert.equal(await page.locator('#account-login').getAttribute('href'),'/agents');
   sessionFailure=0;await page.getByRole('link',{name:'Sign in',exact:true}).click();await page.locator('#catalog-status').filter({hasText:'26 matching servers'}).waitFor();assert.equal(await page.locator('#account-role').innerText(),'owner');assert.equal(await page.locator('#account-login').isHidden(),true);
