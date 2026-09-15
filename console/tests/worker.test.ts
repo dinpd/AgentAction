@@ -82,8 +82,8 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-security-policy") || "", /default-src 'self'/);
   assert.match(body, /Skip to main content/);
-  assert.match(body, /aria-label="Console sections"/);
-  assert.match(body, /<h1>AgentAction Observability<\/h1>/);
+  assert.match(body, /aria-label="Agent lifecycle"/);
+  assert.match(body, /<h1>AgentAction<\/h1>/);
   assert.doesNotMatch(body, /<h1>Intent observability<\/h1>/);
   assert.match(body, /data-console-view="setup"/);
   assert.match(body, /Create a workspace/);
@@ -107,7 +107,7 @@ test("serves an accessible shell without embedding gateway credentials", async (
   assert.match(body, /data-jobs-filters/);
   assert.match(body, /Finalized execution explorer/);
   assert.match(body, /data-console-view="evals"/);
-  assert.match(body, /Choose how Jobs are evaluated/);
+  assert.match(body, /Define what better looks like/);
   assert.match(body, /Sources only authenticate telemetry/);
   assert.match(body, /Agent-declared results are self-attested/);
   assert.match(body, /Exact job ID/);

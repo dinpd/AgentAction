@@ -1,3 +1,4 @@
+import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
 import { faviconBytes } from "./favicon.ts";
 import { recipes } from "../../recipes/registry.ts";
 import { AGENT_HTML, AGENT_CSS, AGENT_JS } from "./agent-builder.ts";
@@ -130,9 +131,10 @@ const SHELL_HTML = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>AgentAction Observability</title>
+  <title>AgentAction</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/journey.js" defer></script>
   <script src="/assets/app.js" defer></script>
 </head>
 <body>
@@ -140,7 +142,7 @@ const SHELL_HTML = `<!doctype html>
   <header class="topbar">
     <div class="brand-lockup">
       <p class="eyebrow">AgentAction</p>
-      <h1>AgentAction Observability</h1>
+      <h1>AgentAction</h1>
       <p class="brand-description">Open-source intent contracts, execution controls, and immutable evidence for accountable agents.</p>
     </div>
     <div class="topbar-context">
@@ -160,16 +162,15 @@ const SHELL_HTML = `<!doctype html>
     </div>
   </header>
   <div class="layout">
-    <nav class="section-nav" aria-label="Console sections">
-      <a href="https://agentaction.dev/recipes">Agent recipes ↗</a>
-      <a href="#overview" aria-current="page" data-nav-overview>Overview</a>
-      <a href="#activity" data-nav-activity>Activity</a>
-      <a href="#jobs" data-nav-jobs>Jobs</a>
-      <a href="#evals" data-nav-evals>Evals</a>
-      <a href="#setup" data-nav-setup>Setup</a>
-      <a href="#exceptions">Exceptions</a>
-    </nav>
+    ${JOURNEY_NAV}
     <main id="main" tabindex="-1">
+      ${JOURNEY_HOME}
+      <div class="stage-heading" data-monitor-heading hidden><p class="eyebrow">04 / Monitor</p><h2>Understand what happened.</h2><p>Inspect agent activity, review finalized jobs, and compare execution quality.</p></div>
+      <nav class="stage-tabs" data-monitor-tabs aria-label="Monitor views" hidden>
+        <a href="#activity" data-nav-activity>Activity</a><a href="#jobs" data-nav-jobs>Jobs</a><a href="#quality" data-nav-overview>Quality</a><a href="#exceptions">Exceptions · planned</a>
+      </nav>
+      <nav class="stage-tabs" data-connect-tabs aria-label="Connect views" hidden><a href="#setup" data-nav-setup>Workspace setup</a><a href="/agents#connect" data-workspace-link>MCP accounts</a></nav>
+      <nav class="stage-tabs" data-improve-tabs aria-label="Improve views" hidden><a href="#evals" data-nav-evals>Evals</a><a href="/agents#create" data-workspace-link>Create an improved agent</a></nav>
       <section class="status-card" data-status-card data-state="loading" aria-live="polite" aria-atomic="true">
         <div class="status-dot" aria-hidden="true"></div>
         <div>
@@ -181,7 +182,7 @@ const SHELL_HTML = `<!doctype html>
       </section>
       <section class="intro" data-overview-context="boundaries" aria-labelledby="overview-title">
         <div class="intro-copy">
-          <p class="eyebrow">Fleet quality</p>
+          <p class="eyebrow">Monitor / Quality</p>
           <h2 id="overview-title">Execution quality</h2>
           <p>Profile-scoped immutable final receipts, with low-confidence and indeterminate work kept visible.</p>
         </div>
@@ -259,8 +260,8 @@ const SHELL_HTML = `<!doctype html>
       <section id="setup" class="setup-panel" data-console-view="setup" aria-labelledby="setup-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">Workspace setup</p>
-            <h2 id="setup-heading">Connect agents to observability</h2>
+            <p class="eyebrow">01 / Connect</p>
+            <h2 id="setup-heading">Set up your workspace.</h2>
             <p>Create or join a workspace, then connect the agent integration that fits your deployment.</p>
           </div>
           <span class="role-badge" data-setup-role>Not provisioned</span>
@@ -354,8 +355,8 @@ const SHELL_HTML = `<!doctype html>
       <section id="evals" class="setup-panel" data-console-view="evals" aria-labelledby="evals-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">Evaluation setup</p>
-            <h2 id="evals-heading">Choose how Jobs are evaluated</h2>
+            <p class="eyebrow">05 / Improve</p>
+            <h2 id="evals-heading">Define what better looks like.</h2>
             <p>Define reusable evaluation versions, then route agents and sources to them. Sources only authenticate telemetry; assignments choose evaluation behavior.</p>
           </div>
           <span class="role-badge" data-evals-role>Read only</span>
@@ -836,9 +837,6 @@ h2 { font-size: 1rem; line-height: 1.3; }
 .logout-link { justify-self: start; margin-top: 2px; color: var(--green); font-size: 0.65rem; font-weight: 900; text-underline-offset: 3px; }
 .logout-link:hover, .logout-link:focus-visible { outline: 2px solid color-mix(in srgb, var(--green) 25%, transparent); outline-offset: 2px; }
 .layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
-.section-nav { position: sticky; top: 0; align-self: start; display: grid; gap: 4px; padding: 28px 18px; }
-.section-nav a { padding: 9px 11px; border-left: 2px solid transparent; color: var(--muted); font-size: 0.82rem; font-weight: 700; text-decoration: none; }
-.section-nav a:hover, .section-nav a:focus-visible, .section-nav a[aria-current="page"] { border-color: var(--green); color: var(--ink); background: var(--green-soft); outline: none; }
 main { min-width: 0; padding: 28px 28px 48px 0; }
 .status-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .status-card p:last-child { color: var(--muted); font-size: 0.82rem; }
@@ -889,8 +887,6 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 800; }
 footer { padding: 16px 28px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 0.72rem; }
 @media (max-width: 820px) {
   .layout { display: block; }
-  .section-nav { position: static; grid-template-columns: repeat(6, max-content); overflow-x: auto; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-  .section-nav a { border-left: 0; border-bottom: 2px solid transparent; }
   main { padding: 16px; }
   .intro { grid-template-columns: 1fr; gap: 12px; padding: 16px 18px; }
   .intro dl { min-width: 0; }
@@ -1368,6 +1364,8 @@ button { cursor: pointer; }
   .identity { flex: 0 1 130px; min-width: 0; }
 }
 @media (max-width: 520px) {
+  .intro dl { min-width: 0; grid-template-columns: 1fr; }
+  .intro dl div { border-left: 0; border-top: 1px solid var(--line); padding: 9px 0; }
   .filter-grid,
   .metric-grid,
   .jobs-filter-grid { grid-template-columns: 1fr; }
@@ -1402,6 +1400,8 @@ button { cursor: pointer; }
 `;
 
 export type ConsoleAppRuntime = {
+  agentActionJourney?: Window["agentActionJourney"];
+  addEventListener?: Window["addEventListener"];
   Date: DateConstructor;
   document: Document;
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
@@ -1420,7 +1420,7 @@ export type ConsoleAppController = {
   loadSetup(): Promise<void>;
   loadEvals(): Promise<void>;
   ready: Promise<void>;
-  showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup"): void;
+  showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" | "home" | "exceptions"): void;
 };
 
 export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; version: string; title: string }[] = []): ConsoleAppController {
@@ -1688,7 +1688,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     inviteCode.value = pendingInvitationCode;
   }
   const initialHash = invitationQueryPresent || pendingInvitationCode ? "#setup" : runtime.location.hash.split("?", 1)[0];
-  let activeView: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" = initialHash === "#activity"
+  let activeView: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" | "home" | "exceptions" = initialHash === "#activity"
     ? "activity"
     : initialHash === "#jobs"
       ? "jobs"
@@ -1698,7 +1698,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
         ? "job-detail"
         : initialHash === "#setup"
           ? "setup"
-        : "overview";
+        : initialHash === "#quality" ? "overview" : initialHash === "#exceptions" ? "exceptions" : "home";
   let currentActivityCursor = "";
   let nextActivityCursor = "";
   let requestedActivityAgentId = "";
@@ -1829,6 +1829,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   function setStatus(state: string, customDetail?: string): void {
     const message = statusMessages[state] || statusMessages.unavailable;
     statusCard.dataset.state = state;
+    if (["unauthorized", "forbidden", "unavailable"].includes(state)) statusCard.hidden = false;
     statusTitle.textContent = message[0];
     statusDetail.textContent = customDetail || message[1];
   }
@@ -1943,7 +1944,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     evalsNav.hidden = publicDemo;
     logoutLink.hidden = publicDemo;
     identityLabel.textContent = publicDemo ? "Viewing as" : "Signed in as";
-    if (publicDemo && (activeView === "setup" || activeView === "evals")) showView("overview");
+    if (publicDemo && (activeView === "setup" || activeView === "evals")) showView("home");
     tenantMemberships = membershipEntries(body.memberships);
     const canCreateWorkspace = tenantMemberships.length === 0 || tenantMemberships.some((entry) => safeText(entry.membership.role, "") === "owner");
     createWorkspaceCard.hidden = publicDemo || workspaceMode !== "directory" || !canCreateWorkspace;
@@ -1986,6 +1987,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     const role = safeText(entry?.membership.role, "");
     activeRole = role === "owner" || role === "operator" || role === "viewer" ? role : "";
     tenantSelect.value = tenantId;
+    runtime.agentActionJourney?.setWorkspace(tenantId, publicDemo);
     tenantLabel.textContent = tenantId ? `Workspace: ${tenantId}` : "No workspace yet";
     setupRole.textContent = activeRole || "Not provisioned";
     evalsRole.textContent = activeRole === "owner" ? "Owner" : "Read only";
@@ -2842,7 +2844,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     }
     appendWorkspacePreference(pageQuery);
     const suffix = pageQuery.toString();
-    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#overview`);
+    runtime.history.replaceState(null, "", `${runtime.location.pathname || "/"}${suffix ? `?${suffix}` : ""}#quality`);
   }
 
   function syncJobsPageUrl(cursor = currentJobsCursor): void {
@@ -2902,8 +2904,14 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     nextJobsCursor = "";
   }
 
-  function showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup"): void {
+  function showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" | "home" | "exceptions"): void {
     activeView = view;
+    statusCard.hidden = view === "home";
+    const stage = view === 'home' ? 'home' : view === 'setup' ? 'connect' : view === 'evals' ? 'improve' : 'monitor';
+    runtime.agentActionJourney?.setView(stage);
+    for (const [selector, visible] of [['[data-monitor-heading]', stage === 'monitor'], ['[data-monitor-tabs]', stage === 'monitor'], ['[data-connect-tabs]', stage === 'connect'], ['[data-improve-tabs]', stage === 'improve'], ['.future-grid', view === 'exceptions']] as const) {
+      const element = doc.querySelector<HTMLElement>(selector); if (element) element.hidden = !visible;
+    }
     overviewPanel.hidden = view !== "overview";
     activityPanel.hidden = view !== "activity";
     jobsPanel.hidden = view !== "jobs";
@@ -4542,13 +4550,13 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
         setJoinWorkspaceExpanded(true);
         setSetupMessage("error", "Invitation link is invalid", "Paste the fallback code from the invitation email to join the workspace.");
       }
-      else if (!tenantId) await loadSetup();
+      else if (!tenantId && activeView !== "home") await loadSetup();
       else if (activeView === "setup") await loadSetup();
       else if (activeView === "activity") await loadActivity();
       else if (activeView === "jobs") await loadJobs();
       else if (activeView === "evals") await loadEvals();
       else if (activeView === "job-detail") await loadJobDetail();
-      else await loadOverview();
+      else if (activeView === "overview") await loadOverview();
     } catch {
       setStatus("unavailable");
       setOverviewState("unavailable", statusMessages.unavailable[0], statusMessages.unavailable[1]);
@@ -4572,7 +4580,8 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     else if (activeView === "jobs") void loadJobs();
     else if (activeView === "evals") void loadEvals();
     else if (activeView === "job-detail") void loadJobDetail();
-    else void loadOverview();
+    else if (activeView === "overview") void loadOverview();
+    else runtime.agentActionJourney?.refresh();
   });
   jobsFilterForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -4647,7 +4656,8 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     else if (activeView === "jobs") void loadJobs("");
     else if (activeView === "evals") void loadEvals();
     else if (activeView === "job-detail") void loadJobDetail();
-    else void loadOverview();
+    else if (activeView === "overview") void loadOverview();
+    else runtime.agentActionJourney?.refresh();
   });
   createIntegration.addEventListener("change", () => {
     const enabled = createIntegration.value !== "none";
@@ -4799,6 +4809,17 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   copyInvitation.addEventListener("click", () => { void copyText(createdInvitationCode.textContent || "", copyInvitation); });
   dismissSecret.addEventListener("click", clearOneTimeSecret);
 
+  runtime.addEventListener?.('hashchange', () => {
+    const hash = runtime.location.hash.split('?', 1)[0];
+    if (hash === '#overview' || !hash) { showView('home'); runtime.agentActionJourney?.refresh(); }
+    else if (hash === '#quality') { showView('overview'); void loadOverview(); }
+    else if (hash === '#exceptions') showView('exceptions');
+    else if (hash === '#activity') { showView('activity'); void loadActivity(); }
+    else if (hash === '#jobs') { showView('jobs'); void loadJobs(); }
+    else if (hash === '#job-detail') { restoreJobDetail(); showView('job-detail'); void loadJobDetail(); }
+    else if (hash === '#setup' && !publicDemo) void loadSetup();
+    else if (hash === '#evals' && !publicDemo) void loadEvals();
+  });
   renderIntegrationGuide();
   applyEvalTemplate();
   const ready = start();
@@ -4825,13 +4846,14 @@ export default {
       if (url.pathname === "/agents" || url.pathname.startsWith("/api/agents/") || url.pathname.startsWith("/assets/agents.")) {
         if (env.CONSOLE_PUBLIC_DEMO === "true") throw new ConsoleError(404, "public_demo_route_not_found", "Agent runtime is not available in the public demo.");
         if (request.method === "GET" && url.pathname === "/agents") return htmlResponse(AGENT_HTML);
-        if (request.method === "GET" && url.pathname === "/assets/agents.css") return assetResponse(AGENT_CSS, "text/css; charset=utf-8");
+        if (request.method === "GET" && url.pathname === "/assets/agents.css") return assetResponse(AGENT_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
         if (request.method === "GET" && url.pathname === "/assets/agents.js") return assetResponse(AGENT_JS, "text/javascript; charset=utf-8");
         return await forwardAgentRuntime(request, identity, env);
       }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
-        return assetResponse(APP_CSS, "text/css; charset=utf-8");
+        return assetResponse(APP_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
       }
+      if (request.method === "GET" && url.pathname === "/assets/journey.js") return assetResponse(JOURNEY_JS, "text/javascript; charset=utf-8");
       if (request.method === "GET" && url.pathname === "/assets/app.js") {
         return assetResponse(APP_JS, "text/javascript; charset=utf-8");
       }
@@ -4868,7 +4890,7 @@ export default {
 };
 
 function consoleShell(env: Env): string {
-  if (env.CONSOLE_PUBLIC_DEMO !== "true") return withoutPublicDemoLifecycle(SHELL_HTML).replace('<a href="https://agentaction.dev/recipes">', '<a href="/agents">My agents →</a><a href="https://agentaction.dev/recipes">');
+  if (env.CONSOLE_PUBLIC_DEMO !== "true") return withoutPublicDemoLifecycle(SHELL_HTML);
   return SHELL_HTML
     .replace('aria-label="Authenticated context"', 'aria-label="Public demo context"')
     .replace("Authenticating console session", "Loading synthetic console data")
