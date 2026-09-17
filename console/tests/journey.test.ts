@@ -31,3 +31,14 @@ test('unavailable data never asserts completion',()=>{
   const result=journeyProgress('a',a,b);assert.equal(result.href,'/#setup');assert.ok(result.states.every(s=>s==='Status unavailable'));
  }
 });
+test('recurring-only workspaces show agents and activity without requiring MCP', () => {
+ const checks = {jobs:[{status:'active',health:'checks complete'}],runs:[{status:'completed'}]};
+ const result = journeyProgress('a', setup, state, checks);
+ assert.equal(result.next,3); assert.equal(result.href,'/#activity'); assert.equal(result.states[1],'1 agent');
+ assert.equal(result.states[2],'Monitoring checks recorded'); assert.equal(result.states[3],'Run history available');
+ assert.equal(journeyProgress('a',setup,state,{jobs:[{status:'draft'}],runs:[]}).next,2);
+ for (const job of [{status:'active',stale:true},{status:'active',health:'unknown'},{status:'active',health:'findings'}]) {
+  assert.equal(journeyProgress('a',setup,state,{jobs:[job],runs:[]}).attention,true);
+ }
+ assert.equal(journeyProgress('a',setup,state,null).next,-1);
+});

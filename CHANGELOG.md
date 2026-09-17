@@ -4,6 +4,14 @@
 
 No changes yet.
 
+## 0.23.0-rc.2 - 2026-09-17
+
+### Fixed
+
+- Show recurring recipe instances alongside supervised agents in My agents, with latest execution, result and next schedule. Include recurring checks in Run history and expose both kinds of run in Monitor, newest first. Keep pending approvals visible beyond the recent-history limit.
+- Recognize recurring-only workspaces in Overview. Show stale or unavailable monitoring coverage explicitly and keep workspace switches isolated from delayed responses. Viewing and refreshing history performs no agent actions.
+- Backward-compatible console discoverability fix continuing the 0.23 release candidate. No API, schema, permission, notification or scheduling changes; no migration. Operational checks remain distinct from signed Jobs and AI-assessed outcomes. Install Python artifacts from the GitHub v0.23.0-rc.2 prerelease; npm publication is unchanged. Hosted console deploys from the merged commit.
+
 ## 0.23.0-rc.1 - 2026-09-15
 
 ### Added

@@ -1,8 +1,13 @@
 # Recurring agents and workspace notifications
 
-Open `/automations` in the authenticated operator console. These reusable services
-are separate from the existing supervised MCP planner; Website Health is the first
-handler, not a domain-specific scheduler or notification implementation.
+Use **Run → My agents** to see recurring and supervised agents together, including
+last results and upcoming schedules. **Run → Runs & approvals** and
+**Monitor → Activity → Agent runs** show recent checks alongside supervised runs.
+Refresh reads saved history without executing an agent. External event filters apply
+only to the external activity section; checks are not signed Jobs or AI assessments.
+
+Open **Recurring agents** (`/automations`) for configuration, scope, findings and
+notifications. Website Health is the first handler on the shared recurring runtime.
 
 ## Operator workflow
 
