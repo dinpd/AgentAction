@@ -20,6 +20,7 @@ const server=createServer(async(req,res)=>{
  else if(req.method!=='GET'){posts++;res.statusCode=405;}
  else if(url.pathname==='/api/console/session')value={tenant_id:mode==='new'?'':'acme',email:'owner@example.com',workspace_mode:'directory',memberships:mode==='new'?[]:['acme','beta'].map(id=>({tenant:{tenant_id:id,display_name:id},membership:{role:'owner'}}))};
  else if(url.pathname.endsWith('/setup')) {const tenant=url.pathname.split('/')[5];value=setup(tenant);if(delayed&&tenant==='acme')await new Promise(r=>setTimeout(r,450));}
+ else if(url.pathname.startsWith('/api/automations/'))value={jobs:[],runs:[]};
  else if(url.pathname.endsWith('/state')) {value=state(url.pathname.split('/')[3]);if(mode==='error')res.statusCode=503;}
  else if(url.pathname.endsWith('/catalog')) value={servers:[],total:0,capabilities:[],authTypes:[],status:'ready',nextOffset:null};
  else if(url.pathname.includes('intent-quality/rollups')) value={...fixture,tenant_id:'acme'};

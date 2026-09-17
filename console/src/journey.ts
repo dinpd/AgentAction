@@ -27,26 +27,35 @@ export const JOURNEY_CSS = `
 `;
 
 type Progress = { next: number; title: string; detail: string; href: string; action: string; states: string[]; attention?: boolean };
-export function journeyProgress(tenant: string, setup: any, state: any): Progress {
+export function journeyProgress(tenant: string, setup: any, state: any, recurring: any = { jobs: [], runs: [] }): Progress {
   const states = ['Not connected', 'No agents yet', 'No successful run yet', 'No activity yet', 'Review evals'];
   const result = (next: number, title: string, detail: string, href: string, action: string, attention = false): Progress => ({ next, title, detail, href, action, states, attention });
   if (!tenant) return result(-1, 'Start with your workspace', 'Create a workspace or join your team, then connect the MCP servers your agent will use.', '/#setup', 'Set up your workspace');
-  if (!setup || !state) {
+  if (!setup || !state || !recurring) {
     states.fill('Status unavailable');
     return result(-1, 'Check your workspace connection', 'Some progress data could not be loaded. Open Workspace settings to check access, or refresh to try again.', '/#setup', 'Open workspace settings');
   }
   const connections = state.connections.filter((c: any) => c.status === 'connected');
   const sources = setup.sources.filter((s: any) => s.enabled === true);
-  const agents = state.agents;
+  const agents = [...state.agents, ...recurring.jobs];
   const observed = setup.ingestion?.observed === true;
   const externalAgents = sources.flatMap((s: any) => Array.isArray(s.agent_ids) ? s.agent_ids : []);
   const succeeded = state.runs.some((r: any) => r.status === 'completed' && r.outcome === 'met');
   states[0] = connections.length || sources.length ? 'Connected' : 'Not connected';
   states[1] = agents.length ? `${agents.length} agent${agents.length === 1 ? '' : 's'}` : externalAgents.length ? 'External agent connected' : 'No agents yet';
   states[2] = succeeded ? 'Successful run recorded' : observed ? 'External activity received' : 'No successful run yet';
-  states[3] = observed ? 'Activity received' : state.runs.length ? 'Run history available' : 'No activity yet';
+  states[3] = observed ? 'Activity received' : state.runs.length || recurring.runs.length ? 'Run history available' : 'No activity yet';
   if (state.runs.some((r: any) => r.status === 'awaiting_approval')) return result(2, 'A run needs your review', 'Review the proposed tool call and its arguments before deciding whether to approve it.', '/agents#run', 'Review pending runs', true);
   if (state.runs.some((r: any) => ['failed', 'interrupted'].includes(r.status))) return result(3, 'Review runs that need attention', 'Your retained history contains a failed or interrupted run. Inspect what happened before trying again.', '/agents#run', 'Review run history', true);
+  if (recurring.jobs.some((j: any) => j.stale || (j.health === 'unknown' && j.status === 'active') || j.health === 'findings')) return result(3, 'Review monitoring coverage and findings', 'A recurring agent has findings or incomplete recent coverage. Review its latest result and schedule.', '/agents#run', 'Review agents', true);
+  if (recurring.jobs.length && !state.agents.length && !observed) {
+    states[0] = 'Recipe configured';
+    const complete = recurring.runs.some((r: any) => r.status === 'completed');
+    states[2] = complete ? 'Monitoring checks recorded' : 'First check needed';
+    return complete
+      ? result(3, recurring.jobs.some((j: any) => j.status === 'active') ? 'Your recurring agents are checking in' : 'Review your recurring agents', 'Review latest checks, findings and upcoming schedules in Monitor.', '/#activity', 'View agent activity')
+      : result(2, 'Run your first check', 'Open the recurring agent, run a baseline and review its scope before enabling its schedule.', '/agents#run', 'Review agents');
+  }
   if (!connections.length && !sources.length) return result(0, 'Connect your first MCP server', 'Find an MCP server and review its setup, or connect an external agent through Workspace settings.', '/agents#connect', 'Connect an MCP server');
   if (!agents.length && !externalAgents.length && !observed) return result(1, 'Give your agent a job', 'Explore recipes and suggestions, define the inputs, and decide what counts as success.', '/agents#create', 'Create your first agent');
   if (!succeeded && !observed) return result(2, 'Try your first run', agents.length ? 'Run a supervised trial. Review each proposed action and check the result before scheduling it.' : 'Send an action from your external agent, then check that activity arrives in this workspace.', agents.length ? '/agents#run' : '/#setup', agents.length ? 'Run a trial' : 'Check agent setup');
@@ -102,12 +111,13 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
     async function read(path: string) {
       try { const response = await runtime.fetch(path, { credentials: 'same-origin', redirect: 'error', headers: { Accept: 'application/json' } }); return response.ok ? await response.json() : null; } catch { return null; }
     }
-    const [setup, state] = await Promise.all([read(`/api/console/onboarding/tenants/${encodeURIComponent(selected)}/setup`), read(`/api/agents/${encodeURIComponent(selected)}/state`)]);
+    const [setup, state, recurring] = await Promise.all([read(`/api/console/onboarding/tenants/${encodeURIComponent(selected)}/setup`), read(`/api/agents/${encodeURIComponent(selected)}/state`), read(`/api/automations/${encodeURIComponent(selected)}/state`)]);
     if (current !== generation || tenant !== selected) return;
     const objects = (value: unknown): value is Record<string, unknown>[] => Array.isArray(value) && value.every(item => item !== null && typeof item === 'object' && !Array.isArray(item));
     const validSetup = setup && objects(setup.sources) && setup.tenant?.tenant_id === selected;
     const validState = state && objects(state.connections) && objects(state.agents) && objects(state.runs);
-    render(progress(selected, validSetup ? setup : null, validState ? state : null));
+    const validRecurring = recurring && objects(recurring.jobs) && objects(recurring.runs);
+    render(progress(selected, validSetup ? setup : null, validState ? state : null, validRecurring ? recurring : null));
   }
   runtime.agentActionJourney = {
     setWorkspace(selected, publicDemo = false) {

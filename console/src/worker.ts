@@ -1,3 +1,4 @@
+import { agentHistory, HISTORY_CSS } from "./agent-history.ts";
 import { RECURRING_HTML, RECURRING_JS } from "./recurring-ui.ts";
 import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
 import { faviconBytes } from "./favicon.ts";
@@ -500,12 +501,15 @@ const SHELL_HTML = `<!doctype html>
       <section id="activity" class="jobs-panel" data-console-view="activity" aria-labelledby="activity-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">Shadow activity</p>
+            <p class="eyebrow">Activity</p>
             <h2 id="activity-heading">Agent execution stream</h2>
-            <p>Privacy-safe Hermes actions and counterfactual AgentAction decisions. Intent is shown only when the integration supplied an explicit ID and digest.</p>
+            <p>Recent agent runs, recurring checks and observed external actions for this workspace.</p>
           </div>
           <span class="read-only-badge">Read only</span>
         </header>
+        <section class="hosted-history" data-hosted-history aria-label="Agent run history" hidden></section>
+        <h3>External observed activity</h3>
+        <p>Privacy-safe external actions and counterfactual decisions. Intent is shown only when an integration supplied an explicit ID and digest.</p>
         <form class="filter-form" data-activity-filters>
           <fieldset>
             <legend>Filter observed activity</legend>
@@ -1424,7 +1428,8 @@ export type ConsoleAppController = {
   showView(view: "activity" | "evals" | "job-detail" | "jobs" | "overview" | "setup" | "home" | "exceptions"): void;
 };
 
-export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; version: string; title: string }[] = []): ConsoleAppController {
+export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; version: string; title: string }[] = [], historyFactory = agentHistory): ConsoleAppController {
+  const history = historyFactory(runtime);
   const doc = runtime.document;
   const required = <T extends Element>(selector: string): T => {
     const node = doc.querySelector(selector);
@@ -1829,11 +1834,11 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     return node;
   }
 
-  function setStatus(state: string, customDetail?: string): void {
+  function setStatus(state: string, customDetail?: string, customTitle?: string): void {
     const message = statusMessages[state] || statusMessages.unavailable;
     statusCard.dataset.state = state;
     if (["unauthorized", "forbidden", "unavailable"].includes(state)) statusCard.hidden = false;
-    statusTitle.textContent = state === "ready" && activeView === "setup" ? "Workspace settings are ready" : message[0];
+    statusTitle.textContent = customTitle || (state === "ready" && activeView === "setup" ? "Workspace settings are ready" : message[0]);
     statusDetail.textContent = customDetail || message[1];
   }
 
@@ -1981,6 +1986,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   function selectTenant(selected: string): void {
     const previousTenantId = tenantId;
     tenantId = selected;
+    history.clearMonitor(publicDemo);
     if (previousTenantId && previousTenantId !== tenantId) {
       requestedActivityAgentId = "";
       activityAgentOptionsTenantId = "";
@@ -4393,11 +4399,11 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     activityContent.hidden = events.length === 0;
     if (events.length === 0) {
       if (activityHasRestrictiveFilters()) {
-        setActivityState("empty", "No activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
+        setActivityState("empty", "No external activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
         setStatus("ready", "The Activity query completed with no matches.");
       } else {
-        setActivityState("empty", "No activity received", "Verify that the source is enabled and the agent integration has its current token, then run one agent action. Raw prompts, arguments, and results are never part of this feed.");
-        setStatus("ready", "This workspace has not received agent activity in the selected window.");
+        setActivityState("empty", "No external activity received", "Verify that the source is enabled and the agent integration has its current token, then run one agent action. Raw prompts, arguments, and results are never part of this feed.");
+        setStatus("ready", "No external events were received in this window. Agent runs are shown separately above.");
       }
       return;
     }
@@ -4411,6 +4417,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   }
 
   async function loadActivity(cursor = currentActivityCursor): Promise<void> {
+    void history.loadMonitor(tenantId, publicDemo);
     if (!tenantId) return;
     currentActivityCursor = cursor.slice(0, 1_024);
     setStatus("loading", "Querying tenant-scoped agent activity.");
@@ -4425,13 +4432,13 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
       if (!result.response.ok) {
         const state = failureState(result.response.status);
         const detail = failureMessage(result.body, statusMessages[state][1]);
-        setStatus(state, detail);
+        setStatus(state, detail, "External activity is unavailable");
         setActivityState(state, statusMessages[state][0], detail);
         return;
       }
       renderActivity(result.body, result.response);
     } catch {
-      setStatus("unavailable");
+      setStatus("unavailable", "The external event feed could not be loaded. Agent run history loads separately above.", "External activity is unavailable");
       setActivityState("unavailable", "Observed activity is unavailable", statusMessages.unavailable[1]);
     }
   }
@@ -4834,7 +4841,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadEvals, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
 
-const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(({ id, version, title }) => ({ id, version, title }))).replace(/</g, "\\u003c")});`;
+const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(({ id, version, title }) => ({ id, version, title }))).replace(/</g, "\\u003c")}, ${agentHistory.toString()});`;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -4866,7 +4873,7 @@ export default {
         return await forwardAgentRuntime(request, identity, env);
       }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
-        return assetResponse(APP_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
+        return assetResponse(HISTORY_CSS + APP_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
       }
       if (request.method === "GET" && url.pathname === "/assets/journey.js") return assetResponse(JOURNEY_JS, "text/javascript; charset=utf-8");
       if (request.method === "GET" && url.pathname === "/assets/app.js") {

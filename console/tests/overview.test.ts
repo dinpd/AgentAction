@@ -1724,12 +1724,12 @@ test("labels Tool as optional, omits it when blank, and explains empty activity 
   const unfiltered = makeRuntime({ hash: "#activity", activityPayload: emptyPayload });
   await unfiltered.controller.ready;
   assert.equal(unfiltered.controller.buildActivityQuery().has("tool"), false);
-  assert.match(unfiltered.document.get("[data-activity-message-title]").textContent, /No activity received/);
+  assert.match(unfiltered.document.get("[data-activity-message-title]").textContent, /No external activity received/);
   assert.match(unfiltered.document.get("[data-activity-message-detail]").textContent, /source is enabled/i);
 
   const filtered = makeRuntime({ hash: "#activity", search: "?window=7&tool=browser.open", activityPayload: emptyPayload });
   await filtered.controller.ready;
-  assert.match(filtered.document.get("[data-activity-message-title]").textContent, /No activity matched/);
+  assert.match(filtered.document.get("[data-activity-message-title]").textContent, /No external activity matched/);
   assert.match(filtered.document.get("[data-activity-message-detail]").textContent, /remove a filter/i);
 });
 
