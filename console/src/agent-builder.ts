@@ -1,3 +1,4 @@
+import type { RecipeCheck, RecipeEval } from "./recipe-evaluation.ts";
 import type { RecipeDefinition, RecipeRevision } from "./workspace-recipes.ts";
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { recipes, type Recipe } from "../../recipes/registry.ts";
@@ -33,13 +34,15 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <fieldset id="editor-tools"><legend>Allowed tools · choose up to four</legend><div id="tool-options" class="fields"></div></fieldset>
 <div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label><label>Boundaries<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope and actions the agent should avoid."></textarea></label></div>
 <label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label>
-<p id="selected-tools" class="note">Success is assessed by AI against observed tool results. Written boundaries guide the agent; they do not install contract controls or independent evaluations.</p>
+<p id="selected-tools" class="note">The success text guides the AI assessment. Measurable checks below evaluate recorded evidence separately.</p>
+<label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
+<fieldset id="eval-editor"><legend>Measurable checks</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save workspace recipe</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new recipe</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
 <div class="instance-inputs"><h3>Inputs for this agent</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable recipe.</p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. One server and up to four tool calls per run.</p><button id="create-agent" type="submit">Create agent instance</button></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
-export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.eval-check{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.eval-check label{min-width:0}.eval-check button{align-self:end}#eval-editor{min-width:0;margin:20px 0;padding:18px;border:1px solid #cbd0c4}@media(max-width:700px){.eval-check{grid-template-columns:1fr}}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
 export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory): void {
   const history = historyFactory(runtime);
@@ -73,8 +76,67 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let editorRecipe: (RecipeRevision & { id: string }) | undefined;
   let editorGeneration = 0;
   function editorField(name: string) { return get<HTMLFormElement>('create').elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement; }
+  function readEvalChecks(): RecipeEval | undefined {
+    if (!get<HTMLInputElement>('eval-enabled').checked) return undefined;
+    const checks = [...doc.querySelectorAll<HTMLElement>('#eval-checks [data-check-id]')].map(row => {
+      const value = (name: string) => row.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-check-${name}]`)!.value;
+      const kind = value('kind') as RecipeCheck['kind'];
+      const check: RecipeCheck = { id: row.dataset.checkId!, label: value('label').trim(), kind, tool: value('tool') };
+      if (kind === 'result_field') {
+        check.path = value('path').trim(); check.operator = value('operator') as RecipeCheck['operator'];
+        if (check.operator !== 'exists') {
+          const expected = value('value'), type = value('type');
+          if (type === 'number' && (!expected.trim() || !Number.isFinite(Number(expected)))) throw new Error('Enter a finite numeric expected value.');
+          if (type === 'boolean' && !['true','false'].includes(expected)) throw new Error('Enter true or false for a boolean expected value.');
+          check.value = type === 'number' ? Number(expected) : type === 'boolean' ? expected === 'true' : expected;
+        }
+      }
+      return check;
+    });
+    return { version: 1, checks };
+  }
   function definitionFromEditor(): RecipeDefinition {
-    return { title: editorField('title').value.trim(), goal: editorField('goal').value.trim(), inputGuide: editorField('inputGuide').value.trim(), instructions: editorField('instructions').value.trim(), boundaries: editorField('boundaries').value.trim(), success: editorField('success').value.trim(), tools: [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value).sort() };
+    const evaluation = readEvalChecks();
+    return { title: editorField('title').value.trim(), goal: editorField('goal').value.trim(), inputGuide: editorField('inputGuide').value.trim(), instructions: editorField('instructions').value.trim(), boundaries: editorField('boundaries').value.trim(), success: editorField('success').value.trim(), tools: [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value).sort(), ...(evaluation ? { evaluation } : {}) };
+  }
+  function updateEvalTools() {
+    const names = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value);
+    doc.querySelectorAll<HTMLSelectElement>('[data-check-tool]').forEach(select => {
+      const old = select.value; select.replaceChildren(new Option('Choose a selected tool', ''));
+      for (const name of names) select.append(new Option(name, name));
+      if (old && !names.includes(old)) select.append(new Option(old + ' (not selected)', old));
+      select.value = old;
+    });
+  }
+  function updateEvalEditor() {
+    const enabled = get<HTMLInputElement>('eval-enabled').checked;
+    get<HTMLFieldSetElement>('eval-editor').hidden = !enabled;
+    get<HTMLFieldSetElement>('eval-editor').disabled = !enabled || role === 'viewer';
+    get<HTMLButtonElement>('add-eval-check').disabled = role === 'viewer' || get('eval-checks').children.length >= 8;
+  }
+  function addEvalCheck(check?: RecipeCheck) {
+    if (get('eval-checks').children.length >= 8) return;
+    const row = node('div', '', 'eval-check card'); row.dataset.checkId = check?.id || 'check_' + crypto.randomUUID().replaceAll('-', '');
+    const field = (name: string, label: string, element: HTMLInputElement | HTMLSelectElement) => { element.setAttribute('data-check-' + name, ''); const host = node('label', label); host.append(element); row.append(host); return element; };
+    const input = (name: string, label: string, initial: string, max: number) => { const el = doc.createElement('input'); el.value = initial; el.maxLength = max; return field(name, label, el) as HTMLInputElement; };
+    const select = (name: string, label: string, options: string[][], initial: string) => { const el = doc.createElement('select'); for (const [value, text] of options) el.append(new Option(text,value)); el.value = initial; return field(name, label, el) as HTMLSelectElement; };
+    input('label', 'Check name', check?.label || '', 120).required = true;
+    const kind = select('kind', 'Evidence check', [['tool_succeeded','Tool call succeeded'],['tool_not_called','Tool was not called'],['result_field','Structured result field']], check?.kind || 'tool_succeeded');
+    const tool = select('tool', 'Tool', [['','Choose a selected tool'],...(check?.tool ? [[check.tool,check.tool]] : [])], check?.tool || ''); tool.required = true;
+    const path = input('path','Field within structuredContent',check?.path || '',160);
+    const operator = select('operator','Comparison',[['equals','Equals'],['gte','At least'],['lte','At most'],['exists','Exists']],check?.operator || 'equals');
+    const type = select('type','Expected value type',[['string','Text'],['number','Number'],['boolean','Boolean']],typeof check?.value === 'number' ? 'number' : typeof check?.value === 'boolean' ? 'boolean' : 'string');
+    const expected = input('value','Expected value',check?.value === undefined ? '' : String(check.value),500);
+    const update = () => {
+      const structured = kind.value === 'result_field', needsValue = structured && operator.value !== 'exists';
+      for (const el of [path,operator]) { el.parentElement!.hidden = !structured; el.disabled = !structured; }
+      for (const el of [type,expected]) { el.parentElement!.hidden = !needsValue; el.disabled = !needsValue; }
+      path.required = structured;
+      if (operator.value === 'gte' || operator.value === 'lte') type.value = 'number';
+    };
+    kind.onchange = update; operator.onchange = update;
+    const remove = node('button','Remove check','secondary') as HTMLButtonElement; remove.type='button'; remove.onclick=()=>{row.remove();updateEvalEditor();}; row.append(remove);
+    get('eval-checks').append(row); update(); updateEvalTools(); updateEvalEditor();
   }
   function editorTools(selected: string[] = []) {
     const connection = state.connections.find((c: any) => c.id === chosen?.connectionId && c.status === 'connected');
@@ -94,11 +156,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     for (const c of state.connections.filter((c: any) => c.status === 'connected')) select.append(new Option(c.label, c.id));
     select.value = connectionId;
     editorTools(definition.tools);
+    get('eval-checks').replaceChildren(); get<HTMLInputElement>('eval-enabled').checked = Boolean(definition.evaluation) || !saved;
+    for (const check of definition.evaluation?.checks || []) addEvalCheck(check);
     get('editor-source').textContent = saved ? `Workspace recipe · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.` : source.recipeId ? 'Customize this catalog recipe for your workspace.' : source.id ? 'Review and customize this AI suggestion.' : 'Create a job using your connected tools. No AI suggestion is needed.';
     get('duplicate-recipe').hidden = !saved;
     get('save-recipe').textContent = saved ? 'Save new version' : 'Save workspace recipe';
     get('recipe-save-status').textContent = '';
-    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input,textarea,select,button').forEach(el => el.disabled = role === 'viewer');
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input,textarea,select,button').forEach(el => { if (!el.closest('#eval-checks')) el.disabled = role === 'viewer'; });
+    updateEvalEditor();
     showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function renderWorkspaceRecipes() {
@@ -228,7 +293,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function renderAccountRole() { const url = new URL(runtime.location.href); if (tenant) url.searchParams.set('workspace', tenant); else url.searchParams.delete('workspace'); runtime.history.replaceState(null, '', url.pathname + url.search + url.hash); get("account-role").textContent = tenant ? role : "No workspace selected"; runtime.agentActionJourney?.setWorkspace(tenant); showStage(builderStage); }
   function sessionUnavailable(detail: string) {
     cancelScheduledPrecheck(); pendingInspections.clear(); precheckError = undefined; generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
-    state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; chosen = undefined; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren();
+    state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; chosen = undefined; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren();
     get<HTMLFormElement>("connect").reset(); get<HTMLFormElement>("create").reset();
     workspace.replaceChildren(); workspace.disabled = true;
     get("builder").hidden = true; get<HTMLInputElement>("precheck-endpoint").value = ""; renderPrechecks();
@@ -502,12 +567,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       card.append(node("span", a.status, "pill"), node("h3", a.title), node("p", a.goal), node("p", `Success: ${a.success}`, "note"));
       actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
-      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met") actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
+      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
       if (a.definition) {
         const detail = node('details'); detail.append(node('summary', 'Recipe definition'), node('p', a.workspaceRecipe ? `Workspace recipe · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
         for (const [label, value] of [['Inputs needed', a.definition.inputGuide], ['Instructions', a.definition.instructions], ['Boundaries', a.definition.boundaries], ['Allowed tools', a.definition.tools.join(', ')]]) if (value) detail.append(node('strong', label), node('p', value, 'note'));
-        detail.append(node('p', 'Success is AI-assessed. Written boundaries do not install contract controls.', 'note')); card.append(detail);
+        detail.append(node('p', 'Success is AI-assessed. Written boundaries guide the AI; measurable checks evaluate recorded evidence.', 'note')); card.append(detail);
       }
       if (a.recipe) card.append(node("p", `Based on recipe: ${a.recipe.id} · v${a.recipe.version}`, "note"));
       const latest = state.runs.filter((r: any) => r.agentId === a.id).sort((a: any, b: any) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
@@ -524,6 +589,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.status.replaceAll("_", " "), "pill"));
       card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/4 tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
       if (r.summary) card.append(node("p", r.summary));
+      history.appendEvaluation(card, r);
       if (r.outcome) card.append(node("p", `AI-assessed outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
       for (const event of r.events) {
         const detail = node("details"); detail.append(node("summary", `${event.tool} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
@@ -573,22 +639,28 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   get<HTMLButtonElement>('start-scratch').onclick = () => { recipeContext(); openEditor('', {}); };
   get<HTMLSelectElement>('editor-connection').onchange = () => {
     if (!chosen) return;
-    const selected = definitionFromEditor().tools; chosen.connectionId = get<HTMLSelectElement>('editor-connection').value; editorTools(selected);
+    const selected = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value); chosen.connectionId = get<HTMLSelectElement>('editor-connection').value; editorTools(selected); updateEvalTools();
   };
+  get('tool-options').addEventListener('change', updateEvalTools);
+  get('eval-enabled').addEventListener('change', updateEvalEditor);
+  get<HTMLButtonElement>('add-eval-check').onclick = () => addEvalCheck();
   for (const [id, duplicate] of [['save-recipe', false], ['duplicate-recipe', true]] as const) get<HTMLButtonElement>(id).onclick = event => {
     if (role === 'viewer' || !chosen) return;
     void perform(event.currentTarget as HTMLButtonElement, () => saveEditorRecipe(duplicate), 'recipe-save-status');
   };
   get<HTMLFormElement>("create").addEventListener("submit", event => {
     event.preventDefault(); if (!chosen || role === 'viewer') return;
-    const definition = definitionFromEditor();
-    const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen.suggestion.recipeId ? { recipeId: chosen.suggestion.recipeId, recipeVersion: chosen.suggestion.recipeVersion, recipeReviewed: true } : {}) };
-    const payload = { connectionId: chosen.connectionId, ...binding, setup: editorField('setup').value };
     const currentTenant = tenant, currentEditor = editorGeneration;
-    void perform(get<HTMLButtonElement>('create-agent'), async () => { await mutate('create', payload); if (tenant !== currentTenant || editorGeneration !== currentEditor) return; recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run"; });
+    void perform(get<HTMLButtonElement>('create-agent'), async () => {
+      const definition = definitionFromEditor();
+      const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : {}) };
+      await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: editorField('setup').value });
+      if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
+      recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run";
+    });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
     const use = node('button', 'Use this recipe') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;

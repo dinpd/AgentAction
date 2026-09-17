@@ -1,4 +1,6 @@
+import type { HostedContract, HostedEvaluation } from "./recipe-evaluation.ts";
 export type HostedExecution = {
+  contract?: HostedContract; evaluation?: HostedEvaluation;
   id: string; runId: string; agentKey: string; agent: string; source: "recurring" | "supervised";
   status: string; kind: string; startedAt: number; finishedAt?: number; durationMs?: number;
   summary: string; findings?: number; outcome?: string; reason?: string; attention: boolean;
@@ -21,7 +23,8 @@ export function executionRecords(supervised: any, recurring: any): HostedExecuti
         ...(Number.isFinite(finishedAt) && finishedAt >= startedAt ? { durationMs: finishedAt - startedAt } : {}),
         summary: run.summary || "Result not yet available.", findings, outcome: source === "supervised" ? run.outcome : undefined,
         reason: source === "supervised" ? run.reason : undefined,
-        attention: ["awaiting_approval", "failed", "partial", "interrupted"].includes(run.status) || (findings || 0) > 0 || ["not_met", "uncertain"].includes(run.outcome),
+        attention: ["awaiting_approval", "failed", "partial", "interrupted"].includes(run.status) || (findings || 0) > 0 || ["not_met", "uncertain"].includes(run.outcome) || Boolean(run.evaluation && run.evaluation.status !== "pass"),
+        ...(source === "supervised" ? { contract: run.contract, evaluation: run.evaluation } : {}),
         evidence: source === "recurring" ? "Recorded check" : "Recorded tool execution",
         ...(source === "recurring" ? { evidenceDigest: run.evidenceDigest, observations: run.observations } : { toolCalls: run.events?.length || 0 }),
       });
@@ -46,6 +49,29 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       return records(agents) && records(value?.runs) && agents.every(a => typeof a.id === "string" && typeof a.title === "string") && value.runs.every((r: any) => typeof r.id === "string" && typeof r.status === "string" && ["string", "number"].includes(typeof r.startedAt) && Number.isFinite(new Date(r.startedAt).getTime())) ? value : null;
     } catch { return null; }
   }
+  function appendEvaluation(parent: HTMLElement, run: { contract?: HostedContract; evaluation?: HostedEvaluation }) {
+    if (!run.contract) { parent.append(node('p', 'No bound evaluation. This run has no frozen hosted contract.', 'note')); return; }
+    const { intent, binding } = run.contract, evaluation = run.evaluation;
+    const detail = node('details') as HTMLDetailsElement; detail.dataset.hostedEvaluation = intent.job_id;
+    const result = evaluation ? evaluation.status.replaceAll('_',' ') : 'pending';
+    detail.append(node('summary', `Contract & evaluation · ${result}`), node('p', `Contract: ${intent.intent_id}`), node('p', `Profile: ${intent.profile}`), node('p', `Contract digest: ${intent.intent_digest}`, 'note'), node('p', `Profile digest: ${intent.profile_digest}`, 'note'));
+    if (binding.recipe) detail.append(node('p', `Workspace recipe: ${binding.recipe.id} · v${binding.recipe.version}`));
+    detail.append(node('p', 'All measurable checks are required. Runtime records establish recorded execution; provider-reported fields are not independently verified. This is a hosted evaluation, not a signed gateway receipt.', 'note'));
+    if (evaluation) {
+      detail.append(node('p', `Evidence digest: ${evaluation.evidence_digest}`, 'note'), node('p', `Recorded source digest: ${evaluation.source_digest}`, 'note'));
+      for (const c of evaluation.criteria) {
+        const item = node('div', '', 'evaluation-criterion');
+        item.append(node('strong', `${c.label} · ${c.status.replaceAll('_',' ')}`), node('p', c.reason, 'note'), node('p', `Evidence: ${c.evidence} · ${c.trust.replaceAll('_',' ')}`, 'note'));
+        const raw = [...evaluation.receipt.outcomes,...evaluation.receipt.constraints].find(r => r.predicate_id === c.id);
+        if (raw && c.status !== 'insufficient_evidence') item.append(node('pre', JSON.stringify({expected:raw.expected,actual:raw.actual},null,2)));
+        detail.append(item);
+      }
+    } else {
+      detail.append(node('p', 'Evaluation will be recorded when this run ends. No pass is implied while work is pending.', 'note'));
+      for (const c of [...intent.required_outcomes,...intent.hard_constraints]) detail.append(node('p', c.description || c.id));
+    }
+    const contract = node('details'); contract.append(node('summary','Inspect frozen contract'),node('pre',JSON.stringify(intent,null,2))); detail.append(contract); parent.append(detail);
+  }
   function appendAgents(parent: HTMLElement, data: any, tenant: string) {
     if (!data) { parent.append(node("p", "Recurring agents are unavailable. Refresh to retry.", "history-error")); return; }
     for (const job of data.jobs) {
@@ -63,6 +89,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       const card = node("article", "", "card run history-card"); card.dataset.runAt = String(new Date(run.startedAt).getTime());
       card.append(node("h3", agent?.title || "Agent run"), node("span", `${recurring ? "Recurring check" : "Supervised run"} · ${run.status.replaceAll("_", " ")}`, "pill"), node("p", `${when(run.startedAt)} · ${run.kind}${recurring ? ` · ${run.findings} findings` : ""}`, "note"), node("p", run.summary || "Result not yet available."));
       if (recurring && run.status !== "completed") card.append(node("p", "Check coverage is unknown; this run does not establish that the target is healthy.", "note"));
+      if (!recurring) appendEvaluation(card, run);
       if (!recurring && run.outcome) card.append(node("p", `AI-assessed outcome: ${run.outcome.replaceAll("_", " ")}.`, "note"));
       card.append(link(recurring ? "View findings and check history →" : "Review run and approvals →", tenant, recurring ? "/automations" : "/agents", recurring ? "findings" : "run"));
       parent.append(card);
@@ -76,11 +103,12 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
   const panels = {
     activity: doc.querySelector<HTMLElement>("[data-hosted-history]"),
     jobs: doc.querySelector<HTMLElement>("[data-hosted-jobs]"),
+    evals: doc.querySelector<HTMLElement>("[data-hosted-evals]"),
   };
-  type View = keyof typeof panels;
-  const generations = { activity: 0, jobs: 0 };
+  type View = "activity" | "jobs";
+  const generations = { activity: 0, jobs: 0, evals: 0 };
   function clearMonitor(demo = false) {
-    for (const view of ["activity", "jobs"] as const) {
+    for (const view of ["activity", "jobs", "evals"] as const) {
       generations[view]++;
       const panel = panels[view]; if (panel) { panel.replaceChildren(); panel.hidden = demo; }
     }
@@ -111,6 +139,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
         const tr = node("tr"); tr.dataset.executionId = row.id; tr.dataset.attention = String(row.attention);
         const identity = node("td"); identity.append(node("strong", row.agent), node("span", when(row.startedAt), "execution-meta"), node("span", `${row.source} · ${row.kind}`, "execution-meta"));
         const result = node("td"); result.append(node("span", status(row), "execution-status"));
+        if (row.contract) result.append(node("span", `Measured checks: ${row.evaluation?.status.replaceAll("_", " ") || "pending"}`, "execution-meta"));
         if (row.outcome) result.append(node("span", `AI assessment: ${row.outcome.replaceAll("_", " ")}`, "execution-meta"));
         const summary = node("td", row.summary, "execution-summary");
         const detail = node("td");
@@ -118,6 +147,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
           const disclosure = node("details") as HTMLDetailsElement; disclosure.dataset.jobDetail = row.id; disclosure.open = selected === row.id;
           disclosure.append(node("summary", "Details"), node("p", `Job ID: ${row.id}`), node("p", `Evidence: ${row.evidence}. No signed gateway receipt is attached to this record.`));
           disclosure.append(node("p", `Started: ${when(row.startedAt)} · Finished: ${when(row.finishedAt)}`));
+          if (row.source === "supervised") appendEvaluation(disclosure, row);
           if (row.evidenceDigest) disclosure.append(node("p", `Recorded result digest: ${row.evidenceDigest}`));
           if (row.observations) disclosure.append(node("pre", JSON.stringify(row.observations, null, 2)));
           if (row.toolCalls !== undefined) disclosure.append(node("p", `${row.toolCalls} recorded tool calls`));
@@ -217,14 +247,34 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     controls.append(button("Clear filters", () => { agentFilter.value = ""; resultFilter.value = ""; exact.value = ""; selectionChanged(); }));
     render();
   }
-  return { read, appendAgents, appendRuns, sortRuns, clearMonitor,
+  async function loadEvals(tenant: string, demo: boolean) {
+    const panel = panels.evals; if (!panel) return;
+    const current = ++generations.evals; panel.replaceChildren(); panel.hidden = demo; if (demo || !tenant) return;
+    panel.append(node('p', 'Loading hosted recipe evaluations…', 'note'));
+    const data = await read(tenant, 'agents'); if (current !== generations.evals) return;
+    panel.replaceChildren(); panel.append(node('h3','Hosted recipe evaluations'),node('p','These definitions are bound automatically from Create. External-agent routing below applies to gateway Jobs.', 'note'));
+    if (!data) { panel.append(node('p','Hosted recipe evaluations are unavailable. Refresh to retry.','history-error')); return; }
+    const agents = data.agents.filter((a: any) => a.evaluationBinding);
+    for (const agent of agents) {
+      const binding = agent.evaluationBinding, card = node('article','','card history-card');
+      card.append(node('h4',agent.title),node('p',`Profile: ${binding.profile.profile}.${binding.profile.version}`),node('p',`Profile digest: ${binding.profile.profile_digest}`,'note'));
+      for (const c of [...binding.profile.required_outcomes,...binding.profile.hard_constraints]) card.append(node('p',c.description || c.id,'note'));
+      const run = data.runs.filter((r: any) => r.agentId === agent.id).sort((a: any,b: any) => b.startedAt.localeCompare(a.startedAt))[0];
+      if (run) { appendEvaluation(card,run); const url = link('Inspect latest job →',tenant,'/','jobs'); url.href = `/?workspace=${encodeURIComponent(tenant)}&execution=${encodeURIComponent('supervised:'+run.id)}#jobs`; card.append(url); }
+      else card.append(node('p','No run yet. The first contract is issued before planning starts.','note'));
+      panel.append(card);
+    }
+    if (!agents.length) panel.append(node('p','No hosted agents have bound evaluations yet. Enable measurable checks in Create.','note'));
+    panel.append(link('Build or revise a recipe →',tenant,'/agents','create'));
+  }
+  return { read, appendAgents, appendRuns, appendEvaluation, sortRuns, clearMonitor, loadEvals,
     loadMonitor: (tenant: string, demo: boolean) => load("activity", tenant, demo),
     loadJobs: (tenant: string, demo: boolean, selected = "") => load("jobs", tenant, demo, selected),
   };
 }
 export const HISTORY_FACTORY_JS = `(runtime) => (${agentHistory.toString()})(runtime, ${executionRecords.toString()})`;
 
-export const HISTORY_CSS = `.history-card{border:1px solid #cbd0c4;background:#fff;padding:20px;margin:12px 0;min-width:0;overflow-wrap:anywhere}.history-card h3{margin:8px 0}.history-card p{margin:8px 0}.history-card .note{font-size:14px;color:#596150}.history-error{padding:12px;border-left:4px solid #ad4135;background:#f7e9e6}.hosted-history{margin-bottom:32px}.hosted-history .section-heading{gap:16px;flex-wrap:wrap}`;
+export const HISTORY_CSS = `.evaluation-criterion{border-top:1px solid #cbd0c4;padding:12px 0}.evaluation-criterion pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.history-card{border:1px solid #cbd0c4;background:#fff;padding:20px;margin:12px 0;min-width:0;overflow-wrap:anywhere}.history-card h3{margin:8px 0}.history-card p{margin:8px 0}.history-card .note{font-size:14px;color:#596150}.history-error{padding:12px;border-left:4px solid #ad4135;background:#f7e9e6}.hosted-history{margin-bottom:32px}.hosted-history .section-heading{gap:16px;flex-wrap:wrap}`;
 
 export const EXECUTION_CSS = `
 .execution-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:20px 0}.execution-controls label{display:flex;flex-direction:column;gap:6px;margin:0;min-width:150px;font-size:13px}.execution-controls select,.execution-controls input{font:inherit;padding:10px;max-width:100%;border:1px solid #bac3af;background:white;color:inherit}.execution-controls button{align-self:end}.execution-meta{display:block;font-size:12px;color:#596150;margin-top:4px}.agent-group-columns{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) 70px;gap:14px;align-items:center;padding:14px}.agent-group-columns>span{min-width:0;overflow-wrap:anywhere}.agent-group-columns[aria-hidden]{font-size:12px;text-transform:uppercase;color:#596150;border-bottom:1px solid #cbd0c4}.agent-group{margin:0;border-bottom:1px solid #cbd0c4;background:white}.agent-group summary{cursor:pointer;list-style:none;font-size:14px;font-weight:400}.agent-group summary strong:before{content:'▸ ';color:#596150}.agent-group[open] summary strong:before{content:'▾ '}.agent-group[data-attention=true]{border-left:3px solid #aa6f13}.agent-group[open]{background:#f7f9f2}.agent-group-history{padding:0 14px 14px}.execution-table-wrap{max-width:100%;overflow-x:auto}.execution-table{border-collapse:collapse;width:100%;font-size:13px;text-align:left;table-layout:fixed}.execution-table caption{text-align:left;font-weight:600;padding:12px 0}.execution-table th{font-size:11px;text-transform:uppercase;color:#596150}.execution-table th,.execution-table td{padding:12px 10px;border-bottom:1px solid #d6dccf;vertical-align:top;overflow-wrap:anywhere}.execution-table th:nth-child(1){width:24%}.execution-table th:nth-child(2){width:17%}.execution-table th:nth-child(3){width:9%}.execution-table th:nth-child(4){width:30%}.execution-table th:nth-child(5){width:20%}.execution-table tr[data-attention=true] .execution-status{color:#88540b;font-weight:700}.execution-table details{margin:8px 0}.execution-table pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:200px;overflow:auto}.execution-paging{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;margin:12px 0}.execution-paging button:disabled{opacity:.4;cursor:default}.agent-group summary:focus-visible{outline:3px solid #789832;outline-offset:-3px}

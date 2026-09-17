@@ -668,9 +668,9 @@ version. Each workspace supports 24 recipes with eight revisions each.
 
 Creating a draft does not execute tools or start a schedule. Run a trial and
 approve each exact proposed call. The current runtime supports one server and
-four calls per run. Success is AI-assessed from observed results. Written
-boundaries guide the model, and do not create enforced intent contracts or
-independent evaluations.
+four calls per run. Success text guides the AI assessment. Written boundaries guide the model.
+Enable measurable checks to bind a contract and evaluate recorded evidence;
+this does not turn prose into enforced controls or independent verification.
 
 Automated UI acceptance (with Playwright installed, or `PLAYWRIGHT_MODULE` set
 to its module path):
@@ -679,3 +679,44 @@ to its module path):
 node --experimental-strip-types tests/workspace-recipe-browser.mts
 node --experimental-strip-types tests/recipe-browser.mts
 ```
+
+
+## Recipe contracts and measurable evaluations
+
+Enable **Bind a contract and measurable checks to each run** in Create. This is
+on for new authoring sessions; existing saved recipes preserve their previous
+setting. Add up to eight checks, using selected tools:
+
+- **Tool call succeeded:** at least one recorded successful call to that tool.
+- **Tool was not called:** no recorded call attempt to that tool.
+- **Structured result field:** a dot-separated field under the latest named
+  tool call's MCP `structuredContent`, compared to typed text/number/boolean,
+  numeric bounds, or existence. Plain text is not parsed or inferred into facts.
+
+All checks are required. Every bound run also checks successful completion,
+at least one successful tool call, selected-tool scope, recorded approval and
+at most four calls. Missing or truncated structured results are insufficient
+evidence, even when the AI reports success. A provider-reported field establishes
+what the provider returned, not whether the business fact is independently true.
+
+The server compiles an immutable profile using the shared intent evaluator and
+freezes a new contract before each run's first inference. The contract binds the
+profile, recipe revision when saved, instance identity, input digest and tool
+scope. Terminal results include contract/profile/source/evidence digests and
+per-check references. Cancellation, failure and restart interruption finalize
+evaluations too; reads do not reevaluate historical records. Activation requires
+a passing bound evaluation plus the existing successful, reviewed trial.
+
+Bound runs reserve storage for their contract and final evaluation. Oversized
+proposals are rejected before approval. If retained output exceeds the run's
+storage budget, it is explicitly omitted and checks requiring it become
+insufficient evidence.
+
+Inspect the same binding in **Run → Contract & evaluation**, hosted **Jobs →
+Details**, and **Evals → Hosted recipe evaluations**. Gateway definitions and
+external-agent routing remain separate. These hosted records do not claim a
+signed gateway receipt. Existing runs remain unbound; to enable checks for an
+existing agent, create a new draft from the revised recipe.
+
+Acceptance: `node --experimental-strip-types tests/recipe-evaluation-browser.mts`
+uses synthetic MCP output and verifies Create → approval → Run → Jobs → Evals.
