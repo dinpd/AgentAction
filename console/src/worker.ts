@@ -367,6 +367,7 @@ const SHELL_HTML = `<!doctype html>
           <h3 data-evals-message-title>Loading evaluations</h3>
           <p data-evals-message-detail>Reading this workspace's definitions and routing rules.</p>
         </section>
+        <section data-hosted-evals class="hosted-history" aria-label="Hosted recipe evaluations" hidden></section>
         <section data-evals-content hidden>
           <div class="setup-grid eval-overview-grid">
             <section class="setup-card setup-wide">
@@ -2622,6 +2623,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
 
   async function loadEvals(): Promise<void> {
     showView("evals");
+    void history.loadEvals(tenantId, publicDemo);
     if (!tenantId) {
       evalsContent.hidden = true;
       setEvalsMessage("error", "Workspace required", "Create or join a workspace before configuring evaluations.");

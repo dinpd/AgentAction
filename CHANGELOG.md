@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.26.0-rc.1 - 2026-09-17
+
+### Added
+
+- Define measurable checks inline in Create and retain them with workspace recipe revisions. Check successful tool use, absence of a tool call, and typed assertions on the latest tool call's MCP structuredContent. Completion, successful execution, selected-tool scope, recorded approval and the four-call budget are checked for every bound run.
+- Hosted supervised runs can now freeze an intent contract and evaluation binding before inference. The shared intent evaluator records a deterministic result on completion, failure, cancellation and restart recovery, with profile/contract/evidence digests and per-check provenance. Existing instances keep their bound definition when recipes change; activation requires passing checks as well as the existing successful trial review.
+- Inspect the same contract, criteria and result in Run, hosted Jobs and Evals. AI assessments remain separate. Missing, malformed or truncated structured output is insufficient evidence, and provider-reported fields are not independent verification.
+
+### Compatibility and migration
+
+- Significant functionality: 0.26.0-rc.1 for the new hosted contract/evidence binding boundary. Additive optional definition, agent and run fields; no migration or retrospective contract issuance. Enable measurable checks when creating a new agent to use the binding. Existing unbound agents and recurring checks retain their behavior.
+- Hosted contracts use the public intent schemas and shared core evaluator, and remain hosted records without signed gateway receipts. External-agent gateway evaluation definitions and routing are unchanged. Written boundaries remain model instructions; this release does not turn arbitrary prose into enforced controls.
+- Install Python artifacts from the GitHub v0.26.0-rc.1 prerelease. npm publication is unchanged; hosted console deploys from the merged commit.
+
 ## 0.25.0-rc.1 - 2026-09-17
 
 ### Added

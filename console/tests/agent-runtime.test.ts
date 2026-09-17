@@ -10,7 +10,7 @@ const tool: McpTool = { name: "scrape", description: "Read a web page", inputSch
 class Storage implements RuntimeStorage {
   data = new Map<string, unknown>(); alarm: number | undefined;
   async get<T>(key: string): Promise<T | undefined> { return structuredClone(this.data.get(key)) as T | undefined; }
-  async put<T>(key: string, value: T) { assert.ok(JSON.stringify(value).length < 128000); this.data.set(key, structuredClone(value)); }
+  async put<T>(key: string, value: T) { assert.ok(new TextEncoder().encode(JSON.stringify(value)).byteLength < 128000); this.data.set(key, structuredClone(value)); }
   async delete(key: string) { return this.data.delete(key); }
   async list<T>({ prefix }: { prefix: string }): Promise<Map<string, T>> { return new Map([...this.data].filter(([k]) => k.startsWith(prefix)).map(([k,v]) => [k, structuredClone(v) as T])); }
   async setAlarm(n: number) { this.alarm = n; }
@@ -22,13 +22,14 @@ const finish = { type: "finish", summary: "The observed price is $20.", outcome:
 function harness(outputs: unknown[] = [suggestion, call, finish]) {
   const storage = new Storage(), calls: string[] = [], prompts: string[] = [];
   let failCall = false, changed = false;
+  let toolResult: unknown = { content: [{ type: "text", text: "Price $20; SECRET-TOKEN" }] };
   const fetcher = async (_url: any, init: any) => {
     assert.equal(init.redirect, "manual");
     if (init.method === "DELETE") return new Response(null, { status: 204 });
     const message = JSON.parse(init.body); calls.push(message.method);
     if (message.method === "notifications/initialized") return new Response(null, { status: 202 });
     if (message.method === "tools/call" && failCall) throw new Error("timeout with SECRET-TOKEN");
-    const result = message.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: { tools: {} } } : message.method === "tools/list" ? { tools: [{ ...tool, description: changed ? "Changed tool definition" : tool.description }] } : { content: [{ type: "text", text: "Price $20; SECRET-TOKEN" }] };
+    const result = message.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: { tools: {} } } : message.method === "tools/list" ? { tools: [{ ...tool, description: changed ? "Changed tool definition" : tool.description }] } : toolResult;
     return Response.json({ jsonrpc: "2.0", id: message.id, result }, { headers: { "Mcp-Session-Id": "session-123" } });
   };
   const env = { AGENT_AI: { async run(_model: string, input: any) { prompts.push(JSON.stringify(input)); assert.ok(outputs.length); return { response: outputs.shift(), usage: { total_tokens: 42 } }; } } };
@@ -42,7 +43,7 @@ function harness(outputs: unknown[] = [suggestion, call, finish]) {
   };
   const trial = async (agentId: string) => { const t = await request("trial", { agentId }); assert.equal(t.status, 200); return (await storage.get<Run>(`run:${t.body.runId}`))!; };
   const approve = (r: Run) => request("approve", { runId: r.id, approvalId: r.pending!.id });
-  return { runtime, storage, request, calls, prompts, env, fetcher, prepare, trial, approve, fail: () => failCall = true, change: () => changed = true };
+  return { runtime, storage, request, calls, prompts, env, fetcher, prepare, trial, approve, result: (value: unknown) => toolResult = value, fail: () => failCall = true, change: () => changed = true };
 }
 
 test("MCP → AI suggestions → instance → approved trial → observable outcome → schedule", async () => {
@@ -249,4 +250,77 @@ test("customized catalog definitions use edited instructions and enforce the sel
   assert.equal((await h.trial(agent.id)).status, "failed");
   assert.ok(h.prompts[0].includes("Use the edited procedure"));
   assert.ok(!h.prompts[0].includes("An attempted override")); assert.ok(!h.calls.includes("tools/call"));
+});
+
+const measuredDefinition = { ...customDefinition, evaluation: { version: 1, checks: [{ id: 'price', label: 'Price is 20', kind: 'result_field', tool: 'scrape', path: 'price', operator: 'equals', value: 20 }] } };
+async function measuredAgent(h: ReturnType<typeof harness>, definition: unknown = measuredDefinition) {
+  const connection = await h.request('connect', { endpoint, token:'SECRET-TOKEN' });
+  const saved = await h.request('save-recipe', { connectionId:connection.body.connectionId, definition }); assert.equal(saved.status,200);
+  const created = await h.request('create', { connectionId:connection.body.connectionId, workspaceRecipe:{id:saved.body.id,version:1}, setup:'https://example.com/pricing' }); assert.equal(created.status,200);
+  return { agentId:created.body.agentId, connectionId:connection.body.connectionId, recipeId:saved.body.id };
+}
+test('hosted contracts freeze before inference and bind deterministic checks to approved run evidence', async () => {
+  const h=harness([call,finish]); h.result({structuredContent:{price:20}});
+  const {agentId,connectionId,recipeId}=await measuredAgent(h);
+  const inference=h.env.AGENT_AI.run;
+  h.env.AGENT_AI.run=async (model,input) => { const runs=[...(await h.storage.list<Run>({prefix:'run:'})).values()]; assert.ok(runs[0].contract); assert.equal(runs[0].evaluation,undefined); return inference(model,input); };
+  const pending=await h.trial(agentId), contract=structuredClone(pending.contract!);
+  assert.equal(contract.intent.job_id,'supervised:'+pending.id); assert.equal(contract.intent.profile_variables?.agent_id,agentId); assert.equal(contract.intent.profile_variables?.connection_id,connectionId); assert.match(String(contract.intent.profile_variables?.inputs_digest),/^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(contract).includes('https://example.com/pricing'),false); assert.equal(contract.binding.recipe?.id,recipeId);
+  await h.request('save-recipe',{connectionId,id:recipeId,baseVersion:1,definition:{...measuredDefinition,evaluation:{version:1,checks:[{...measuredDefinition.evaluation.checks[0],value:99}]}}});
+  assert.equal((await h.approve(pending)).status,200);
+  const completed=(await h.storage.get<Run>(`run:${pending.id}`))!;
+  assert.deepEqual(completed.contract,contract); assert.equal(completed.evaluation?.status,'pass'); assert.equal(completed.evaluation?.receipt.intent_digest,contract.intent.intent_digest);
+  assert.equal(completed.events[0].approval?.id,pending.pending?.id); assert.equal(completed.events[0].approval?.actor,'operator');
+  assert.equal(completed.evaluation?.criteria.find(c=>c.id==='price')?.trust,'provider_reported'); assert.match(completed.evaluation!.evidence_digest,/^[a-f0-9]{64}$/);
+  assert.equal((await h.request('activate',{agentId,reviewed:true})).status,200);
+  await h.runtime.recover(); await h.runtime.snapshot(); assert.deepEqual((await h.storage.get<Run>(`run:${pending.id}`))?.evaluation,completed.evaluation);
+});
+test('AI success cannot satisfy failed or missing measurable evidence or bypass activation gating', async () => {
+  for (const [result,expected] of [[{structuredContent:{price:21}},'fail'],[{content:[{type:'text',text:'Price 20'}]},'insufficient_evidence'],[{structuredContent:{price:20},padding:'x'.repeat(8100)},'insufficient_evidence']] as const) {
+    const h=harness([call,finish]);h.result(result);const {agentId}=await measuredAgent(h);const pending=await h.trial(agentId);await h.approve(pending);
+    const run=(await h.storage.get<Run>(`run:${pending.id}`))!;assert.equal(run.outcome,'met');assert.equal(run.evaluation?.status,expected);assert.equal((await h.request('activate',{agentId,reviewed:true})).status,409);
+  }
+});
+test('hosted evaluation finalizes failure, cancellation, disconnect and restart without inventing evidence', async () => {
+  for (const terminalPath of ['cancel','disconnect','failure','restart','planning']) {
+    const h=harness(terminalPath==='planning'?[{type:'invalid'}]:[call]);const {agentId,connectionId}=await measuredAgent(h);const pending=await h.trial(agentId);
+    if (terminalPath==='cancel') await h.request('cancel',{runId:pending.id});
+    if (terminalPath==='disconnect') await h.request('disconnect',{connectionId});
+    if (terminalPath==='failure') {h.fail();await h.approve(pending);}
+    if (terminalPath==='restart') {pending.status='executing';pending.events.push({tool:'scrape',arguments:{},status:'executing'});await h.storage.put(`run:${pending.id}`,pending);await h.runtime.recover();}
+    const run=(await h.storage.get<Run>(`run:${pending.id}`))!;assert.ok(run.evaluation,terminalPath);assert.notEqual(run.evaluation?.status,'pass');assert.equal(run.evaluation?.criteria.find(c=>c.id==='price')?.status,'insufficient_evidence');
+    const snapshot=structuredClone(run.evaluation);await h.runtime.recover();assert.deepEqual((await h.storage.get<Run>(`run:${pending.id}`))?.evaluation,snapshot);
+  }
+});
+test('rejects forged bindings and invalid or unbounded checks before persisting definitions', async () => {
+  const h=harness([]), connection=await h.request('connect',{endpoint}), connectionId=connection.body.connectionId;
+  for (const checks of [
+    [{...measuredDefinition.evaluation.checks[0],tool:'other'}], [{...measuredDefinition.evaluation.checks[0],id:'run_completed'}],
+    [{...measuredDefinition.evaluation.checks[0],path:'__proto__.admin'}], [{...measuredDefinition.evaluation.checks[0],operator:'execute'}],
+    [{...measuredDefinition.evaluation.checks[0],operator:'gte',value:'20'}], [{...measuredDefinition.evaluation.checks[0],value:{nested:true}}],
+    Array(9).fill(measuredDefinition.evaluation.checks[0]), [measuredDefinition.evaluation.checks[0],measuredDefinition.evaluation.checks[0]],
+  ]) assert.equal((await h.request('save-recipe',{connectionId,definition:{...measuredDefinition,evaluation:{version:1,checks}}})).status,400);
+  for (const key of ['contract','evaluation','evaluationBinding']) for (const action of ['create','save-recipe']) assert.equal((await h.request(action,{connectionId,definition:measuredDefinition,setup:'x',[key]:{status:'pass'}})).status,400);
+  assert.equal((await h.runtime.snapshot() as any).workspaceRecipes.length,0);
+});
+
+test('large UTF-8 evidence stays within storage limits and omitted fields cannot pass checks', async () => {
+  const value='界'.repeat(400);
+  const definition={...measuredDefinition,evaluation:{version:1,checks:Array.from({length:8},(_,i)=>({...measuredDefinition.evaluation.checks[0],id:'price_'+i,value}))}};
+  const h=harness([call,call,{...finish,summary:'界'.repeat(4000),reason:'界'.repeat(2000)}]);
+  h.result({structuredContent:{price:value},padding:'界'.repeat(7400)});
+  const {agentId}=await measuredAgent(h,definition);let pending=await h.trial(agentId);
+  assert.equal((await h.approve(pending)).status,200);
+  pending=(await h.storage.get<Run>(`run:${pending.id}`))!;assert.equal(pending.status,'awaiting_approval');
+  const oversized=await h.request('revise',{runId:pending.id,approvalId:pending.pending!.id,arguments:{url:'https://example.com/'+ 'x'.repeat(11900)}});
+  assert.equal(oversized.status,400);assert.match(oversized.body.error,/evidence budget/);
+  assert.deepEqual((await h.storage.get<Run>(`run:${pending.id}`))?.pending,pending.pending);
+  h.result({structuredContent:{price:value},padding:'界'.repeat(7500)});
+  assert.equal((await h.approve(pending)).status,200);
+  const completed=(await h.storage.get<Run>(`run:${pending.id}`))!;
+  assert.equal(completed.status,'completed');assert.ok(new TextEncoder().encode(JSON.stringify(completed)).byteLength <=120000);
+  assert.ok(completed.events.some(e=>e.result?.includes('Result omitted')));
+  assert.equal(completed.evaluation?.status,'insufficient_evidence');
+  const before=structuredClone(completed);await h.runtime.recover();assert.deepEqual(await h.storage.get(`run:${pending.id}`),before);
 });
