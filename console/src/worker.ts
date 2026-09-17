@@ -1,4 +1,4 @@
-import { agentHistory, HISTORY_CSS } from "./agent-history.ts";
+import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { RECURRING_HTML, RECURRING_JS } from "./recurring-ui.ts";
 import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
 import { faviconBytes } from "./favicon.ts";
@@ -560,11 +560,14 @@ const SHELL_HTML = `<!doctype html>
         <header class="section-heading">
           <div>
             <p class="eyebrow">Jobs</p>
-            <h2 id="jobs-heading">Finalized execution explorer</h2>
-            <p>Inspect immutable job outcomes inside one tenant and profile boundary. Preview history is summarized; raw evidence stays server-side.</p>
+            <h2 id="jobs-heading">Execution jobs</h2>
+            <p>Browse hosted executions and gateway receipts for this workspace. Each entry identifies its source and available evidence.</p>
           </div>
           <span class="read-only-badge">Read only</span>
         </header>
+        <section class="hosted-history" data-hosted-jobs aria-label="Hosted execution jobs" hidden></section>
+        <h3>Finalized execution explorer</h3>
+        <p>Gateway finalized receipts. These filters apply to this receipt index, independently of hosted execution jobs above.</p>
         <form class="filter-form" data-jobs-filters>
           <fieldset>
             <legend>Filter finalized jobs</legend>
@@ -2863,6 +2866,8 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
 
   function syncJobsPageUrl(cursor = currentJobsCursor): void {
     const pageQuery = new URLSearchParams();
+    const existing = new URLSearchParams(runtime.location.search);
+    if (existing.get("workspace") === tenantId && existing.get("execution")) pageQuery.set("execution", existing.get("execution")!.slice(0, 200));
     pageQuery.set("window", allowedWindows.has(jobsWindowFilter.value) ? jobsWindowFilter.value : "7");
     appendTextFilter(pageQuery, "profile_key", jobsProfileKeyFilter.value);
     appendTextFilter(pageQuery, "profile_version", jobsProfileVersionFilter.value);
@@ -4284,7 +4289,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
         "No finalized jobs matched",
         "Broaden the bounded window or remove an exact filter. Preview-only work is intentionally excluded.",
       );
-      setStatus("ready", "The Jobs query completed with no finalized matches.");
+      setStatus("ready", "No gateway receipts matched. Hosted executions have their own section.", "Gateway receipt index loaded");
       return;
     }
     jobsMessage.hidden = true;
@@ -4298,9 +4303,9 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
       const age = freshness.ageSeconds === undefined ? "older than the freshness threshold" : describeAge(freshness.ageSeconds);
       setStatus("stale", `The finalized Jobs response is ${age}.`);
     } else if (findings.length > 0 || excluded > 0 || jobHasFindings || invalidCount > 0) {
-      setStatus("partial", "Finalized jobs are current; review explicit evidence-confidence and data-quality findings.");
+      setStatus("partial", "Finalized jobs are current; review explicit evidence-confidence and data-quality findings.", "Gateway receipts have findings");
     } else {
-      setStatus("ready", "Finalized jobs are current and ordered by immutable finalization time.");
+      setStatus("ready", "Finalized jobs are current and ordered by immutable finalization time.", "Gateway receipt index loaded");
     }
   }
 
@@ -4498,6 +4503,8 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   }
 
   async function loadJobs(cursor = currentJobsCursor): Promise<void> {
+    const hostedQuery = new URLSearchParams(runtime.location.search);
+    void history.loadJobs(tenantId, publicDemo, hostedQuery.get("workspace") === tenantId ? (hostedQuery.get("execution") || "").slice(0, 200) : "");
     if (!tenantId) return;
     currentJobsCursor = cursor.slice(0, 1_024);
     setStatus("loading", "Querying the tenant-scoped finalized Jobs read model.");
@@ -4511,13 +4518,13 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
       if (!result.response.ok) {
         const state = failureState(result.response.status);
         const detail = failureMessage(result.body, statusMessages[state][1]);
-        setStatus(state, detail);
+        setStatus(state, detail, "Gateway receipts are unavailable");
         setJobsState(state, statusMessages[state][0], detail);
         return;
       }
       renderJobs(result.body, result.response);
     } catch {
-      setStatus("unavailable");
+      setStatus("unavailable", "Gateway receipts could not be loaded. Hosted execution jobs load separately.", "Gateway receipts are unavailable");
       setJobsState("unavailable", "Finalized jobs are unavailable", statusMessages.unavailable[1]);
     }
   }
@@ -4841,7 +4848,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   return { buildActivityQuery, buildJobsQuery, buildQualityQuery, loadActivity, loadEvals, loadJobDetail, loadJobs, loadOverview, loadSetup, ready, showView };
 }
 
-const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(({ id, version, title }) => ({ id, version, title }))).replace(/</g, "\\u003c")}, ${agentHistory.toString()});`;
+const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(({ id, version, title }) => ({ id, version, title }))).replace(/</g, "\\u003c")}, ${HISTORY_FACTORY_JS});`;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -4873,7 +4880,7 @@ export default {
         return await forwardAgentRuntime(request, identity, env);
       }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
-        return assetResponse(HISTORY_CSS + APP_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
+        return assetResponse(HISTORY_CSS + EXECUTION_CSS + APP_CSS + JOURNEY_CSS, "text/css; charset=utf-8");
       }
       if (request.method === "GET" && url.pathname === "/assets/journey.js") return assetResponse(JOURNEY_JS, "text/javascript; charset=utf-8");
       if (request.method === "GET" && url.pathname === "/assets/app.js") {

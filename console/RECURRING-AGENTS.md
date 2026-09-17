@@ -2,7 +2,12 @@
 
 Use **Run → My agents** to see recurring and supervised agents together, including
 last results and upcoming schedules. **Run → Runs & approvals** and
-**Monitor → Activity → Agent runs** show recent checks alongside supervised runs.
+**Monitor → Activity** show recent checks alongside supervised runs. Activity defaults
+to compact agent groups; expand a group or choose All executions, then filter and
+page through retained history. **Monitor → Jobs** lists each hosted execution with
+a source-qualified ID and recorded-evidence details. Activity links open the exact
+Job. This projects existing run records and does not create duplicate jobs or signed
+receipts. Gateway finalized receipts keep their own filters and detail explorer.
 Refresh reads saved history without executing an agent. External event filters apply
 only to the external activity section; checks are not signed Jobs or AI assessments.
 
