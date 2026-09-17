@@ -4400,10 +4400,10 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     if (events.length === 0) {
       if (activityHasRestrictiveFilters()) {
         setActivityState("empty", "No external activity matched", "Broaden the bounded window or remove a filter. Raw prompts, arguments, and results are never part of this feed.");
-        setStatus("ready", "The Activity query completed with no matches.");
+        setStatus("ready", "The external activity query completed with no matches.", "External activity loaded");
       } else {
         setActivityState("empty", "No external activity received", "Verify that the source is enabled and the agent integration has its current token, then run one agent action. Raw prompts, arguments, and results are never part of this feed.");
-        setStatus("ready", "No external events were received in this window. Agent runs are shown separately above.");
+        setStatus("ready", "No external events were received in this window. Agent runs have their own section.", "External activity loaded");
       }
       return;
     }
@@ -4412,7 +4412,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     if (freshness.state === "stale") {
       setStatus("stale", "Observed activity may be older than the configured freshness threshold.");
     } else {
-      setStatus("ready", "Privacy-safe shadow activity is current for this tenant.");
+      setStatus("ready", "Privacy-safe shadow activity is current for this tenant.", "External activity loaded");
     }
   }
 
