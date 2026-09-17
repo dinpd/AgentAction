@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.24.0-rc.1 - 2026-09-17
+
+### Added
+
+- Browse Activity by agent in compact, expandable groups, with current status, last/next execution and findings. Pending approvals and current problems sort first. Switch to a chronological list, filter by agent or execution status, and page through retained history ten executions at a time.
+- Hosted Jobs projects recurring checks and supervised runs using source-qualified execution IDs. Inspect timestamps, measured duration, result, findings, recorded result digests and AI assessments where available. Activity links to the exact Job record. Existing gateway finalized receipts retain their own explorer and evidence labels.
+
+### Compatibility and migration
+
+- Significant user-visible execution browsing and Jobs coverage: 0.24 minor release candidate while the hosted monitoring feature remains under operational validation. No API, schema, permissions, scheduling or notification changes; no migration. Reading Jobs does not create a job or replay execution. History remains bounded by the existing 40 supervised and 80 recurring runs per workspace.
+- Hosted records are labeled Recorded check or Recorded tool execution; no signed gateway receipt or independent outcome verification is implied. Receipt filters remain scoped to the gateway index.
+- Install Python artifacts from the GitHub v0.24.0-rc.1 prerelease. npm publication is unchanged; hosted services deploy from the merged commit.
+
 ## 0.23.0-rc.2 - 2026-09-17
 
 ### Fixed
