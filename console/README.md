@@ -645,3 +645,37 @@ The public demo home explains synthetic evidence and exposes only Overview and M
 Run `node --experimental-strip-types tests/journey-browser.mts` with the same Playwright
 options as the registry browser suite for state, navigation, workspace-race, mobile and
 demo acceptance. No provider requests or account mutations occur in these fixtures.
+
+
+## Workspace recipe builder
+
+In **Create**, choose **Start from scratch**, customize a catalog recipe or AI
+suggestion, or open a saved workspace recipe. Choose a connected server and one
+to four of its discovered tools. Define the goal, input guidance, instructions,
+boundaries and success criteria in the same editor.
+
+**Save workspace recipe** saves only the reusable definition. The **Your job
+inputs** field belongs to the agent instance and is not copied into the recipe.
+Keep secrets and customer data out of reusable definition fields; credentials
+belong in the connection setup. Definitions are visible to workspace members.
+
+Use or edit a saved recipe to reuse it with fresh inputs. **Save new version**
+creates an immutable numbered revision; **Save as new recipe** duplicates it.
+An agent created from an unchanged saved revision pins that revision. Unsaved
+edits create a custom definition pinned to the new agent. Existing agents never
+change when a template is revised. A stale save asks you to reopen the latest
+version. Each workspace supports 24 recipes with eight revisions each.
+
+Creating a draft does not execute tools or start a schedule. Run a trial and
+approve each exact proposed call. The current runtime supports one server and
+four calls per run. Success is AI-assessed from observed results. Written
+boundaries guide the model, and do not create enforced intent contracts or
+independent evaluations.
+
+Automated UI acceptance (with Playwright installed, or `PLAYWRIGHT_MODULE` set
+to its module path):
+
+```sh
+node --experimental-strip-types tests/workspace-recipe-browser.mts
+node --experimental-strip-types tests/recipe-browser.mts
+```

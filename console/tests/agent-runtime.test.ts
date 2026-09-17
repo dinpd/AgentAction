@@ -181,3 +181,72 @@ test('recipe drafts resolve pinned catalog content, validate tools and never inf
   connection.status = 'disconnected'; await h.storage.put(`connection:${connectionId}`, connection);
   assert.equal((await h.request('create',payload)).status,409);
 });
+
+const customDefinition = { title: "Pricing brief", goal: "Read a supplied pricing page", inputGuide: "Supply a target URL", instructions: "Summarize prices with source links", boundaries: "Do not modify any account", success: "Every price has a source", tools: ["scrape"] };
+
+test("workspace recipes persist revisions, reuse fresh inputs and keep agents pinned", async () => {
+  const h = harness([call, finish]);
+  const c = await h.request("connect", { endpoint, token: "SECRET-TOKEN" }); const connectionId = c.body.connectionId;
+  const saved = await h.request("save-recipe", { connectionId, definition: customDefinition }); assert.equal(saved.status, 200);
+  const ref = { id: saved.body.id, version: 1 };
+  const first = await h.request("create", { connectionId, workspaceRecipe: ref, setup: "PRIVATE first URL" }); assert.equal(first.status, 200);
+  const updated = { ...customDefinition, goal: "Compare the supplied prices" };
+  assert.equal((await h.request("save-recipe", { connectionId, id: ref.id, baseVersion: 1, definition: updated })).body.version, 2);
+  assert.equal((await h.request("save-recipe", { connectionId, id: ref.id, baseVersion: 1, definition: updated })).status, 409);
+  assert.equal((await h.request("create", { connectionId, workspaceRecipe: { ...ref, version: 99 }, setup: "x" })).status, 409);
+  assert.equal((await h.request("create", { connectionId, workspaceRecipe: ref, definition: updated, setup: "x" })).status, 400);
+  const second = await h.request("create", { connectionId, workspaceRecipe: { ...ref, version: 2 }, setup: "PRIVATE second URL" }); assert.equal(second.status, 200);
+  const duplicate = await h.request("save-recipe", { connectionId, definition: updated }); assert.notEqual(duplicate.body.id, ref.id); assert.equal(duplicate.body.version, 1);
+  const reloaded = new AgentRuntime(h.storage, h.env, h.fetcher as typeof fetch), snapshot = await reloaded.snapshot() as any;
+  assert.equal(snapshot.workspaceRecipes.length, 2); assert.equal(snapshot.workspaceRecipes[0].version, 2);
+  assert.equal(JSON.stringify(snapshot.workspaceRecipes).includes("PRIVATE"), false); assert.equal(JSON.stringify(snapshot.workspaceRecipes).includes(connectionId), false);
+  const original = await h.storage.get<Agent>(`agent:${first.body.agentId}`); assert.deepEqual(original?.definition, customDefinition); assert.deepEqual(original?.workspaceRecipe, ref);
+  assert.equal(snapshot.agents.find((a: Agent) => a.id === second.body.agentId).definition.goal, updated.goal);
+  assert.equal(h.prompts.length, 0); assert.ok(!h.calls.includes("tools/call")); assert.equal(h.storage.alarm, undefined);
+  const r = await h.trial(first.body.agentId); assert.equal(r.status, "awaiting_approval"); assert.ok(!h.calls.includes("tools/call"));
+  assert.ok(h.prompts[0].includes(customDefinition.instructions)); assert.ok(h.prompts[0].includes(customDefinition.boundaries)); assert.ok(h.prompts[0].includes(customDefinition.success));
+  await h.approve(r); assert.equal((await h.storage.get<Run>(`run:${r.id}`))?.status, "completed");
+  const isolated = harness(); assert.equal((await isolated.request("create", { connectionId, workspaceRecipe: ref, setup: "x" })).status, 404);
+});
+
+test("custom definitions work without AI suggestions and reject invalid tools, credentials and viewer writes", async () => {
+  const h = harness([]), c = await h.request("connect", { endpoint, token: "SECRET-TOKEN" }), connectionId = c.body.connectionId;
+  const body = { connectionId, definition: customDefinition };
+  const result = await h.request("create", { ...body, setup: "https://example.com" }); assert.equal(result.status, 200);
+  for (const definition of [
+    { ...customDefinition, tools: ["invented"] }, { ...customDefinition, tools: [] }, { ...customDefinition, tools: ["scrape", "scrape"] },
+    { ...customDefinition, tools: Array(5).fill("scrape") },
+    { ...customDefinition, goal: "界".repeat(2000), instructions: "界".repeat(2000), success: "界".repeat(2000) },
+    { ...customDefinition, title: "x".repeat(121) }, { ...customDefinition, goal: "" },
+    { ...customDefinition, boundaries: "SECRET-TOKEN" }, { ...customDefinition, setup: "private input" }, { ...customDefinition, token: "secret" },
+  ]) for (const action of ["save-recipe", "create"]) assert.equal((await h.request(action, { ...body, definition, setup: "x" })).status, 400);
+  for (const action of ["save-recipe", "create"]) {
+    const response = await h.runtime.handle(new Request(`https://runtime.test/${action}`, { method: "POST", headers: { "x-runtime-role": "viewer" }, body: JSON.stringify({ ...body, setup: "x" }) })); assert.equal(response.status, 403);
+  }
+  await h.request("disconnect", { connectionId });
+  assert.equal((await h.request("save-recipe", body)).status, 409); assert.equal((await h.request("create", { ...body, setup: "x" })).status, 409);
+});
+
+test("workspace recipe storage is bounded and protects credentials from any workspace connection", async () => {
+  const h = harness([]), c = await h.request("connect", { endpoint, token: "SECRET-TOKEN" }), connectionId = c.body.connectionId;
+  const publicConnection = await h.request("connect", { endpoint });
+  assert.equal((await h.request("save-recipe", { connectionId: publicConnection.body.connectionId, definition: { ...customDefinition, goal: "SECRET-TOKEN" } })).status, 400);
+  const saved = await h.request("save-recipe", { connectionId, definition: customDefinition });
+  for (let version = 1; version < 8; version++) assert.equal((await h.request("save-recipe", { connectionId, id: saved.body.id, baseVersion: version, definition: customDefinition })).body.version, version + 1);
+  assert.equal((await h.request("save-recipe", { connectionId, id: saved.body.id, baseVersion: 8, definition: customDefinition })).status, 409);
+  for (let i = 1; i < 24; i++) assert.equal((await h.request("save-recipe", { connectionId, definition: customDefinition })).status, 200);
+  assert.equal((await h.request("save-recipe", { connectionId, definition: customDefinition })).status, 409);
+});
+
+test("customized catalog definitions use edited instructions and enforce the selected tool scope", async () => {
+  const h = harness([{ type: "call", tool: "unselected", arguments: {} }]);
+  const c = await h.request("connect", { endpoint });
+  const definition = { ...customDefinition, instructions: "Use the edited procedure" };
+  const created = await h.request("create", { connectionId: c.body.connectionId, definition, recipeId: "competitor-pricing", recipeVersion: "1.0.0", recipeReviewed: true, setup: "https://example.com", success: "An attempted override" });
+  assert.equal(created.status, 200);
+  const agent = (await h.storage.get<Agent>(`agent:${created.body.agentId}`))!;
+  assert.equal(agent.success, customDefinition.success);
+  assert.equal((await h.trial(agent.id)).status, "failed");
+  assert.ok(h.prompts[0].includes("Use the edited procedure"));
+  assert.ok(!h.prompts[0].includes("An attempted override")); assert.ok(!h.calls.includes("tools/call"));
+});

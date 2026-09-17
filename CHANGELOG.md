@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.25.0-rc.1 - 2026-09-17
+
+### Added
+
+- Author agent recipes directly in Create, starting from scratch, a catalog recipe, an AI suggestion or a saved workspace recipe. Edit the goal, input guidance, allowed tools, instructions, boundaries and success criteria together, then create a supervised draft with its own job inputs.
+- Save private workspace recipes, reuse them with fresh inputs, duplicate them or save a new numbered revision. Existing agents retain their original definition. Stale edits fail with a reload instruction. Templates exclude account bindings and instance inputs; known workspace credentials are rejected.
+
+### Compatibility and migration
+
+- Significant functionality: 0.25 minor release candidate for the new persisted workspace recipe definition boundary, continuing hosted runtime operational validation. Additive storage and API; existing catalog links and agents remain compatible without migration. Owners and operators can save recipes; viewers retain read access. Up to 24 recipes and eight revisions per recipe.
+- Supervised execution still uses one connected MCP server, one to four selected tools and at most four approved calls per run. Written boundaries guide the model; they do not install gateway contract controls. Success remains explicitly AI-assessed. Structured contract/eval binding, public recipe publishing and multi-server execution are outside this release.
+- Install Python artifacts from the GitHub v0.25.0-rc.1 prerelease. npm publication is unchanged; hosted services deploy from the merged commit.
+
 ## 0.24.0-rc.1 - 2026-09-17
 
 ### Added
