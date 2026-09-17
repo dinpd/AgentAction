@@ -772,3 +772,18 @@ test("endpoint pre-checks use current membership even before endpoint approval",
   for (const allowed of ["operator", "owner"]) { role = allowed; assert.equal((await worker.fetch(post(), env)).status, 200); }
   present = false; assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(inspections, 2);
 });
+
+test("workspace recipe writes require current membership, same origin and a verified operator role", async () => {
+  let role = "viewer", present = true, writes = 0;
+  const env: Env = {
+    ...baseEnv([], () => json({ workspace_mode: "directory", memberships: present ? [{ tenant: { tenant_id: "acme" }, membership: { role } }] : [] })),
+    CONSOLE_DIRECTORY_MODE: "true",
+    AGENT_WORKSPACES: { getByName(name) { assert.equal(name, "workspace:acme"); return { async request(request) { writes++; assert.equal(new URL(request.url).pathname, "/save-recipe"); assert.equal(request.headers.get("x-runtime-role"), role); assert.equal(request.headers.get("x-runtime-actor"), "operator-123"); return json({}); } }; } },
+  };
+  const post = (origin = "https://console.test", tenant = "acme") => accessRequest(`/api/agents/${tenant}/save-recipe`, { method: "POST", headers: { origin, "content-type": "application/json", "x-agentaction-request": "agent-builder", "x-runtime-role": "owner", "x-runtime-actor": "attacker" }, body: "{}" }, { custom: {} });
+  assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(writes, 0);
+  for (const allowed of ["owner", "operator"]) { role = allowed; assert.equal((await worker.fetch(post(), env)).status, 200); }
+  assert.equal((await worker.fetch(post("https://evil.test"), env)).status, 403);
+  assert.equal((await worker.fetch(post("https://console.test", "beta"), env)).status, 403);
+  present = false; assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(writes, 2);
+});

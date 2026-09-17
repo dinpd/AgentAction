@@ -1,3 +1,4 @@
+import type { RecipeDefinition, RecipeRevision } from "./workspace-recipes.ts";
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { recipes, type Recipe } from "../../recipes/registry.ts";
 import { JOURNEY_NAV } from "./journey.ts";
@@ -24,12 +25,21 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
 <p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
-<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose a recipe</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><h2>Start with a recipe</h2><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Make it your agent</h2><form id="create"><label>Agent name<input name="title" maxlength="120" required></label><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note"></p><label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label><p id="selected-tools" class="note"></p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. Up to four tool calls per run.</p><button type="submit">Create agent instance</button></form></section>
+<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose a recipe</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><div class="section-heading"><div><h2>Start with a recipe</h2><p class="note">Use a starting point or define your own job.</p></div><button id="start-scratch" type="button">Start from scratch</button></div><section aria-label="Workspace recipes"><h3>Your workspace recipes</h3><div id="workspace-recipes" class="grid"></div></section><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Define your agent</h2><p id="editor-source" class="note"></p><form id="create">
+<div class="fields"><label>Agent / recipe name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
+<label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
+<label>Inputs this recipe needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
+<fieldset id="editor-tools"><legend>Allowed tools · choose up to four</legend><div id="tool-options" class="fields"></div></fieldset>
+<div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label><label>Boundaries<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope and actions the agent should avoid."></textarea></label></div>
+<label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label>
+<p id="selected-tools" class="note">Success is assessed by AI against observed tool results. Written boundaries guide the agent; they do not install contract controls or independent evaluations.</p>
+<div class="actions"><button id="save-recipe" type="button" class="secondary">Save workspace recipe</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new recipe</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
+<div class="instance-inputs"><h3>Inputs for this agent</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable recipe.</p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. One server and up to four tool calls per run.</p><button id="create-agent" type="submit">Create agent instance</button></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
-export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
 export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory): void {
   const history = historyFactory(runtime);
@@ -60,8 +70,69 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let chosen: { connectionId: string; suggestion: any } | undefined;
   let memberships: any[] = [];
   let selectedRecipe: Recipe | undefined;
+  let editorRecipe: (RecipeRevision & { id: string }) | undefined;
+  let editorGeneration = 0;
+  function editorField(name: string) { return get<HTMLFormElement>('create').elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement; }
+  function definitionFromEditor(): RecipeDefinition {
+    return { title: editorField('title').value.trim(), goal: editorField('goal').value.trim(), inputGuide: editorField('inputGuide').value.trim(), instructions: editorField('instructions').value.trim(), boundaries: editorField('boundaries').value.trim(), success: editorField('success').value.trim(), tools: [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value).sort() };
+  }
+  function editorTools(selected: string[] = []) {
+    const connection = state.connections.find((c: any) => c.id === chosen?.connectionId && c.status === 'connected');
+    get('tool-options').replaceChildren();
+    for (const tool of connection?.tools || []) {
+      const label = node('label', '', 'consent'), input = doc.createElement('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = selected.includes(tool.name); input.disabled = role === 'viewer';
+      label.append(input, node('span', tool.name)); get('tool-options').append(label);
+    }
+    if (!connection) get('tool-options').append(node('p', 'Connect a server to choose tools.', 'note'));
+  }
+  function openEditor(connectionId: string, definition: Partial<RecipeDefinition>, source: any = {}, saved?: RecipeRevision & { id: string }) {
+    editorGeneration++; editorRecipe = saved; chosen = { connectionId, suggestion: source };
+    const form = get<HTMLFormElement>('create'); form.reset();
+    for (const name of ['title', 'goal', 'inputGuide', 'instructions', 'boundaries', 'success']) editorField(name).value = definition[name] || '';
+    const select = get<HTMLSelectElement>('editor-connection'); select.replaceChildren();
+    select.append(new Option('Choose a connected server', ''));
+    for (const c of state.connections.filter((c: any) => c.status === 'connected')) select.append(new Option(c.label, c.id));
+    select.value = connectionId;
+    editorTools(definition.tools);
+    get('editor-source').textContent = saved ? `Workspace recipe · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.` : source.recipeId ? 'Customize this catalog recipe for your workspace.' : source.id ? 'Review and customize this AI suggestion.' : 'Create a job using your connected tools. No AI suggestion is needed.';
+    get('duplicate-recipe').hidden = !saved;
+    get('save-recipe').textContent = saved ? 'Save new version' : 'Save workspace recipe';
+    get('recipe-save-status').textContent = '';
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input,textarea,select,button').forEach(el => el.disabled = role === 'viewer');
+    showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function renderWorkspaceRecipes() {
+    const list = get('workspace-recipes'); list.replaceChildren();
+    for (const saved of state.workspaceRecipes || []) {
+      const card = node('article', '', 'card'); card.append(node('h3', saved.definition.title), node('p', saved.definition.goal), node('p', `Workspace recipe · v${saved.version}`, 'note'));
+      const open = (duplicate: boolean) => {
+        recipeContext();
+        const connection = state.connections.find((c: any) => c.status === 'connected' && saved.definition.tools.every((name: string) => c.tools.some((t: any) => t.name === name)));
+        openEditor(connection?.id || '', saved.definition, {}, duplicate ? undefined : saved);
+      };
+      const actions = node('div', '', 'actions'); actions.append(button('Use or edit recipe', async () => open(false)), button('Duplicate recipe', async () => open(true))); card.append(actions); list.append(card);
+    }
+    if (!list.children.length) list.append(node('p', 'Save a definition below to reuse it with fresh inputs.', 'empty'));
+    get<HTMLButtonElement>('start-scratch').disabled = role === 'viewer';
+  }
+  async function saveEditorRecipe(duplicate: boolean) {
+    for (const name of ['title', 'goal', 'success']) if (!editorField(name).reportValidity()) return;
+    if (!get<HTMLSelectElement>('editor-connection').reportValidity()) return;
+    const currentTenant = tenant, currentEditor = editorGeneration;
+    const definition = definitionFromEditor();
+    let saved: RecipeRevision & { id: string };
+    try { saved = await mutate('save-recipe', { connectionId: chosen?.connectionId, definition, ...(!duplicate && editorRecipe ? { id: editorRecipe.id, baseVersion: editorRecipe.version } : {}) }); }
+    catch (error) { if (tenant !== currentTenant || editorGeneration !== currentEditor) return; throw error; }
+    if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
+    editorRecipe = saved;
+    get('editor-source').textContent = `Workspace recipe · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.`;
+    state.workspaceRecipes = [...(state.workspaceRecipes || []).filter((r: any) => r.id !== saved.id), saved];
+    renderWorkspaceRecipes();
+    get('save-recipe').textContent = 'Save new version'; get('duplicate-recipe').hidden = false;
+    get('recipe-save-status').textContent = `Saved workspace recipe v${saved.version}. Job inputs were not included. You can create an agent below.`;
+  }
   function recipeContext(recipe?: Recipe) {
-    selectedRecipe = recipe; chosen = undefined;
+    selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++;
     get<HTMLFormElement>('create').reset(); get('configure').hidden = true;
     const url = new URL(runtime.location.href);
     for (const key of ['recipe', 'recipe_version']) url.searchParams.delete(key);
@@ -72,11 +143,10 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     runtime.location.hash = 'create'; showStage('create');
   }
   function renderRecipe() {
-    const panel = get('recipe-detail'); panel.replaceChildren(); panel.hidden = !selectedRecipe; get('recipe-browser').hidden = Boolean(selectedRecipe); get('custom-builder').hidden = Boolean(selectedRecipe);
+    const panel = get('recipe-detail'); if (selectedRecipe && chosen?.suggestion.recipeId === selectedRecipe.id) return; panel.replaceChildren(); panel.hidden = !selectedRecipe; get('recipe-browser').hidden = Boolean(selectedRecipe); get('custom-builder').hidden = Boolean(selectedRecipe);
     get('recipe-return').hidden = !selectedRecipe || builderStage !== 'connect';
     if (!selectedRecipe) return;
     const recipe = selectedRecipe;
-    if (chosen?.suggestion.recipeId) { chosen = undefined; get("configure").hidden = true; }
     panel.append(node('p', `Recipe · ${recipe.publisher.name} · v${recipe.version}`, 'eyebrow'), node('h2', recipe.title), node('p', recipe.intent));
     const close = node('button', 'Choose another recipe', 'secondary') as HTMLButtonElement; close.type = 'button'; close.onclick = () => recipeContext(); panel.append(close);
     if (recipe.runtime === 'recurring') { const link = node('a', 'Configure recurring agent →') as HTMLAnchorElement; link.href = '/automations?workspace=' + encodeURIComponent(tenant) + '#agents'; panel.append(node('p', 'This recipe uses platform scheduling, saved baselines, findings and workspace notifications. Configure its targets and run a baseline before enabling automatic reads.'), link); return; }
@@ -114,14 +184,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const configure = button('Configure this recipe', async () => {
       const connection = state.connections.find((c: any) => c.id === select.value);
       if (!connection || !reviewed.checked) return;
-      chosen = { connectionId: connection.id, suggestion: { recipeId: recipe.id, recipeVersion: recipe.version } };
-      const form = get<HTMLFormElement>('create'); form.reset();
-      (form.elements.namedItem('title') as HTMLInputElement).value = recipe.title;
-      (form.elements.namedItem('success') as HTMLTextAreaElement).value = recipe.outcomes.map(rule => rule.label).join('\n');
-      (form.elements.namedItem('setup') as HTMLTextAreaElement).placeholder = recipe.adoption?.inputs.map(input => input.name + ': ' + input.example).join('\n') || 'Provide the ticket, scope, policy and other context required by this recipe.';
-      get('setup-hint').textContent = recipe.adoption?.inputs.map(input => input.name + ': ' + input.description).join(' · ') || recipe.intent;
-      get('selected-tools').textContent = `Allowed tools: ${server.tools.join(', ')}. Recipe instructions and boundaries are saved with this draft.`;
-      showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      openEditor(connection.id, { title: recipe.title, goal: recipe.intent, inputGuide: [...(recipe.adoption?.inputs.map(input => input.name + ': ' + input.description) || []), ...(recipe.adoption?.requirements || [])].join('\n').slice(0, 1000), instructions: recipe.instructions.join('\n'), boundaries: recipe.boundaries.join('\n'), success: recipe.outcomes.map(rule => rule.label).join('\n'), tools: server.tools }, { recipeId: recipe.id, recipeVersion: recipe.version });
     }, false);
     const update = () => { configure.disabled = role === 'viewer' || !select.value || !reviewed.checked; };
     select.addEventListener('change', () => { chosen = undefined; get('configure').hidden = true; update(); }); reviewed.addEventListener('change', () => { if (!reviewed.checked) { chosen = undefined; get('configure').hidden = true; } update(); });
@@ -165,7 +228,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function renderAccountRole() { const url = new URL(runtime.location.href); if (tenant) url.searchParams.set('workspace', tenant); else url.searchParams.delete('workspace'); runtime.history.replaceState(null, '', url.pathname + url.search + url.hash); get("account-role").textContent = tenant ? role : "No workspace selected"; runtime.agentActionJourney?.setWorkspace(tenant); showStage(builderStage); }
   function sessionUnavailable(detail: string) {
     cancelScheduledPrecheck(); pendingInspections.clear(); precheckError = undefined; generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
-    state = { connections: [], agents: [], runs: [] }; chosen = undefined;
+    state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; chosen = undefined; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren();
     get<HTMLFormElement>("connect").reset(); get<HTMLFormElement>("create").reset();
     workspace.replaceChildren(); workspace.disabled = true;
     get("builder").hidden = true; get<HTMLInputElement>("precheck-endpoint").value = ""; renderPrechecks();
@@ -392,7 +455,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     state = data; recurring = checks; get("builder").hidden = false; render();
   }
   function render() {
-    renderEndpointApprovals(); renderPrechecks(); renderRecipe();
+    renderEndpointApprovals(); renderPrechecks(); renderRecipe(); renderWorkspaceRecipes();
     const createConnections = get('create-connections'); createConnections.replaceChildren();
     for (const c of state.connections.filter((c: any) => c.status === 'connected')) {
       const row = node('div', '', 'connection'); row.append(node('strong', c.label), button('Suggest agents', async () => { message('Finding useful jobs for this server…'); await mutate('suggest', {connectionId:c.id}); await refresh(); message('Suggestions are ready. Choose a job to configure.'); })); createConnections.append(row);
@@ -428,10 +491,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       for (const s of c.suggestions) {
         const card = node("article", "", "card");
         card.append(node("span", "AI suggested · untested", "pill"), node("h3", s.title), node("p", s.goal), node("p", `Requires: ${s.setup}`, "note"), node("p", `Success: ${s.success}`, "note"), node("p", `Tools: ${s.tools.join(", ")}`, "note"), button("Build this agent", async () => {
-          recipeContext(); chosen = { connectionId: c.id, suggestion: s }; get("configure").hidden = false;
-          const form = get<HTMLFormElement>("create"); (form.elements.namedItem("title") as HTMLInputElement).value = s.title; (form.elements.namedItem("success") as HTMLTextAreaElement).value = s.success;
-          get("setup-hint").textContent = s.setup; get("selected-tools").textContent = `Allowed tools: ${s.tools.join(", ")}`;
-          get("configure").scrollIntoView({ behavior: "smooth", block: "start" });
+          recipeContext(); openEditor(c.id, { ...s, inputGuide: s.setup }, s);
         }, false)); suggestions.append(card);
       }
     }
@@ -444,7 +504,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met") actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
-      if (a.recipe) card.append(node("p", `Recipe: ${a.recipe.id} · v${a.recipe.version}`, "note"));
+      if (a.definition) {
+        const detail = node('details'); detail.append(node('summary', 'Recipe definition'), node('p', a.workspaceRecipe ? `Workspace recipe · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
+        for (const [label, value] of [['Inputs needed', a.definition.inputGuide], ['Instructions', a.definition.instructions], ['Boundaries', a.definition.boundaries], ['Allowed tools', a.definition.tools.join(', ')]]) if (value) detail.append(node('strong', label), node('p', value, 'note'));
+        detail.append(node('p', 'Success is AI-assessed. Written boundaries do not install contract controls.', 'note')); card.append(detail);
+      }
+      if (a.recipe) card.append(node("p", `Based on recipe: ${a.recipe.id} · v${a.recipe.version}`, "note"));
       const latest = state.runs.filter((r: any) => r.agentId === a.id).sort((a: any, b: any) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
       card.append(node("p", `Last run: ${latest ? new Date(latest.startedAt).toLocaleString() + " · " + latest.status.replaceAll("_", " ") : "Not yet"} · Next proposal: ${a.status === "active" && a.nextRun ? new Date(a.nextRun).toLocaleString() : "Not scheduled"}`, "note"));
       if (latest?.summary) card.append(node("p", latest.summary));
@@ -505,13 +570,25 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
     void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); if (selectedRecipe) { runtime.location.hash = "create"; showStage("create"); message("Server connected. Select it for your recipe and review its requirements."); } }, "connect-feedback");
   });
+  get<HTMLButtonElement>('start-scratch').onclick = () => { recipeContext(); openEditor('', {}); };
+  get<HTMLSelectElement>('editor-connection').onchange = () => {
+    if (!chosen) return;
+    const selected = definitionFromEditor().tools; chosen.connectionId = get<HTMLSelectElement>('editor-connection').value; editorTools(selected);
+  };
+  for (const [id, duplicate] of [['save-recipe', false], ['duplicate-recipe', true]] as const) get<HTMLButtonElement>(id).onclick = event => {
+    if (role === 'viewer' || !chosen) return;
+    void perform(event.currentTarget as HTMLButtonElement, () => saveEditorRecipe(duplicate), 'recipe-save-status');
+  };
   get<HTMLFormElement>("create").addEventListener("submit", event => {
-    event.preventDefault(); if (!chosen) return;
-    const form = event.currentTarget as HTMLFormElement, data = new FormData(form);
-    void perform(form.querySelector("button")!, async () => { await mutate("create", { connectionId: chosen!.connectionId, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : { suggestionId: chosen!.suggestion.id }), title: data.get("title"), setup: data.get("setup"), success: data.get("success") }); get("configure").hidden = true; form.reset(); recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run"; });
+    event.preventDefault(); if (!chosen || role === 'viewer') return;
+    const definition = definitionFromEditor();
+    const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen.suggestion.recipeId ? { recipeId: chosen.suggestion.recipeId, recipeVersion: chosen.suggestion.recipeVersion, recipeReviewed: true } : {}) };
+    const payload = { connectionId: chosen.connectionId, ...binding, setup: editorField('setup').value };
+    const currentTenant = tenant, currentEditor = editorGeneration;
+    void perform(get<HTMLButtonElement>('create-agent'), async () => { await mutate('create', payload); if (tenant !== currentTenant || editorGeneration !== currentEditor) return; recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run"; });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [] }; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
     const use = node('button', 'Use this recipe') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;
