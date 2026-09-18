@@ -124,6 +124,11 @@ test("BFF authenticates, isolates tenants, requires same-origin writes, and excl
   assert.equal((await worker.fetch(new Request("https://console.test/api/agents/workspace-a/state"), env)).status, 200); assert.deepEqual(seen, ["workspace:workspace-a"]);
   for (const origin of [undefined, "https://evil.test"]) { const headers: Record<string,string> = { "content-type": "application/json", "x-agentaction-request": "agent-builder" }; if (origin) headers.origin = origin;
     assert.equal((await worker.fetch(new Request("https://console.test/api/agents/workspace-a/connect", { method: "POST", headers, body: "{}" }), env)).status, 403); }
+  const draftRequest = (workspace: string, origin = 'https://console.test') => new Request(`https://console.test/api/agents/${workspace}/draft`, {method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder'},body:'{}'});
+  assert.equal((await worker.fetch(draftRequest('workspace-a'),env)).status,200);
+  assert.equal((await worker.fetch(draftRequest('workspace-b'),env)).status,403);
+  assert.equal((await worker.fetch(draftRequest('workspace-a','https://evil.test'),env)).status,403);
+  assert.notEqual((await demo.fetch(draftRequest('workspace-a'),{})).status,200);
   for (const path of ["/agents", "/api/agents/workspace-a/state", "/assets/agents.js"]) assert.equal((await demo.fetch(new Request(`https://demo.test${path}`))).status, 404);
   const shell = await worker.fetch(new Request("https://console.test/agents"), env); assert.equal(shell.status, 200); assert.match(shell.headers.get("content-security-policy")!, /script-src 'self'/);
   assert.match(AGENT_HTML, /type="password"/); assert.match(AGENT_HTML, /sent to the configured AI model/); assert.doesNotMatch(AGENT_JS, /\.innerHTML|localStorage|sessionStorage/);
@@ -253,6 +258,47 @@ test("customized catalog definitions use edited instructions and enforce the sel
 });
 
 const measuredDefinition = { ...customDefinition, evaluation: { version: 1, checks: [{ id: 'price', label: 'Price is 20', kind: 'result_field', tool: 'scrape', path: 'price', operator: 'equals', value: 20 }] } };
+const draftOutput = {title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise sourced pricing summary',tools:['scrape'],questions:[]};
+test('guided drafts use discovered tools, preserve inputs and never create or execute an agent', async () => {
+  const h=harness([draftOutput]);const c=await h.request('connect',{endpoint,token:'SECRET-TOKEN'});
+  const before=h.calls.length;const description='Summarize https://example.com/pricing in USD';
+  const draft=await h.request('draft',{connectionId:c.body.connectionId,description});assert.equal(draft.status,200);
+  assert.deepEqual(draft.body.definition.evaluation,{version:1,checks:[]});assert.deepEqual(draft.body.questions,[]);
+  assert.equal(draft.body.definition.goal,draftOutput.goal);assert.ok(h.prompts[0].includes(description));assert.ok(!h.prompts[0].includes('SECRET-TOKEN'));
+  assert.equal(h.calls.length,before);const snapshot=await h.runtime.snapshot() as any;
+  assert.equal(snapshot.agents.length,0);assert.equal(snapshot.runs.length,0);assert.equal(snapshot.workspaceRecipes.length,0);assert.equal(h.storage.alarm,undefined);
+});
+test('guided drafts reject invalid tools, settings, credential questions and oversized questions', async () => {
+  for(const output of [{...draftOutput,tools:['invented']},{...draftOutput,tools:[]},{...draftOutput,questions:Array(4).fill('Target?')},{...draftOutput,questions:['x'.repeat(181)]},{...draftOutput,questions:['Target?','Target?']},{...draftOutput,questions:['Your API key?']},{...draftOutput,contract:{}},{...draftOutput,title:'SECRET-TOKEN'}]){
+    const h=harness([output]);const c=await h.request('connect',{endpoint,token:'SECRET-TOKEN'});
+    assert.notEqual((await h.request('draft',{connectionId:c.body.connectionId,description:'Read a page'})).status,200);assert.ok(!h.calls.includes('tools/call'));
+  }
+  const h=harness([{...draftOutput,questions:['Which page should I read?']}]);const c=await h.request('connect',{endpoint,token:'SECRET-TOKEN'});
+  const draft=await h.request('draft',{connectionId:c.body.connectionId,description:'Summarize pricing'});assert.deepEqual(draft.body.questions,['Which page should I read?']);
+  assert.equal(draft.body.definition.inputGuide,'Which page should I read?');
+});
+test('draft generation enforces permissions, workspace-owned connection, quota and credential boundaries', async () => {
+  const h=harness(Array(12).fill(draftOutput));const c=await h.request('connect',{endpoint,token:'SECRET-TOKEN'});
+  const body={connectionId:c.body.connectionId,description:'Read a supplied page'};
+  const viewer=await h.runtime.handle(new Request('https://runtime.test/draft',{method:'POST',headers:{'x-runtime-role':'viewer'},body:JSON.stringify(body)}));assert.equal(viewer.status,403);
+  assert.equal((await h.request('draft',{...body,connectionId:'foreign'})).status,404);
+  for(const extra of [{description:'SECRET-TOKEN'},{description:'x'.repeat(2501)},{tools:['scrape']}]) assert.equal((await h.request('draft',{...body,...extra})).status,400);
+  assert.equal(h.prompts.length,0);
+  for(let i=0;i<12;i++) assert.equal((await h.request('draft',body)).status,200);
+  assert.equal((await h.request('draft',body)).status,429);
+  await h.request('disconnect',{connectionId:c.body.connectionId});assert.equal((await h.request('draft',body)).status,409);
+});
+test('drafting excludes other workspace credentials and unsupported file tools', async () => {
+  const h=harness([draftOutput]);const c=await h.request('connect',{endpoint,token:'FIRST-SECRET'});
+  await h.request('connect',{endpoint,token:'SECOND-SECRET'});
+  const body={connectionId:c.body.connectionId,description:'Read a page'};
+  assert.equal((await h.request('draft',{...body,description:'Read SECOND-SECRET'})).status,400);assert.equal(h.prompts.length,0);
+  const connection=(await h.storage.get<Connection>(`connection:${c.body.connectionId}`))!;
+  connection.tools[0].description='Provider metadata with SECOND-SECRET';await h.storage.put(`connection:${connection.id}`,connection);
+  assert.equal((await h.request('draft',body)).status,200);assert.ok(h.prompts.every(p=>!p.includes('SECOND-SECRET')&&!p.includes('FIRST-SECRET')));
+  connection.tools[0].inputSchema={type:'object',properties:{filePath:{type:'string'}},required:['filePath']};await h.storage.put(`connection:${connection.id}`,connection);
+  assert.equal((await h.request('draft',body)).status,409);
+});
 async function measuredAgent(h: ReturnType<typeof harness>, definition: unknown = measuredDefinition) {
   const connection = await h.request('connect', { endpoint, token:'SECRET-TOKEN' });
   const saved = await h.request('save-recipe', { connectionId:connection.body.connectionId, definition }); assert.equal(saved.status,200);
