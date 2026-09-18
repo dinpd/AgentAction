@@ -1,4 +1,5 @@
-import { proposedPlan, planBindings, PLAN_PROMPT, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
+import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
+import { proposedPlan, planBindings, PLAN_PROMPT, type AgentPlan, type ToolSource, type ToolBindings, type AvailableTool } from './agent-plans.ts';
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation } from "./recipe-evaluation.ts";
 import { agentDraft, DRAFT_PROMPT } from './agent-draft.ts';
 import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, type WorkspaceRecipe } from "./workspace-recipes.ts";
@@ -164,6 +165,18 @@ export class AgentRuntime {
   private async noCredentials(value: unknown): Promise<void> {
     if (await this.clean(value) !== (typeof value === "string" ? value : JSON.stringify(value))) throw new RuntimeError('Keep MCP credentials in server setup, not agent inputs or definitions.');
   }
+  private async availableTools(): Promise<AvailableTool[]> {
+    const catalog: AvailableTool[] = [];
+    for (const c of (await this.storage.list<Connection>({prefix:'connection:'})).values()) if(c.status==='connected') {
+      await this.allowedEndpoint(c.endpoint);
+      for (const t of c.tools) {
+        if (catalog.length >= 128) break;
+        if (/"(?:filePath|file_path|uploadUrl|upload_url|uploadToken|upload_token|fileName|file_name)"\s*:/.test(JSON.stringify(t.inputSchema))) continue;
+        catalog.push({id:`tool_${catalog.length}`,connectionId:c.id,tool:t.name,description:(t.description || '').slice(0,500)});
+      }
+    }
+    return catalog;
+  }
   private async saveDraft(plan: AgentPlan): Promise<void> {
     await this.noCredentials(plan);
     if(new TextEncoder().encode(JSON.stringify(plan)).byteLength>64000) throw new RuntimeError('This agent draft exceeds the storage budget. Use fewer or shorter capability descriptions.');
@@ -281,23 +294,28 @@ export class AgentRuntime {
       const plan:AgentPlan={id:id(),...(workspaceRecipe ? {workspaceRecipe} : {}),definition,requirements,questions:[],setup:'',bindings:Object.fromEntries(requirements.filter(r=>r.matches.length===1).map(r=>[r.id,r.matches[0]])),createdAt:now(),updatedAt:now()};
       await this.saveDraft(plan);return plan;
     }
+    if (path === '/profile-agents') {
+      if (!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must request agent ideas.',403);
+      if (Object.keys(body).some(k => !['area','context'].includes(k))) throw new RuntimeError('Provide only a function or area and optional context.');
+      const area = textField(body.area,'function or area',100);
+      const context = body.context === undefined || body.context === '' ? '' : textField(body.context,'context',1000);
+      await this.noCredentials({area,context});
+      const catalog = await this.availableTools();
+      await this.charge('suggest',12);
+      const {value} = await this.infer(PROFILER_PROMPT,{area,context,tools:catalog.map(({connectionId,...tool})=>tool)});
+      await this.noCredentials(value);
+      // Suggestions are ephemeral. Only quota counters change; no jobs or bindings are created.
+      return {ideas:agentIdeas(value,catalog)};
+    }
     if (path === '/draft' && body.connectionId === undefined) {
       if (!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must draft agents.',403);
       if (Object.keys(body).some(k=>k!=='description')) throw new RuntimeError('Provide only the job description.');
       if ((await this.storage.list({prefix:'draft:'})).size >= 24) throw new RuntimeError('This workspace supports up to 24 agent drafts.',409);
       const description = textField(body.description,'job description',2500);
       await this.noCredentials(description);
-      const catalog = [];
-      for (const c of (await this.storage.list<Connection>({prefix:'connection:'})).values()) if(c.status==='connected') {
-        await this.allowedEndpoint(c.endpoint);
-        for (const t of c.tools) {
-          if (catalog.length >= 128) break;
-          if (/"(?:filePath|file_path|uploadUrl|upload_url|uploadToken|upload_token|fileName|file_name)"\s*:/.test(JSON.stringify(t.inputSchema))) continue;
-          catalog.push({id:`tool_${catalog.length}`,connectionId:c.id,tool:t.name,description:(t.description || '').slice(0,500)});
-        }
-      }
+      const catalog = await this.availableTools();
       await this.charge('suggest',12);
-      const {value} = await this.infer(PLAN_PROMPT,{description,tools:JSON.parse(await this.clean(catalog)).map(({connectionId,...tool}:any)=>tool)});
+      const {value} = await this.infer(PLAN_PROMPT,{description,tools:catalog.map(({connectionId,...tool})=>tool)});
       await this.noCredentials(value);
       const plan: AgentPlan = {id:id(),...proposedPlan(value,catalog),setup:description,createdAt:now(),updatedAt:now()};
       await this.saveDraft(plan);
