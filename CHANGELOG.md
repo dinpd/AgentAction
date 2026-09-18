@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.29.0-rc.1 - 2026-09-18
+
+### Added
+
+- Replace generic Create example prompts with optional Help me choose an agent. Choose or type a function or area, optionally describe an improvement, and receive up to three tailored agent ideas with benefits, job descriptions and capability needs.
+- Use connected tools as suggestion context while supporting empty workspaces. Choosing an idea only fills the editable job form; creating the draft, mapping tools and approving actions remain explicit steps.
+- Keep suggestions ephemeral and scoped to the current workspace. Validate model output and catalog references, reject credentials, enforce operator permissions and existing suggestion/inference quotas, and discard stale responses.
+
+### Compatibility and migration
+
+- Additive operator-only profiler endpoint; no migration or changes to saved agents, contracts or evaluations. AI suggestions and tool matches are untested, and missing tools can be connected during draft setup. This RC covers the new inference boundary.
+- Install Python artifacts from the GitHub v0.29.0-rc.1 prerelease. npm publication is unchanged; hosted console deployments use the merged commit.
+
 ## 0.28.0-rc.2 - 2026-09-18
 
 ### Fixed

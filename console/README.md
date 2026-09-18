@@ -726,7 +726,23 @@ uses synthetic MCP output and verifies Create → approval → Run → Jobs → 
 ## Agent-first setup
 
 Create is the first lifecycle step. Describe the job without choosing an MCP
-server. Three example prompts can prefill editable text without submitting.
+server. **Help me choose an agent** replaces generic example prompts with an
+optional function/area profiler. Choose or type an area and optionally name an
+improvement. Up to three AI-suggested jobs explain their value and capability
+needs; connected tool matches remain untested suggestions, and missing tools can
+be added later. **Use this idea** only prefills the editable job description.
+The user still selects **Draft my agent**, reviews mappings and approves actions.
+
+`POST /api/agents/:workspace/profile-agents` accepts `area` (1–100 characters)
+and optional `context` (up to 1,000). It requires an owner/operator and the same
+origin/session protections as drafting. It shares the 12/day suggestion and
+120/day inference budgets. Profile inputs/results are not stored by the runtime;
+only quota counters change. Workspace/session changes clear browser profile state,
+and edits invalidate pending results. Credentials are rejected/redacted and model
+tool IDs must match the current approved connected-tool catalog. Automated
+acceptance: `console/tests/agent-profiler.test.ts` and
+`console/tests/agent-profiler-browser.mts`.
+
 **Browse examples** optionally reveals catalog and saved starting points; empty
 saved sections stay hidden. **Continue an agent** appears only when unfinished
 drafts exist. Manual editing is under **Set up manually**, and reusable saving

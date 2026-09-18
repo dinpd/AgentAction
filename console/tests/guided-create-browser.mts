@@ -70,12 +70,8 @@ try {
  assert.equal(await page.getByText('Build with your servers',{exact:true}).count(),0);
  assert.equal(await page.getByText('Your drafts',{exact:true}).count(),0);
  assert.equal(await page.locator('#create-connections').count(),0);
- const beforeExamples=posts.length;
- await page.getByRole('button',{name:'Summarize pricing',exact:true}).click();
- assert.match(await page.locator('#job-description').inputValue(),/Summarize pricing/);
- await page.getByRole('button',{name:'Compare vendors',exact:true}).click();
- assert.match(await page.locator('#job-description').inputValue(),/Research vendors/);
- assert.equal(posts.length,beforeExamples);
+ assert.equal(await page.locator('#agent-profiler').getAttribute('open'),null);
+ assert.equal(await page.getByText('Try an example',{exact:true}).count(),0);
  await page.locator('#example-library > summary').click();
  assert.equal(await page.locator('#recipe-browser').isVisible(),true);
  assert.equal(await page.locator('#saved-examples').isHidden(),true);
