@@ -1,4 +1,5 @@
 import type { RecipeCheck, RecipeEval } from "./recipe-evaluation.ts";
+import type { AgentDraft } from './agent-draft.ts';
 import type { RecipeDefinition, RecipeRevision } from "./workspace-recipes.ts";
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { recipes, type Recipe } from "../../recipes/registry.ts";
@@ -26,8 +27,9 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
 <p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
+<section class="panel" data-builder-stage="create" hidden id="guided-create"><h2>What would you like done?</h2><form id="draft-request"><label for="job-description">Describe the job<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><label id="draft-connection-field">Use this connection<select id="draft-connection" required></select></label><p id="draft-connection-note" class="note"></p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button><a href="#connect" id="draft-connect">Connect a server →</a></div><p class="note">AI proposes an editable draft using your connected tools. Include targets and details you already know. Nothing runs until you review it.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form></section>
 <section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose a recipe</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><div class="section-heading"><div><h2>Start with a recipe</h2><p class="note">Use a starting point or define your own job.</p></div><button id="start-scratch" type="button">Start from scratch</button></div><section aria-label="Workspace recipes"><h3>Your workspace recipes</h3><div id="workspace-recipes" class="grid"></div></section><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Define your agent</h2><p id="editor-source" class="note"></p><form id="create">
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
 <div class="fields"><label>Agent / recipe name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
 <label>Inputs this recipe needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
@@ -38,7 +40,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
 <fieldset id="eval-editor"><legend>Measurable checks</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save workspace recipe</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new recipe</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
-<div class="instance-inputs"><h3>Inputs for this agent</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable recipe.</p><p class="note">The instance starts as a draft. Every proposed tool call requires your approval of its exact arguments. One server and up to four tool calls per run.</p><button id="create-agent" type="submit">Create agent instance</button></div></form></section>
+</details><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable recipe.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. One server and up to four calls per run.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit">Save draft only</button></div></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
@@ -57,7 +59,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     builderStage = ['connect', 'create', 'run'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'connect';
     const copy: Record<string, string[]> = {
       connect: ['01 / Connect', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
-      create: ['02 / Create', 'Give your agent a job.', 'Explore recipes and suggestions. Define the inputs, choose the tools, and decide what success means.'],
+      create: ['02 / Create', 'Give your agent a job.', 'Describe the job. Review an editable draft, then approve its first action.'],
       run: ['03 / Run', 'Put your agent to work.', 'Review recent runs and upcoming checks. Open a recurring agent to manage its schedule and findings.'],
     };
     ['stage-label', 'stage-title', 'stage-description'].forEach((id, i) => { get(id).textContent = copy[builderStage][i]; });
@@ -74,7 +76,45 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let memberships: any[] = [];
   let selectedRecipe: Recipe | undefined;
   let editorRecipe: (RecipeRevision & { id: string }) | undefined;
-  let editorGeneration = 0;
+  let editorGeneration = 0, draftGeneration = 0;
+  let draftQuestions: string[] = [];
+  let creating = false;
+  function resetDraft() {
+    draftGeneration++; draftQuestions = [];
+    get<HTMLFormElement>('draft-request').reset(); get<HTMLSelectElement>('draft-connection').replaceChildren();
+    get('draft-question-fields').replaceChildren(); get('draft-questions').hidden = true;
+    get('draft-preview').replaceChildren(); feedback('draft-feedback', '');
+  }
+  function renderDraftConnections() {
+    const select = get<HTMLSelectElement>('draft-connection'), previous = select.value;
+    const connected = state.connections.filter((c: any) => c.status === 'connected');
+    select.replaceChildren(new Option('Choose an account', ''));
+    for (const c of connected) select.append(new Option(c.label, c.id));
+    select.value = connected.some((c: any) => c.id === previous) ? previous : connected.length === 1 ? connected[0].id : '';
+    get('draft-connection-field').hidden = connected.length <= 1;
+    get('draft-connection-note').textContent = connected.length === 1 ? `Using ${connected[0].label}. You can change this in Customize.` : connected.length ? 'Choose which account to use. We will suggest tools from that connection.' : 'Connect a server first so the draft uses tools you actually have.';
+    get('draft-connect').hidden = connected.length > 0;
+    select.disabled = role === 'viewer'; get<HTMLTextAreaElement>('job-description').disabled = role === 'viewer';
+    get<HTMLButtonElement>('generate-draft').disabled = role === 'viewer' || !connected.length || get('generate-draft').hasAttribute('aria-busy');
+  }
+  function updateDraftPreview() {
+    if (!chosen) return;
+    const preview = get('draft-preview'), connection = state.connections.find((c: any) => c.id === chosen!.connectionId);
+    preview.replaceChildren(node('h3', editorField('title').value || 'Your agent'), node('p', editorField('goal').value || 'Describe the job in Customize.'));
+    preview.append(node('p', `Using: ${connection?.label || 'Choose a connection in Customize'}`, 'note'));
+    if (editorField('success').value) preview.append(node('p', `Expected result: ${editorField('success').value}`));
+    const tools = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(el => el.value);
+    preview.append(node('p', `Selected tools: ${tools.join(', ') || 'Choose tools in Customize'}`, 'note'));
+    const enabled = get<HTMLInputElement>('eval-enabled').checked;
+    preview.append(node('p', enabled ? 'Checks: completion, successful execution, selected tools, recorded approval and call limit.' : 'Measured checks are off. Success will be AI-assessed.', 'note'));
+    if (enabled) for (const field of doc.querySelectorAll<HTMLInputElement>('[data-check-label]')) preview.append(node('p', field.value || 'Unnamed custom check', 'note'));
+  }
+  function jobInputs(): string {
+    const answers = draftQuestions.flatMap((question, i) => { const input = get<HTMLInputElement>(`draft-answer-${i}`); return input.disabled ? [] : [`${question}\n${input.value.trim()}`]; });
+    const setup = [editorField('setup').value.trim(), ...answers].filter(Boolean).join('\n\n');
+    if (setup.length > 4000) throw new Error('Keep the job details and answers below 4,000 characters.');
+    return setup;
+  }
   function editorField(name: string) { return get<HTMLFormElement>('create').elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement; }
   function readEvalChecks(): RecipeEval | undefined {
     if (!get<HTMLInputElement>('eval-enabled').checked) return undefined;
@@ -135,8 +175,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if (operator.value === 'gte' || operator.value === 'lte') type.value = 'number';
     };
     kind.onchange = update; operator.onchange = update;
-    const remove = node('button','Remove check','secondary') as HTMLButtonElement; remove.type='button'; remove.onclick=()=>{row.remove();updateEvalEditor();}; row.append(remove);
-    get('eval-checks').append(row); update(); updateEvalTools(); updateEvalEditor();
+    const remove = node('button','Remove check','secondary') as HTMLButtonElement; remove.type='button'; remove.onclick=()=>{row.remove();updateEvalEditor();updateDraftPreview();}; row.append(remove);
+    get('eval-checks').append(row); update(); updateEvalTools(); updateEvalEditor(); updateDraftPreview();
   }
   function editorTools(selected: string[] = []) {
     const connection = state.connections.find((c: any) => c.id === chosen?.connectionId && c.status === 'connected');
@@ -148,7 +188,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if (!connection) get('tool-options').append(node('p', 'Connect a server to choose tools.', 'note'));
   }
   function openEditor(connectionId: string, definition: Partial<RecipeDefinition>, source: any = {}, saved?: RecipeRevision & { id: string }) {
-    editorGeneration++; editorRecipe = saved; chosen = { connectionId, suggestion: source };
+    editorGeneration++; draftGeneration++; editorRecipe = saved; chosen = { connectionId, suggestion: source }; feedback('draft-feedback', '');
+    draftQuestions = []; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden = true;
     const form = get<HTMLFormElement>('create'); form.reset();
     for (const name of ['title', 'goal', 'inputGuide', 'instructions', 'boundaries', 'success']) editorField(name).value = definition[name] || '';
     const select = get<HTMLSelectElement>('editor-connection'); select.replaceChildren();
@@ -164,6 +205,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('recipe-save-status').textContent = '';
     form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input,textarea,select,button').forEach(el => { if (!el.closest('#eval-checks')) el.disabled = role === 'viewer'; });
     updateEvalEditor();
+    get<HTMLDetailsElement>('draft-customize').open = !definition.goal || !connectionId;
+    updateDraftPreview();
     showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function renderWorkspaceRecipes() {
@@ -172,7 +215,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const card = node('article', '', 'card'); card.append(node('h3', saved.definition.title), node('p', saved.definition.goal), node('p', `Workspace recipe · v${saved.version}`, 'note'));
       const open = (duplicate: boolean) => {
         recipeContext();
-        const connection = state.connections.find((c: any) => c.status === 'connected' && saved.definition.tools.every((name: string) => c.tools.some((t: any) => t.name === name)));
+        const matches = state.connections.filter((c: any) => c.status === 'connected' && saved.definition.tools.every((name: string) => c.tools.some((t: any) => t.name === name)));
+        const connection = matches.length === 1 ? matches[0] : undefined;
         openEditor(connection?.id || '', saved.definition, {}, duplicate ? undefined : saved);
       };
       const actions = node('div', '', 'actions'); actions.append(button('Use or edit recipe', async () => open(false)), button('Duplicate recipe', async () => open(true))); card.append(actions); list.append(card);
@@ -197,7 +241,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('recipe-save-status').textContent = `Saved workspace recipe v${saved.version}. Job inputs were not included. You can create an agent below.`;
   }
   function recipeContext(recipe?: Recipe) {
-    selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++;
+    selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++; draftGeneration++;
     get<HTMLFormElement>('create').reset(); get('configure').hidden = true;
     const url = new URL(runtime.location.href);
     for (const key of ['recipe', 'recipe_version']) url.searchParams.delete(key);
@@ -243,6 +287,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const option = node('option', connection.label + (connection.status !== 'connected' ? ' — disconnected' : missing.length ? ` — missing ${missing.join(', ')}` : ' — required tools available')) as HTMLOptionElement;
       option.value = connection.id; option.disabled = connection.status !== 'connected' || missing.length > 0; select.append(option);
     }
+    const available = [...select.options].filter(o => o.value && !o.disabled);
+    if (available.length === 1) select.value = available[0].value;
     const connect = button('Connect a missing server', async () => { runtime.location.hash = 'connect'; showStage('connect'); openSetup(server.connection?.endpoint || '', server.name); }); panel.append(connect);
     panel.append(node('h3', '3. Configure a draft'));
     const reviewLabel = node('label', '', 'consent'), reviewed = doc.createElement('input'); reviewed.type = 'checkbox'; reviewed.id = 'recipe-reviewed'; reviewLabel.append(reviewed, node('span', 'I reviewed the requirements and will keep this trial within the available tools and runtime limits.')); panel.append(reviewLabel);
@@ -293,7 +339,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function renderAccountRole() { const url = new URL(runtime.location.href); if (tenant) url.searchParams.set('workspace', tenant); else url.searchParams.delete('workspace'); runtime.history.replaceState(null, '', url.pathname + url.search + url.hash); get("account-role").textContent = tenant ? role : "No workspace selected"; runtime.agentActionJourney?.setWorkspace(tenant); showStage(builderStage); }
   function sessionUnavailable(detail: string) {
     cancelScheduledPrecheck(); pendingInspections.clear(); precheckError = undefined; generation++; catalogGeneration++; inspectionGeneration++; inspecting = false; tenant = ""; role = "viewer"; memberships = [];
-    state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; chosen = undefined; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren();
+    state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; chosen = undefined; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren();
     get<HTMLFormElement>("connect").reset(); get<HTMLFormElement>("create").reset();
     workspace.replaceChildren(); workspace.disabled = true;
     get("builder").hidden = true; get<HTMLInputElement>("precheck-endpoint").value = ""; renderPrechecks();
@@ -520,7 +566,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     state = data; recurring = checks; get("builder").hidden = false; render();
   }
   function render() {
-    renderEndpointApprovals(); renderPrechecks(); renderRecipe(); renderWorkspaceRecipes();
+    renderEndpointApprovals(); renderPrechecks(); renderRecipe(); renderWorkspaceRecipes(); renderDraftConnections();
     const createConnections = get('create-connections'); createConnections.replaceChildren();
     for (const c of state.connections.filter((c: any) => c.status === 'connected')) {
       const row = node('div', '', 'connection'); row.append(node('strong', c.label), button('Suggest agents', async () => { message('Finding useful jobs for this server…'); await mutate('suggest', {connectionId:c.id}); await refresh(); message('Suggestions are ready. Choose a job to configure.'); })); createConnections.append(row);
@@ -636,10 +682,10 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
     void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); if (selectedRecipe) { runtime.location.hash = "create"; showStage("create"); message("Server connected. Select it for your recipe and review its requirements."); } }, "connect-feedback");
   });
-  get<HTMLButtonElement>('start-scratch').onclick = () => { recipeContext(); openEditor('', {}); };
+  get<HTMLButtonElement>('start-scratch').onclick = () => { const description = get<HTMLTextAreaElement>('job-description').value; const connections = state.connections.filter((c: any) => c.status === 'connected'); recipeContext(); openEditor(connections.length === 1 ? connections[0].id : '', {}); editorField('setup').value = description; };
   get<HTMLSelectElement>('editor-connection').onchange = () => {
     if (!chosen) return;
-    const selected = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value); chosen.connectionId = get<HTMLSelectElement>('editor-connection').value; editorTools(selected); updateEvalTools();
+    const selected = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value); chosen.connectionId = get<HTMLSelectElement>('editor-connection').value; editorTools(selected); updateEvalTools(); updateDraftPreview();
   };
   get('tool-options').addEventListener('change', updateEvalTools);
   get('eval-enabled').addEventListener('change', updateEvalEditor);
@@ -648,19 +694,65 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if (role === 'viewer' || !chosen) return;
     void perform(event.currentTarget as HTMLButtonElement, () => saveEditorRecipe(duplicate), 'recipe-save-status');
   };
+  get<HTMLFormElement>('draft-request').addEventListener('input', () => { draftGeneration++; if (get('generate-draft').hasAttribute('aria-busy')) feedback('draft-feedback', 'Job details changed. Draft again when this request finishes.'); });
+  get<HTMLSelectElement>('draft-connection').addEventListener('change', () => { draftGeneration++; });
+  get<HTMLFormElement>('draft-request').addEventListener('submit', event => {
+    event.preventDefault(); if (role === 'viewer') return;
+    const current = ++draftGeneration, currentTenant = tenant, currentEditor = editorGeneration;
+    const description = get<HTMLTextAreaElement>('job-description').value.trim(), connectionId = get<HTMLSelectElement>('draft-connection').value;
+    const button = get<HTMLButtonElement>('generate-draft');
+    void perform(button, async () => {
+      feedback('draft-feedback', 'Preparing a draft from your job and connected tools…');
+      let draft: AgentDraft;
+      try { draft = await mutate('draft', { connectionId, description }); }
+      catch (error) {
+        if (current !== draftGeneration || tenant !== currentTenant || currentEditor !== editorGeneration) return;
+        feedback('draft-feedback', (error instanceof Error ? error.message : 'Draft generation failed.') + ' You can try again or use Start from scratch below.', true); return;
+      }
+      if (current !== draftGeneration || tenant !== currentTenant || currentEditor !== editorGeneration) return;
+      recipeContext(); openEditor(connectionId, draft.definition, { generated: true });
+      editorField('setup').value = description;
+      draftQuestions = draft.questions;
+      for (const [i, question] of draftQuestions.entries()) {
+        const label = node('label', question), input = doc.createElement('input');
+        input.id = `draft-answer-${i}`; input.required = true; input.maxLength = 400; label.append(input);
+        const skipLabel = node('label', '', 'consent'), skip = doc.createElement('input'); skip.type = 'checkbox';
+        skip.onchange = () => { input.disabled = skip.checked; }; skipLabel.append(skip, node('span', 'Already covered in my job details'));
+        get('draft-question-fields').append(label, skipLabel);
+      }
+      get('draft-questions').hidden = !draftQuestions.length;
+      get('editor-source').textContent = 'AI-drafted · untested. Review the suggested result and tools. Customize anything before continuing.';
+      feedback('draft-feedback', 'Draft ready. Review it below.'); updateDraftPreview();
+    }, 'draft-feedback').finally(renderDraftConnections);
+  });
+  get<HTMLFormElement>('create').addEventListener('input', () => { draftGeneration++; updateDraftPreview(); });
+  get<HTMLFormElement>('create').addEventListener('change', () => { draftGeneration++; updateDraftPreview(); });
+  get<HTMLFormElement>('create').addEventListener('invalid', event => {
+    if ((event.target as HTMLElement).closest('#draft-customize')) get<HTMLDetailsElement>('draft-customize').open = true;
+  }, true);
   get<HTMLFormElement>("create").addEventListener("submit", event => {
-    event.preventDefault(); if (!chosen || role === 'viewer') return;
+    event.preventDefault(); if (!chosen || role === 'viewer' || creating) return;
+    const startTrial = (event as SubmitEvent).submitter?.id === 'review-first-action';
+    const submit = get<HTMLButtonElement>(startTrial ? 'review-first-action' : 'create-agent');
     const currentTenant = tenant, currentEditor = editorGeneration;
-    void perform(get<HTMLButtonElement>('create-agent'), async () => {
+    creating = true;
+    void perform(submit, async () => {
       const definition = definitionFromEditor();
       const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : {}) };
-      await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: editorField('setup').value });
+      const created = await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: jobInputs() });
       if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
-      recipeContext(); await refresh(); message("Agent instance created. Run a trial to review its first action."); runtime.location.hash = "run";
-    });
+      recipeContext(); runtime.location.hash = 'run'; showStage('run'); await refresh();
+      if (tenant !== currentTenant) return;
+      if (!startTrial) { message('Agent instance created. Run a trial to review its first action.'); return; }
+      message('Draft created. Planning the first action; no tool executes without approval.');
+      try { await mutate('trial', { agentId: created.agentId }); }
+      catch (error) { if (tenant !== currentTenant) return; await refresh(); message('Your agent was created, but its trial could not start. Retry from My agents. ' + (error instanceof Error ? error.message : ''), true); return; }
+      if (tenant !== currentTenant) return;
+      await refresh(); message('First trial planned. Review its proposed action or result below.');
+    }).finally(() => { creating = false; });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
     const use = node('button', 'Use this recipe') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;

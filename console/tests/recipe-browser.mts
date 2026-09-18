@@ -43,7 +43,7 @@ try {
  await page.locator('#recipe-connection').selectOption('firecrawl');await page.locator('#recipe-reviewed').check();await page.getByRole('button',{name:'Configure this recipe',exact:true}).click();
  await page.locator('#create [name=setup]').fill('Read https://example.com/pricing in USD monthly; stop if historical evidence is unavailable.');
  await page.screenshot({path:'/tmp/agentaction-213-create-desktop.png',fullPage:true});
- await page.getByRole('button',{name:'Create agent instance',exact:true}).click();await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();await page.getByRole('button',{name:'Run a trial',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();await page.getByRole('button',{name:'Run a trial',exact:true}).waitFor();
  const creates=posts.filter(p=>p.path.endsWith('/create'));assert.equal(creates.length,1);assert.equal(creates[0].body.recipeId,'competitor-pricing');assert.equal(creates[0].body.recipeVersion,'1.0.0');assert.equal(creates[0].body.recipeReviewed,true);assert.equal(creates[0].body.suggestionId,undefined);assert.equal(new URL(page.url()).searchParams.has('recipe'),false);
  await page.goto(base+'/agents?recipe=competitor-pricing&recipe_version=0.0.0#create');await page.locator('#recipe-error').waitFor();assert.equal(await page.locator('#recipe-detail').isHidden(),true);
  await page.goto(base+'/agents?recipe=incident-to-ticket&recipe_version=1.0.0#create');await page.getByText(/This recipe requires multiple MCP servers/).waitFor();assert.equal(await page.getByRole('button',{name:'Configure this recipe',exact:true}).count(),0);

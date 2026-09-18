@@ -1,4 +1,5 @@
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation } from "./recipe-evaluation.ts";
+import { agentDraft, DRAFT_PROMPT } from './agent-draft.ts';
 import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, type WorkspaceRecipe } from "./workspace-recipes.ts";
 import { recipeById, type Recipe } from "../../recipes/registry.ts";
 import { inspectEndpoint, type PrecheckReport } from "./mcp-precheck.ts";
@@ -224,6 +225,26 @@ export class AgentRuntime {
         await this.reschedule();
       }
       return { connectionId: connection.id, toolCount: connection.tools.length };
+    }
+    if (path === '/draft') {
+      if (role !== 'owner' && role !== 'operator') throw new RuntimeError('An owner or operator must draft agents.', 403);
+      if (Object.keys(body).some(key => !['connectionId','description'].includes(key))) throw new RuntimeError('Drafts accept only a connection and job description.');
+      const connection = await this.required<Connection>('connection', body.connectionId);
+      if (connection.status !== 'connected') throw new RuntimeError('Choose a connected account before drafting.', 409);
+      await this.allowedEndpoint(connection.endpoint);
+      const description = textField(body.description, 'job description', 2500);
+      const connections = [...(await this.storage.list<Connection>({prefix:'connection:'})).values()];
+      const eligibleTools = connection.tools.filter(tool => !/"(?:filePath|file_path|uploadUrl|upload_url|uploadToken|upload_token|fileName|file_name)"\s*:/.test(JSON.stringify(tool.inputSchema)));
+      let tools = eligibleTools;
+      for (const c of connections) if (c.token) {
+        if (redact(description, c.token) !== description) throw new RuntimeError('Keep connection credentials out of the job description.');
+        tools = JSON.parse(redact(tools, c.token));
+      }
+      if (!tools.length) throw new RuntimeError('This account has no tools supported by the hosted builder.', 409);
+      await this.charge('suggest', 12);
+      const { value } = await this.infer(DRAFT_PROMPT, { description, tools }, connection.token);
+      for (const c of connections) if (c.token && redact(value, c.token) !== JSON.stringify(value)) throw new RuntimeError('The generated draft contained a credential and was rejected.', 502);
+      return agentDraft(value, eligibleTools);
     }
     if (path === "/suggest") {
       const connection = await this.required<Connection>("connection", body.connectionId);

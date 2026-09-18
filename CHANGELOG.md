@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.27.0-rc.1 - 2026-09-17
+
+### Added
+
+- Describe a job once in Create to generate an editable agent draft from the selected connection's discovered tools. Prefill its name, reusable objective, instructions, expected result and standard measurable checks, while preserving the original description as instance inputs.
+- Review a concise draft summary with detailed instructions, tools and evaluation controls under Customize. Ask up to three questions for missing essentials; users can mark details already supplied. Answers remain instance-only and reusable recipe saving is optional.
+- Preselect a connection only when there is one matching account, including saved and catalog recipes. Review first action saves the draft and plans its trial; every tool call still requires explicit approval. Save draft only and manual authoring remain available.
+
+### Compatibility and migration
+
+- Significant functionality: v0.27.0-rc.1 introduces the guided draft endpoint and workflow. Existing recipe, agent and contract schemas are unchanged; no migration. Generated text is an untested, editable suggestion, not execution or independently verified evidence. Existing advanced checks and exact-action approvals retain their behavior.
+- Draft generation shares the existing suggestion quota, rejects unknown tools and unsupported settings, excludes stored connection credentials, and discards stale responses when users edit or switch workspaces. Trial-start failures retain the created agent for manual retry.
+- Install Python artifacts from the GitHub v0.27.0-rc.1 prerelease. npm publication is unchanged; the hosted console deploys from the merged commit.
+
 ## 0.26.0-rc.1 - 2026-09-17
 
 ### Added

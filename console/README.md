@@ -720,3 +720,35 @@ existing agent, create a new draft from the revised recipe.
 
 Acceptance: `node --experimental-strip-types tests/recipe-evaluation-browser.mts`
 uses synthetic MCP output and verifies Create → approval → Run → Jobs → Evals.
+
+
+## Guided Create
+
+Start with **What would you like done?** and describe the job, including any
+known URLs, targets, dates or scope. A single connected account is preselected;
+when multiple accounts are available, choose one explicitly. **Draft my agent**
+uses that connection's discovered tools to suggest a name, reusable goal,
+instructions and expected deliverable. It does not call tools, save a recipe,
+create an agent or schedule work.
+
+Review the untested draft summary. The original description is prefilled in
+**Job details**; at most three blank questions ask for missing essentials.
+Mark a question **Already covered in my job details** when appropriate.
+Answers are appended only to this instance's inputs. **Customize instructions,
+tools and checks** exposes the full editor, including optional reusable recipe
+saving. Review generated recipe fields before saving them for reuse.
+
+**Review first action** saves an agent and plans its first trial. Every proposed
+call still waits for approval of its exact arguments. **Save draft only** saves
+without planning. If trial startup fails, the saved agent remains in My agents
+for an explicit retry. Generation failures preserve the typed job and offer
+manual authoring through **Start from scratch**.
+
+The private `POST /api/agents/:workspace/draft` endpoint accepts only
+`connectionId` and `description` (up to 2,500 characters), uses the existing
+12-per-day workspace suggestion quota and returns validated authoring fields
+plus questions. It does not accept model-generated contracts, arbitrary evals,
+permissions or account selection. Standard runtime checks are on for new drafts;
+structured-result checks remain an advanced manual configuration in this slice.
+
+Acceptance: `node --experimental-strip-types tests/guided-create-browser.mts`.
