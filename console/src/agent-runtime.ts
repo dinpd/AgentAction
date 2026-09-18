@@ -300,12 +300,11 @@ export class AgentRuntime {
       const area = textField(body.area,'function or area',100);
       const context = body.context === undefined || body.context === '' ? '' : textField(body.context,'context',1000);
       await this.noCredentials({area,context});
-      const catalog = await this.availableTools();
       await this.charge('suggest',12);
-      const {value} = await this.infer(PROFILER_PROMPT,{area,context,tools:catalog.map(({connectionId,...tool})=>tool)});
+      const {value} = await this.infer(PROFILER_PROMPT,{area,context});
       await this.noCredentials(value);
       // Suggestions are ephemeral. Only quota counters change; no jobs or bindings are created.
-      return {ideas:agentIdeas(value,catalog)};
+      return {ideas:agentIdeas(value)};
     }
     if (path === '/draft' && body.connectionId === undefined) {
       if (!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must draft agents.',403);

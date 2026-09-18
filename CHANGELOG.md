@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.29.0-rc.2 - 2026-09-18
+
+### Fixed
+
+- Generate profiler ideas solely from the selected function/area and optional improvement context. Existing MCP tools no longer bias suggestions toward unrelated work or block discovery due to endpoint availability.
+- Show abstract capability needs without server-match or missing-tool badges. Choose an idea first; discover and map MCP tools while drafting. Reject model-proposed tool bindings at the idea stage.
+
+### Compatibility and migration
+
+- Backward-compatible correction to the 0.29 prerelease. Capability match arrays remain present and empty; saved drafts, tool mapping, contracts, quotas and approvals are unchanged. No migration.
+- Install Python artifacts from the GitHub v0.29.0-rc.2 prerelease. npm publication is unchanged; the console deploys from the merged commit.
+
 ## 0.29.0-rc.1 - 2026-09-18
 
 ### Added

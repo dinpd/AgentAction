@@ -33,7 +33,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <details id="agent-profiler"><summary>Help me choose an agent</summary>
 <p class="note">Choose a function or area. Get a few useful starting points, then make one your own.</p>
 <form id="profile-request"><div class="fields"><label for="profile-area">Function or area<input id="profile-area" list="profile-areas" maxlength="100" required placeholder="Choose or type an area" autocomplete="off"><datalist id="profile-areas"><option value="Customer support"><option value="Sales"><option value="Marketing"><option value="Engineering"><option value="Product"><option value="Operations"><option value="Finance"><option value="Research"><option value="People and HR"></datalist></label><label for="profile-context">What would you like to improve? <span class="note">Optional</span><input id="profile-context" maxlength="1000" placeholder="e.g. preparing for customer calls" autocomplete="off"></label></div>
-<button id="suggest-ideas" type="submit" class="secondary">Suggest agents</button><p class="note">AI uses your answers and connected tool descriptions to suggest untested ideas. You can add tools later.</p><p id="profile-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
+<button id="suggest-ideas" type="submit" class="secondary">Suggest agents</button><p class="note">AI suggests ideas from your function and goals. Choose an idea first; connect its tools when drafting.</p><p id="profile-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
 <div id="agent-ideas" class="grid" aria-label="Suggested agents"></div></details>
 <details id="example-library"><summary>Browse examples</summary><section id="saved-examples" hidden><h3>Saved by your team</h3><div id="workspace-recipes" class="grid"></div></section><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected example" hidden></section><section id="suggested-examples" hidden><h3>Suggestions from your tools</h3><div id="suggestions" class="grid"></div></section></details>
 <details id="manual-options"><summary>Set up manually</summary><button id="start-scratch" type="button" class="secondary">Start from scratch</button></details>
@@ -735,8 +735,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       for(const idea of result.ideas) {
         const card=node('article','','card'); card.append(node('h3',idea.title),node('p',idea.benefit),node('p',idea.description));
         for(const capability of idea.capabilities) {
-          const matches=capability.matches.filter(m=>state.connections.some((c:any)=>c.id===m.connectionId && c.status==='connected' && c.tools.some((t:any)=>t.name===m.tool)));
-          card.append(node('p',`${capability.label} · ${matches.length ? 'Possible match in your connected tools' : 'Needs an MCP tool'}`,'note'));
+          card.append(node('p',`Capability: ${capability.label}`,'note'));
         }
         const actions=node('div','','actions'); actions.append(button('Use this idea',async()=>{
           if(role==='viewer' || current!==profileGeneration || currentTenant!==tenant) return;
@@ -747,7 +746,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           input.focus();
         })); card.append(actions); get('agent-ideas').append(card);
       }
-      feedback('profile-feedback','Choose a starting point. Tool matches are suggestions; review them when drafting.');
+      feedback('profile-feedback','Choose a starting point. You’ll choose its tools when drafting.');
     },'profile-feedback').finally(renderDraftConnections);
   });
   get("browse-servers").addEventListener("click", () => showMcpView(false));
