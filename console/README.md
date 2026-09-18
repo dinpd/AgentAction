@@ -655,7 +655,7 @@ guidance, instructions, boundaries and success criteria in the same editor.
 Save an unbound draft before mapping its capabilities to discovered MCP tools.
 The advanced manual editor and existing single-server suggestions remain available.
 
-**Save agent template** saves only the reusable definition. The **Your job
+**Save as a template** saves only the reusable definition. The **Your job
 inputs** field belongs to the agent instance and is not copied into the template.
 Keep secrets and customer data out of reusable definition fields; credentials
 belong in MCP server setup. Definitions are visible to workspace members.
@@ -726,7 +726,11 @@ uses synthetic MCP output and verifies Create → approval → Run → Jobs → 
 ## Agent-first setup
 
 Create is the first lifecycle step. Describe the job without choosing an MCP
-server. The runtime saves a workspace draft containing reusable authoring fields,
+server. Three example prompts can prefill editable text without submitting.
+**Browse examples** optionally reveals catalog and saved starting points; empty
+saved sections stay hidden. **Continue an agent** appears only when unfinished
+drafts exist. Manual editing is under **Set up manually**, and reusable saving
+is optional within Customize. The runtime saves a workspace draft containing reusable authoring fields,
 private job inputs, one to four capability requirements and suggested tool
 matches. Up to 24 drafts are retained. Catalog and workspace agent templates can
 also become drafts without server access. Existing recipe IDs, URLs and legacy
