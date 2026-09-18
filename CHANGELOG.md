@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.28.0-rc.2 - 2026-09-18
+
+### Fixed
+
+- Simplify Create to one job-description form with clickable example prompts. Browse catalog and saved examples through an optional disclosure, show Continue an agent only when drafts exist, and remove the competing server-based creation section.
+- Keep manual editing and Save as a template secondary. Opening examples preserves editor inputs; drafting closes secondary sections to focus the review step. Empty saved-template and suggestion sections stay hidden.
+
+### Compatibility and migration
+
+- Backward-compatible UX correction to the 0.28 prerelease; no API, storage, permissions or execution changes and no migration. Existing template deep links and saved drafts remain supported. Example prompts only prefill text; they never submit or execute work.
+- Install Python artifacts from the GitHub v0.28.0-rc.2 prerelease. npm publication is unchanged; the console deploys from the merged commit.
+
 ## 0.28.0-rc.1 - 2026-09-18
 
 ### Added

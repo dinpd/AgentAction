@@ -64,6 +64,28 @@ try {
  await page.goto(base+'/agents');
  await page.getByRole('heading',{name:'Give your agent a job.',exact:true}).waitFor();
  assert.equal(await page.locator('#draft-connection').count(),0);
+ assert.equal(await page.locator('#continue-agents').isHidden(),true);
+ assert.equal(await page.locator('#saved-examples').isHidden(),true);
+ assert.equal(await page.locator('#example-library').getAttribute('open'),null);
+ assert.equal(await page.getByText('Build with your servers',{exact:true}).count(),0);
+ assert.equal(await page.getByText('Your drafts',{exact:true}).count(),0);
+ assert.equal(await page.locator('#create-connections').count(),0);
+ const beforeExamples=posts.length;
+ await page.getByRole('button',{name:'Summarize pricing',exact:true}).click();
+ assert.match(await page.locator('#job-description').inputValue(),/Summarize pricing/);
+ await page.getByRole('button',{name:'Compare vendors',exact:true}).click();
+ assert.match(await page.locator('#job-description').inputValue(),/Research vendors/);
+ assert.equal(posts.length,beforeExamples);
+ await page.locator('#example-library > summary').click();
+ assert.equal(await page.locator('#recipe-browser').isVisible(),true);
+ assert.equal(await page.locator('#saved-examples').isHidden(),true);
+ await page.locator('#example-library > summary').click();
+ await page.locator('#guided-create').screenshot({path:'/tmp/aa-229-empty-desktop.png'});
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.locator('#guided-create').screenshot({path:'/tmp/aa-229-empty-mobile.png'});
+ await page.setViewportSize({width:1440,height:1050});
+
  assert.equal(await page.locator('.journey-nav a[data-stage]').nth(1).getAttribute('data-stage'),'create');
  assert.equal(await page.locator('.workspace-nav [data-stage=connect]').innerText().then(t=>t.includes('MCP servers')),true);
  await page.locator('#job-description').fill('Summarize https://example.com/pricing in USD with sources');
@@ -77,8 +99,12 @@ try {
  await page.locator('#draft-customize > summary').click();await field('instructions').fill('Read the page and cite billing intervals.');
  await page.locator('#draft-customize > summary').click();
  await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
- await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
+ await page.reload();await page.getByRole('heading',{name:'Continue an agent',exact:true}).waitFor();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
+ await page.locator('#example-library > summary').click();
+ assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
+ await page.locator('#example-library > summary').click();
+ assert.equal(await page.locator('#continue-agents').isHidden(),true);
  // Browsing and custom setup persist edits, including inputs, and never execute a provider call.
  await field('setup').fill('Read https://example.com/pricing for the annual report');
  await page.getByRole('button',{name:'Browse available MCP servers',exact:true}).click();
@@ -114,6 +140,7 @@ try {
  await page.locator('#create-agent').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  // Switching workspaces clears private editing state; empty workspace can still draft.
  await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
+ assert.equal(await page.locator('#continue-agents').isHidden(),true);assert.equal(await page.locator('#saved-examples').isHidden(),true);
  assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await page.locator('#job-description').inputValue(),'');assert.equal(await page.locator('#generate-draft').isEnabled(),true);
  await page.locator('#job-description').fill('Read https://example.com');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
  assert.equal(await page.locator('[data-tool-mapping] option').count(),1);
