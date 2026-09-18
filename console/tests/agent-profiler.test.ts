@@ -11,7 +11,6 @@ class Storage implements RuntimeStorage {
   async setAlarm(){} async deleteAlarm(){}
 }
 const idea={title:'Support theme brief',benefit:'Spot recurring questions to improve help content.',description:'Summarize themes in the support tickets I provide and draft help article ideas for my review.',capabilities:[{label:'Read support tickets',matches:[] as string[]}]};
-const catalog=[{id:'tool_0',connectionId:'support',tool:'read_tickets'}];
 function harness(output:any={ideas:[idea]}) {
   const storage=new Storage(),prompts:any[]=[];
   const runtime=new AgentRuntime(storage,{AGENT_MCP_ENDPOINTS:'https://support.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(input);return {response:output};}}},async()=>{throw new Error('Profiler must not call MCP');});
@@ -22,15 +21,28 @@ function harness(output:any={ideas:[idea]}) {
 test('profiler works before connecting servers and persists only quota counters',async()=>{
   const h=harness();const r=await h.request({area:'Customer support',context:'Reduce repeat questions'});
   assert.equal(r.status,200);assert.deepEqual(r.body.ideas,[idea]);
-  const prompt=JSON.parse(h.prompts[0].messages[1].content);assert.deepEqual(prompt,{area:'Customer support',context:'Reduce repeat questions',tools:[]});
+  const prompt=JSON.parse(h.prompts[0].messages[1].content);assert.deepEqual(prompt,{area:'Customer support',context:'Reduce repeat questions'});
   assert.deepEqual([...h.storage.data.keys()].sort(),['limit:inference','limit:suggest']);
   const snapshot=await h.runtime.snapshot();assert.deepEqual(snapshot.drafts,[]);assert.deepEqual(snapshot.agents,[]);assert.deepEqual(snapshot.runs,[]);
 });
-test('profiler matches only approved discovered tools and excludes credentials, accounts and file tools from inference',async()=>{
-  const h=harness({ideas:[{...idea,capabilities:[{label:'Read support tickets',matches:['tool_0']}]}]});await h.connect();
-  const r=await h.request();assert.equal(r.status,200);assert.deepEqual(r.body.ideas[0].capabilities[0].matches,[{connectionId:'support',tool:'read_tickets'}]);
-  const prompt=JSON.stringify(h.prompts);for(const privateValue of ['TEST-ONLY-MCP-SECRET','Private account','connectionId','https://support.example','upload_file']) assert.ok(!prompt.includes(privateValue));
-  assert.equal(JSON.parse(h.prompts[0].messages[1].content).tools.length,1);
+test('Engineering inference is identical with no servers, unrelated economic tools, disconnected and unapproved endpoints',async()=>{
+  const h=harness(),body={area:'Engineering',context:'Improve release quality'};
+  assert.equal((await h.request(body)).status,200);
+  await h.connect();const c=h.storage.data.get('connection:support');
+  c.tools=[{name:'get_unemployment',description:'Analyze unemployment rates',inputSchema:{type:'object'}},{name:'get_cpi',description:'Research inflation and labor trends',inputSchema:{type:'object'}}];
+  assert.equal((await h.request(body)).status,200);
+  c.status='disconnected';assert.equal((await h.request(body)).status,200);
+  c.status='connected';c.endpoint='https://not-approved.example/mcp';assert.equal((await h.request(body)).status,200);
+  assert.equal(h.prompts.length,4);
+  for(const prompt of h.prompts) {
+    assert.deepEqual(JSON.parse(prompt.messages[1].content),body);
+    assert.deepEqual(prompt,h.prompts[0]);
+    assert.doesNotMatch(JSON.stringify(prompt),/get_unemployment|get_cpi|inflation|TEST-ONLY-MCP-SECRET|Private account|connectionId|not-approved/);
+  }
+  assert.deepEqual([...(await h.storage.list({prefix:'draft:'})).keys()],[]);
+});
+test('profiler still rejects input credentials without supplying account context to inference',async()=>{
+  const h=harness();await h.connect();assert.equal((await h.request()).status,200);
   assert.equal((await h.request({area:'TEST-ONLY-MCP-SECRET'})).status,400);
   assert.equal((await h.request({area:'Support',context:'TEST-ONLY-MCP-SECRET'})).status,400);
   assert.equal(h.prompts.length,1);
@@ -41,14 +53,15 @@ test('profiler rejects unauthorized, unbounded and unexpected input before infer
   assert.equal(h.prompts.length,0);
 });
 test('profiler rejects fabricated matches, duplicates, oversized and executable model output',()=>{
-  assert.deepEqual(agentIdeas({ideas:[idea]},catalog),[idea]);
-  for(const value of [{ideas:[]},{ideas:Array(4).fill(idea)},{ideas:[idea,idea]},{ideas:[{...idea,title:'x'.repeat(81)}]},{ideas:[{...idea,capabilities:[]}]},{ideas:[{...idea,capabilities:[{label:'Read',matches:['unknown']}]}]},{ideas:[{...idea,capabilities:[{label:'Read',matches:['tool_0','tool_0']}]}]},{ideas:[{...idea,bindings:{step_1:'support'}}]},{ideas:[idea],execute:true}]) assert.throws(()=>agentIdeas(value,catalog));
+  assert.deepEqual(agentIdeas({ideas:[idea]}),[idea]);
+  for(const value of [{ideas:[]},{ideas:Array(4).fill(idea)},{ideas:[idea,idea]},{ideas:[{...idea,title:'x'.repeat(81)}]},{ideas:[{...idea,capabilities:[]}]},{ideas:[{...idea,capabilities:[{label:'Read',matches:['unknown']}]}]},{ideas:[{...idea,capabilities:[{label:'Read',matches:['tool_0','tool_0']}]}]},{ideas:[{...idea,bindings:{step_1:'support'}}]},{ideas:[idea],execute:true}]) assert.throws(()=>agentIdeas(value));
 });
-test('profiler fails closed for credential output, disconnected or unapproved tools, and other workspace matches',async()=>{
+test('profiler accepts abstract capabilities but rejects credential output and any server mapping',async()=>{
+  const abstract={...idea,capabilities:[{label:'Read support tickets'}]};
+  assert.deepEqual(agentIdeas({ideas:[abstract]}),[idea]);
   const secrets=harness({ideas:[{...idea,description:'TEST-ONLY-MCP-SECRET'}]});await secrets.connect();assert.equal((await secrets.request()).status,400);
-  const unknown=harness({ideas:[{...idea,capabilities:[{label:'Read',matches:['tool_0']}]}]});assert.equal((await unknown.request()).status,502);
-  await unknown.connect();const connection=unknown.storage.data.get('connection:support');connection.status='disconnected';assert.equal((await unknown.request()).status,502);
-  connection.status='connected';connection.endpoint='https://not-approved.example/mcp';const before=unknown.prompts.length;assert.equal((await unknown.request()).status,403);assert.equal(unknown.prompts.length,before);
+  const bound=harness({ideas:[{...idea,capabilities:[{label:'Read',matches:['tool_0']}]}]});
+  assert.equal((await bound.request()).status,502);await bound.connect();assert.equal((await bound.request()).status,502);
 });
 test('profiler shares daily suggestion and inference quotas and reports unavailable AI',async()=>{
   for(const [key,limit] of [['suggest',12],['inference',120]] as const) {

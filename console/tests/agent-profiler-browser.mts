@@ -20,9 +20,9 @@ const ai={async run(_model:any,input:any){
  if(input.messages[0].content.startsWith('Suggest useful agents')) {
   if(holdProfile) await new Promise<void>(resolve=>{releaseProfile=resolve;});
   if(failProfile) throw new Error('offline');
-  assert.ok(data.area);
+  assert.ok(data.area); assert.deepEqual(Object.keys(data).sort(),['area','context']);
   return {response:{ideas:[
-   {title:data.area+' research brief',benefit:'Prepare a sourced brief for your team.',description:'Research the '+data.context+' topic I supply and prepare a brief for my review.',capabilities:[{label:'Read source pages',matches:data.tools.filter((t:any)=>t.tool==='firecrawl_scrape').map((t:any)=>t.id)}]},
+   {title:data.area+' research brief',benefit:'Prepare a sourced brief for your team.',description:'Research the '+data.context+' topic I supply and prepare a brief for my review.',capabilities:[{label:'Read source pages',matches:[]}]},
    {title:'Vendor comparison',benefit:'Compare alternatives before a team decision.',description:'Compare vendors I provide, cite sources and prepare a table for my review.',capabilities:[{label:'Search vendor pages',matches:[]}]},
    {title:'Release digest',benefit:'Identify changes that may need attention.',description:'Summarize supplied release notes for my review.',capabilities:[{label:'Read release notes',matches:[]}]}
   ]}};
@@ -76,11 +76,11 @@ try {
  assert.equal(await page.locator('#agent-ideas article').count(),3);
  assert.match(await page.locator('#agent-ideas').innerText(),/Product research brief/);
  assert.match(await page.locator('#agent-ideas').innerText(),/customer onboarding/);
- assert.equal(await page.getByText('Read source pages · Needs an MCP tool',{exact:true}).count(),1);
+ assert.equal(await page.getByText('Capability: Read source pages',{exact:true}).count(),1);
  assert.equal((await latest()).drafts.length,0);assert.equal((await latest()).agents.length,0);assert.equal((await latest()).runs.length,0);
- await page.locator('#guided-create').screenshot({path:'/tmp/aa-231-profiler-desktop.png'});
+ await page.locator('#guided-create').screenshot({path:'/tmp/aa-233-profiler-desktop.png'});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- await page.locator('#agent-profiler').screenshot({path:'/tmp/aa-231-profiler-mobile.png'});
+ await page.locator('#agent-profiler').screenshot({path:'/tmp/aa-233-profiler-mobile.png'});
  await page.setViewportSize({width:1440,height:1050});
  const before=posts.length;await page.getByRole('button',{name:'Use this idea',exact:true}).first().click();
  assert.equal(posts.length,before);assert.match(await page.locator('#job-description').inputValue(),/customer onboarding/);
@@ -88,10 +88,12 @@ try {
  assert.equal(await page.locator('#agent-profiler').getAttribute('open'),null);
  await page.locator('#job-description').fill('Research onboarding for my review with source links');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
  assert.equal(await field('setup').inputValue(),'Research onboarding for my review with source links');assert.equal((await latest()).drafts.length,1);
- // Connected tools are possible matches, not executable readiness claims.
- await storage.put('connection:server',connection);await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
+ // Unrelated connected economic-data tools never reach the profiler or appear as matches.
+ await storage.put('connection:server',{...connection,tools:[{name:'get_unemployment',description:'Research labor markets and inflation',inputSchema:{type:'object'}}]});await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  await open();await page.locator('#profile-area').fill('Engineering');await suggest();
- assert.equal(await page.getByText('Read source pages · Possible match in your connected tools',{exact:true}).count(),1);
+ assert.match(await page.locator('#agent-ideas').innerText(),/Engineering research brief/);
+ assert.doesNotMatch(await page.locator('#agent-profiler').innerText(),/Possible match|Needs an MCP tool|connected tool descriptions|unemployment|inflation/);
+ assert.match(await page.locator('#profile-feedback').innerText(),/choose its tools when drafting/);
  // Workspace changes clear all profiler inputs and results.
  await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  assert.equal(await page.locator('#profile-area').inputValue(),'');assert.equal(await page.locator('#profile-context').inputValue(),'');assert.equal(await page.locator('#agent-ideas article').count(),0);
@@ -120,5 +122,5 @@ try {
  viewer=false;await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();await open();await page.locator('#profile-area').fill('Private area');
  signedOut=true;await page.locator('#suggest-ideas').click();await page.getByText('Your session has expired or you are signed out.',{exact:false}).first().waitFor();
  assert.equal(await page.locator('#profile-area').inputValue(),'');assert.equal(await page.locator('#agent-ideas article').count(),0);
- assert.deepEqual(errors,[]);console.log('Profiler browser checks passed: replacement entry, custom area/context, three ideas, prefill only, draft handoff, connected/missing tools, stale responses, workspace/session isolation, errors, viewers and mobile.');
+ assert.deepEqual(errors,[]);console.log('Profiler browser checks passed: replacement entry, custom area/context, three ideas, prefill only, draft handoff, independence from unrelated connected tools, stale responses, workspace/session isolation, errors, viewers and mobile.');
 } finally { await browser.close();await new Promise<void>(r=>server.close(()=>r())); }
