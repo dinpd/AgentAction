@@ -622,15 +622,16 @@ It reads existing setup and runtime state only while the home is open; missing d
 stays unknown, pending approvals take priority, and switching workspaces invalidates
 in-flight progress requests. Progress is advisory and never approves or executes work.
 
-- **Connect** (`/agents#connect`): MCP server browsing, provider setup and connection management.
-  Each connected server lists its endpoint/tools and whether an account credential is stored.
-- **Create** (`/agents#create`): expandable recipe summaries, suggestions from connected
-  servers, job inputs and success criteria.
+- **Create** (`/agents#create`): describe a job, review its tools and boundaries, and optionally
+  reuse an agent template. Add MCP servers while mapping tools.
 - **Run** (`/agents#run`): instances, supervised trials, exact-call approvals, daily schedules
   and retained run history. Creating an agent leads here.
 - **Monitor**: Activity (`/#activity`), finalized Jobs (`/#jobs`), and Quality (`/#quality`).
   The Exceptions tab remains explicitly planned; no new exception engine is implied.
 - **Improve** (`/#evals`): eval definitions and assignment rules, with a path back to agent creation.
+
+**MCP servers** (`/agents#connect`) provides registry browsing, custom endpoints
+and workspace server/account management as an unnumbered utility.
 
 **Workspace settings** (`/#setup`) is a separate, unnumbered utility destination below
 the lifecycle. It holds workspace creation/joining, members, invitations and sources.
@@ -647,28 +648,28 @@ options as the registry browser suite for state, navigation, workspace-race, mob
 demo acceptance. No provider requests or account mutations occur in these fixtures.
 
 
-## Workspace recipe builder
+## Agent template builder
 
-In **Create**, choose **Start from scratch**, customize a catalog recipe or AI
-suggestion, or open a saved workspace recipe. Choose a connected server and one
-to four of its discovered tools. Define the goal, input guidance, instructions,
-boundaries and success criteria in the same editor.
+In **Create**, describe a job or open an agent template. Define the goal, input
+guidance, instructions, boundaries and success criteria in the same editor.
+Save an unbound draft before mapping its capabilities to discovered MCP tools.
+The advanced manual editor and existing single-server suggestions remain available.
 
-**Save workspace recipe** saves only the reusable definition. The **Your job
-inputs** field belongs to the agent instance and is not copied into the recipe.
+**Save agent template** saves only the reusable definition. The **Your job
+inputs** field belongs to the agent instance and is not copied into the template.
 Keep secrets and customer data out of reusable definition fields; credentials
-belong in the connection setup. Definitions are visible to workspace members.
+belong in MCP server setup. Definitions are visible to workspace members.
 
-Use or edit a saved recipe to reuse it with fresh inputs. **Save new version**
-creates an immutable numbered revision; **Save as new recipe** duplicates it.
+Use or edit a saved template to reuse it with fresh inputs. **Save new version**
+creates an immutable numbered revision; **Save as new template** duplicates it.
 An agent created from an unchanged saved revision pins that revision. Unsaved
 edits create a custom definition pinned to the new agent. Existing agents never
 change when a template is revised. A stale save asks you to reopen the latest
-version. Each workspace supports 24 recipes with eight revisions each.
+version. Each workspace supports 24 templates with eight revisions each.
 
 Creating a draft does not execute tools or start a schedule. Run a trial and
-approve each exact proposed call. The current runtime supports one server and
-four calls per run. Success text guides the AI assessment. Written boundaries guide the model.
+approve each exact proposed call. The current runtime supports mapped MCP servers and
+four total calls per run. Success text guides the AI assessment. Written boundaries guide the model.
 Enable measurable checks to bind a contract and evaluate recorded evidence;
 this does not turn prose into enforced controls or independent verification.
 
@@ -681,7 +682,7 @@ node --experimental-strip-types tests/recipe-browser.mts
 ```
 
 
-## Recipe contracts and measurable evaluations
+## Agent contracts and measurable evaluations
 
 Enable **Bind a contract and measurable checks to each run** in Create. This is
 on for new authoring sessions; existing saved recipes preserve their previous
@@ -713,7 +714,7 @@ storage budget, it is explicitly omitted and checks requiring it become
 insufficient evidence.
 
 Inspect the same binding in **Run → Contract & evaluation**, hosted **Jobs →
-Details**, and **Evals → Hosted recipe evaluations**. Gateway definitions and
+Details**, and **Evals → Hosted agent evaluations**. Gateway definitions and
 external-agent routing remain separate. These hosted records do not claim a
 signed gateway receipt. Existing runs remain unbound; to enable checks for an
 existing agent, create a new draft from the revised recipe.
@@ -722,33 +723,36 @@ Acceptance: `node --experimental-strip-types tests/recipe-evaluation-browser.mts
 uses synthetic MCP output and verifies Create → approval → Run → Jobs → Evals.
 
 
-## Guided Create
+## Agent-first setup
 
-Start with **What would you like done?** and describe the job, including any
-known URLs, targets, dates or scope. A single connected account is preselected;
-when multiple accounts are available, choose one explicitly. **Draft my agent**
-uses that connection's discovered tools to suggest a name, reusable goal,
-instructions and expected deliverable. It does not call tools, save a recipe,
-create an agent or schedule work.
+Create is the first lifecycle step. Describe the job without choosing an MCP
+server. The runtime saves a workspace draft containing reusable authoring fields,
+private job inputs, one to four capability requirements and suggested tool
+matches. Up to 24 drafts are retained. Catalog and workspace agent templates can
+also become drafts without server access. Existing recipe IDs, URLs and legacy
+single-server APIs remain compatible.
 
-Review the untested draft summary. The original description is prefilled in
-**Job details**; at most three blank questions ask for missing essentials.
-Mark a question **Already covered in my job details** when appropriate.
-Answers are appended only to this instance's inputs. **Customize instructions,
-tools and checks** exposes the full editor, including optional reusable recipe
-saving. Review generated recipe fields before saving them for reuse.
+The tools editor offers **Browse available MCP servers** and **Add your own MCP
+server**. Current workspace tools appear as mapping choices. A unique matching
+tool is proposed; equivalent accounts require an explicit choice. Advertised
+registry capabilities never become executable bindings. Setup detours persist
+the draft; **Save draft only** allows unresolved tools. **Review first action**
+requires every capability to map to a connected, approved server and actual tool.
+The first proposal still requires exact-action approval.
 
-**Review first action** saves an agent and plans its first trial. Every proposed
-call still waits for approval of its exact arguments. **Save draft only** saves
-without planning. If trial startup fails, the saved agent remains in My agents
-for an explicit retry. Generation failures preserve the typed job and offer
-manual authoring through **Start from scratch**.
+Mapped agents use distinct capability identifiers even when multiple servers
+expose the same tool name. All mapped servers share a four-call budget. Contracts
+freeze the mapping, run events retain the actual source, and evaluation verifies
+that each call used its bound source. Disconnecting or reconnecting any mapped
+server pauses affected agents, cancels pending calls and clears prior trial
+eligibility. Written boundaries remain model instructions, separate from the
+enforced tool scope, approval requirement and call budget.
 
-The private `POST /api/agents/:workspace/draft` endpoint accepts only
-`connectionId` and `description` (up to 2,500 characters), uses the existing
-12-per-day workspace suggestion quota and returns validated authoring fields
-plus questions. It does not accept model-generated contracts, arbitrary evals,
-permissions or account selection. Standard runtime checks are on for new drafts;
-structured-result checks remain an advanced manual configuration in this slice.
+New additive routes are `save-draft`, `template-draft` and `create-bound`; `draft`
+without `connectionId` authors the agent-first plan. Supplying `connectionId`
+retains legacy drafting behavior. Workspace authorization, same-origin write
+checks, quotas and credential exclusion apply to every route. Reusable templates
+may retain capability labels but never account mappings or private inputs.
 
-Acceptance: `node --experimental-strip-types tests/guided-create-browser.mts`.
+Acceptance: `node --experimental-strip-types tests/guided-create-browser.mts`,
+`tests/agent-plans.test.ts`, and the template/evaluation browser suites.

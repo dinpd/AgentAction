@@ -1,5 +1,5 @@
+import type { AgentPlan, ToolBindings } from './agent-plans.ts';
 import type { RecipeCheck, RecipeEval } from "./recipe-evaluation.ts";
-import type { AgentDraft } from './agent-draft.ts';
 import type { RecipeDefinition, RecipeRevision } from "./workspace-recipes.ts";
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { recipes, type Recipe } from "../../recipes/registry.ts";
@@ -7,18 +7,18 @@ import { JOURNEY_NAV } from "./journey.ts";
 import type { PrecheckReport } from "./mcp-precheck.ts";
 import type { CatalogResult } from "./mcp-registry.ts";
 
-export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Connect, Create, Run</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
+export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
-<div class="builder-layout">${JOURNEY_NAV}<main><div class="heading"><div><p class="eyebrow" id="stage-label">01 / Connect</p><h1 id="stage-title">Connect your tools.</h1><p class="lede" id="stage-description">Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
+<div class="builder-layout">${JOURNEY_NAV}<main><div class="heading"><div><p class="eyebrow" id="stage-label">01 / Create</p><h1 id="stage-title">Give your agent a job.</h1><p class="lede" id="stage-description">Describe the job. Review its tools and boundaries, then try it.</p></div><label class="workspace">Workspace<select id="workspace" aria-label="Workspace"></select></label></div>
 <p id="status" role="status" aria-live="polite">Loading your workspace…</p>
-<p id="recipe-return" hidden><a href="#create">← Continue with your selected recipe</a></p><div id="builder" hidden>
+<p id="recipe-return" hidden><a href="#create">← Continue agent setup</a></p><div id="builder" hidden>
 <section class="panel" data-builder-stage="connect"><div class="section-heading"><h2>MCP servers</h2><span>Server-side credentials · supervised execution</span></div>
-<div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">MCP connections</button></div>
-<div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Enter an endpoint manually</button></div></form>
+<div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">My MCP servers</button></div>
+<div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Add your own MCP server</button></div></form>
 <p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
 </div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
-<div id="connection-details"><h3 tabindex="-1" id="setup-heading">MCP connection setup</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
-<form id="connect"><div class="fields setup-fields"><label>Connection name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
+<div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
+<form id="connect"><div class="fields setup-fields"><label>Server / account name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
 <div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
 <div class="connection-access"><h3>Approve and connect</h3><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
@@ -27,20 +27,20 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
 <p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
-<section class="panel" data-builder-stage="create" hidden id="guided-create"><h2>What would you like done?</h2><form id="draft-request"><label for="job-description">Describe the job<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><label id="draft-connection-field">Use this connection<select id="draft-connection" required></select></label><p id="draft-connection-note" class="note"></p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button><a href="#connect" id="draft-connect">Connect a server →</a></div><p class="note">AI proposes an editable draft using your connected tools. Include targets and details you already know. Nothing runs until you review it.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form></section>
-<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose a recipe</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><div class="section-heading"><div><h2>Start with a recipe</h2><p class="note">Use a starting point or define your own job.</p></div><button id="start-scratch" type="button">Start from scratch</button></div><section aria-label="Workspace recipes"><h3>Your workspace recipes</h3><div id="workspace-recipes" class="grid"></div></section><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
-<div class="fields"><label>Agent / recipe name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
+<section class="panel" data-builder-stage="create" hidden id="guided-create"><h2>What would you like done?</h2><form id="draft-request"><label for="job-description">Describe the job<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><p class="note">Start with the job. Choose MCP servers when you review the tools.</p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button></div><p class="note">AI proposes an editable draft and suggests tools where available. Include targets and details you already know. Nothing runs until you review it.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form><h3>Your drafts</h3><div id="agent-drafts" class="grid"></div></section>
+<section class="panel" data-builder-stage="create" hidden><div class="stage-tabs"><a id="choose-recipe" href="#recipe-browser">Choose an agent template</a><a id="choose-custom" href="#create-connections">Build with your servers</a></div><div class="section-heading"><div><h2>Start with an agent template</h2><p class="note">Use a starting point or define your own job.</p></div><button id="start-scratch" type="button">Start from scratch</button></div><section aria-label="Agent templates"><h3>Your agent templates</h3><div id="workspace-recipes" class="grid"></div></section><p class="note">Choose a job, review its requirements, and make it your own. You can connect the tools it needs along the way.</p><p id="recipe-error" role="status" hidden></p><div id="recipe-browser" class="grid"></div><section id="recipe-detail" class="card" aria-label="Selected recipe" hidden></section><div id="custom-builder"><h2 class="recipe-suggestions-title">Build with your servers</h2><div id="create-connections" class="connections"></div><div class="section-heading"><h2>Discover useful agents</h2><span>AI suggestions based on discovered tools</span></div><div id="suggestions" class="grid"><p class="empty">Connect a server, then choose “Suggest agents.”</p></div></div></section>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="agent-tools" hidden><h3>Tools &amp; MCP servers</h3><p class="note">Choose the MCP server and account for each capability. Suggestions are untested; review them before running.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
+<div class="fields"><label>Agent name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
-<label>Inputs this recipe needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
+<label>Inputs this agent needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
 <fieldset id="editor-tools"><legend>Allowed tools · choose up to four</legend><div id="tool-options" class="fields"></div></fieldset>
 <div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label><label>Boundaries<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope and actions the agent should avoid."></textarea></label></div>
 <label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label>
 <p id="selected-tools" class="note">The success text guides the AI assessment. Measurable checks below evaluate recorded evidence separately.</p>
 <label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
 <fieldset id="eval-editor"><legend>Measurable checks</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
-<div class="actions"><button id="save-recipe" type="button" class="secondary">Save workspace recipe</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new recipe</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
-</details><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable recipe.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. One server and up to four calls per run.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit">Save draft only</button></div></div></form></section>
+<div class="actions"><button id="save-recipe" type="button" class="secondary">Save agent template</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new template</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
+</details><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
@@ -54,13 +54,13 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   const workspace = get<HTMLSelectElement>("workspace");
   let tenant = "", role = "viewer", generation = 0;
   let state: any = { connections: [], agents: [], runs: [] };
-  let builderStage = 'connect';
+  let builderStage = 'create';
   function showStage(value: string) {
-    builderStage = ['connect', 'create', 'run'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'connect';
+    builderStage = ['connect', 'create', 'run'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'create';
     const copy: Record<string, string[]> = {
-      connect: ['01 / Connect', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
-      create: ['02 / Create', 'Give your agent a job.', 'Describe the job. Review an editable draft, then approve its first action.'],
-      run: ['03 / Run', 'Put your agent to work.', 'Review recent runs and upcoming checks. Open a recurring agent to manage its schedule and findings.'],
+      connect: ['MCP servers', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
+      create: ['01 / Create', 'Give your agent a job.', 'Describe the job. Review an editable draft, then approve its first action.'],
+      run: ['02 / Run', 'Put your agent to work.', 'Review recent runs and upcoming checks. Open a recurring agent to manage its schedule and findings.'],
     };
     ['stage-label', 'stage-title', 'stage-description'].forEach((id, i) => { get(id).textContent = copy[builderStage][i]; });
     doc.querySelectorAll<HTMLElement>('[data-builder-stage]').forEach(el => { el.hidden = el.dataset.builderStage !== builderStage || (el.id === 'configure' && !chosen); });
@@ -68,7 +68,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     next.href = builderStage === 'connect' ? '#create' : builderStage === 'create' ? '#run' : `/?workspace=${encodeURIComponent(tenant)}#activity`;
     next.textContent = builderStage === 'connect' ? 'Next: create an agent →' : builderStage === 'create' ? 'Next: run a trial →' : 'Next: monitor activity →';
     runtime.agentActionJourney?.setView(builderStage);
-    get('recipe-return').hidden = !selectedRecipe || builderStage !== 'connect';
+    get('recipe-return').hidden = (!selectedRecipe && !currentPlan) || builderStage !== 'connect';
     if (builderStage !== 'connect') cancelScheduledPrecheck();
   }
   runtime.addEventListener('hashchange', () => showStage(runtime.location.hash.slice(1)));
@@ -78,39 +78,93 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let editorRecipe: (RecipeRevision & { id: string }) | undefined;
   let editorGeneration = 0, draftGeneration = 0;
   let draftQuestions: string[] = [];
+  let currentPlan: AgentPlan | undefined;
   let creating = false;
   function resetDraft() {
-    draftGeneration++; draftQuestions = [];
-    get<HTMLFormElement>('draft-request').reset(); get<HTMLSelectElement>('draft-connection').replaceChildren();
+    draftGeneration++; draftQuestions = []; currentPlan = undefined;
+    get<HTMLFormElement>('draft-request').reset();
     get('draft-question-fields').replaceChildren(); get('draft-questions').hidden = true;
-    get('draft-preview').replaceChildren(); feedback('draft-feedback', '');
+    get('draft-preview').replaceChildren(); get('tool-mappings').replaceChildren(); get('agent-drafts').replaceChildren(); feedback('draft-feedback', '');
   }
   function renderDraftConnections() {
-    const select = get<HTMLSelectElement>('draft-connection'), previous = select.value;
-    const connected = state.connections.filter((c: any) => c.status === 'connected');
-    select.replaceChildren(new Option('Choose an account', ''));
-    for (const c of connected) select.append(new Option(c.label, c.id));
-    select.value = connected.some((c: any) => c.id === previous) ? previous : connected.length === 1 ? connected[0].id : '';
-    get('draft-connection-field').hidden = connected.length <= 1;
-    get('draft-connection-note').textContent = connected.length === 1 ? `Using ${connected[0].label}. You can change this in Customize.` : connected.length ? 'Choose which account to use. We will suggest tools from that connection.' : 'Connect a server first so the draft uses tools you actually have.';
-    get('draft-connect').hidden = connected.length > 0;
-    select.disabled = role === 'viewer'; get<HTMLTextAreaElement>('job-description').disabled = role === 'viewer';
-    get<HTMLButtonElement>('generate-draft').disabled = role === 'viewer' || !connected.length || get('generate-draft').hasAttribute('aria-busy');
+    get<HTMLTextAreaElement>('job-description').disabled = role === 'viewer';
+    get<HTMLButtonElement>('generate-draft').disabled = role === 'viewer' || get('generate-draft').hasAttribute('aria-busy');
+    const list = get('agent-drafts'); list.replaceChildren();
+    for (const plan of state.drafts || []) {
+      const card = node('article','','card'); card.append(node('h3',plan.definition.title),node('p',plan.definition.goal),button('Continue setup',async()=>openPlan(plan))); list.append(card);
+    }
+    if(!list.children.length) list.append(node('p','Draft an agent now; finish its tools later.','note'));
+    if(currentPlan) renderMappings();
+  }
+  function selectedBindings(): ToolBindings {
+    return Object.fromEntries([...doc.querySelectorAll<HTMLSelectElement>('[data-tool-mapping]')].filter(el=>el.value).map(el=>[el.dataset.toolMapping!,JSON.parse(el.value)]));
+  }
+  function renderMappings() {
+    if(!currentPlan) return;
+    const host=get('tool-mappings'); host.replaceChildren();
+    for(const requirement of currentPlan.requirements) {
+      const label=node('label',requirement.label),select=doc.createElement('select'); select.dataset.toolMapping=requirement.id;
+      select.append(new Option('Choose a tool / add a server',''));
+      for(const c of state.connections.filter((c:any)=>c.status==='connected')) for(const tool of c.tools) {
+        const value=JSON.stringify({connectionId:c.id,tool:tool.name});
+        const suggested=requirement.matches.some(m=>m.connectionId===c.id && m.tool===tool.name);
+        select.append(new Option(`${c.label} · ${tool.name}${suggested ? ' (suggested)' : ''}`,value));
+      }
+      const binding=currentPlan.bindings[requirement.id]; select.value=binding ? JSON.stringify(binding) : '';
+      select.disabled=role==='viewer';
+      select.onchange=()=>{currentPlan!.bindings=selectedBindings();updateMappingStatus();updateDraftPreview();};
+      label.append(select);host.append(label);
+    }
+    updateMappingStatus();
+  }
+  function updateMappingStatus() {
+    if(!currentPlan) return;
+    const missing=currentPlan.requirements.length-Object.keys(selectedBindings()).length;
+    get('mapping-status').textContent=missing ? `${missing} ${missing===1?'capability':'capabilities'} still need an MCP tool. You can save this draft now.` : 'All capabilities mapped. Review the first action when ready.';
+    get<HTMLButtonElement>('review-first-action').disabled=role==='viewer' || missing>0 || creating;
+  }
+  function showQuestions(questions:string[]) {
+    get('draft-question-fields').replaceChildren();
+      draftQuestions = questions;
+      for (const [i, question] of draftQuestions.entries()) {
+        const label = node('label', question), input = doc.createElement('input');
+        input.id = `draft-answer-${i}`; input.required = true; input.maxLength = 400; label.append(input);
+        const skipLabel = node('label', '', 'consent'), skip = doc.createElement('input'); skip.type = 'checkbox';
+        skip.onchange = () => { input.disabled = skip.checked; }; skipLabel.append(skip, node('span', 'Already covered in my job details'));
+        get('draft-question-fields').append(label, skipLabel);
+      }
+      get('draft-questions').hidden = !draftQuestions.length;
+  }
+  function openPlan(plan: AgentPlan) {
+    recipeContext(); openEditor('',plan.definition,{generated:true}); currentPlan=structuredClone(plan);
+    editorField('setup').value=plan.setup; showQuestions(plan.questions.filter(q=>!plan.setup.includes(q+'\n')));
+    get<HTMLInputElement>('eval-enabled').checked=true; get<HTMLInputElement>('eval-enabled').disabled=true; updateEvalEditor();
+    get('agent-tools').hidden=false; get('editor-tools').hidden=true;
+    const select=get<HTMLSelectElement>('editor-connection');select.required=false;select.disabled=true;select.parentElement!.hidden=true;
+    get<HTMLDetailsElement>('draft-customize').open=false;
+    get('editor-source').textContent='Untested agent draft. Tools and written instructions are suggestions; the runtime enforces approvals, mapped tool scope and four total calls.';
+    editorTools(plan.definition.tools); updateEvalTools(); renderMappings(); updateDraftPreview();
+  }
+  async function savePlan(): Promise<AgentPlan> {
+    const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration;
+    const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings()});
+    if(selectedTenant===tenant && editor===editorGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; draftQuestions=[]; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden=true; state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
+    return saved;
   }
   function updateDraftPreview() {
     if (!chosen) return;
     const preview = get('draft-preview'), connection = state.connections.find((c: any) => c.id === chosen!.connectionId);
     preview.replaceChildren(node('h3', editorField('title').value || 'Your agent'), node('p', editorField('goal').value || 'Describe the job in Customize.'));
-    preview.append(node('p', `Using: ${connection?.label || 'Choose a connection in Customize'}`, 'note'));
+    if(!currentPlan) preview.append(node('p', `MCP server: ${connection?.label || 'Choose a server in Customize'}`, 'note'));
     if (editorField('success').value) preview.append(node('p', `Expected result: ${editorField('success').value}`));
     const tools = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(el => el.value);
-    preview.append(node('p', `Selected tools: ${tools.join(', ') || 'Choose tools in Customize'}`, 'note'));
+    preview.append(node('p', `Tools: ${currentPlan ? currentPlan.requirements.map(r=>r.label).join(', ') : tools.join(', ') || 'Choose tools in Customize'}`, 'note'));
     const enabled = get<HTMLInputElement>('eval-enabled').checked;
-    preview.append(node('p', enabled ? 'Checks: completion, successful execution, selected tools, recorded approval and call limit.' : 'Measured checks are off. Success will be AI-assessed.', 'note'));
+    preview.append(node('p', enabled ? 'Enforced boundaries: mapped tools only, approval for every call, four total calls. Checks: completion and successful execution.' : 'Measured checks are off. Success will be AI-assessed.', 'note'));
     if (enabled) for (const field of doc.querySelectorAll<HTMLInputElement>('[data-check-label]')) preview.append(node('p', field.value || 'Unnamed custom check', 'note'));
   }
   function jobInputs(): string {
-    const answers = draftQuestions.flatMap((question, i) => { const input = get<HTMLInputElement>(`draft-answer-${i}`); return input.disabled ? [] : [`${question}\n${input.value.trim()}`]; });
+    const answers = draftQuestions.flatMap((question, i) => { const input = get<HTMLInputElement>(`draft-answer-${i}`); return input.disabled || !input.value.trim() ? [] : [`${question}\n${input.value.trim()}`]; });
     const setup = [editorField('setup').value.trim(), ...answers].filter(Boolean).join('\n\n');
     if (setup.length > 4000) throw new Error('Keep the job details and answers below 4,000 characters.');
     return setup;
@@ -137,13 +191,13 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function definitionFromEditor(): RecipeDefinition {
     const evaluation = readEvalChecks();
-    return { title: editorField('title').value.trim(), goal: editorField('goal').value.trim(), inputGuide: editorField('inputGuide').value.trim(), instructions: editorField('instructions').value.trim(), boundaries: editorField('boundaries').value.trim(), success: editorField('success').value.trim(), tools: [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value).sort(), ...(evaluation ? { evaluation } : {}) };
+    return { ...(currentPlan?.definition.toolLabels ? {toolLabels:currentPlan.definition.toolLabels} : {}), title: editorField('title').value.trim(), goal: editorField('goal').value.trim(), inputGuide: editorField('inputGuide').value.trim(), instructions: editorField('instructions').value.trim(), boundaries: editorField('boundaries').value.trim(), success: editorField('success').value.trim(), tools: currentPlan ? currentPlan.requirements.map(r=>r.id) : [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value).sort(), ...(evaluation ? { evaluation } : {}) };
   }
   function updateEvalTools() {
-    const names = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value);
+    const names = currentPlan ? currentPlan.requirements.map(r=>r.id) : [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(input => input.value);
     doc.querySelectorAll<HTMLSelectElement>('[data-check-tool]').forEach(select => {
       const old = select.value; select.replaceChildren(new Option('Choose a selected tool', ''));
-      for (const name of names) select.append(new Option(name, name));
+      for (const name of names) select.append(new Option(currentPlan?.requirements.find(r=>r.id===name)?.label || name, name));
       if (old && !names.includes(old)) select.append(new Option(old + ' (not selected)', old));
       select.value = old;
     });
@@ -181,13 +235,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function editorTools(selected: string[] = []) {
     const connection = state.connections.find((c: any) => c.id === chosen?.connectionId && c.status === 'connected');
     get('tool-options').replaceChildren();
-    for (const tool of connection?.tools || []) {
+    for (const tool of currentPlan ? currentPlan.requirements.map(r=>({name:r.id})) : connection?.tools || []) {
       const label = node('label', '', 'consent'), input = doc.createElement('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = selected.includes(tool.name); input.disabled = role === 'viewer';
       label.append(input, node('span', tool.name)); get('tool-options').append(label);
     }
-    if (!connection) get('tool-options').append(node('p', 'Connect a server to choose tools.', 'note'));
+    if (!connection && !currentPlan) get('tool-options').append(node('p', 'Connect a server to choose tools.', 'note'));
   }
   function openEditor(connectionId: string, definition: Partial<RecipeDefinition>, source: any = {}, saved?: RecipeRevision & { id: string }) {
+    currentPlan=undefined; get('agent-tools').hidden=true; get('editor-tools').hidden=false; get<HTMLSelectElement>('editor-connection').parentElement!.hidden=false; get<HTMLSelectElement>('editor-connection').required=true;
     editorGeneration++; draftGeneration++; editorRecipe = saved; chosen = { connectionId, suggestion: source }; feedback('draft-feedback', '');
     draftQuestions = []; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden = true;
     const form = get<HTMLFormElement>('create'); form.reset();
@@ -199,9 +254,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     editorTools(definition.tools);
     get('eval-checks').replaceChildren(); get<HTMLInputElement>('eval-enabled').checked = Boolean(definition.evaluation) || !saved;
     for (const check of definition.evaluation?.checks || []) addEvalCheck(check);
-    get('editor-source').textContent = saved ? `Workspace recipe · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.` : source.recipeId ? 'Customize this catalog recipe for your workspace.' : source.id ? 'Review and customize this AI suggestion.' : 'Create a job using your connected tools. No AI suggestion is needed.';
+    get('editor-source').textContent = saved ? `Agent template · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.` : source.recipeId ? 'Customize this catalog recipe for your workspace.' : source.id ? 'Review and customize this AI suggestion.' : 'Create a job using your connected tools. No AI suggestion is needed.';
     get('duplicate-recipe').hidden = !saved;
-    get('save-recipe').textContent = saved ? 'Save new version' : 'Save workspace recipe';
+    get('save-recipe').textContent = saved ? 'Save new version' : 'Save agent template';
     get('recipe-save-status').textContent = '';
     form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input,textarea,select,button').forEach(el => { if (!el.closest('#eval-checks')) el.disabled = role === 'viewer'; });
     updateEvalEditor();
@@ -212,36 +267,35 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function renderWorkspaceRecipes() {
     const list = get('workspace-recipes'); list.replaceChildren();
     for (const saved of state.workspaceRecipes || []) {
-      const card = node('article', '', 'card'); card.append(node('h3', saved.definition.title), node('p', saved.definition.goal), node('p', `Workspace recipe · v${saved.version}`, 'note'));
-      const open = (duplicate: boolean) => {
-        recipeContext();
-        const matches = state.connections.filter((c: any) => c.status === 'connected' && saved.definition.tools.every((name: string) => c.tools.some((t: any) => t.name === name)));
-        const connection = matches.length === 1 ? matches[0] : undefined;
-        openEditor(connection?.id || '', saved.definition, {}, duplicate ? undefined : saved);
+      const card = node('article', '', 'card'); card.append(node('h3', saved.definition.title), node('p', saved.definition.goal), node('p', `Agent template · v${saved.version}`, 'note'));
+      const open = async (duplicate: boolean) => {
+        const selectedTenant=tenant, selectedEditor=++editorGeneration;
+        const plan=await mutate('template-draft',{workspaceRecipeId:saved.id});
+        if(selectedTenant===tenant && selectedEditor===editorGeneration) {openPlan(plan); if(!duplicate) {editorRecipe=saved;get('save-recipe').textContent='Save new version';get('duplicate-recipe').hidden=false;} state.drafts=[...(state.drafts || []),plan];renderDraftConnections();}
       };
-      const actions = node('div', '', 'actions'); actions.append(button('Use or edit recipe', async () => open(false)), button('Duplicate recipe', async () => open(true))); card.append(actions); list.append(card);
+      const actions = node('div', '', 'actions'); actions.append(button('Use or edit template', async () => open(false)), button('Duplicate template', async () => open(true))); card.append(actions); list.append(card);
     }
     if (!list.children.length) list.append(node('p', 'Save a definition below to reuse it with fresh inputs.', 'empty'));
     get<HTMLButtonElement>('start-scratch').disabled = role === 'viewer';
   }
   async function saveEditorRecipe(duplicate: boolean) {
     for (const name of ['title', 'goal', 'success']) if (!editorField(name).reportValidity()) return;
-    if (!get<HTMLSelectElement>('editor-connection').reportValidity()) return;
+    if (!currentPlan && !get<HTMLSelectElement>('editor-connection').reportValidity()) return;
     const currentTenant = tenant, currentEditor = editorGeneration;
     const definition = definitionFromEditor();
     let saved: RecipeRevision & { id: string };
-    try { saved = await mutate('save-recipe', { connectionId: chosen?.connectionId, definition, ...(!duplicate && editorRecipe ? { id: editorRecipe.id, baseVersion: editorRecipe.version } : {}) }); }
+    try { saved = await mutate('save-recipe', { ...(currentPlan ? {} : {connectionId: chosen?.connectionId}), definition, ...(!duplicate && editorRecipe ? { id: editorRecipe.id, baseVersion: editorRecipe.version } : {}) }); }
     catch (error) { if (tenant !== currentTenant || editorGeneration !== currentEditor) return; throw error; }
     if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
     editorRecipe = saved;
-    get('editor-source').textContent = `Workspace recipe · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.`;
+    get('editor-source').textContent = `Agent template · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.`;
     state.workspaceRecipes = [...(state.workspaceRecipes || []).filter((r: any) => r.id !== saved.id), saved];
     renderWorkspaceRecipes();
     get('save-recipe').textContent = 'Save new version'; get('duplicate-recipe').hidden = false;
-    get('recipe-save-status').textContent = `Saved workspace recipe v${saved.version}. Job inputs were not included. You can create an agent below.`;
+    get('recipe-save-status').textContent = `Saved agent template v${saved.version}. Job inputs were not included. You can create an agent below.`;
   }
   function recipeContext(recipe?: Recipe) {
-    selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++; draftGeneration++;
+    currentPlan=undefined; selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++; draftGeneration++;
     get<HTMLFormElement>('create').reset(); get('configure').hidden = true;
     const url = new URL(runtime.location.href);
     for (const key of ['recipe', 'recipe_version']) url.searchParams.delete(key);
@@ -253,54 +307,34 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function renderRecipe() {
     const panel = get('recipe-detail'); if (selectedRecipe && chosen?.suggestion.recipeId === selectedRecipe.id) return; panel.replaceChildren(); panel.hidden = !selectedRecipe; get('recipe-browser').hidden = Boolean(selectedRecipe); get('custom-builder').hidden = Boolean(selectedRecipe);
-    get('recipe-return').hidden = !selectedRecipe || builderStage !== 'connect';
+    get('recipe-return').hidden = (!selectedRecipe && !currentPlan) || builderStage !== 'connect';
     if (!selectedRecipe) return;
     const recipe = selectedRecipe;
-    panel.append(node('p', `Recipe · ${recipe.publisher.name} · v${recipe.version}`, 'eyebrow'), node('h2', recipe.title), node('p', recipe.intent));
-    const close = node('button', 'Choose another recipe', 'secondary') as HTMLButtonElement; close.type = 'button'; close.onclick = () => recipeContext(); panel.append(close);
-    if (recipe.runtime === 'recurring') { const link = node('a', 'Configure recurring agent →') as HTMLAnchorElement; link.href = '/automations?workspace=' + encodeURIComponent(tenant) + '#agents'; panel.append(node('p', 'This recipe uses platform scheduling, saved baselines, findings and workspace notifications. Configure its targets and run a baseline before enabling automatic reads.'), link); return; }
+    panel.append(node('p', `Agent template · ${recipe.publisher.name} · v${recipe.version}`, 'eyebrow'), node('h2', recipe.title), node('p', recipe.intent));
+    const close = node('button', 'Choose another template', 'secondary') as HTMLButtonElement; close.type = 'button'; close.onclick = () => recipeContext(); panel.append(close);
+    if (recipe.runtime === 'recurring') { const link = node('a', 'Configure recurring agent →') as HTMLAnchorElement; link.href = '/automations?workspace=' + encodeURIComponent(tenant) + '#agents'; panel.append(node('p', 'This agent template uses platform scheduling, saved baselines, findings and workspace notifications. Configure its targets and run a baseline before enabling automatic reads.'), link); return; }
     panel.append(node('h3', '1. Review requirements'));
     for (const server of recipe.servers) {
       panel.append(node('strong', server.name), node('p', server.purpose), node('p', `Required tools: ${server.tools.join(', ')}`, 'note'));
       if (server.connection) panel.append(node('p', server.connection.authentication, 'note'));
     }
     for (const requirement of recipe.adoption?.requirements || []) panel.append(node('p', requirement, 'note'));
-    panel.append(node('p', 'Hosted trials use one MCP server and at most four calls. They do not provide cross-run baselines, arbitrary file storage or custom schedules. Supply required context in your inputs; stop the trial if a requirement cannot be met. Tool availability alone does not verify the whole recipe.', 'note'));
+    panel.append(node('p', 'Hosted trials use mapped MCP servers and at most four total calls. They do not provide cross-run baselines, arbitrary file storage or custom schedules. Supply required context in your inputs; stop the trial if a requirement cannot be met. Tool availability alone does not verify the whole agent template.', 'note'));
     const instructions = node('details'); instructions.append(node('summary', 'Instructions and boundaries'));
     for (const line of [...recipe.instructions, ...recipe.boundaries]) instructions.append(node('p', line, 'note'));
     panel.append(instructions, node('p', recipe.evidence.description, 'note'));
     if (recipe.adoption) {
-      const checks = node('details'); checks.append(node('summary', 'Example output and trial checks'), node('p', 'Illustrative output; these checks have not run against your connections.', 'note'), node('pre', recipe.adoption.exampleOutput));
+      const checks = node('details'); checks.append(node('summary', 'Example output and trial checks'), node('p', 'Illustrative output; these checks have not run against your MCP servers.', 'note'), node('pre', recipe.adoption.exampleOutput));
       for (const check of recipe.adoption.validation) checks.append(node('strong', check.name), node('p', check.procedure, 'note'), node('p', `Expected: ${check.expected}`, 'note'));
       panel.append(checks);
     }
-    panel.append(node('h3', '2. Choose a connection'));
-    if (recipe.servers.length !== 1) {
-      panel.append(node('p', 'This recipe requires multiple MCP servers. Hosted agents currently use one server, so this recipe cannot run here yet. You can review it here or export it for a runtime that supports its requirements.', 'note'));
-      const download = node('a', 'Download recipe instructions') as HTMLAnchorElement; download.href = 'https://agentaction.dev/recipes/' + encodeURIComponent(recipe.id) + '/download?format=markdown'; panel.append(download); return;
-    }
-    const server = recipe.servers[0], select = doc.createElement('select'); select.id = 'recipe-connection';
-    const label = node('label', 'MCP connection'); label.append(select); panel.append(label);
-    const placeholder = node('option', 'Choose a connected server') as HTMLOptionElement; placeholder.value = ''; select.append(placeholder);
-    for (const connection of state.connections) {
-      const missing = server.tools.filter(name => !connection.tools.some((tool: any) => tool.name === name));
-      const option = node('option', connection.label + (connection.status !== 'connected' ? ' — disconnected' : missing.length ? ` — missing ${missing.join(', ')}` : ' — required tools available')) as HTMLOptionElement;
-      option.value = connection.id; option.disabled = connection.status !== 'connected' || missing.length > 0; select.append(option);
-    }
-    const available = [...select.options].filter(o => o.value && !o.disabled);
-    if (available.length === 1) select.value = available[0].value;
-    const connect = button('Connect a missing server', async () => { runtime.location.hash = 'connect'; showStage('connect'); openSetup(server.connection?.endpoint || '', server.name); }); panel.append(connect);
-    panel.append(node('h3', '3. Configure a draft'));
-    const reviewLabel = node('label', '', 'consent'), reviewed = doc.createElement('input'); reviewed.type = 'checkbox'; reviewed.id = 'recipe-reviewed'; reviewLabel.append(reviewed, node('span', 'I reviewed the requirements and will keep this trial within the available tools and runtime limits.')); panel.append(reviewLabel);
-    const configure = button('Configure this recipe', async () => {
-      const connection = state.connections.find((c: any) => c.id === select.value);
-      if (!connection || !reviewed.checked) return;
-      openEditor(connection.id, { title: recipe.title, goal: recipe.intent, inputGuide: [...(recipe.adoption?.inputs.map(input => input.name + ': ' + input.description) || []), ...(recipe.adoption?.requirements || [])].join('\n').slice(0, 1000), instructions: recipe.instructions.join('\n'), boundaries: recipe.boundaries.join('\n'), success: recipe.outcomes.map(rule => rule.label).join('\n'), tools: server.tools }, { recipeId: recipe.id, recipeVersion: recipe.version });
-    }, false);
-    const update = () => { configure.disabled = role === 'viewer' || !select.value || !reviewed.checked; };
-    select.addEventListener('change', () => { chosen = undefined; get('configure').hidden = true; update(); }); reviewed.addEventListener('change', () => { if (!reviewed.checked) { chosen = undefined; get('configure').hidden = true; } update(); });
-    update(); panel.append(configure);
+    panel.append(button('Configure this agent',async()=>{
+      const selectedTenant=tenant, selectedEditor=++editorGeneration;
+      const plan=await mutate('template-draft',{recipeId:recipe.id,recipeVersion:recipe.version});
+      if(selectedTenant===tenant && selectedEditor===editorGeneration) {openPlan(plan);state.drafts=[...(state.drafts || []),plan];renderDraftConnections();}
+    }));
   }
+
   let catalogGeneration = 0, catalogOffset: number | null = null;
   let catalogQuery = "", catalogCapability = "", catalogAuth = "";
   const capabilityLabels = new Map<string, string>();
@@ -525,7 +559,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if (!data.servers.length && !append) get("catalog-results").append(node("p", data.indexing || data.unavailable ? "Catalog results are not available yet. Search again shortly or enter an endpoint manually." : "No matching servers. Try a service name, broaden the capability or authentication filters, or enter an endpoint manually.", "empty"));
     } catch (error) {
       if (current !== catalogGeneration || currentTenant !== tenant) return;
-      get("catalog-status").textContent = error instanceof Error ? error.message : "Registry discovery is unavailable. Enter an endpoint manually.";
+      get("catalog-status").textContent = error instanceof Error ? error.message : "Registry discovery is unavailable. Add your own MCP server.";
     }
   }
   function message(value: string, error = false) { get("status").textContent = value; get("status").dataset.error = String(error); }
@@ -594,10 +628,10 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       credentialLabel.append(credential);
       const replace = button("Reconnect server", async () => {
         const token = credential.value; credential.value = "";
-        feedback("connections-feedback", "Checking the replacement connection…");
+        feedback("connections-feedback", "Checking the replacement MCP server…");
         await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Server reconnected. Its agents are paused; run a new trial before reactivation.");
       });
-      const replacement = node("details"); replacement.append(node("summary", "Connection credentials"), credentialLabel, replace); detail.append(replacement);
+      const replacement = node("details"); replacement.append(node("summary", "MCP server credentials"), credentialLabel, replace); detail.append(replacement);
       connections.append(row);
       for (const s of c.suggestions) {
         const card = node("article", "", "card");
@@ -616,19 +650,20 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
       if (a.definition) {
-        const detail = node('details'); detail.append(node('summary', 'Recipe definition'), node('p', a.workspaceRecipe ? `Workspace recipe · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
-        for (const [label, value] of [['Inputs needed', a.definition.inputGuide], ['Instructions', a.definition.instructions], ['Boundaries', a.definition.boundaries], ['Allowed tools', a.definition.tools.join(', ')]]) if (value) detail.append(node('strong', label), node('p', value, 'note'));
+        const detail = node('details'); detail.append(node('summary', 'Agent definition'), node('p', a.workspaceRecipe ? `Agent template · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
+        for (const [label, value] of [['Inputs needed', a.definition.inputGuide], ['Instructions', a.definition.instructions], ['Boundaries', a.definition.boundaries], ['Allowed tools', a.definition.tools.map((t:string)=>a.definition.toolLabels?.[t] || t).join(', ')]]) if (value) detail.append(node('strong', label), node('p', value, 'note'));
         detail.append(node('p', 'Success is AI-assessed. Written boundaries guide the AI; measurable checks evaluate recorded evidence.', 'note')); card.append(detail);
       }
-      if (a.recipe) card.append(node("p", `Based on recipe: ${a.recipe.id} · v${a.recipe.version}`, "note"));
+      if (a.recipe) card.append(node("p", `Based on agent template: ${a.recipe.id} · v${a.recipe.version}`, "note"));
       const latest = state.runs.filter((r: any) => r.agentId === a.id).sort((a: any, b: any) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
       card.append(node("p", `Last run: ${latest ? new Date(latest.startedAt).toLocaleString() + " · " + latest.status.replaceAll("_", " ") : "Not yet"} · Next proposal: ${a.status === "active" && a.nextRun ? new Date(a.nextRun).toLocaleString() : "Not scheduled"}`, "note"));
       if (latest?.summary) card.append(node("p", latest.summary));
       card.append(actions); agents.append(card);
     }
     history.appendAgents(agents, recurring, tenant);
-    if (!agents.children.length) agents.append(node("p", "Choose a recipe or an AI suggestion in Create to build your first agent.", "empty"));
+    if (!agents.children.length) agents.append(node("p", "Choose an agent template or an AI suggestion in Create to build your first agent.", "empty"));
     for (const r of state.runs) {
+      const a=state.agents.find((a:any)=>a.id===r.agentId);
       const card = node("article", "", "card run"), heading = node("div", "", "run-heading");
       card.dataset.runAt = String(new Date(r.startedAt).getTime());
       if (r.pending) card.dataset.pendingApproval = "true";
@@ -638,11 +673,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       history.appendEvaluation(card, r);
       if (r.outcome) card.append(node("p", `AI-assessed outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
       for (const event of r.events) {
-        const detail = node("details"); detail.append(node("summary", `${event.tool} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
+        const detail = node("details"); detail.append(node("summary", `${event.source?.tool || event.tool}${event.source ? " · " + (state.connections.find((c:any)=>c.id===event.source.connectionId)?.label || event.source.connectionId) : ""} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ source: event.source, arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
       }
       if (r.pending) {
         const approval = node("div", "", "approval"), actions = node("div", "", "actions");
-        approval.append(node("strong", `Approve tool call: ${r.pending.tool}`), node("p", "This executes against your connected account. Review the exact arguments before approval.", "note"), node("pre", JSON.stringify(r.pending.arguments, null, 2)));
+        approval.append(node("strong", `Approve tool call: ${a?.toolBindings?.[r.pending.tool]?.tool || r.pending.tool}`), node("p", `MCP server: ${state.connections.find((c:any)=>c.id===(a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId))?.label || "unavailable"}. Review the exact arguments before approval.`, "note"), node("pre", JSON.stringify(r.pending.arguments, null, 2)));
         const edit = doc.createElement("textarea"); edit.rows = 5; edit.value = JSON.stringify(r.pending.arguments, null, 2); edit.setAttribute("aria-label", "Revised tool arguments"); edit.disabled = role === "viewer";
         const advanced = node("details"); advanced.append(node("summary", "Adjust tool arguments"), node("p", "AI proposals use required inputs and provider defaults. Add optional settings here when needed, then save and review the revised call before approving.", "note"), edit, button("Save revised call", async () => { const args = JSON.parse(edit.value); await mutate("revise", { runId: r.id, approvalId: r.pending.id, arguments: args }); await refresh(); message("Proposal revised. Review the saved arguments before approving execution."); })); approval.append(advanced);
         actions.append(button("Approve and execute", async () => { message("Executing the approved call and assessing the next step…"); await mutate("approve", { runId: r.id, approvalId: r.pending.id }); await refresh(); message("Run updated. Review the execution evidence and any next proposal."); }, false), button("Cancel run", async () => { await mutate("cancel", { runId: r.id }); await refresh(); message("Run cancelled."); })); approval.append(actions); card.append(approval);
@@ -655,6 +690,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     updateEndpointAccess();
   }
   get('account-login').addEventListener('click', event => { event.preventDefault(); runtime.location.reload(); });
+  for(const [id,custom] of [['plan-browse',false],['plan-custom',true]] as const) get<HTMLButtonElement>(id).onclick=event=>{
+    const selectedTenant=tenant,editor=editorGeneration;
+    void perform(event.currentTarget as HTMLButtonElement,async()=>{
+      await savePlan(); if(selectedTenant!==tenant || editor!==editorGeneration) return;
+      runtime.location.hash='connect';showStage('connect');
+      if(custom) openSetup(''); else {showMcpView(false);await searchCatalog();}
+    });
+  };
   get('choose-recipe').addEventListener('click', () => recipeContext());
   get('choose-custom').addEventListener('click', () => recipeContext());
   get("browse-servers").addEventListener("click", () => showMcpView(false));
@@ -680,7 +723,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
-    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "Connected. Choose “Suggest agents” to discover useful jobs."); if (selectedRecipe) { runtime.location.hash = "create"; showStage("create"); message("Server connected. Select it for your recipe and review its requirements."); } }, "connect-feedback");
+    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "MCP server connected. Its tools are now available for your agent."); if (selectedRecipe || currentPlan) { if(currentPlan) renderMappings(); runtime.location.hash = "create"; showStage("create"); message("Server connected. Review the tool mappings in your agent setup."); } }, "connect-feedback");
   });
   get<HTMLButtonElement>('start-scratch').onclick = () => { const description = get<HTMLTextAreaElement>('job-description').value; const connections = state.connections.filter((c: any) => c.status === 'connected'); recipeContext(); openEditor(connections.length === 1 ? connections[0].id : '', {}); editorField('setup').value = description; };
   get<HTMLSelectElement>('editor-connection').onchange = () => {
@@ -695,33 +738,23 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     void perform(event.currentTarget as HTMLButtonElement, () => saveEditorRecipe(duplicate), 'recipe-save-status');
   };
   get<HTMLFormElement>('draft-request').addEventListener('input', () => { draftGeneration++; if (get('generate-draft').hasAttribute('aria-busy')) feedback('draft-feedback', 'Job details changed. Draft again when this request finishes.'); });
-  get<HTMLSelectElement>('draft-connection').addEventListener('change', () => { draftGeneration++; });
   get<HTMLFormElement>('draft-request').addEventListener('submit', event => {
     event.preventDefault(); if (role === 'viewer') return;
     const current = ++draftGeneration, currentTenant = tenant, currentEditor = editorGeneration;
-    const description = get<HTMLTextAreaElement>('job-description').value.trim(), connectionId = get<HTMLSelectElement>('draft-connection').value;
+    const description = get<HTMLTextAreaElement>('job-description').value.trim();
     const button = get<HTMLButtonElement>('generate-draft');
     void perform(button, async () => {
       feedback('draft-feedback', 'Preparing a draft from your job and connected tools…');
-      let draft: AgentDraft;
-      try { draft = await mutate('draft', { connectionId, description }); }
+      let draft: AgentPlan;
+      try { draft = await mutate('draft', { description }); }
       catch (error) {
         if (current !== draftGeneration || tenant !== currentTenant || currentEditor !== editorGeneration) return;
         feedback('draft-feedback', (error instanceof Error ? error.message : 'Draft generation failed.') + ' You can try again or use Start from scratch below.', true); return;
       }
       if (current !== draftGeneration || tenant !== currentTenant || currentEditor !== editorGeneration) return;
-      recipeContext(); openEditor(connectionId, draft.definition, { generated: true });
+      openPlan(draft); state.drafts=[...(state.drafts || []),draft]; renderDraftConnections();
       editorField('setup').value = description;
-      draftQuestions = draft.questions;
-      for (const [i, question] of draftQuestions.entries()) {
-        const label = node('label', question), input = doc.createElement('input');
-        input.id = `draft-answer-${i}`; input.required = true; input.maxLength = 400; label.append(input);
-        const skipLabel = node('label', '', 'consent'), skip = doc.createElement('input'); skip.type = 'checkbox';
-        skip.onchange = () => { input.disabled = skip.checked; }; skipLabel.append(skip, node('span', 'Already covered in my job details'));
-        get('draft-question-fields').append(label, skipLabel);
-      }
-      get('draft-questions').hidden = !draftQuestions.length;
-      get('editor-source').textContent = 'AI-drafted · untested. Review the suggested result and tools. Customize anything before continuing.';
+      get('editor-source').textContent = 'AI-drafted · untested. Review the suggested result and tools. Written boundaries guide the model; mapped tool scope, approval and the call limit are enforced.';
       feedback('draft-feedback', 'Draft ready. Review it below.'); updateDraftPreview();
     }, 'draft-feedback').finally(renderDraftConnections);
   });
@@ -739,7 +772,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     void perform(submit, async () => {
       const definition = definitionFromEditor();
       const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : {}) };
-      const created = await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: jobInputs() });
+      if(currentPlan && !startTrial) { await savePlan(); message('Agent draft saved. Continue setup whenever you are ready.'); return; }
+      const created = currentPlan ? await mutate('create-bound',{id:currentPlan.id,definition,bindings:selectedBindings(),setup:jobInputs()}) : await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: jobInputs() });
       if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
       recipeContext(); runtime.location.hash = 'run'; showStage('run'); await refresh();
       if (tenant !== currentTenant) return;
@@ -749,18 +783,18 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       catch (error) { if (tenant !== currentTenant) return; await refresh(); message('Your agent was created, but its trial could not start. Retry from My agents. ' + (error instanceof Error ? error.message : ''), true); return; }
       if (tenant !== currentTenant) return;
       await refresh(); message('First trial planned. Review its proposed action or result below.');
-    }).finally(() => { creating = false; });
+    }).finally(() => { creating = false; updateMappingStatus(); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
   workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
-    const use = node('button', 'Use this recipe') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;
+    const use = node('button', 'Use this template') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;
   }));
   const query = new URLSearchParams(runtime.location.search);
   if (query.has('recipe')) {
     selectedRecipe = query.getAll('recipe').length === 1 && query.getAll('recipe_version').length === 1 ? recipeCatalog.find(recipe => recipe.id === query.get('recipe') && recipe.version === query.get('recipe_version')) : undefined;
-    if (!selectedRecipe) { get('recipe-error').hidden = false; get('recipe-error').textContent = 'This recipe version is unavailable. Choose a current recipe below; no draft has been created.'; }
+    if (!selectedRecipe) { get('recipe-error').hidden = false; get('recipe-error').textContent = 'This agent template version is unavailable. Choose a current template below; no draft has been created.'; }
   }
   showStage(query.has('recipe') && !['connect','run'].includes(runtime.location.hash.slice(1)) ? 'create' : runtime.location.hash.slice(1));
   void (async () => {

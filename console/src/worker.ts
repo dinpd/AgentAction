@@ -268,9 +268,9 @@ const SHELL_HTML = `<!doctype html>
           </div>
           <span class="role-badge" data-setup-role>Not provisioned</span>
         </header>
-        <section class="setup-notice" data-recipe-context hidden aria-label="Selected agent recipe">
+        <section class="setup-notice" data-recipe-context hidden aria-label="Selected agent template">
           <h3 data-recipe-title></h3><p data-recipe-detail></p>
-          <a data-recipe-link class="text-link">Review recipe and instructions ↗</a>
+          <a data-recipe-link class="text-link">Review template and instructions ↗</a>
         </section>
         <section class="setup-notice" data-setup-message role="status" aria-live="polite">
           <h3 data-setup-message-title>Choose how to get started</h3>
@@ -367,7 +367,7 @@ const SHELL_HTML = `<!doctype html>
           <h3 data-evals-message-title>Loading evaluations</h3>
           <p data-evals-message-detail>Reading this workspace's definitions and routing rules.</p>
         </section>
-        <section data-hosted-evals class="hosted-history" aria-label="Hosted recipe evaluations" hidden></section>
+        <section data-hosted-evals class="hosted-history" aria-label="Hosted agent evaluations" hidden></section>
         <section data-evals-content hidden>
           <div class="setup-grid eval-overview-grid">
             <section class="setup-card setup-wide">
@@ -1677,14 +1677,14 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
   if (recipeContext && selectedRecipe) {
     recipeContext.hidden = false;
     required<HTMLElement>("[data-recipe-title]").textContent = `${selectedRecipe.title} · v${selectedRecipe.version}`;
-    required<HTMLElement>("[data-recipe-detail]").textContent = "Create or select a workspace, then continue to Create to configure this recipe. Your server connections and draft inputs belong to the selected workspace.";
+    required<HTMLElement>("[data-recipe-detail]").textContent = "Create or select a workspace, then continue to Create to configure this agent. Your MCP servers and draft inputs belong to the selected workspace.";
     required<HTMLAnchorElement>("[data-recipe-link]").href = `/agents?recipe=${encodeURIComponent(selectedRecipe.id)}&recipe_version=${encodeURIComponent(selectedRecipe.version)}#create`;
-    required<HTMLAnchorElement>("[data-recipe-link]").textContent = "Continue with this recipe →";
+    required<HTMLAnchorElement>("[data-recipe-link]").textContent = "Continue with this agent template →";
     required<HTMLAnchorElement>("[data-recipe-link]").setAttribute("data-workspace-link", "");
   } else if (recipeContext && recipeQuery.has("recipe")) {
     recipeContext.hidden = false;
-    required<HTMLElement>("[data-recipe-title]").textContent = "Review the current recipe";
-    required<HTMLElement>("[data-recipe-detail]").textContent = "This recipe version is unavailable. Choose a published recipe from the directory before continuing.";
+    required<HTMLElement>("[data-recipe-title]").textContent = "Review the current agent template";
+    required<HTMLElement>("[data-recipe-detail]").textContent = "This template version is unavailable. Choose a published template from the directory before continuing.";
     required<HTMLAnchorElement>("[data-recipe-link]").href = "https://agentaction.dev/recipes";
   }
   let pendingInvitationId = invitationIdFromSearch(runtime.location.search);
@@ -5259,7 +5259,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["inspect-endpoint", "connect", "suggest", "draft", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["inspect-endpoint", "connect", "suggest", "draft", "save-draft", "template-draft", "create-bound", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;

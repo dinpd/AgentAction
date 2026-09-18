@@ -34,9 +34,9 @@ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CH
 const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
 const base=`http://127.0.0.1:${(server.address() as any).port}`;
 try {
- for(const [variant,title] of [['new','Start with your workspace'],['empty','Connect your first MCP server'],['connected','Give your agent a job'],['draft','Try your first run'],['pending','A run needs your review'],['success','Make the next run better'],['error','Check your workspace connection']]) {
-  mode=variant;await page.goto(base+'/?case='+variant+'#overview');await page.getByRole('heading',{name:title,exact:true}).waitFor();assert.equal(await page.locator('.journey-track li').count(),5);assert.equal(await page.locator('[data-console-view=overview]').isHidden(),true);
-  assert.equal(await page.locator('.journey-nav [data-stage]').count(),6);
+ for(const [variant,title] of [['new','Start with your workspace'],['empty','Give your agent a job'],['connected','Give your agent a job'],['draft','Try your first run'],['pending','A run needs your review'],['success','Make the next run better'],['error','Check your workspace connection']]) {
+  mode=variant;await page.goto(base+'/?case='+variant+'#overview');await page.getByRole('heading',{name:title,exact:true}).waitFor();assert.equal(await page.locator('.journey-track li').count(),4);assert.equal(await page.locator('[data-console-view=overview]').isHidden(),true);
+  assert.equal(await page.locator('.journey-nav [data-stage]').count(),5);
   assert.equal(await page.locator('.journey-nav [data-utility]').count(),0);
   if(variant==='new') {
    assert.equal(await page.locator('.journey-track li[data-next=true]').count(),0);
@@ -48,7 +48,7 @@ try {
   }
  }
  mode='draft';await page.goto(base+'/#overview');await page.getByRole('heading',{name:'Try your first run',exact:true}).waitFor();await page.screenshot({path:'/tmp/agentaction-209-overview-desktop.png',fullPage:true});
- delayed=true;await page.reload();await page.locator('[data-tenant-select]').selectOption('beta');await page.getByRole('heading',{name:'Connect your first MCP server',exact:true}).waitFor();await page.waitForTimeout(550);assert.equal(await page.locator('[data-journey-next]').getAttribute('href'),'/agents?workspace=beta#connect');delayed=false;
+ delayed=true;await page.reload();await page.locator('[data-tenant-select]').selectOption('beta');await page.getByRole('heading',{name:'Give your agent a job',exact:true}).waitFor();await page.waitForTimeout(550);assert.equal(await page.locator('[data-journey-next]').getAttribute('href'),'/agents?workspace=beta#create');delayed=false;
  await page.locator('[data-utility=settings]').click();
  await page.getByRole('heading',{name:'Workspace settings',exact:true}).waitFor();
  await page.getByText('Workspace settings are ready',{exact:true}).waitFor();
@@ -63,7 +63,7 @@ try {
  await page.locator('[data-stage=connect]').click();await page.getByRole('heading',{name:'Connect your tools.',exact:true}).waitFor();assert.equal(await page.locator('[data-builder-stage=run]').first().isHidden(),true);
  await page.getByRole('heading',{name:'MCP servers',exact:true}).waitFor();
  assert.equal(await page.locator('[data-builder-stage=connect]').getByRole('link',{name:'Workspace settings',exact:true}).count(),0);
- await page.getByRole('button',{name:'MCP connections',exact:true}).click();
+ await page.getByRole('button',{name:'My MCP servers',exact:true}).click();
  await page.getByText('Authentication: no stored credential',{exact:true}).waitFor();
  await page.getByText('Server: https://example.com/mcp',{exact:true}).waitFor();
  await page.screenshot({path:'/tmp/agentaction-211-servers-desktop.png',fullPage:true});
@@ -73,7 +73,7 @@ try {
  await page.getByText('Workspace settings are ready',{exact:true}).waitFor();
  assert.equal(await page.locator('[data-tenant-select]').inputValue(),'beta');
  mode='success';await page.goto(base+'/agents?workspace=acme#connect');
- await page.getByRole('button',{name:'MCP connections',exact:true}).click();
+ await page.getByRole('button',{name:'My MCP servers',exact:true}).click();
  await page.getByText('Connected account: credential stored',{exact:true}).waitFor();
  for(const path of ['/#overview','/agents#connect','/agents#create','/agents#run','/#activity','/#quality','/#evals','/#setup','/#exceptions']) {
   await page.setViewportSize({width:390,height:844});await page.goto(base+path);await page.waitForTimeout(150);const overflow=await page.evaluate(()=>Array.from(document.querySelectorAll('main *')).filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width})));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,path+JSON.stringify(overflow));if(path==='/#setup')await page.screenshot({path:'/tmp/agentaction-211-settings-mobile.png',fullPage:true});if(path==='/#overview'||path==='/agents#create')await page.screenshot({path:'/tmp/agentaction-209-'+(path==='/#overview'?'overview':'create')+'-mobile.png',fullPage:true});

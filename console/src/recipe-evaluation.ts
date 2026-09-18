@@ -1,13 +1,14 @@
+import type { ToolSource, ToolBindings } from './agent-plans.ts';
 import { bindIntentProfile, digestIntentProfile, evaluateIntent, issueIntentContract, type IntentProfile, type IntentContract, type IntentEvaluationReceipt, type IntentPredicate } from "../../packages/guard/src/intent.ts";
 import { object, RuntimeError, textField } from "./mcp-client.ts";
 import type { RecipeDefinition } from "./workspace-recipes.ts";
 
 export type RecipeCheck = { id: string; label: string; kind: "tool_succeeded" | "tool_not_called" | "result_field"; tool: string; path?: string; operator?: "equals" | "gte" | "lte" | "exists"; value?: string | number | boolean };
 export type RecipeEval = { version: 1; checks: RecipeCheck[] };
-export type RecipeEvalBinding = { schema_version: "agentaction.hosted-eval-binding.v1"; definition_digest: string; profile: IntentProfile; specification: RecipeEval; allowed_tools: string[]; recipe?: { id: string; version: number } };
+export type RecipeEvalBinding = { tool_bindings?: ToolBindings; schema_version: "agentaction.hosted-eval-binding.v1"; definition_digest: string; profile: IntentProfile; specification: RecipeEval; allowed_tools: string[]; recipe?: { id: string; version: number } };
 export type HostedContract = { binding: RecipeEvalBinding; intent: IntentContract };
 export type HostedEvaluation = { status: "pass" | "fail" | "insufficient_evidence"; receipt: IntentEvaluationReceipt; evidence_digest: string; source_digest: string; criteria: Array<{ id: string; label: string; status: "pass" | "fail" | "insufficient_evidence"; reason: string; evidence: string; trust: "runtime_recorded" | "provider_reported" }> };
-export type EvaluationRun = { id: string; agentId: string; status: string; startedAt: string; finishedAt?: string; events: Array<{ tool: string; arguments: Record<string, unknown>; status: string; result?: string; approval?: { id: string; actor: string; at: string } }>; contract?: HostedContract; evaluation?: HostedEvaluation };
+export type EvaluationRun = { id: string; agentId: string; status: string; startedAt: string; finishedAt?: string; events: Array<{ source?: ToolSource; tool: string; arguments: Record<string, unknown>; status: string; result?: string; approval?: { id: string; actor: string; at: string } }>; contract?: HostedContract; evaluation?: HostedEvaluation };
 const RESERVED = new Set(["__proto__", "prototype", "constructor"]);
 const BUILTIN_IDS = new Set(["run_completed", "successful_call", "scope", "budget", "approval"]);
 
@@ -52,7 +53,7 @@ export async function evidenceDigest(value: unknown): Promise<string> {
   return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2,'0')).join('');
 }
 const predicate = (id: string, description: string, path: string, value: unknown = true, operator: "equals" | "gte" | "lte" = "equals"): IntentPredicate => ({ id, description, source: "job", assertion: { path, operator, value } });
-export async function bindRecipeEval(definition: RecipeDefinition, recipe?: RecipeEvalBinding['recipe']): Promise<RecipeEvalBinding | undefined> {
+export async function bindRecipeEval(definition: RecipeDefinition, recipe?: RecipeEvalBinding['recipe'], toolBindings?: ToolBindings): Promise<RecipeEvalBinding | undefined> {
   if (!definition.evaluation) return undefined;
   const specification = validateRecipeEval(definition.evaluation, definition.tools);
   const digest = await evidenceDigest(definition);
@@ -60,13 +61,13 @@ export async function bindRecipeEval(definition: RecipeDefinition, recipe?: Reci
     schema_version: "agentpass.intent-profile.v1", profile: `hosted_recipe_${digest.slice(0,32)}`, version: "v1", issuer: "agentaction-hosted-runtime", issued_at: "2026-09-17T00:00:00.000Z", objective_template: "{{goal}}",
     variables: { goal: { type: "string", required: true }, definition_digest: { type: "string", required: true }, inputs_digest: { type: "string", required: true }, connection_id: { type: "string", required: true }, agent_id: { type: "string", required: true }, specification_digest: { type: "string", required: true }, scope_digest: { type: "string", required: true }, recipe_ref: { type: "string", required: true } },
     required_outcomes: [predicate('run_completed', 'Run completed successfully', 'status', 'completed'), predicate('successful_call', 'At least one successful tool call', 'successful_calls', 1, 'gte'), ...specification.checks.filter(c => c.kind !== 'tool_not_called').map(c => predicate(c.id, c.label, `checks.${c.id}`, c.kind === 'result_field' && c.operator !== 'exists' ? c.value : true, c.operator === 'gte' || c.operator === 'lte' ? c.operator : 'equals'))],
-    hard_constraints: [predicate('scope', `Only selected tools: ${definition.tools.join(', ')}`, 'scope'), predicate('budget', 'No more than four tool calls', 'calls', 4, 'lte'), predicate('approval', 'Every tool call has recorded approval', 'approved'), ...specification.checks.filter(c => c.kind === 'tool_not_called').map(c => predicate(c.id, c.label, `checks.${c.id}`))],
+    hard_constraints: [predicate('scope', `Only selected tools: ${definition.tools.map(t=>definition.toolLabels?.[t] || t).join(', ')}`, 'scope'), predicate('budget', 'No more than four tool calls', 'calls', 4, 'lte'), predicate('approval', 'Every tool call has recorded approval', 'approved'), ...specification.checks.filter(c => c.kind === 'tool_not_called').map(c => predicate(c.id, c.label, `checks.${c.id}`))],
     evidence_requirements: ['job'],
   });
-  return { schema_version: 'agentaction.hosted-eval-binding.v1', definition_digest: digest, profile, specification, allowed_tools: [...definition.tools], ...(recipe ? { recipe } : {}) };
+  return { schema_version: 'agentaction.hosted-eval-binding.v1', definition_digest: digest, profile, specification, allowed_tools: [...definition.tools], ...(toolBindings ? {tool_bindings:structuredClone(toolBindings)} : {}), ...(recipe ? { recipe } : {}) };
 }
 export async function issueHostedContract(binding: RecipeEvalBinding, run: EvaluationRun, agent: { id: string; goal: string; setup: string; connectionId: string }): Promise<HostedContract> {
-  const intent = issueIntentContract(binding.profile, { intent_id: `hosted_intent_${run.id}`, job_id: `supervised:${run.id}`, issued_at: run.startedAt, variables: { goal: agent.goal, definition_digest: binding.definition_digest, inputs_digest: await evidenceDigest(agent.setup), connection_id: agent.connectionId, agent_id: agent.id, specification_digest: await evidenceDigest(binding.specification), scope_digest: await evidenceDigest(binding.allowed_tools), recipe_ref: canonical(binding.recipe || null) } });
+  const intent = issueIntentContract(binding.profile, { intent_id: `hosted_intent_${run.id}`, job_id: `supervised:${run.id}`, issued_at: run.startedAt, variables: { goal: agent.goal, definition_digest: binding.definition_digest, inputs_digest: await evidenceDigest(agent.setup), connection_id: agent.connectionId, agent_id: agent.id, specification_digest: await evidenceDigest(binding.specification), scope_digest: await evidenceDigest(binding.tool_bindings ? {tools:binding.allowed_tools,bindings:binding.tool_bindings} : binding.allowed_tools), recipe_ref: canonical(binding.recipe || null) } });
   return { binding: structuredClone(binding), intent };
 }
 function ownPath(value: unknown, path: string): { present: boolean; value?: unknown } {
@@ -79,7 +80,7 @@ function ownPath(value: unknown, path: string): { present: boolean; value?: unkn
 export async function evaluateHostedRun(run: EvaluationRun): Promise<HostedEvaluation> {
   const { binding, intent } = run.contract!;
   if (binding.profile.profile_digest !== digestIntentProfile(binding.profile) || intent.profile_digest !== binding.profile.profile_digest || intent.profile_variables?.definition_digest !== binding.definition_digest || intent.profile_variables?.agent_id !== run.agentId || intent.job_id !== `supervised:${run.id}` || intent.intent_id !== `hosted_intent_${run.id}`) throw new RuntimeError('The frozen contract binding is invalid.', 409);
-  if (intent.profile_variables?.specification_digest !== await evidenceDigest(binding.specification) || intent.profile_variables?.scope_digest !== await evidenceDigest(binding.allowed_tools) || intent.profile_variables?.recipe_ref !== canonical(binding.recipe || null)) throw new RuntimeError('The frozen evaluation specification is invalid.', 409);
+  if (intent.profile_variables?.specification_digest !== await evidenceDigest(binding.specification) || intent.profile_variables?.scope_digest !== await evidenceDigest(binding.tool_bindings ? {tools:binding.allowed_tools,bindings:binding.tool_bindings} : binding.allowed_tools) || intent.profile_variables?.recipe_ref !== canonical(binding.recipe || null)) throw new RuntimeError('The frozen evaluation specification is invalid.', 409);
   const checks: Record<string, string | number | boolean> = {};
   const refs = new Map<string, string>();
   for (const c of binding.specification.checks) {
@@ -104,7 +105,7 @@ export async function evaluateHostedRun(run: EvaluationRun): Promise<HostedEvalu
   // into proof of success or absence. Runtime completion remains a separate check.
   for (const c of binding.specification.checks) if (c.kind === 'tool_succeeded' && !checks[c.id] && run.events.some(e => e.tool === c.tool && ['executing','uncertain'].includes(e.status))) delete checks[c.id];
   const sourceDigest = await evidenceDigest({ status: run.status, events: run.events, finishedAt: run.finishedAt });
-  const job = { job_id: intent.job_id, intent_id: intent.intent_id, intent_digest: intent.intent_digest, agent_id: run.agentId, status: run.status, calls: run.events.length, successful_calls: run.events.filter(e => e.status === 'succeeded').length, scope: run.events.every(e => binding.allowed_tools.includes(e.tool)), approved: run.events.every(e => e.approval && e.approval.id && e.approval.actor && Number.isFinite(Date.parse(e.approval.at))), checks, source_digest: sourceDigest };
+  const job = { job_id: intent.job_id, intent_id: intent.intent_id, intent_digest: intent.intent_digest, agent_id: run.agentId, status: run.status, calls: run.events.length, successful_calls: run.events.filter(e => e.status === 'succeeded').length, scope: run.events.every(e => binding.allowed_tools.includes(e.tool) && (!binding.tool_bindings || canonical(e.source || null) === canonical(binding.tool_bindings[e.tool] || null))), approved: run.events.every(e => e.approval && e.approval.id && e.approval.actor && Number.isFinite(Date.parse(e.approval.at))), checks, source_digest: sourceDigest };
   const receipt = evaluateIntent(intent, { job }, { idGenerator: () => `hosted_eval_${run.id}`, now: () => new Date(run.finishedAt!) });
   const results = [...receipt.outcomes, ...receipt.constraints];
   const criteria = results.map(r => {
