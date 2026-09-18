@@ -52,7 +52,7 @@ try {
  mode='pending';await page.reload();await page.getByRole('button',{name:'Approve and execute',exact:true}).waitFor();
  assert.equal(await page.locator('#runs [data-run-at]').count(),41,'Keep an older pending approval beyond recent checks');
  delayed=true;await page.locator('#refresh').click();await page.locator('#workspace').selectOption('beta');
- await page.getByText('Choose a recipe or an AI suggestion in Create to build your first agent.',{exact:true}).waitFor();
+ await page.getByText('Choose an agent template or an AI suggestion in Create to build your first agent.',{exact:true}).waitFor();
  await page.waitForTimeout(650);assert.equal(await page.locator('#agents [data-recurring-agent]').count(),0);
  delayed=false;mode='recurring';await page.goto(base+'/?workspace=acme#overview');
  await page.getByRole('heading',{name:'Your recurring agents are checking in',exact:true}).waitFor();

@@ -55,7 +55,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     const detail = node('details') as HTMLDetailsElement; detail.dataset.hostedEvaluation = intent.job_id;
     const result = evaluation ? evaluation.status.replaceAll('_',' ') : 'pending';
     detail.append(node('summary', `Contract & evaluation · ${result}`), node('p', `Contract: ${intent.intent_id}`), node('p', `Profile: ${intent.profile}`), node('p', `Contract digest: ${intent.intent_digest}`, 'note'), node('p', `Profile digest: ${intent.profile_digest}`, 'note'));
-    if (binding.recipe) detail.append(node('p', `Workspace recipe: ${binding.recipe.id} · v${binding.recipe.version}`));
+    if (binding.recipe) detail.append(node('p', `Agent template: ${binding.recipe.id} · v${binding.recipe.version}`));
     detail.append(node('p', 'All measurable checks are required. Runtime records establish recorded execution; provider-reported fields are not independently verified. This is a hosted evaluation, not a signed gateway receipt.', 'note'));
     if (evaluation) {
       detail.append(node('p', `Evidence digest: ${evaluation.evidence_digest}`, 'note'), node('p', `Recorded source digest: ${evaluation.source_digest}`, 'note'));
@@ -70,7 +70,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       detail.append(node('p', 'Evaluation will be recorded when this run ends. No pass is implied while work is pending.', 'note'));
       for (const c of [...intent.required_outcomes,...intent.hard_constraints]) detail.append(node('p', c.description || c.id));
     }
-    const contract = node('details'); contract.append(node('summary','Inspect frozen contract'),node('pre',JSON.stringify(intent,null,2))); detail.append(contract); parent.append(detail);
+    const contract = node('details'); contract.append(node('summary','Inspect frozen contract'),node('pre',JSON.stringify(run.contract,null,2))); detail.append(contract); parent.append(detail);
   }
   function appendAgents(parent: HTMLElement, data: any, tenant: string) {
     if (!data) { parent.append(node("p", "Recurring agents are unavailable. Refresh to retry.", "history-error")); return; }
@@ -252,8 +252,8 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     const current = ++generations.evals; panel.replaceChildren(); panel.hidden = demo; if (demo || !tenant) return;
     panel.append(node('p', 'Loading hosted recipe evaluations…', 'note'));
     const data = await read(tenant, 'agents'); if (current !== generations.evals) return;
-    panel.replaceChildren(); panel.append(node('h3','Hosted recipe evaluations'),node('p','These definitions are bound automatically from Create. External-agent routing below applies to gateway Jobs.', 'note'));
-    if (!data) { panel.append(node('p','Hosted recipe evaluations are unavailable. Refresh to retry.','history-error')); return; }
+    panel.replaceChildren(); panel.append(node('h3','Hosted agent evaluations'),node('p','These definitions are bound automatically from Create. External-agent routing below applies to gateway Jobs.', 'note'));
+    if (!data) { panel.append(node('p','Hosted agent evaluations are unavailable. Refresh to retry.','history-error')); return; }
     const agents = data.agents.filter((a: any) => a.evaluationBinding);
     for (const agent of agents) {
       const binding = agent.evaluationBinding, card = node('article','','card history-card');
@@ -265,7 +265,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       panel.append(card);
     }
     if (!agents.length) panel.append(node('p','No hosted agents have bound evaluations yet. Enable measurable checks in Create.','note'));
-    panel.append(link('Build or revise a recipe →',tenant,'/agents','create'));
+    panel.append(link('Build or revise an agent →',tenant,'/agents','create'));
   }
   return { read, appendAgents, appendRuns, appendEvaluation, sortRuns, clearMonitor, loadEvals,
     loadMonitor: (tenant: string, demo: boolean) => load("activity", tenant, demo),

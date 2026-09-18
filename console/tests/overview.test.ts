@@ -2516,7 +2516,7 @@ test("recipe handoff uses reviewed catalog values and persists across Jobs navig
 test("unknown, duplicated and stale recipe query values never become trusted recipe context", async () => {
   for (const search of ["?recipe=%3Cscript%3E&recipe_version=1.0.0", "?recipe=support-refund&recipe_version=9.0.0", "?recipe=support-refund&recipe=support-triage&recipe_version=1.0.0"]) {
     const app = makeRuntime({ hash: "#setup", search }); await app.controller.ready;
-    assert.equal(app.document.querySelector("[data-recipe-title]")?.textContent, "Review the current recipe");
+    assert.equal(app.document.querySelector("[data-recipe-title]")?.textContent, "Review the current agent template");
     assert.doesNotMatch(app.document.querySelector("[data-recipe-detail]")?.textContent || "", /<script>/);
     assert.equal(app.requestBodies.length, 0);
   }

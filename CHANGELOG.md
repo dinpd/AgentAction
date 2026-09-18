@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.28.0-rc.1 - 2026-09-18
+
+### Added
+
+- Create an agent before choosing MCP servers. Describe a job or use an agent template, save an unbound workspace draft, and return to finish its tools later. Create is the first lifecycle step; MCP servers live in workspace navigation.
+- Map each required capability to a discovered tool and MCP account. Equivalent accounts stay unresolved; unique available matches are proposed. Browse available MCP servers or add your own from the tools editor without losing draft edits or job inputs.
+- Run supervised agents across multiple MCP servers with a shared four-call budget and approval for every exact action. Contracts freeze per-tool server mappings, events retain source provenance, and evaluation checks tool scope against those sources. Reconnecting or disconnecting any mapped server pauses affected agents and invalidates trial evidence.
+
+### Compatibility and migration
+
+- Significant functionality: v0.28.0-rc.1 adds persisted unbound drafts, optional tool labels/bindings and source evidence. Existing single-server agents, stored recipes, API identifiers and template deep links remain compatible; no migration or retrospective rebinding. Reusable definitions are presented as agent templates.
+- Proposed text and tool matches are untested suggestions. Written boundaries guide the model; mapped tool scope, exact-action approval and the total call budget are runtime-enforced. Hosted contract/evaluation records remain unsigned, and provider output is not independent verification.
+- Drafts exclude stored MCP credentials and template definitions exclude account mappings and instance inputs. Discovered registry entries do not grant executable access. Existing endpoint approvals and authentication remain required.
+- Install Python artifacts from the GitHub v0.28.0-rc.1 prerelease. npm publication is unchanged; the hosted console deploys from the merged commit.
+
 ## 0.27.0-rc.1 - 2026-09-17
 
 ### Added

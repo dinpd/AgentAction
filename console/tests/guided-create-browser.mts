@@ -13,24 +13,25 @@ class Storage implements RuntimeStorage {
 }
 const storage = new Storage(), beta = new Storage();
 const connection = { id:'server', label:'Research server', status:'connected', endpoint:'https://mcp.firecrawl.dev/v2/mcp', protocol:'2025-03-26', tools:[{name:'firecrawl_scrape',description:'',inputSchema:{type:'object'}},{name:'search',description:'',inputSchema:{type:'object'}}], suggestions:[{id:'suggested',title:'Suggested brief',goal:'Research a market',setup:'Provide a market',success:'Cite sources',tools:['search']}] };
-await storage.put('connection:server', connection);
+
 let step=0, failDraft=false, holdDraft=false, releaseDraft:(()=>void)|undefined;
 const ai={async run(_model:any,input:any){
  if(input.messages[0].content.startsWith('Draft a narrow')) {
   if(holdDraft) await new Promise<void>(resolve=>{releaseDraft=resolve;});
   if(failDraft) throw new Error('offline');
   const {description}=JSON.parse(input.messages[1].content);
-  return {response:{title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',tools:['firecrawl_scrape'],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
+  return {response:{title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',requirements:[{label:'Read pricing page',matches:JSON.parse(input.messages[1].content).tools.filter((t:any)=>t.tool==='firecrawl_scrape').map((t:any)=>t.id)}],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
  }
- return {response:step++%2===0?{type:'call',tool:'firecrawl_scrape',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};
+ return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};
 }};
 const transport=async (_url:any,init:any)=>{
+ if(!init?.body)return Response.json({Status:0,Answer:[{type:1,data:'104.26.5.12'}]});
  if(init.method==='DELETE')return new Response(null,{status:204});const message=JSON.parse(init.body);
  if(message.method==='notifications/initialized')return new Response(null,{status:202});
  const result=message.method==='initialize'?{protocolVersion:'2025-03-26',capabilities:{tools:{}}}:message.method==='tools/list'?{tools:connection.tools}:{structuredContent:{price:20}};
  return Response.json({jsonrpc:'2.0',id:message.id,result});
 };
-const runtimes = { acme: new AgentRuntime(storage, {AGENT_AI:ai},transport as typeof fetch), beta: new AgentRuntime(beta, {}) };
+const runtimes = { acme: new AgentRuntime(storage, {AGENT_AI:ai},transport as typeof fetch), beta: new AgentRuntime(beta, {AGENT_AI:ai},transport as typeof fetch) };
 let viewer = false;
 const posts: any[] = [];
 const env = { CONSOLE_ENABLE_MOCK_IDENTITY:'true', CONSOLE_ENVIRONMENT:'development', CONSOLE_MOCK_SUBJECT:'test', CONSOLE_MOCK_TENANT_ID:'acme' };
@@ -60,58 +61,63 @@ const field = (name:string) => page.locator(`#create [name=${name}]`);
 const latest = async () => (await runtimes.acme.snapshot() as any);
 try {
  page.setDefaultTimeout(10000);
- await page.goto(base+'/agents#create');
- assert.equal(await page.locator('#draft-connection').inputValue(),'server');
- assert.equal(await page.locator('#draft-connection-field').isHidden(),true);
+ await page.goto(base+'/agents');
+ await page.getByRole('heading',{name:'Give your agent a job.',exact:true}).waitFor();
+ assert.equal(await page.locator('#draft-connection').count(),0);
+ assert.equal(await page.locator('.journey-nav a[data-stage]').nth(1).getAttribute('data-stage'),'create');
+ assert.equal(await page.locator('.workspace-nav [data-stage=connect]').innerText().then(t=>t.includes('MCP servers')),true);
  await page.locator('#job-description').fill('Summarize https://example.com/pricing in USD with sources');
  await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
  await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
  assert.equal(await field('title').inputValue(),'Pricing brief');
  assert.equal(await field('setup').inputValue(),'Summarize https://example.com/pricing in USD with sources');
  assert.equal(await page.locator('#draft-customize').getAttribute('open'),null);
- assert.equal(await page.locator('#draft-questions').isHidden(),true);
- assert.equal((await latest()).agents.length,0);assert.equal((await latest()).workspaceRecipes.length,0);
+ assert.equal(await page.locator('#review-first-action').isDisabled(),true);
+ assert.equal((await latest()).agents.length,0);assert.equal((await latest()).drafts.length,1);
+ await page.locator('#draft-customize > summary').click();await field('instructions').fill('Read the page and cite billing intervals.');
+ await page.locator('#draft-customize > summary').click();
+ await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
+ assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
+ // Browsing and custom setup persist edits, including inputs, and never execute a provider call.
+ await field('setup').fill('Read https://example.com/pricing for the annual report');
+ await page.getByRole('button',{name:'Browse available MCP servers',exact:true}).click();
+ await page.locator('#catalog-view').waitFor();await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();
+ assert.equal(await field('setup').inputValue(),'Read https://example.com/pricing for the annual report');
+ await page.locator('#plan-custom').click();await page.locator('#setup-view').waitFor();
+ await page.locator('#connect [name=label]').fill('Research account');
+ await page.locator('#connect [name=endpoint]').fill(connection.endpoint);
+ await page.locator('#connect [name=consent]').check();
+ await page.getByRole('button',{name:'Connect server',exact:true}).click();
+ await page.getByText('Server connected. Review the tool mappings', {exact:false}).waitFor();
+ assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
+ const serverId=(await latest()).connections[0].id;
+ await page.locator('[data-tool-mapping]').selectOption(JSON.stringify({connectionId:serverId,tool:'firecrawl_scrape'}));
+ assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- await page.locator('#configure').screenshot({path:'/tmp/aa-225-guided-mobile.png'});
- await page.setViewportSize({width:1440,height:1050});await page.locator('#configure').screenshot({path:'/tmp/aa-225-guided-desktop.png'});
- await page.locator('#draft-customize > summary').click();await field('success').fill('Prices and billing intervals, with links');
- await page.locator('#draft-customize > summary').click();assert.ok((await page.locator('#draft-preview').innerText()).includes('Prices and billing intervals'));
+ await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-mobile.png'});
+ await page.setViewportSize({width:1440,height:1050});await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-desktop.png'});
  await page.getByRole('button',{name:'Review first action',exact:true}).click();
  await page.getByRole('button',{name:'Approve and execute',exact:true}).waitFor();
- let snapshot=await latest();assert.equal(snapshot.agents.length,1);assert.equal(snapshot.runs.length,1);assert.equal(snapshot.runs[0].events.length,0);assert.ok(snapshot.runs[0].contract);
- assert.equal(snapshot.agents[0].success,'Prices and billing intervals, with links');assert.equal(posts.filter(p=>p.action==='approve').length,0);
- // Missing essentials are blank, required, and stored only in instance inputs.
- await page.goto(base+'/agents#create');await page.locator('#job-description').fill('Summarize pricing');await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
- await page.getByLabel('Which pricing page should I read?',{exact:true}).waitFor();
- const count=posts.filter(p=>p.action==='create').length;await page.getByRole('button',{name:'Save draft only',exact:true}).click();assert.equal(posts.filter(p=>p.action==='create').length,count);
- await page.getByLabel('Which pricing page should I read?',{exact:true}).fill('https://example.com/private-pricing');
- await page.locator('#draft-customize > summary').click();await page.getByRole('button',{name:'Save workspace recipe',exact:true}).click();await page.getByText('Saved workspace recipe v1.',{exact:false}).waitFor();
- assert.equal(JSON.stringify((await latest()).workspaceRecipes).includes('private-pricing'),false);
- await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();
- assert.ok((await latest()).agents.some((a:any)=>a.setup.includes('private-pricing')));
- // A trial-start failure retains the created draft and does not replay creation.
- await page.goto(base+'/agents#create');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.getByRole('button',{name:'Draft my agent',exact:true}).click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
- await storage.put('limit:runs',{day:new Date().toISOString().slice(0,10),count:20});const beforeFailure=(await latest()).agents.length;
- await page.getByRole('button',{name:'Review first action',exact:true}).click();await page.locator('#status').getByText('Your agent was created, but its trial could not start.',{exact:false}).waitFor();assert.equal((await latest()).agents.length,beforeFailure+1);assert.equal((await latest()).runs.length,1);await storage.delete('limit:runs');
- // Multiple accounts are not guessed, including saved recipe reuse.
+ assert.ok((await page.locator('.approval').innerText()).includes('Research account'));
+ assert.ok((await page.locator('.approval').innerText()).includes('firecrawl_scrape'));
+ let snapshot=await latest();assert.equal(snapshot.agents.length,1);assert.equal(snapshot.runs[0].events.length,0);assert.ok(snapshot.runs[0].contract.binding.tool_bindings);
+ await page.getByRole('button',{name:'Approve and execute',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#runs')?.textContent?.includes('The price is 20.'));
+ assert.equal((await latest()).runs[0].evaluation.status,'pass');
+ // Unique tool matches prefill, equivalent accounts remain explicitly unresolved.
+ await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ assert.ok(await page.locator('[data-tool-mapping]').inputValue());
  await storage.put('connection:other',{...connection,id:'other',label:'Second account'});
- await page.goto(base+'/agents#create');assert.equal(await page.locator('#draft-connection').inputValue(),'');assert.equal(await page.locator('#draft-connection-field').isVisible(),true);
- await page.getByRole('button',{name:'Use or edit recipe',exact:true}).click();assert.equal(await page.locator('#editor-connection').inputValue(),'');
- // Generation failure keeps original text and manual authoring available.
- failDraft=true;await page.goto(base+'/agents#create');await page.locator('#draft-connection').selectOption('server');await page.locator('#job-description').fill('Keep these job details');await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
- await page.locator('#draft-feedback').getByText('You can try again or use Start from scratch below.',{exact:false}).waitFor();
- await page.getByRole('button',{name:'Start from scratch',exact:true}).click();assert.equal(await field('setup').inputValue(),'Keep these job details');failDraft=false;
- // Typing while generation is pending invalidates its proposed defaults.
- holdDraft=true;releaseDraft=undefined;await page.goto(base+'/agents#create');await page.locator('#draft-connection').selectOption('server');await page.locator('#job-description').fill('Old https://example.com');await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
- for(let i=0;!releaseDraft&&i<100;i++)await new Promise(r=>setTimeout(r,10));assert.ok(releaseDraft);
- await page.locator('#job-description').fill('Keep my revised job');releaseDraft();holdDraft=false;await page.waitForFunction(()=>!document.querySelector('#generate-draft')?.hasAttribute('aria-busy'));assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await page.locator('#job-description').inputValue(),'Keep my revised job');
- // A response from another workspace must never restore its text.
- holdDraft=true;releaseDraft=undefined;await page.goto(base+'/agents#create');await page.locator('#draft-connection').selectOption('server');await page.locator('#job-description').fill('PRIVATE https://example.com');await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#generate-draft')?.hasAttribute('aria-busy'));
- await page.evaluate(()=>{const s=document.querySelector('#workspace') as HTMLSelectElement;s.value='beta';s.dispatchEvent(new Event('change'));});await page.locator('#status').getByText('Workspace ready · owner').waitFor();
- for(let i=0;!releaseDraft&&i<100;i++)await new Promise(r=>setTimeout(r,10));assert.ok(releaseDraft);releaseDraft();holdDraft=false;
- await page.waitForFunction(()=>!document.querySelector('#generate-draft')?.hasAttribute('aria-busy'));
- assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await page.locator('#job-description').inputValue(),'');assert.equal(await field('setup').inputValue(),'');assert.equal(await page.locator('#generate-draft').isDisabled(),true);assert.equal(await page.locator('#draft-connect').isVisible(),true);
- viewer=true;await page.goto(base+'/agents#create');await page.locator('#account-role').getByText('viewer',{exact:true}).waitFor();assert.equal(await page.locator('#generate-draft').isDisabled(),true);
- assert.deepEqual(errors,[]);console.log('Guided Create acceptance passed: one prompt to approval, editable defaults, required missing details, instance-only answers, optional save, ambiguous accounts, fallback, stale workspace, viewer and mobile.');
-} catch(error){console.error({errors,body:await page.locator('body').innerText()});throw error;}finally{releaseDraft?.();await browser.close();server.close();}
+ await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
+ await page.locator('#create-agent').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ // Switching workspaces clears private editing state; empty workspace can still draft.
+ await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
+ assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await page.locator('#job-description').inputValue(),'');assert.equal(await page.locator('#generate-draft').isEnabled(),true);
+ await page.locator('#job-description').fill('Read https://example.com');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ assert.equal(await page.locator('[data-tool-mapping] option').count(),1);
+ // Viewer cannot generate or edit drafts.
+ viewer=true;await page.goto(base+'/agents?workspace=beta');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();assert.equal(await page.locator('#generate-draft').isDisabled(),true);
+ assert.deepEqual(errors,[]);console.log('Agent-first browser checks passed: empty draft, persistence, MCP detours, ambiguity, source approval, evidence, workspace isolation and mobile layout.');
+} finally { await browser.close();await new Promise<void>(r=>server.close(()=>r())); }
