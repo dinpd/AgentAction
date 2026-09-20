@@ -1,1 +1,3 @@
 recursive-include integrations/hermes-agentaction *.md *.py *.yaml
+include docs/mcp-capabilities.md
+recursive-include examples/mcp-capabilities *.json

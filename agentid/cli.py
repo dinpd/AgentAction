@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 import yaml
 
@@ -24,8 +25,11 @@ from agentid.mcp import (
     format_diff,
     load_tools_list,
 )
+from agentid.mcp_capabilities import capability_report, format_capabilities
+from agentid.mcp_catalog import discover_catalog
 from agentid.mcp_ui import write_mcp_ui
 from agentid.mcp_ui_server import serve_mcp_ui
+from agentid.mcp_workflows import evaluate_workflow
 from agentid.openclaw import format_openclaw_doctor, openclaw_doctor_to_dict, run_openclaw_budget_doctor
 from agentid.policy import generate_policy
 from agentid.provider import (
@@ -104,6 +108,19 @@ def main(argv: list[str] | None = None) -> int:
 
     mcp_parser = subparsers.add_parser("mcp", help="Analyze MCP tool surfaces.")
     mcp_subparsers = mcp_parser.add_subparsers(dest="mcp_command", required=True)
+    catalog_parser = mcp_subparsers.add_parser("catalog", help="Capture tools, resources and templates without executing them.")
+    catalog_parser.add_argument("url")
+    catalog_parser.add_argument("--output", default="-", help="Catalog JSON path, or '-' for stdout.")
+    catalog_parser.add_argument("--header", action="append", default=[])
+    catalog_parser.add_argument("--timeout", type=float, default=30, help="Total discovery time budget in seconds.")
+    catalog_parser.add_argument("--max-pages", type=int, default=20, help="Maximum pages per surface.")
+    catalog_parser.add_argument("--max-items", type=int, default=2000, help="Maximum entries per surface.")
+    catalog_parser.add_argument("--protocol-version", default="2025-11-25")
+    capabilities_parser = mcp_subparsers.add_parser("capabilities", help="Describe capability limits and optional workflow coverage.")
+    capabilities_parser.add_argument("catalog", help="Captured catalog or legacy tools/list JSON.")
+    capabilities_parser.add_argument("--workflow", help="Explicit workflow profile JSON.")
+    capabilities_parser.add_argument("--json", action="store_true")
+    capabilities_parser.add_argument("--require-covered", action="store_true", help="Exit 1 unless the mapped workflow has declared coverage; requires --workflow.")
     mcp_analyze_parser = mcp_subparsers.add_parser("analyze", help="Score an MCP tools/list response.")
     mcp_analyze_parser.add_argument("tools_list")
     mcp_analyze_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -221,6 +238,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "mcp":
         try:
+            if args.mcp_command == "catalog":
+                catalog = discover_catalog(args.url, headers=parse_headers(args.header), timeout=args.timeout,
+                    max_pages=args.max_pages, max_items=args.max_items, protocol_version=args.protocol_version)
+                output = json.dumps(catalog, indent=2) + "\n"
+                if args.output == "-":
+                    print(output, end="")
+                else:
+                    Path(args.output).write_text(output, encoding="utf-8")
+                    print(f"Wrote MCP catalog: {args.output}")
+                return 0 if all(s["status"] in {"complete", "not_advertised"} for s in catalog["surfaces"].values()) else 1
+            if args.mcp_command == "capabilities":
+                if args.require_covered and not args.workflow:
+                    raise ValueError("--require-covered requires --workflow")
+                payload = load_mcp_json(args.catalog)
+                report = capability_report(payload)
+                if args.workflow:
+                    report["workflow"] = evaluate_workflow(payload, load_mcp_json(args.workflow))
+                print(json.dumps(report, indent=2) if args.json else format_capabilities(report), end="\n" if args.json else "")
+                return 1 if args.require_covered and report["workflow"]["status"] != "declared_coverage" else 0
             if args.mcp_command == "analyze":
                 analysis = analyze_tools(load_tools_list(args.tools_list))
                 if args.json:
@@ -502,6 +538,14 @@ def _print_validation(result, include_success: bool = True) -> None:
         print("Warnings:")
         for warning in result.warnings:
             print(f"- {warning}")
+
+
+def load_mcp_json(path: str):
+    with open(path, "rb") as handle:
+        raw = handle.read(16 * 1024 * 1024 + 1)
+    if len(raw) > 16 * 1024 * 1024:
+        raise ValueError("MCP catalog/profile file exceeds 16 MiB")
+    return json.loads(raw)
 
 
 def parse_headers(values: list[str]) -> dict[str, str]:

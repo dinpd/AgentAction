@@ -1,0 +1,133 @@
+{
+  "format": "agentaction.mcp-catalog.v1",
+  "captured_at": null,
+  "protocol_version": "2025-11-25",
+  "server": {
+    "name": "synthetic-ticket-fixture",
+    "version": "1"
+  },
+  "surfaces": {
+    "tools": {
+      "status": "complete",
+      "pages": 1,
+      "items": [
+        {
+          "name": "tickets.search",
+          "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "tickets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "tickets"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "tickets.update",
+          "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "ticket_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed"
+                ]
+              }
+            },
+            "required": [
+              "ticket_id",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "ticket_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ticket_id",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false
+          }
+        }
+      ]
+    },
+    "resources": {
+      "status": "complete",
+      "pages": 1,
+      "items": [
+        {
+          "uri": "ticket://help",
+          "name": "Fixture help",
+          "description": "Read the fixture ticket field reference."
+        }
+      ]
+    },
+    "resourceTemplates": {
+      "status": "complete",
+      "pages": 1,
+      "items": [
+        {
+          "uriTemplate": "ticket://{id}",
+          "name": "Ticket text",
+          "description": "Read fixture ticket text. Attachments are not included."
+        }
+      ]
+    }
+  },
+  "findings": [
+    "Synthetic offline fixture; capture time and account access are unverified."
+  ]
+}

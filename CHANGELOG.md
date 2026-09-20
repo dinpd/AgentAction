@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.30.0-rc.1 - 2026-09-20
+
+### Added
+
+- Capture paginated MCP tools, resources, and resource templates with bounded discovery, explicit incomplete/unknown states, catalog hashes, and server/protocol provenance. Discovery does not execute tools or read resources.
+- Inspect capability schemas, declared restrictions and advisory coverage findings independently of risk scores. Evaluate explicit workflow profiles for missing fields, unsatisfied arguments and broken output-to-input bindings, with JSON/text reports and an opt-in static coverage CI gate.
+- Include synthetic ticket workflow examples and acceptance fixtures. Account access and execution remain unverified; live read/write checks and capability regression comparisons are follow-up slices.
+
+### Compatibility and migration
+
+- Significant functionality: additive CLI commands and new versioned catalog/report/workflow formats; released as an RC for this new compatibility boundary. Existing risk analysis, fetch, check and drift commands retain their behavior. No migration is required.
+- JSON Schema validation is now a runtime dependency. Static evaluation supports conservative JSON Schema 2020-12 checks; complex schemas and unsupported protocol revisions remain unknown. No external schema references are fetched, provider regexes are not executed, and discovery redirects are refused.
+- Install Python artifacts from the GitHub v0.30.0-rc.1 prerelease. No PyPI or npm publication is implied; hosted services are unchanged by this release.
+
 ## 0.29.0-rc.2 - 2026-09-18
 
 ### Fixed
