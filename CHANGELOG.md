@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.31.0-rc.1 - 2026-09-20
+
+### Added
+
+- Show MCP capabilities and limits in the observability console, separating public pre-check summaries from connected-account snapshots. Retain bounded result schemas, annotations, resource listings and discovery provenance; older snapshots remain unknown until refreshed.
+- Assess each mapped draft step against required input/result fields, scalar example inputs and connections to earlier results. Save assessment settings with the draft and recompute declared, blocked or unknown coverage when mappings or catalogs change.
+- Share 14 CLI/console acceptance fixtures and cover persistence, refresh authorization, stale mappings and desktop/mobile behavior. Catalog refresh executes no tools or resource reads and invalidates earlier approvals and activation evidence.
+
+### Compatibility and migration
+
+- Significant functionality: additive console fields, persisted optional metadata and a capability-refresh route; minor RC for the new storage/API boundary. Existing snapshots and drafts need no migration. Refresh connected servers to capture the new metadata; affected agents pause until a new trial.
+- Assessment inputs do not configure actual tool-call arguments. Coverage is conservative schema evidence, with execution, account permissions and result completeness still unverified. Agent-profiler idea generation and existing trial approval rules are unchanged.
+- Install Python artifacts from the GitHub v0.31.0-rc.1 prerelease. No PyPI or npm publication is implied; the operator console deploys from the merged commit.
+
 ## 0.30.0-rc.1 - 2026-09-20
 
 ### Added

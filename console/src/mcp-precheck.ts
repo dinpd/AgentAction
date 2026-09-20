@@ -1,8 +1,10 @@
 import { McpClient, RuntimeError, boundedText, object, type McpTool } from "./mcp-client.ts";
 import { publicEndpointURL, validatePublicEndpoint } from "./endpoint-policy.ts";
+import { capabilityEngine } from './mcp-capabilities.ts';
 
 export type PrecheckFinding = { level: "info" | "review" | "blocked"; title: string; detail: string };
 export type PrecheckReport = {
+  capabilities?: ReturnType<ReturnType<typeof capabilityEngine>['inventory']>;
   endpoint: string; checkedAt: string; protocol: string; requestedProtocol?: string;
   authentication: "oauth" | "required" | "not-observed" | "unknown";
   visibility: "public-tools" | "authentication-required" | "unavailable";
@@ -55,6 +57,7 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
       const tools = await client.discover(); report.protocol = connection.protocol;
       report.visibility = "public-tools"; report.toolCount = tools.length;
       report.tools = tools.slice(0, 20).map(t => ({ name: t.name, description: t.description.slice(0, 160), inputs: Object.keys(t.inputSchema.properties && typeof t.inputSchema.properties === "object" ? t.inputSchema.properties : {}).slice(0, 8).map(s => s.slice(0, 40)) }));
+      report.capabilities=capabilityEngine().inventory(tools.slice(0,20)).map(t=>({...t,description:t.description.slice(0,160),inputs:t.inputs.slice(0,8).map(p=>p.slice(0,120)),outputs:t.outputs.slice(0,8).map(p=>p.slice(0,120)),restrictions:t.restrictions.slice(0,2).map(s=>s.slice(0,200)),annotations:{}}));
       finding("info", "Public tool catalog inspected", `${tools.length} tools were listed without credentials. Up to 20 summaries are shown; no tools were executed.`);
       const concerning = tools.filter(t => /(?:delete|remove|write|send|execute|exec|shell|payment|purchase|admin)/i.test(`${t.name} ${t.description}`));
       if (concerning.length) finding("review", "Potentially consequential tools", `${concerning.length} tool descriptions or names mention modifying data, messaging, execution or administrative actions. This is a text-based signal, not verified behavior.`);

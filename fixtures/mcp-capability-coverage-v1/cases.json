@@ -1,0 +1,1692 @@
+[
+  {
+    "name": "complete scalar workflow",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "declared_coverage",
+      "steps": [
+        "covered",
+        "covered"
+      ]
+    }
+  },
+  {
+    "name": "closed schema missing identifier",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "blocked",
+      "code": "binding_field_missing"
+    }
+  },
+  {
+    "name": "open schema missing identifier",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "binding_unknown"
+    }
+  },
+  {
+    "name": "optional result identifier",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "binding_unknown"
+    }
+  },
+  {
+    "name": "missing result schema",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "binding_unknown"
+    }
+  },
+  {
+    "name": "incompatible scalar types",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "blocked",
+      "code": "binding_compatibility"
+    }
+  },
+  {
+    "name": "number may be integer",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "binding_compatibility"
+    }
+  },
+  {
+    "name": "missing required input",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {},
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "blocked",
+      "code": "required_arguments_missing"
+    }
+  },
+  {
+    "name": "invalid example enum",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "invalid"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "blocked",
+      "code": "argument_invalid"
+    }
+  },
+  {
+    "name": "missing mapped tool",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "blocked",
+      "steps": [
+        "covered",
+        "not_exposed"
+      ]
+    }
+  },
+  {
+    "name": "incomplete catalog missing mapped tool",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": false,
+    "expected": {
+      "status": "unknown",
+      "steps": [
+        "covered",
+        "unknown"
+      ]
+    }
+  },
+  {
+    "name": "unmapped step",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "unmapped_step"
+    }
+  },
+  {
+    "name": "external schema reference",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "$ref": "https://never-fetch.invalid/schema"
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown",
+      "code": "binding_unknown"
+    }
+  },
+  {
+    "name": "provider pattern remains unknown",
+    "tools": [
+      {
+        "name": "tickets.search",
+        "description": "Search fixture ticket titles. Only id and title are returned; comments and attachments are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "tickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tickets"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "tickets.update",
+        "description": "Update a fixture ticket status. Only open and closed statuses are supported; assignment is unavailable through this operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "pattern": "(a+)+$"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "ticket_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "profile": {
+      "format": "agentaction.mcp-workflow.v1",
+      "name": "Find and close a ticket",
+      "steps": [
+        {
+          "id": "find",
+          "tool": "tickets.search",
+          "arguments": {
+            "query": "broken widget"
+          },
+          "required_outputs": [
+            "/tickets/*/title"
+          ]
+        },
+        {
+          "id": "close",
+          "tool": "tickets.update",
+          "arguments": {
+            "status": "closed"
+          },
+          "bindings": [
+            {
+              "input": "/ticket_id",
+              "from_step": "find",
+              "output": "/tickets/*/id"
+            }
+          ]
+        }
+      ]
+    },
+    "complete": true,
+    "expected": {
+      "status": "unknown"
+    }
+  }
+]

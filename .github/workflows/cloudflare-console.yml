@@ -6,12 +6,14 @@ on:
     paths:
       - "console/**"
       - "recipes/**"
+      - "fixtures/mcp-capability-coverage-v1/**"
       - ".github/workflows/cloudflare-console.yml"
   push:
     branches: [main]
     paths:
       - "console/**"
       - "recipes/**"
+      - "fixtures/mcp-capability-coverage-v1/**"
       - ".github/workflows/cloudflare-console.yml"
 
 jobs:

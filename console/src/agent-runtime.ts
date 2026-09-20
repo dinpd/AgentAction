@@ -6,7 +6,8 @@ import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, ty
 import { recipeById, type Recipe } from "../../recipes/registry.ts";
 import { inspectEndpoint, type PrecheckReport } from "./mcp-precheck.ts";
 import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type EndpointAccess } from "./endpoint-policy.ts";
-import { McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool } from "./mcp-client.ts";
+import { McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
+import { capabilityEngine } from './mcp-capabilities.ts';
 
 export type RuntimeStorage = {
   get<T>(key: string): Promise<T | undefined>;
@@ -21,7 +22,7 @@ export type RuntimeEnv = {
   AGENT_MCP_ENDPOINTS?: string;
 };
 export type Suggestion = { id: string; title: string; goal: string; setup: string; success: string; tools: string[] };
-export type Connection = McpConnection & { id: string; label: string; suggestions: Suggestion[]; status: "connected" | "disconnected"; createdAt: string };
+export type Connection = McpConnection & { catalog?:CatalogMetadata; id: string; label: string; suggestions: Suggestion[]; status: "connected" | "disconnected"; createdAt: string };
 export type Agent = { toolBindings?: ToolBindings; evaluationBinding?: RecipeEvalBinding; definition?: RecipeDefinition; workspaceRecipe?: { id: string; version: number }; recipe?: Pick<Recipe, "id" | "version" | "instructions" | "boundaries"> & { requirements: string[] }; id: string; connectionId: string; title: string; goal: string; setup: string; success: string; tools: string[]; status: "draft" | "active" | "paused"; nextRun?: number; lastTrial?: string; createdAt: string };
 export type Run = {
   contract?: HostedContract; evaluation?: HostedEvaluation;
@@ -100,7 +101,7 @@ export class AgentRuntime {
     }
   }
   async snapshot(): Promise<Record<string, unknown>> {
-    const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, protocol: c.protocol, suggestions: c.suggestions, status: c.status, hasCredential: Boolean(c.token) }));
+    const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, catalog:c.catalog, protocol: c.protocol, suggestions: c.suggestions, status: c.status, hasCredential: Boolean(c.token) }));
     return { drafts: [...(await this.storage.list<AgentPlan>({ prefix: "draft:" })).values()].filter(p => !p.agentId), connections, workspaceRecipes: [...(await this.storage.list<WorkspaceRecipe>({ prefix: "workspace-recipe:" })).values()].map(r => ({ id: r.id, ...r.revisions[r.revisions.length - 1] })), inspections: [...(await this.storage.list<PrecheckReport>({ prefix: "inspection:" })).values()], endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
   }
   private async endpointAccess(): Promise<EndpointAccess> {
@@ -251,17 +252,21 @@ export class AgentRuntime {
       }
       return { endpoint, removed: true };
     }
-    if (path === "/connect") {
+    if (path === "/connect" || path === '/refresh-capabilities') {
+      if(!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must discover server capabilities.',403);
+      const refreshing=path==='/refresh-capabilities';
+      if(refreshing && (Object.keys(body).some(k=>k!=='connectionId') || !body.connectionId)) throw new RuntimeError('Choose the connected server to refresh.');
       if (!body.connectionId && (await this.storage.list({ prefix: "connection:" })).size >= 8) throw new RuntimeError("This workspace supports up to eight connections.");
       const previous = body.connectionId ? await this.required<Connection>("connection", body.connectionId) : undefined;
       const endpoint = await this.allowedEndpoint(previous?.endpoint || body.endpoint);
-      const token = body.token === undefined || body.token === "" ? undefined : textField(body.token, "bearer credential", 4096);
+      if(refreshing && previous?.status!=='connected') throw new RuntimeError('Reconnect this server before refreshing its capabilities.',409);
+      const token = refreshing ? previous!.token : body.token === undefined || body.token === "" ? undefined : textField(body.token, "bearer credential", 4096);
       if (token && !/^[\x21-\x7e]+$/.test(token)) throw new RuntimeError("The bearer credential must contain printable ASCII characters without spaces.");
       const protocol = (previous?.protocol || body.protocol) === "2026-07-28" ? "2026-07-28" : "2025-03-26";
       await this.charge("connect", 30);
       const connection: Connection = { id: previous?.id || id(), label: textField(previous?.label || body.label || new URL(endpoint).hostname, "connection name", 100), endpoint, token, protocol, tools: [], suggestions: [], status: "connected", createdAt: now() };
       const client = this.client(connection);
-      try { connection.tools = JSON.parse(redact(await client.discover(), token)); } finally { await client.close(); }
+      try { connection.tools = JSON.parse(redact(await client.discover(), token)); connection.catalog=JSON.parse(redact(await client.discoverMetadata(),token)); } finally { await client.close(); }
       await this.storage.put(`connection:${connection.id}`, connection);
       if (previous) {
         for (const agent of (await this.storage.list<Agent>({ prefix: "agent:" })).values()) if (this.usesConnection(agent, connection.id)) {
@@ -322,7 +327,7 @@ export class AgentRuntime {
     }
     if (path === '/save-draft' || path === '/create-bound') {
       if (!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must edit agents.',403);
-      if (Object.keys(body).some(k=>!['id','definition','setup','bindings'].includes(k))) throw new RuntimeError('Unsupported agent draft settings.');
+      if (Object.keys(body).some(k=>!['id','definition','setup','bindings','fieldChecks'].includes(k))) throw new RuntimeError('Unsupported agent draft settings.');
       const plan = await this.required<AgentPlan>('draft',body.id);
       if (plan.agentId) {
         if(path==='/create-bound') return {agentId:plan.agentId};
@@ -331,6 +336,12 @@ export class AgentRuntime {
       const definition = recipeDefinition(body.definition,plan.requirements.map(r=>r.id));
       if (definition.tools.length !== plan.requirements.length) throw new RuntimeError('Keep every required capability in this draft.');
       const bindings = planBindings(body.bindings,plan.requirements);
+      let fieldChecks=plan.fieldChecks;
+      if(body.fieldChecks!==undefined) {
+        try {fieldChecks=capabilityEngine().validateChecks(body.fieldChecks,plan.requirements.map(r=>r.id));}
+        catch(error) {throw new RuntimeError(error instanceof Error?error.message:'Invalid field checks.');}
+        await this.noCredentials(fieldChecks);
+      }
       const setup = body.setup === '' ? '' : textField(body.setup,'job inputs',4000);
       await this.noCredentials({definition,setup,bindings});
       for(const binding of Object.values(bindings)) {
@@ -338,7 +349,7 @@ export class AgentRuntime {
         if(c.status!=='connected' || !c.tools.some(t=>t.name===binding.tool)) throw new RuntimeError('Choose an available tool from a connected MCP server.',409);
         await this.allowedEndpoint(c.endpoint);
       }
-      Object.assign(plan,{definition,setup,bindings,updatedAt:now()});
+      Object.assign(plan,{definition,setup,bindings,...(fieldChecks ? {fieldChecks} : {}),updatedAt:now()});
       if(path==='/create-bound') {
         const existing=await this.storage.get<Agent>(`agent:${plan.id}`);
         if(existing) {plan.agentId=existing.id;await this.saveDraft(plan);return {agentId:existing.id};}

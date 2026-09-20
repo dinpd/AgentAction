@@ -7,6 +7,8 @@ import { recipes, type Recipe } from "../../recipes/registry.ts";
 import { JOURNEY_NAV } from "./journey.ts";
 import type { PrecheckReport } from "./mcp-precheck.ts";
 import type { CatalogResult } from "./mcp-registry.ts";
+import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
+const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -54,10 +56,11 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
-export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.eval-check{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.eval-check label{min-width:0}.eval-check button{align-self:end}#eval-editor{min-width:0;margin:20px 0;padding:18px;border:1px solid #cbd0c4}@media(max-width:700px){.eval-check{grid-template-columns:1fr}}#agent-profiler{margin-top:26px}#agent-ideas:not(:empty){margin-top:20px}#profile-request .fields label{justify-content:end}#agent-ideas .actions{margin-top:auto}#agent-ideas .card{display:flex;flex-direction:column}#example-library[open]{margin-top:24px}#example-library>summary{margin-bottom:18px}#manual-options{font-size:14px;color:#596150}#continue-agents{margin-top:32px}#continue-agents h2{font-size:20px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
+export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + CAPABILITY_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.eval-check{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.eval-check label{min-width:0}.eval-check button{align-self:end}#eval-editor{min-width:0;margin:20px 0;padding:18px;border:1px solid #cbd0c4}@media(max-width:700px){.eval-check{grid-template-columns:1fr}}#agent-profiler{margin-top:26px}#agent-ideas:not(:empty){margin-top:20px}#profile-request .fields label{justify-content:end}#agent-ideas .actions{margin-top:auto}#agent-ideas .card{display:flex;flex-direction:column}#example-library[open]{margin-top:24px}#example-library>summary{margin-bottom:18px}#manual-options{font-size:14px;color:#596150}#continue-agents{margin-top:32px}#continue-agents h2{font-size:20px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
-export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory): void {
+export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory, capabilityFactory = capabilityEngine): void {
   const history = historyFactory(runtime);
+  const capabilities = capabilityFactory();
   let recurring: any = null;
   const doc = runtime.document;
   const get = <T extends HTMLElement>(id: string) => doc.getElementById(id) as T;
@@ -130,10 +133,97 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       }
       const binding=currentPlan.bindings[requirement.id]; select.value=binding ? JSON.stringify(binding) : '';
       select.disabled=role==='viewer';
-      select.onchange=()=>{currentPlan!.bindings=selectedBindings();updateMappingStatus();updateDraftPreview();};
-      label.append(select);host.append(label);
+      select.onchange=()=>{currentPlan!.bindings=selectedBindings();updateMappingStatus();updateDraftPreview();renderCoverage();};
+      const card=node('section','','capability-step');card.dataset.capabilityStep=requirement.id;
+      label.append(select);card.append(label);host.append(card);
+      const report=node('div','','capability-report');report.dataset.coverageReport=requirement.id;report.setAttribute('aria-live','polite');card.append(report);
+      fieldCheckEditor(requirement.id,card);
     }
-    updateMappingStatus();
+    updateMappingStatus();renderCoverage();
+  }
+  function fieldCheckEditor(stepId:string, host:HTMLElement) {
+    const plan=currentPlan!;
+    const checks:FieldChecks=structuredClone(plan.fieldChecks && Object.hasOwn(plan.fieldChecks,stepId)?plan.fieldChecks[stepId]:{});
+    const details=node('details','','field-check-editor');details.append(node('summary','Check fields and input connections'));
+    details.append(node('p','Specify the fields this job needs. Example values and connections are assessment inputs only; they do not configure or execute tool calls. Unspecified job inputs stay unknown.','note'));
+    const save=()=>{currentPlan!.fieldChecks={...currentPlan!.fieldChecks,[stepId]:structuredClone(checks)};renderCoverage();};
+    const input=(labelText:string,value:string,change:(value:string)=>void,placeholder='')=>{
+      const label=node('label',labelText),field=doc.createElement('input');field.value=value;field.maxLength=1000;field.placeholder=placeholder;field.disabled=role==='viewer';
+      field.oninput=()=>{change(field.value);save();};label.append(field);return label;
+    };
+    const paths=(value:string)=>value.split(',').map(s=>s.trim()).filter(Boolean).map(s=>s.startsWith('/')?s:capabilities.pointer(s));
+    const fields=node('div','','fields');
+    fields.append(input('Required input fields',(checks.required_inputs || []).join(', '),value=>checks.required_inputs=paths(value),'ticket_id, assignee_id'),input('Required result fields',(checks.required_outputs || []).join(', '),value=>checks.required_outputs=paths(value),'/tickets/*/id, /tickets/*/title'));details.append(fields);
+    const examples=node('div'),connections=node('div');
+    let exampleRows=Object.entries(checks.arguments || {}).map(([name,value])=>({name,value:String(value),type:value===null?'null':typeof value}));
+    const renderExamples=()=>{
+      examples.replaceChildren();
+      for(const [index,row] of exampleRows.entries()) {
+        const controls=node('div','','field-source-row');
+        const sync=()=>{for(const [i,control] of [...examples.children].entries()) {const field=control.querySelector('input')!;field.setCustomValidity(exampleRows[i]?.name && exampleRows.some((other,j)=>i!==j && other.name===exampleRows[i].name)?'Each example input needs a unique field name.':'');}checks.arguments=Object.fromEntries(exampleRows.filter(r=>r.name).map(r=>[r.name,r.type==='number'&&r.value.trim()&&Number.isFinite(Number(r.value))?Number(r.value):r.type==='boolean'&&['true','false'].includes(r.value)?r.value==='true':r.type==='null'?null:r.value]));save();};
+        const label=node('label','Value type'),type=doc.createElement('select');type.setAttribute('aria-label','Value type');
+        for(const v of ['string','number','boolean','null']) type.append(new Option(v,v));type.value=row.type;type.disabled=role==='viewer';type.onchange=()=>{row.type=type.value;sync();};label.append(type);
+        controls.append(input('Input field',row.name,v=>{row.name=v;sync();},'status'),input('Example value',row.value,v=>{row.value=v;sync();},'closed'),label,button('Remove example',async()=>{exampleRows.splice(index,1);sync();renderExamples();}));examples.append(controls);
+      }
+    };
+    let connectionRows=structuredClone(checks.bindings || []);
+    const renderConnections=()=>{
+      connections.replaceChildren();
+      for(const [index,row] of connectionRows.entries()) {
+        const controls=node('div','','field-source-row'),label=node('label','From earlier step'),source=doc.createElement('select');
+        source.setAttribute('aria-label','From earlier step');source.append(new Option('Choose a step',''));
+        for(const step of plan.requirements.slice(0,plan.requirements.findIndex(r=>r.id===stepId))) source.append(new Option(step.label,step.id));
+        source.value=row.from_step;source.disabled=role==='viewer';
+        const sync=()=>{checks.bindings=structuredClone(connectionRows);save();};source.onchange=()=>{row.from_step=source.value;sync();};label.append(source);
+        controls.append(input('Input field',row.input,v=>{row.input=v.startsWith('/')?v:capabilities.pointer(v);sync();},'/ticket_id'),label,input('Result field',row.output,v=>{row.output=v.startsWith('/')?v:capabilities.pointer(v);sync();},'/tickets/*/id'),button('Remove connection',async()=>{connectionRows.splice(index,1);sync();renderConnections();}));connections.append(controls);
+      }
+    };
+    renderExamples();renderConnections();details.append(examples,connections);
+    const actions=node('div','','actions');actions.append(button('Add example input',async()=>{if(exampleRows.length>=16)return;exampleRows.push({name:'',value:'',type:'string'});renderExamples();}));
+    if(plan.requirements.findIndex(r=>r.id===stepId)>0) actions.append(button('Connect an input to a result',async()=>{if(connectionRows.length>=16)return;connectionRows.push({input:'',from_step:'',output:''});renderConnections();}));
+    details.append(actions);host.append(details);
+  }
+  function renderCoverage() {
+    if(!currentPlan) return;
+    const tools:any[]=[], steps:CoverageStep[]=[], missing=new Set<string>();
+    const bindings=selectedBindings();
+    for(const [index,requirement] of currentPlan.requirements.entries()) {
+      const binding=bindings[requirement.id] || currentPlan.bindings[requirement.id],connection=state.connections.find((c:any)=>c.id===binding?.connectionId);
+      const tool=connection?.status==='connected' ? connection.tools.find((t:any)=>t.name===binding?.tool) : undefined;
+      const checks=currentPlan.fieldChecks && Object.hasOwn(currentPlan.fieldChecks,requirement.id)?currentPlan.fieldChecks[requirement.id]:{};
+      if(binding && !tool) missing.add(requirement.id);
+      if(tool) tools.push({...tool,name:`mapped_${index}`});
+      steps.push({...checks,id:requirement.id,...(binding?{tool:`mapped_${index}`}:{})});
+    }
+    let report:ReturnType<typeof capabilities.evaluate>;
+    try {if(doc.querySelector('.field-check-editor input:invalid')) throw new Error('Each example input needs a unique field name.');capabilities.validateChecks(currentPlan.fieldChecks || {},currentPlan.requirements.map(r=>r.id));report=capabilities.evaluate(tools,steps,true,true);}
+    catch(error) {for(const host of doc.querySelectorAll<HTMLElement>('[data-coverage-report]')) {host.dataset.coverageStatus='unknown';host.replaceChildren(node('p',`Unknown — ${error instanceof Error?error.message:'Complete the field checks.'}`,'note'));}return;}
+    for(const step of report.steps) {
+      const host=[...doc.querySelectorAll<HTMLElement>('[data-coverage-report]')].find(h=>h.dataset.coverageReport===step.id)!;
+      const configured=currentPlan.fieldChecks && Object.hasOwn(currentPlan.fieldChecks,step.id);
+      const binding=bindings[step.id],snapshot=state.connections.find((c:any)=>c.id===binding?.connectionId)?.catalog;
+      const status=(!snapshot && !missing.has(step.id)) || (step.status==='covered'&&!configured)?'unknown':step.status;
+      host.dataset.coverageStatus=status;
+      host.replaceChildren(node('strong',status==='covered'?'Covered by declarations':status==='partial'||status==='not_exposed'?'Blocked for this mapping':'Unknown'));
+      if(!configured) host.append(node('p','Field requirements have not been specified. Tool mapping alone does not establish workflow coverage.','note'));
+      if(!snapshot) host.append(node('p','Current discovery metadata is missing. Refresh the connected server catalog.','note'));
+      if(missing.has(step.id)) host.append(node('p','The mapped server or tool is no longer available. Choose a current connection.','note'));
+      for(const finding of step.findings) host.append(node('p',finding.detail,'note'));
+      host.append(node('p','Static assessment only. Execution, account permissions and result completeness are unverified.','note'));
+    }
+  }
+  function capabilityDetails(tools:any[], context:string, total=tools.length, summarized=false) {
+    const detail=node('details','','capability-details');detail.append(node('summary','Capabilities & limits'),node('p',context,'note'));
+    detail.append(node('p',`Showing ${tools.length} of ${total} tools. Operations are inferred; descriptions, schemas and annotations are provider declarations. Actual behavior and account permissions are unverified.`,'note'));
+    for(const tool of summarized?tools:capabilities.inventory(tools)) {
+      const card=node('details');card.append(node('summary',tool.name),node('p',tool.description,'note'),node('p',`Operations: ${tool.operations.join(', ') || 'Unknown'} (inferred)`,'note'));
+      card.append(node('p',`Input fields: ${tool.inputs.join(', ') || 'Not enumerated'}`,'note'),node('p',`Result fields: ${tool.outputs.join(', ') || 'Unknown / not enumerated'}`,'note'));
+      for(const text of tool.restrictions) card.append(node('p',`Declared limit: ${text}`,'note'));
+      for(const text of tool.findings) card.append(node('p',text,'note'));
+      for(const [key,label] of Object.entries({readOnlyHint:'Read only',destructiveHint:'May destroy data',idempotentHint:'Repeated calls have the same effect',openWorldHint:'Interacts with external systems'})) if(typeof tool.annotations?.[key]==='boolean') card.append(node('p',`${label}: ${tool.annotations[key]?'Yes':'No'} (unverified provider hint)`,'note'));
+      detail.append(card);
+    }
+    return detail;
   }
   function updateMappingStatus() {
     if(!currentPlan) return;
@@ -165,7 +255,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   async function savePlan(): Promise<AgentPlan> {
     const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration;
-    const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings()});
+    const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings(),fieldChecks:plan.fieldChecks || {}});
     if(selectedTenant===tenant && editor===editorGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; draftQuestions=[]; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden=true; state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
     return saved;
   }
@@ -475,6 +565,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       results.append(node("p", `Advertised supported scopes: ${report.scopes.join(", ") || "Not specified"}`, "note"), node("p", `Scopes challenged for this request: ${report.challengedScopes.join(", ") || "Not specified"}`, "note"));
       for (const f of report.findings) { const row = node("div", "", "precheck-finding"); row.dataset.level = f.level; row.append(node("strong", `${f.level === "blocked" ? "Blocked / incomplete" : f.level === "review" ? "Review" : "Observed"}: ${f.title}`), node("p", f.detail, "note")); results.append(row); }
       if (report.tools.length) { const tools = node("details"); tools.append(node("summary", "Inspected tool descriptions (untrusted provider text)")); for (const t of report.tools) tools.append(node("p", `${t.name}: ${t.description} · Inputs: ${t.inputs.join(", ") || "Not declared"}`, "note")); results.append(tools); }
+      if(report.capabilities?.length) results.append(capabilityDetails(report.capabilities,'Public pre-check without credentials. Connected-account catalogs can differ. Field lists and descriptions are bounded summaries; resources were not inspected.',report.toolCount,true));
       const evidence = node("details"); evidence.append(node("summary", "HTTP evidence")); for (const e of report.evidence) evidence.append(node("p", `${e.status} · ${e.url}`, "note")); results.append(evidence);
 
     }
@@ -634,6 +725,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         node("p", c.hasCredential ? "Connected account: credential stored" : "Authentication: no stored credential", "note"),
       );
       row.append(detail);
+      const cap=capabilityDetails(c.tools,c.catalog ? `Connected server snapshot · ${new Date(c.catalog.capturedAt).toLocaleString()} · ${c.protocol}. ${c.status==='connected'?'This connection is active; permissions remain unverified.':'Disconnected — retained catalog is historical.'}` : 'Older connection snapshot. Refresh capabilities to capture current metadata; discovery completeness is unknown.');
+      for(const [key,label] of [['resources','Resources'],['resourceTemplates','Resource templates']]) {
+        const surface=c.catalog?.[key];cap.append(node('p',`${label}: ${surface?.status || 'unknown'} · ${surface?.items?.length || 0} retained entries`,'note'));
+        for(const item of surface?.items || []) cap.append(node('p',`${item.name || item.uri || item.uriTemplate}: ${item.description || 'No description'}`,'note'));
+      }
+      cap.append(node('p','Catalog refresh uses the stored credential, executes no tools, and pauses agents using this connection until a new trial.','note'));
+      if(c.status==='connected') cap.append(button('Refresh capabilities',async()=>{await mutate('refresh-capabilities',{connectionId:c.id});await refresh();feedback('connections-feedback','Capability catalog refreshed. Connected agents are paused until a new trial.');}));
+      detail.append(cap);
       if (c.status === "connected") {
         const actions = node("div", "", "actions");
         actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); get<HTMLDetailsElement>("example-library").open = true; runtime.location.hash = "create"; }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this server, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Disconnected. The credential was removed and its agents were paused."); }));
@@ -810,6 +909,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   get<HTMLFormElement>('create').addEventListener('input', () => { draftGeneration++; updateDraftPreview(); });
   get<HTMLFormElement>('create').addEventListener('change', () => { draftGeneration++; updateDraftPreview(); });
   get<HTMLFormElement>('create').addEventListener('invalid', event => {
+    const fieldEditor=(event.target as HTMLElement).closest<HTMLDetailsElement>('.field-check-editor');if(fieldEditor) fieldEditor.open=true;
     if ((event.target as HTMLElement).closest('#draft-customize')) get<HTMLDetailsElement>('draft-customize').open = true;
   }, true);
   get<HTMLFormElement>("create").addEventListener("submit", event => {
@@ -822,7 +922,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const definition = definitionFromEditor();
       const binding = editorRecipe && JSON.stringify(definition) === JSON.stringify(editorRecipe.definition) ? { workspaceRecipe: { id: editorRecipe.id, version: editorRecipe.version } } : { definition, ...(chosen!.suggestion.recipeId ? { recipeId: chosen!.suggestion.recipeId, recipeVersion: chosen!.suggestion.recipeVersion, recipeReviewed: true } : {}) };
       if(currentPlan && !startTrial) { await savePlan(); message('Agent draft saved. Continue setup whenever you are ready.'); return; }
-      const created = currentPlan ? await mutate('create-bound',{id:currentPlan.id,definition,bindings:selectedBindings(),setup:jobInputs()}) : await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: jobInputs() });
+      const created = currentPlan ? await mutate('create-bound',{id:currentPlan.id,definition,bindings:selectedBindings(),setup:jobInputs(),fieldChecks:currentPlan.fieldChecks || {}}) : await mutate('create', { connectionId: chosen!.connectionId, ...binding, setup: jobInputs() });
       if (tenant !== currentTenant || editorGeneration !== currentEditor) return;
       recipeContext(); runtime.location.hash = 'run'; showStage('run'); await refresh();
       if (tenant !== currentTenant) return;
@@ -860,4 +960,4 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }
-export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes).replace(/</g, "\\u003c")}, ${HISTORY_FACTORY_JS});`;
+export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes).replace(/</g, "\\u003c")}, ${HISTORY_FACTORY_JS}, ${CAPABILITY_FACTORY_JS});`;
