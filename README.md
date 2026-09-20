@@ -241,6 +241,7 @@ replacing them.
 | An agent or application | [`packages/guard/`](packages/guard/) and the [local examples](packages/guard/examples/) |
 | An enterprise AI platform | [Enterprise governance](docs/enterprise-governance.md) and [authorization in practice](docs/authorization-in-practice.md) |
 | A SaaS, API, or MCP provider | [Provider MCP authorization](docs/provider-mcp-authorization.md), [Express middleware](packages/provider-express/), or [FastAPI helpers](packages/provider-fastapi/) |
+| An MCP server with unclear capabilities or limits | [Capability inventory and workflow coverage](docs/mcp-capabilities.md): inspect the declared surface and find blockers in an explicitly mapped workflow |
 | A security or risk program | [Enterprise topology](docs/enterprise-agent-action-control-topology.png), [receipt profiles](docs/receipt-profiles.md), and [standards alignment](docs/standards-alignment.md) |
 | An observability or assurance implementation | [Intent assurance](docs/intent-assurance.md), the [operator console](console/), and [community proposals](docs/proposals/) |
 

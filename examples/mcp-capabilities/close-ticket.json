@@ -1,0 +1,30 @@
+{
+  "format": "agentaction.mcp-workflow.v1",
+  "name": "Find and close a ticket",
+  "steps": [
+    {
+      "id": "find",
+      "tool": "tickets.search",
+      "arguments": {
+        "query": "broken widget"
+      },
+      "required_outputs": [
+        "/tickets/*/title"
+      ]
+    },
+    {
+      "id": "close",
+      "tool": "tickets.update",
+      "arguments": {
+        "status": "closed"
+      },
+      "bindings": [
+        {
+          "input": "/ticket_id",
+          "from_step": "find",
+          "output": "/tickets/*/id"
+        }
+      ]
+    }
+  ]
+}
