@@ -29,6 +29,33 @@ function harness(outputs:any[]=[draft]) {
  const save=(plan:AgentPlan,bindings={},path='save-draft')=>request(path,{id:plan.id,definition:plan.definition,setup:plan.setup,bindings});
  return {storage,runtime,request,connect,save,calls,prompts,outputs,env,fetcher};
 }
+test('field checks persist with draft edits, reject invalid sources and protect workspace credentials',async()=>{
+ const h=harness();await h.connect(1);
+ const plan=(await h.request('draft',{description:'Compare supplied reports'})).body;
+ const body={id:plan.id,definition:plan.definition,setup:plan.setup,bindings:{},fieldChecks:{step_1:{arguments:{id:'report-a'},required_outputs:['/value']},step_2:{bindings:[{input:'/id',from_step:'step_1',output:'/value'}]}}};
+ assert.equal((await h.request('save-draft',body)).status,200);
+ assert.deepEqual((await h.runtime.snapshot() as any).drafts[0].fieldChecks,body.fieldChecks);
+ assert.equal((await h.save(plan)).status,200);
+ const reloaded=new AgentRuntime(h.storage,h.env,h.fetcher as typeof fetch);
+ assert.deepEqual((await reloaded.snapshot() as any).drafts[0].fieldChecks,body.fieldChecks);
+ for(const fieldChecks of [{step_1:{arguments:{id:'FIRST-SECRET'}}},{step_1:{bindings:[{input:'/id',from_step:'step_2',output:'/value'}]}},{other:{}}])
+   assert.equal((await h.request('save-draft',{...body,fieldChecks})).status,400);
+ assert.equal((await h.request('save-draft',body,'viewer')).status,403);
+ assert.equal((await harness().request('save-draft',body)).status,404);
+ assert.equal(h.calls.length,0);
+});
+test('assessment example values do not replace separately proposed execution arguments',async()=>{
+ const h=harness();const connectionId=await h.connect(1);
+ const plan=(await h.request('draft',{description:'Compare supplied reports'})).body;
+ const created=await h.request('create-bound',{id:plan.id,definition:plan.definition,setup:'Read supplied reports',bindings:{step_1:{connectionId,tool:'read'},step_2:{connectionId,tool:'read'}},fieldChecks:{step_1:{arguments:{id:'ASSESSMENT-ONLY'}}}});
+ assert.equal(created.status,200);
+ h.outputs.push({type:'call',tool:'step_1',arguments:{id:'ACTUAL-REVIEWED-INPUT'}});
+ const trial=await h.request('trial',{agentId:created.body.agentId});assert.equal(trial.status,200);
+ const run=await h.storage.get<Run>('run:'+trial.body.runId);
+ assert.equal(run?.status,'awaiting_approval');
+ assert.ok(JSON.stringify(run?.pending).includes('ACTUAL-REVIEWED-INPUT'));
+ assert.ok(!JSON.stringify(run?.pending).includes('ASSESSMENT-ONLY'));assert.equal(h.calls.length,0);
+});
 test('empty workspace drafts survive reload, accept edits, reject execution with unresolved tools',async()=>{
  const h=harness();const r=await h.request('draft',{description:'Compare the supplied reports'});assert.equal(r.status,200);
  const plan=r.body as AgentPlan;assert.deepEqual(plan.bindings,{});assert.equal((await h.runtime.snapshot() as any).agents.length,0);

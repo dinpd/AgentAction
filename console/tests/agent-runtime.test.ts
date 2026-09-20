@@ -45,6 +45,20 @@ function harness(outputs: unknown[] = [suggestion, call, finish]) {
   const approve = (r: Run) => request("approve", { runId: r.id, approvalId: r.pending!.id });
   return { runtime, storage, request, calls, prompts, env, fetcher, prepare, trial, approve, result: (value: unknown) => toolResult = value, fail: () => failCall = true, change: () => changed = true };
 }
+test('capability refresh preserves credentials, invalidates approvals and enforces operator access',async()=>{
+ const h=harness();const {agentId,connectionId}=await h.prepare();const run=await h.trial(agentId);
+ assert.equal((await h.storage.get<Run>(`run:${run.id}`))?.status,'awaiting_approval');
+ const denied=await h.runtime.handle(new Request('https://runtime.test/refresh-capabilities',{method:'POST',headers:{'x-runtime-role':'viewer'},body:JSON.stringify({connectionId})}));
+ assert.equal(denied.status,403);h.change();
+ assert.equal((await h.request('refresh-capabilities',{connectionId})).status,200);
+ const connection=(await h.storage.get<Connection>(`connection:${connectionId}`))!;
+ assert.equal(connection.token,'SECRET-TOKEN');assert.equal(connection.catalog?.resources.status,'not_advertised');
+ assert.equal(connection.tools[0].description,'Changed tool definition');
+ assert.equal((await h.storage.get<Run>(`run:${run.id}`))?.status,'cancelled');
+ assert.ok(!JSON.stringify(await h.runtime.snapshot()).includes('SECRET-TOKEN'));assert.ok(!h.calls.includes('tools/call'));
+ assert.equal((await h.request('refresh-capabilities',{connectionId:'foreign'})).status,404);
+ await h.request('disconnect',{connectionId});assert.equal((await h.request('refresh-capabilities',{connectionId})).status,409);
+});
 
 test("MCP → AI suggestions → instance → approved trial → observable outcome → schedule", async () => {
   const h = harness(); const { agentId } = await h.prepare(); const r = await h.trial(agentId);

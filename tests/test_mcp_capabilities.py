@@ -12,6 +12,21 @@ from agentid.mcp_capabilities import capability_report, format_capabilities
 from agentid.mcp_workflows import PROFILE_VERSION, evaluate_workflow
 
 
+@pytest.mark.parametrize("case", json.loads((Path(__file__).parents[1] / "fixtures/mcp-capability-coverage-v1/cases.json").read_text()), ids=lambda case: case["name"])
+def test_shared_console_workflow_coverage(case):
+    catalog = {"format": CATALOG_VERSION, "surfaces": {
+        key: {"status": "complete", "items": [], "pages": 1} for key in SURFACES}}
+    catalog["surfaces"]["tools"].update(items=case["tools"], status="complete" if case["complete"] else "incomplete")
+    report = evaluate_workflow(catalog, case["profile"])
+    assert report["status"] == case["expected"]["status"]
+    if "steps" in case["expected"]:
+        assert [step["status"] for step in report["steps"]] == case["expected"]["steps"]
+    if "code" in case["expected"]:
+        assert any(f["code"] == case["expected"]["code"] for step in report["steps"] for f in step["findings"])
+    assert not report["behavior_verified"]
+    assert report["account_access"] == "unknown"
+
+
 def obj(properties, required=None, closed=True):
     return {"type": "object", "properties": properties,
             "required": list(properties) if required is None else required, "additionalProperties": not closed}

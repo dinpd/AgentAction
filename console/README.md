@@ -11,6 +11,42 @@ owners can manage membership and eval configuration.
 
 The operator console also provides [My Agents](https://observability-console.agentaction.dev/agents): connect an MCP server, get AI suggestions, create a persistent instance, and review supervised runs. See [runtime setup, boundaries and limits](AGENT-RUNTIME.md).
 
+## MCP capabilities and workflow coverage
+
+In **MCP servers → My MCP servers**, open **Capabilities & limits** for a
+connected server. It shows declared input/result fields, limits, advisory
+annotations and bounded resource/template listings. **Refresh capabilities**
+uses the stored credential and discovers metadata without executing tools or
+reading resources. Refresh pauses affected agents and invalidates approvals;
+a new supervised trial is required. Only owners and operators can refresh.
+Public pre-check summaries are labeled separately and use no credentials.
+
+In a draft, map each step to a connected tool, then open **Check fields and
+input connections**. Specify required fields, add scalar example inputs, or
+connect a top-level input to an earlier step's result. Paths use JSON Pointer,
+with `/*` for homogeneous array items, for example `/tickets/*/id`. Choose
+**Save draft only** to retain these checks. They are assessment inputs only;
+actual tool-call arguments still come from the separately reviewed trial.
+
+A step is **Covered by declarations**, **Blocked for this mapping**, or
+**Unknown**. Missing identifiers in a closed schema can block a workflow even
+when both tools exist. Optional outputs, unsupported schemas, unspecified
+inputs and older discovery snapshots remain unknown. Mapping changes and
+catalog refreshes recompute the report. Account access, behavior and result
+completeness are always unverified by this static check. Field lists are bounded
+summaries; they do not represent all capabilities of the underlying service.
+
+Resource discovery is limited to three pages and 32 entries per surface,
+16 KB combined retained metadata and a shared ten-second request budget.
+Errors and exceeded bounds stay incomplete. Result schemas are retained up to
+16 KB and annotations up to 2 KB per tool; omitted metadata is disclosed.
+Existing tool-catalog limits apply. No external schema references or provider
+regular expressions are executed. See [CLI checks](../docs/mcp-capabilities.md).
+
+Browser acceptance: install Playwright with Chromium, then run
+`PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node --experimental-strip-types tests/capability-browser.mts`
+from `console`. It uses synthetic local data only.
+
 ## Recurring agents and notifications
 
 [Recurring agents](https://observability-console.agentaction.dev/automations) provide shared scheduling, saved state, findings and workspace email routing. Website Health is the first sample recipe. See [setup, boundaries and validation](RECURRING-AGENTS.md). Existing supervised MCP agents retain their approval requirements.

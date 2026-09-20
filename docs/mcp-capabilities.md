@@ -149,3 +149,17 @@ permissions, content fidelity, or task success.
 
 The initial release implements slices 1 and 2. Live behavior, account/write
 verification and comparison of workflow outcomes remain separate follow-ups.
+
+## Observability console
+
+The operator console exposes the same static coverage outcomes for mapped agent
+drafts. Open **MCP servers → My MCP servers → Capabilities & limits** for server
+metadata, or **Check fields and input connections** under a draft step to assess
+its required fields and earlier-result dependencies. Save the draft to retain
+the checks. Public pre-checks and connected-account snapshots are separate.
+
+[Console usage and limits](../console/README.md#mcp-capabilities-and-workflow-coverage)
+describe refresh behavior and bounded metadata. The Python and browser engines
+share `fixtures/mcp-capability-coverage-v1/cases.json` acceptance cases. The UI
+leaves unspecified inputs unknown; an explicit CLI profile with missing required
+arguments remains blocked. Neither surface verifies account access or execution.
