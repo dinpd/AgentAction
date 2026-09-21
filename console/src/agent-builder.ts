@@ -6,9 +6,10 @@ import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./
 import { recipes, type Recipe } from "../../recipes/registry.ts";
 import { JOURNEY_NAV } from "./journey.ts";
 import type { PrecheckReport } from "./mcp-precheck.ts";
+import { mcpMatching, MATCHING_FACTORY_JS } from './mcp-matching.ts';
 import type { CatalogResult } from "./mcp-registry.ts";
 import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
-const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
+const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -41,7 +42,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <details id="manual-options"><summary>Set up manually</summary><button id="start-scratch" type="button" class="secondary">Start from scratch</button></details>
 <section id="continue-agents" hidden><h2>Continue an agent</h2><div id="agent-drafts" class="grid"></div></section>
 </section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="agent-tools" hidden><h3>Tools &amp; MCP servers</h3><p class="note">Choose the MCP server and account for each capability. Suggestions are untested; review them before running.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="agent-tools" hidden><h3>Tools &amp; MCP servers</h3><p class="note">Find a tool for each capability: use a connected account, review suggested MCP servers, or connect your own.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
 <div class="fields"><label>Agent name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
 <label>Inputs this agent needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
@@ -58,9 +59,9 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
 export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + CAPABILITY_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.eval-check{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.eval-check label{min-width:0}.eval-check button{align-self:end}#eval-editor{min-width:0;margin:20px 0;padding:18px;border:1px solid #cbd0c4}@media(max-width:700px){.eval-check{grid-template-columns:1fr}}#agent-profiler{margin-top:26px}#agent-ideas:not(:empty){margin-top:20px}#profile-request .fields label{justify-content:end}#agent-ideas .actions{margin-top:auto}#agent-ideas .card{display:flex;flex-direction:column}#example-library[open]{margin-top:24px}#example-library>summary{margin-bottom:18px}#manual-options{font-size:14px;color:#596150}#continue-agents{margin-top:32px}#continue-agents h2{font-size:20px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
-export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory, capabilityFactory = capabilityEngine): void {
+export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], historyFactory = agentHistory, capabilityFactory = capabilityEngine, matchingFactory = mcpMatching): void {
   const history = historyFactory(runtime);
-  const capabilities = capabilityFactory();
+  const capabilities = capabilityFactory(), matcher = matchingFactory();
   let recurring: any = null;
   const doc = runtime.document;
   const get = <T extends HTMLElement>(id: string) => doc.getElementById(id) as T;
@@ -97,7 +98,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let creating = false;
   function resetDraft() {
     draftGeneration++; draftQuestions = []; currentPlan = undefined;
-    profileGeneration++;
+    profileGeneration++;capabilitySetup=undefined;serverQueries.clear();serverSuggestions.clear();
     get<HTMLFormElement>('profile-request').reset(); get<HTMLDetailsElement>('agent-profiler').open = false;
     get('agent-ideas').replaceChildren(); feedback('profile-feedback','');
     get('continue-agents').hidden = true; get('saved-examples').hidden = true; get('suggested-examples').hidden = true;
@@ -120,24 +121,117 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function selectedBindings(): ToolBindings {
     return Object.fromEntries([...doc.querySelectorAll<HTMLSelectElement>('[data-tool-mapping]')].filter(el=>el.value).map(el=>[el.dataset.toolMapping!,JSON.parse(el.value)]));
   }
+  // Results are workspace/draft scoped; only capability text is sent to the cached registry.
+  const serverQueries=new Map<string,string>();
+  const serverSuggestions=new Map<string,Promise<CatalogResult>>();
+  let capabilitySetup:{tenant:string;planId:string;stepId:string;connectionId?:string}|undefined;
+  function suggestionKey(stepId:string) {return `${tenant}:${currentPlan!.id}:${stepId}`;}
+  async function setupCapability(stepId:string,endpoint='',label='',setup='') {
+    const selectedTenant=tenant,planId=currentPlan!.id,editor=editorGeneration;
+    await savePlan();
+    if(tenant!==selectedTenant || currentPlan?.id!==planId || editor!==editorGeneration) return;
+    capabilitySetup={tenant,planId,stepId};
+    runtime.location.hash='connect';showStage('connect');openSetup(endpoint,label,setup);
+    const requirement=currentPlan.requirements.find(r=>r.id===stepId)!;
+    get('setup-heading').textContent=`Connect a server for ${requirement.label}`;
+    get('recipe-return').querySelector('a')!.textContent=`← Back to ${requirement.label}`;
+  }
+  function suggestionCards(requirement:AgentPlan['requirements'][number],host:HTMLElement,query:string) {
+    const planId=currentPlan!.id,selectedTenant=tenant,key=suggestionKey(requirement.id),requestKey=key+':'+query;
+    const generation=String(Number(host.dataset.generation || 0)+1);host.dataset.generation=generation;
+    host.replaceChildren(node('p','Finding matching servers…','note'));host.setAttribute('aria-live','polite');
+    if(!matcher.groups(query).length) {host.replaceChildren(node('p','Try a service or subject, such as contractor licenses, employment or contacts. You can also connect your own server.','note'));return;}
+    let pending=serverSuggestions.get(requestKey);
+    if(!pending) {
+      const params=new URLSearchParams({q:query,mode:'suggest'});
+      pending=request(`/api/agents/${encodeURIComponent(tenant)}/catalog?${params}`);
+      if(serverSuggestions.size>=32) serverSuggestions.delete(serverSuggestions.keys().next().value!);
+      serverSuggestions.set(requestKey,pending!);
+    }
+    void pending!.then(data=>{
+      if(!host.isConnected || host.dataset.generation!==generation || tenant!==selectedTenant || currentPlan?.id!==planId || (serverQueries.get(key) ?? requirement.label)!==query) return;
+      host.replaceChildren();
+      if(data.indexing || data.stale || data.unavailable) host.append(node('p',data.notice || 'Registry results may be incomplete.','note'));
+      const servers=data.servers.filter(s=>matcher.match(query,s.title,s.name+' '+s.description).score>0).slice(0,3);
+      if(!servers.length) host.append(node('p','No matching servers found in the current registry. Refine the search or connect your own MCP server.','note'));
+      for(const server of servers) {
+        const card=node('article','','server-choice');card.dataset.registryServer=server.name;
+        const connected=state.connections.filter((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
+        card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',server.description,'note'));
+        const terms=server.matchTerms || matcher.match(query,server.title,server.name+' '+server.description).terms;
+        card.append(node('p',`Listing mentions: ${terms.join(', ')}.`,'note'));
+        card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'));
+        if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Provider details ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
+        if(connected.length) {
+          card.append(node('p','Choose an actual tool from this connected server.','note'));
+          for(const c of connected) for(const tool of c.tools.slice(0,8)) card.append(button(`Use ${c.label} · ${tool.name}`,async()=>chooseTool(requirement.id,{connectionId:c.id,tool:tool.name})));
+          if(connected.some((c:any)=>c.tools.length>8)) card.append(node('p','More tools are available under “Choose another connected tool”.','note'));
+        } else if(server.endpoints.length) {
+          const label=node('label','Endpoint'),select=doc.createElement('select');select.setAttribute('aria-label',`Endpoint for ${server.title}`);
+          for(const endpoint of server.endpoints) select.append(new Option(endpoint,endpoint));
+          select.disabled=role==='viewer';if(server.endpoints.length>1) {label.append(select);card.append(label);}
+          card.append(node('p','Review provider authentication and workspace access before connecting.','note'),button('Review & connect',async()=>setupCapability(requirement.id,select.value,server.title,server.setup)));
+        } else card.append(node('p','Setup outside this console is required. Use the provider details, then connect your own supported HTTPS endpoint.','note'));
+        host.append(card);
+      }
+      if(data.servers.length>3 || data.nextOffset!==null && data.nextOffset!==undefined) host.append(button('Browse more matches',async()=>{
+        const selectedTenant=tenant,editor=editorGeneration;await savePlan();if(tenant!==selectedTenant || editor!==editorGeneration)return;
+        capabilitySetup={tenant,planId,stepId:requirement.id};runtime.location.hash='connect';showStage('connect');showMcpView(false);
+        get<HTMLInputElement>('catalog-query').value=query;get<HTMLSelectElement>('catalog-capability').value='';get<HTMLSelectElement>('catalog-auth').value='';await searchCatalog();
+      }));
+    }).catch(()=>{
+      if(!host.isConnected || host.dataset.generation!==generation || tenant!==selectedTenant || currentPlan?.id!==planId || (serverQueries.get(key) ?? requirement.label)!==query) return;
+      host.replaceChildren(node('p','Server suggestions are unavailable. Retry, or connect your own MCP server.','note'),button('Retry suggestions',async()=>{serverSuggestions.delete(requestKey);suggestionCards(requirement,host,query);}));
+    });
+  }
+  function chooseTool(stepId:string,binding?:{connectionId:string;tool:string}) {
+    if(role==='viewer'||!currentPlan)return;
+    if(binding) currentPlan.bindings={...currentPlan.bindings,[stepId]:binding};else delete currentPlan.bindings[stepId];
+    if(capabilitySetup?.stepId===stepId) capabilitySetup=undefined;
+    renderMappings();updateDraftPreview();
+  }
   function renderMappings() {
     if(!currentPlan) return;
-    const host=get('tool-mappings'); host.replaceChildren();
+    const host=get('tool-mappings');host.replaceChildren();
     for(const requirement of currentPlan.requirements) {
-      const label=node('label',requirement.label),select=doc.createElement('select'); select.dataset.toolMapping=requirement.id;
-      select.append(new Option('Choose a tool / add a server',''));
-      for(const c of state.connections.filter((c:any)=>c.status==='connected')) for(const tool of c.tools) {
-        const value=JSON.stringify({connectionId:c.id,tool:tool.name});
-        const suggested=requirement.matches.some(m=>m.connectionId===c.id && m.tool===tool.name);
-        select.append(new Option(`${c.label} · ${tool.name}${suggested ? ' (suggested)' : ''}`,value));
-      }
-      const binding=currentPlan.bindings[requirement.id]; select.value=binding ? JSON.stringify(binding) : '';
-      select.disabled=role==='viewer';
-      select.onchange=()=>{currentPlan!.bindings=selectedBindings();updateMappingStatus();updateDraftPreview();renderCoverage();};
       const card=node('section','','capability-step');card.dataset.capabilityStep=requirement.id;
-      label.append(select);card.append(label);host.append(card);
-      const report=node('div','','capability-report');report.dataset.coverageReport=requirement.id;report.setAttribute('aria-live','polite');card.append(report);
-      fieldCheckEditor(requirement.id,card);
+      card.append(node('h4',requirement.label));host.append(card);
+      const binding=currentPlan.bindings[requirement.id],connection=state.connections.find((c:any)=>c.id===binding?.connectionId && c.status==='connected');
+      const selected=connection?.tools.find((t:any)=>t.name===binding?.tool);
+      if(selected) card.append(node('p',`Selected: ${connection.label} · ${selected.name}`,'selected-tool'),button('Clear selection',async()=>chooseTool(requirement.id)));
+      else if(binding) card.append(node('p','The previously mapped tool is unavailable. Choose a replacement below.','note'));
+      else card.append(node('p','Choose a connected tool or connect a server for this capability.','note'));
+      const choices=node('details','','capability-choices') as HTMLDetailsElement;choices.open=!selected;choices.append(node('summary',selected?'Change tool or server':'Find a tool for this capability'));card.append(choices);
+      const tools=state.connections.filter((c:any)=>c.status==='connected').flatMap((c:any)=>c.tools.map((t:any)=>{
+        const match=matcher.match(requirement.label,t.name,t.description || '');
+        const suggested=requirement.matches.some(m=>m.connectionId===c.id && m.tool===t.name);
+        return {connection:c,tool:t,score:match.score+(suggested?100:0),reason:suggested?'Suggested by your draft; review tool support.':`Tool metadata mentions ${match.terms.join(', ')}.`};
+      })).sort((a:any,b:any)=>b.score-a.score);
+      const justConnected=capabilitySetup?.tenant===tenant && capabilitySetup.planId===currentPlan.id && capabilitySetup.stepId===requirement.id ? capabilitySetup.connectionId : undefined;
+      const candidates=tools.filter((t:any)=>justConnected ? t.connection.id===justConnected : t.score>0).slice(0,4);
+      if(candidates.length) choices.append(node('h5',justConnected?'Choose an actual tool from your new connection':'Relevant connected tools'));
+      else if(tools.length) choices.append(node('p','No relevant connected tools found. Try a server below or connect your own.','note'));
+      for(const {connection:c,tool,reason} of candidates) {
+        const item=node('article','','server-choice');item.dataset.connectedTool=tool.name;
+        item.append(node('strong',`${c.label} · ${tool.name}`),node('span','Connected','pill'),node('p',tool.description || 'No tool description supplied.','note'),node('p',justConnected?'Newly discovered tool; review whether it supports this capability.':reason,'note'),button('Use this tool',async()=>chooseTool(requirement.id,{connectionId:c.id,tool:tool.name})));choices.append(item);
+      }
+      // Explicit fallback for valid tools whose descriptions do not match the need.
+      const other=node('details','','other-tools');other.append(node('summary','Choose another connected tool'));
+      const label=node('label','All connected tools'),select=doc.createElement('select');select.dataset.toolMapping=requirement.id;select.setAttribute('aria-label',`Other connected tool for ${requirement.label}`);
+      select.append(new Option('Choose a connected tool',''));
+      for(const {connection:c,tool} of tools) select.append(new Option(`${c.label} · ${tool.name}`,JSON.stringify({connectionId:c.id,tool:tool.name})));
+      select.value=selected?JSON.stringify(binding):'';select.disabled=role==='viewer';select.onchange=()=>chooseTool(requirement.id,select.value?JSON.parse(select.value):undefined);label.append(select);other.append(label);other.hidden=!tools.length;choices.append(other);
+      choices.append(node('h5','Suggested MCP servers'),node('p','Matches come from registry descriptions. Review the server and its actual tools before relying on it.','note'));
+      const key=suggestionKey(requirement.id),query=serverQueries.get(key) ?? requirement.label;
+      const searchRow=node('div','','capability-search'),searchLabel=node('label','Find servers for'),input=doc.createElement('input');input.value=query;input.maxLength=160;input.setAttribute('aria-label',`Find servers for ${requirement.label}`);input.disabled=role==='viewer';searchLabel.append(input);
+      const suggestions=node('div','','server-suggestions');suggestions.dataset.serverSuggestions=requirement.id;
+      const search=async()=>{const q=input.value.trim();serverQueries.set(key,q);serverSuggestions.delete(key+':'+q);suggestionCards(requirement,suggestions,q);};
+      input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();void search();}};
+      input.oninput=()=>{suggestions.dataset.generation=String(Number(suggestions.dataset.generation || 0)+1);serverQueries.set(key,input.value.trim());suggestions.replaceChildren(node('p','Select Find servers to update the suggestions.','note'));};
+      searchRow.append(searchLabel,button('Find servers',search),button('Connect your own MCP server',async()=>setupCapability(requirement.id)));choices.append(searchRow,suggestions);
+      suggestionCards(requirement,suggestions,query);
+      const report=node('div','','capability-report');report.dataset.coverageReport=requirement.id;report.setAttribute('aria-live','polite');report.hidden=!binding;card.append(report);
+      fieldCheckEditor(requirement.id,card);(card.querySelector('.field-check-editor') as HTMLElement).hidden=!binding;
     }
     updateMappingStatus();renderCoverage();
   }
@@ -405,6 +499,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('recipe-save-status').textContent = `Saved agent template v${saved.version}. Job inputs were not included. You can create an agent below.`;
   }
   function recipeContext(recipe?: Recipe) {
+    capabilitySetup=undefined;get('recipe-return').querySelector('a')!.textContent='← Continue agent setup';
     currentPlan=undefined; selectedRecipe = recipe; chosen = undefined; editorRecipe = undefined; editorGeneration++; draftGeneration++;
     get<HTMLFormElement>('create').reset(); get('configure').hidden = true;
     const url = new URL(runtime.location.href);
@@ -622,7 +717,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     }
     get("catalog-more").hidden = true;
     get("catalog-status").textContent = "Searching the registry catalog…";
-    const params = new URLSearchParams({ q: catalogQuery, capability: catalogCapability, auth: catalogAuth, offset: String(append ? catalogOffset || 0 : 0) });
+    const params = new URLSearchParams({ q: catalogQuery, capability: catalogCapability, auth: catalogAuth, offset: String(append ? catalogOffset || 0 : 0),...(capabilitySetup?{mode:"suggest"}:{}) });
     try {
       const data = await request(`/api/agents/${encodeURIComponent(currentTenant)}/catalog?${params}`) as CatalogResult;
       if (current !== catalogGeneration || currentTenant !== tenant) return;
@@ -654,7 +749,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required";
           select.addEventListener("change", () => { accessLabel.dataset.endpointAccess = select.value; accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required"; });
           endpointLabel.append(select); card.append(accessLabel, endpointLabel, button("Use this server", async () => {
-            openSetup(select.value, server.title);
+            if(capabilitySetup && currentPlan?.id===capabilitySetup.planId) await setupCapability(capabilitySetup.stepId,select.value,server.title);else openSetup(select.value, server.title);
           }));
         } else card.append(node("p", "Setup required outside this builder", "pill"));
         const inspectable = server.inspectableEndpoints || server.endpoints;
@@ -809,7 +904,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const selectedTenant=tenant,editor=editorGeneration;
     void perform(event.currentTarget as HTMLButtonElement,async()=>{
       await savePlan(); if(selectedTenant!==tenant || editor!==editorGeneration) return;
-      runtime.location.hash='connect';showStage('connect');
+      capabilitySetup=undefined;get('recipe-return').querySelector('a')!.textContent='← Continue agent setup';runtime.location.hash='connect';showStage('connect');
       if(custom) openSetup(''); else {showMcpView(false);await searchCatalog();}
     });
   };
@@ -871,7 +966,21 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form), submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
-    void perform(submit, async () => { feedback("connect-feedback", "Connecting and discovering the server’s actual tools…"); try { await mutate("connect", payload); } finally { payload.token = null; } await refresh(); feedback("connect-feedback", "MCP server connected. Its tools are now available for your agent."); if (selectedRecipe || currentPlan) { if(currentPlan) renderMappings(); runtime.location.hash = "create"; showStage("create"); message("Server connected. Review the tool mappings in your agent setup."); } }, "connect-feedback");
+    void perform(submit, async () => {
+      feedback("connect-feedback", "Connecting and discovering the server’s actual tools…");
+      let connected:{connectionId:string};const origin=capabilitySetup;
+      try { connected=await mutate("connect", payload); } finally { payload.token = null; }
+      if(origin && origin===capabilitySetup && origin.tenant===tenant && origin.planId===currentPlan?.id) origin.connectionId=connected.connectionId;
+      await refresh();feedback("connect-feedback", "MCP server connected. Its tools are now available for your agent.");
+      if (selectedRecipe || currentPlan) {
+        if(currentPlan) renderMappings();runtime.location.hash="create";showStage("create");
+        message("Server connected. Review the tool mappings in your agent setup.");
+        if(capabilitySetup?.connectionId) {
+          const target=[...doc.querySelectorAll<HTMLElement>("[data-capability-step]")].find(el=>el.dataset.capabilityStep===capabilitySetup!.stepId);
+          target?.scrollIntoView({block:"start"});
+        }
+      }
+    }, "connect-feedback");
   });
   get<HTMLButtonElement>('start-scratch').onclick = () => { const description = get<HTMLTextAreaElement>('job-description').value; const connections = state.connections.filter((c: any) => c.status === 'connected'); recipeContext(); openEditor(connections.length === 1 ? connections[0].id : '', {}); editorField('setup').value = description; };
   get<HTMLSelectElement>('editor-connection').onchange = () => {
@@ -960,4 +1069,4 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }
-export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes).replace(/</g, "\\u003c")}, ${HISTORY_FACTORY_JS}, ${CAPABILITY_FACTORY_JS});`;
+export const AGENT_JS = `(${agentBuilderApp.toString()})(window, ${JSON.stringify(recipes).replace(/</g, "\\u003c")}, ${HISTORY_FACTORY_JS}, ${CAPABILITY_FACTORY_JS}, ${MATCHING_FACTORY_JS});`;

@@ -114,7 +114,7 @@ try {
  await page.getByText('Server connected. Review the tool mappings', {exact:false}).waitFor();
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
  const serverId=(await latest()).connections[0].id;
- await page.locator('[data-tool-mapping]').selectOption(JSON.stringify({connectionId:serverId,tool:'firecrawl_scrape'}));
+ await page.locator('.other-tools > summary').click();await page.locator('[data-tool-mapping]').selectOption(JSON.stringify({connectionId:serverId,tool:'firecrawl_scrape'}));
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-mobile.png'});

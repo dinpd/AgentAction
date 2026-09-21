@@ -1,4 +1,5 @@
 import { boundedText, object } from "./mcp-client.ts";
+import { mcpMatching } from './mcp-matching.ts';
 
 export const REGISTRY_URL = "https://registry.modelcontextprotocol.io/v0.1/servers";
 export const CAPABILITIES = [
@@ -18,10 +19,11 @@ export const AUTH_TYPES = [
 ] as const;
 type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
+  matchTerms?: string[];
   name: string; title: string; description: string; version: string; publisher: string;
   website?: string; endpoints: string[]; inspectableEndpoints: string[]; hosting: string; setup: string; capabilities: string[]; authTypes: AuthType[];
 };
-export type CatalogQuery = { query: string; capability: string; auth?: string; offset: number };
+export type CatalogQuery = { query: string; capability: string; auth?: string; offset: number; mode?: 'suggest' };
 export type CatalogResult = {
   servers: CatalogServer[]; total: number; nextOffset: number | null;
   capabilities: Array<{ id: string; label: string }>; authTypes: Array<{ id: string; label: string }>; updatedAt: string | null;
@@ -95,11 +97,13 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
   };
 }
 export function parseCatalogQuery(params: URLSearchParams): CatalogQuery {
-  for (const key of params.keys()) if (!["q", "capability", "auth", "offset"].includes(key) || params.getAll(key).length !== 1) throw new Error("Invalid catalog search parameters.");
+  for (const key of params.keys()) if (!["q", "capability", "auth", "offset", "mode"].includes(key) || params.getAll(key).length !== 1) throw new Error("Invalid catalog search parameters.");
   const query = (params.get("q") || "").trim(), capability = params.get("capability") || "", offsetText = params.get("offset") || "0";
   const auth = params.get("auth") || "";
+  const mode=params.get('mode');
+  if(mode!==null && mode!=='suggest') throw new Error('Invalid catalog search mode.');
   if (query.length > 200 || (capability && !CAPABILITIES.some(c => c.id === capability)) || (auth && !AUTH_TYPES.some(t => t.id === auth)) || !/^\d{1,6}$/.test(offsetText) || Number(offsetText) > MAX_CATALOG_PAGES * 100) throw new Error("Invalid catalog search parameters.");
-  return { query, capability, auth, offset: Number(offsetText) };
+  return { query, capability, auth, offset: Number(offsetText),...(mode ? {mode:'suggest' as const} : {}) };
 }
 
 // One coordination object per registry source, separate from all tenant/agent
@@ -117,7 +121,7 @@ export class RegistryCatalog {
   private save(state: State) { this.storage.sql.exec("INSERT OR REPLACE INTO registry_state VALUES (1, ?)", JSON.stringify(state)); }
   async search(input: CatalogQuery): Promise<CatalogResult> {
     // Validate again at the RPC boundary.
-    const { query, capability, auth, offset } = parseCatalogQuery(new URLSearchParams({ q: input.query, capability: input.capability, auth: input.auth ?? "", offset: String(input.offset) }));
+    const { query, capability, auth, offset, mode } = parseCatalogQuery(new URLSearchParams({ q: input.query, capability: input.capability, auth: input.auth ?? "", offset: String(input.offset),...(input.mode===undefined?{}:{mode:input.mode}) }));
     if (await this.storage.getAlarm() === null) await this.storage.setAlarm(Math.max(this.clock() + 1, this.state().nextRefresh));
     // Read the snapshot after the scheduling awaits; no await may split this
     // state read from its SQL queries while a refresh swaps generations.
@@ -135,14 +139,26 @@ export class RegistryCatalog {
     const stop = new Set(["i", "want", "to", "a", "an", "the", "my", "with", "for", "and", "or", "can", "that", "me", "help"]);
     const tokens = [...new Set(words(query).filter(t => !stop.has(t)))].slice(0, 16);
     const categories = CAPABILITIES.filter(c => c.terms.some(t => contains(query, t)));
-    if (query) {
+    const groups=mode==='suggest'?mcpMatching().groups(query):[];
+    if(mode==='suggest') {
+      const subjectGroups=groups.filter(g=>g.terms.length>1);
+      const terms=[...new Set((subjectGroups.length?subjectGroups:groups).flatMap(g=>g.terms))];
+      where+=terms.length?` AND (${terms.map(()=>"instr(search, ?) > 0").join(' OR ')})`:' AND 0';
+      params.push(...terms);
+    } else if (query) {
       const alternatives: string[] = [];
       if (tokens.length) { alternatives.push(`(${tokens.map(() => "instr(search, ?) > 0").join(" AND ")})`); params.push(...tokens); }
       for (const c of categories) { alternatives.push("instr(tags, ?) > 0"); params.push(`|${c.id}|`); }
       where += alternatives.length ? ` AND (${alternatives.join(" OR ")})` : " AND 0";
     }
     const total = Number(this.storage.sql.exec(`SELECT count(*) AS count FROM registry_servers WHERE ${where}`, ...params).toArray()[0].count);
-    const result = this.storage.sql.exec(`SELECT payload FROM registry_servers WHERE ${where} ORDER BY CASE WHEN title = ? THEN 2 WHEN instr(title, ?) > 0 THEN 1 ELSE 0 END DESC, name ASC LIMIT 20 OFFSET ?`, ...params, query.toLowerCase(), query.toLowerCase(), offset).toArray();
+    const rankParams:string[]=[];
+    const rank=mode==='suggest' ? groups.map(g=>{
+      rankParams.push(...g.terms,...g.terms);
+      return `(CASE WHEN ${g.terms.map(()=> 'instr(search, ?) > 0').join(' OR ')} THEN 8 ELSE 0 END + CASE WHEN ${g.terms.map(()=> 'instr(title, ?) > 0').join(' OR ')} THEN 4 ELSE 0 END)`;
+    }).join(' + ') || '0 + 0' : 'CASE WHEN title = ? THEN 2 WHEN instr(title, ?) > 0 THEN 1 ELSE 0 END';
+    if(mode!=='suggest') rankParams.push(query.toLowerCase(),query.toLowerCase());
+    const result = this.storage.sql.exec(`SELECT payload FROM registry_servers WHERE ${where} ORDER BY (${rank}) DESC, name ASC LIMIT 20 OFFSET ?`, ...params, ...rankParams, offset).toArray();
     const indexing = Boolean(state.pending) || (!state.active && !state.error);
     const stale = Boolean(state.active && (state.error || this.clock() - state.active.updatedAt >= HOUR));
     const authPending = this.storage.sql.exec("SELECT 1 FROM registry_servers WHERE generation = ? AND instr(tags, '|auth:') = 0 LIMIT 1", selected).toArray().length > 0;
@@ -150,7 +166,7 @@ export class RegistryCatalog {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
       // stored provider snapshot. No upstream refresh or data rewrite is needed.
-      return { ...server, inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
+      return { ...server, ...(mode==='suggest'?{matchTerms:mcpMatching().match(query,server.title,server.name+' '+server.description).terms}:{}), inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
     }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),

@@ -21,8 +21,23 @@ reading resources. Refresh pauses affected agents and invalidates approvals;
 a new supervised trial is required. Only owners and operators can refresh.
 Public pre-check summaries are labeled separately and use no credentials.
 
-In a draft, map each step to a connected tool, then open **Check fields and
-input connections**. Specify required fields, add scalar example inputs, or
+In a draft, each capability offers **Relevant connected tools**, **Suggested MCP
+servers**, and **Connect your own MCP server**. Suggestions include unconnected
+servers from the cached registry, with provider details and the terms behind the
+match. Refine **Find servers for** to name a service or a more specific subject.
+No-match and registry failures leave the own-server path available. Local-only
+or unsupported deployments require provider setup outside the console.
+
+**Review & connect** preserves the draft and opens the existing endpoint and
+authentication flow. After connection, return to the originating capability and
+explicitly choose an actual discovered tool. Other mappings and field checks
+stay intact. An additional **Choose another connected tool** control covers
+existing tools whose metadata did not match. Unmapped capabilities show the
+next action instead of schema warnings. These are text-based recommendations;
+matching a listing does not establish that it supports the required workflow.
+Queries stay within the cached registry service and never go to publishers.
+
+After selecting a tool, open **Check fields and input connections**. Specify required fields, add scalar example inputs, or
 connect a top-level input to an earlier step's result. Paths use JSON Pointer,
 with `/*` for homogeneous array items, for example `/tickets/*/id`. Choose
 **Save draft only** to retain these checks. They are assessment inputs only;
@@ -45,7 +60,7 @@ regular expressions are executed. See [CLI checks](../docs/mcp-capabilities.md).
 
 Browser acceptance: install Playwright with Chromium, then run
 `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node --experimental-strip-types tests/capability-browser.mts`
-from `console`. It uses synthetic local data only.
+from `console`. Run `tests/server-matching-browser.mts` the same way for per-capability discovery and connection acceptance. Both use synthetic local data only.
 
 ## Recurring agents and notifications
 
