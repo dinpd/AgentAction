@@ -11,7 +11,8 @@
     "dry-run": "WRANGLER_LOG_PATH=/tmp/agentpass-console-wrangler.log wrangler deploy --env=\"\" --dry-run --outdir /tmp/agentpass-console-worker-dist",
     "dry-run:demo": "WRANGLER_LOG_PATH=/tmp/agentaction-console-demo-wrangler.log wrangler deploy --config wrangler.demo.toml --dry-run --outdir /tmp/agentaction-console-demo-worker-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
-    "test:browser": "node --experimental-strip-types tests/registry-browser.mts"
+    "test:browser": "node --experimental-strip-types tests/registry-browser.mts",
+    "test:catalog-worker": "node --experimental-strip-types tests/directory-worker.mts"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"

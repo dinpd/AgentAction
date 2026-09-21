@@ -40,6 +40,9 @@ jobs:
       - name: Verify operator Worker bundle
         run: npm run dry-run
 
+      - name: Verify catalog RPC, storage and alarms
+        run: npm run test:catalog-worker
+
       - name: Verify public demo Worker bundle
         run: npm run dry-run:demo
 

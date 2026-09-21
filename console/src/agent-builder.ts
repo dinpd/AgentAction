@@ -7,9 +7,9 @@ import { recipes, type Recipe } from "../../recipes/registry.ts";
 import { JOURNEY_NAV } from "./journey.ts";
 import type { PrecheckReport } from "./mcp-precheck.ts";
 import { mcpMatching, MATCHING_FACTORY_JS } from './mcp-matching.ts';
-import type { CatalogResult } from "./mcp-registry.ts";
+import type { CatalogResult, CatalogServer } from "./mcp-registry.ts";
 import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
-const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
+const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -19,7 +19,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <section class="panel" data-builder-stage="connect"><div class="section-heading"><h2>MCP servers</h2><span>Server-side credentials · supervised execution</span></div>
 <div class="actions mcp-navigation" aria-label="MCP views"><button id="browse-servers" type="button" aria-pressed="true" aria-controls="catalog-view">Browse servers</button><button id="manage-connections" type="button" class="secondary" aria-pressed="false" aria-controls="setup-view">My MCP servers</button></div>
 <div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Add your own MCP server</button></div></form>
-<p id="catalog-status" class="note" role="status" aria-live="polite">Search the official MCP Registry. Capabilities are advertised; connect to inspect actual tools.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
+<p id="catalog-status" class="note" role="status" aria-live="polite">Search MCP directories. Tool catalogs are advertised; connect to discover tools for your account.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
 </div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
 <div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
 <form id="connect"><div class="fields setup-fields"><label>Server / account name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
@@ -136,6 +136,49 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('setup-heading').textContent=`Connect a server for ${requirement.label}`;
     get('recipe-return').querySelector('a')!.textContent=`← Back to ${requirement.label}`;
   }
+  function listingText(server: CatalogServer) {
+    return server.name+' '+server.description+' '+(server.catalogEvidence?.tools.map(t=>t.name.replace(/[_-]/g,' ')+' '+t.description+' '+JSON.stringify(t.inputSchema || {})+' '+JSON.stringify(t.outputSchema || {})).join(' ') || '');
+  }
+  function sourceStatus(host: HTMLElement, data: CatalogResult) {
+    if(!data.sources?.length) return;
+    const details=node('details','','catalog-sources');details.append(node('summary','Catalog coverage & sources'));
+    for(const source of data.sources) {
+      details.append(node('p',`${source.name}: ${source.status} · ${source.withTools} of ${source.listings} indexed listings have tool metadata.${source.updatedAt?' Updated '+new Date(source.updatedAt).toLocaleString()+'.':''}`,'note'));
+      if(source.note) details.append(node('p',source.note,'note'));
+    }
+    details.append(node('p','Coverage describes our indexed listings. It does not measure all MCP servers or confirm your account access.','note'));host.append(details);
+  }
+  function catalogEvidence(card: HTMLElement, server: CatalogServer, query='') {
+    const evidence=server.catalogEvidence;
+    if(!evidence) {
+      card.append(node('p','Tool catalog unknown · this listing contains server metadata only. Check publisher documentation or connect to discover available tools.','note'));
+      return;
+    }
+    card.dataset.catalogSource=evidence.source;
+    const label=evidence.source==='glama'?'Glama':'Smithery';
+    try {
+      const url=new URL(evidence.url);
+      if(url.origin===(evidence.source==='glama'?'https://glama.ai':'https://smithery.ai') && !url.username && !url.password) {
+        const link=node('a',`Tool catalog data from ${label} ↗`) as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);
+      }
+    } catch {}
+    card.append(node('p',`Registry indexed · ${evidence.status==='unknown'?'catalog unknown':evidence.status==='partial'?'partial metadata':'tool declarations available'} · retrieved ${new Date(evidence.retrievedAt).toLocaleString()}`,'note'));
+    if(evidence.observedAt) card.append(node('p',`Source last checked the server: ${new Date(evidence.observedAt).toLocaleString()}`,'note'));
+    if(Date.now()-Date.parse(evidence.retrievedAt)>86_400_000) card.append(node('p','Cached catalog may be stale. Connect to check current tools.','note'));
+    card.append(node('p',evidence.note,'note'));
+    if(evidence.authentication) card.append(node('p',`Directory-declared authentication: ${evidence.authentication==='oauth2'?'OAuth 2.0 · login is not supported in this console yet':evidence.authentication==='none'?'none (unverified)':evidence.authentication==='api_key'?'API key':'Basic authentication (not supported here)'}.`,'note'));
+    const observed=state.connections.find((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
+    if(observed && evidence.tools.length) {
+      const absent=evidence.tools.filter(t=>!observed.tools.some((actual:any)=>actual.name===t.name));
+      card.append(node('p',`Account catalog comparison: ${evidence.tools.length-absent.length} of ${evidence.tools.length} indexed tool names were discovered on this connection.${absent.length?' Not discovered: '+absent.slice(0,8).map(t=>t.name).join(', ')+'.':''} Schemas and permissions may differ.`,'note'));
+    }
+    const matched=evidence.tools.filter(t=>matcher.match(query,t.name.replace(/[_-]/g,' '),t.description+' '+JSON.stringify(t.inputSchema || {})+' '+JSON.stringify(t.outputSchema || {})).score>0);
+    for(const tool of matched.slice(0,3)) {
+      card.append(node('p',`Potential matching tool: ${tool.name}`,'note'));
+      card.append(node('p',`Declared inputs: ${capabilities.fields(tool.inputSchema).slice(0,8).join(', ') || 'Unknown / not enumerated'}; results: ${capabilities.fields(tool.outputSchema).slice(0,8).join(', ') || 'Unknown / not enumerated'}`,'note'));
+    }
+    if(evidence.tools.length) card.append(capabilityDetails(evidence.tools,'Registry indexed declarations, not a catalog discovered on your account. Missing fields and tools may reflect incomplete indexing. No account permissions or execution have been tested.',Math.max(evidence.advertisedCount ?? evidence.tools.length,evidence.tools.length)));
+  }
   function suggestionCards(requirement:AgentPlan['requirements'][number],host:HTMLElement,query:string) {
     const planId=currentPlan!.id,selectedTenant=tenant,key=suggestionKey(requirement.id),requestKey=key+':'+query;
     const generation=String(Number(host.dataset.generation || 0)+1);host.dataset.generation=generation;
@@ -152,15 +195,17 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(!host.isConnected || host.dataset.generation!==generation || tenant!==selectedTenant || currentPlan?.id!==planId || (serverQueries.get(key) ?? requirement.label)!==query) return;
       host.replaceChildren();
       if(data.indexing || data.stale || data.unavailable) host.append(node('p',data.notice || 'Registry results may be incomplete.','note'));
-      const servers=data.servers.filter(s=>matcher.match(query,s.title,s.name+' '+s.description).score>0).slice(0,3);
+      sourceStatus(host,data);
+      const servers=data.servers.filter(s=>matcher.match(query,s.title,listingText(s)).score>0).slice(0,3);
       if(!servers.length) host.append(node('p','No matching servers found in the current registry. Refine the search or connect your own MCP server.','note'));
       for(const server of servers) {
         const card=node('article','','server-choice');card.dataset.registryServer=server.name;
         const connected=state.connections.filter((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
         card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',server.description,'note'));
-        const terms=server.matchTerms || matcher.match(query,server.title,server.name+' '+server.description).terms;
-        card.append(node('p',`Listing mentions: ${terms.join(', ')}.`,'note'));
+        const terms=server.matchTerms || matcher.match(query,server.title,listingText(server)).terms;
+        card.append(node('p',`Listing or tool metadata mentions: ${terms.join(', ')}.`,'note'));
         card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'));
+        catalogEvidence(card,server,query);
         if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Provider details ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
         if(connected.length) {
           card.append(node('p','Choose an actual tool from this connected server.','note'));
@@ -729,9 +774,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         authLabels.set(auth.id, auth.label);
         const option = node("option", auth.label) as HTMLOptionElement; option.value = auth.id; get("catalog-auth").append(option);
       }
+      if(!append) sourceStatus(get("catalog-results"),data);
       for (const server of data.servers) {
         const card = node("article", "", "card");
         card.append(node("span", "Advertised · tools unverified", "pill"), node("h3", server.title), node("p", server.description), node("p", `Publisher namespace: ${server.publisher} · ${server.hosting}`, "note"), node("p", `${server.name} · version ${server.version}`, "note"));
+        catalogEvidence(card,server,catalogQuery);
         if (server.capabilities.length) card.append(node("p", `Capabilities: ${server.capabilities.map((id: string) => capabilityLabels.get(id) || id).join(", ")}`, "note"));
         card.append(node("p", `Declared authentication: ${server.authTypes.map(id => authLabels.get(id) || id).join(", ")}`, "note"), node("p", server.setup, "note"));
         if (server.website) {
@@ -762,7 +809,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       }
       renderPrechecks();
       catalogOffset = data.nextOffset; get("catalog-more").hidden = catalogOffset === null;
-      get("catalog-status").textContent = `${data.total} matching servers. ${data.notice}${data.updatedAt ? ` Last complete update: ${new Date(data.updatedAt).toLocaleString()}.` : ""}${data.stale ? " Catalog may be out of date." : ""}`;
+      get("catalog-status").textContent = `${data.total} matching listings. ${data.notice}${data.updatedAt ? ` Last complete update: ${new Date(data.updatedAt).toLocaleString()}.` : ""}${data.stale ? " Catalog may be out of date." : ""}`;
       if (!data.servers.length && !append) get("catalog-results").append(node("p", data.indexing || data.unavailable ? "Catalog results are not available yet. Search again shortly or enter an endpoint manually." : "No matching servers. Try a service name, broaden the capability or authentication filters, or enter an endpoint manually.", "empty"));
     } catch (error) {
       if (current !== catalogGeneration || currentTenant !== tenant) return;
@@ -1044,7 +1091,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     }).finally(() => { creating = false; updateMappingStatus(); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search the official MCP Registry by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search MCP directories by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
     const use = node('button', 'Use this template') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;

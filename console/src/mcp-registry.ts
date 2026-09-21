@@ -1,4 +1,5 @@
 import { boundedText, object } from "./mcp-client.ts";
+import type { CatalogEvidence, CatalogSource } from './mcp-directory.ts';
 import { mcpMatching } from './mcp-matching.ts';
 
 export const REGISTRY_URL = "https://registry.modelcontextprotocol.io/v0.1/servers";
@@ -19,12 +20,14 @@ export const AUTH_TYPES = [
 ] as const;
 type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
+  catalogEvidence?: CatalogEvidence;
   matchTerms?: string[];
   name: string; title: string; description: string; version: string; publisher: string;
   website?: string; endpoints: string[]; inspectableEndpoints: string[]; hosting: string; setup: string; capabilities: string[]; authTypes: AuthType[];
 };
 export type CatalogQuery = { query: string; capability: string; auth?: string; offset: number; mode?: 'suggest' };
 export type CatalogResult = {
+  sources?: Array<{ name: string; status: string; listings: number; withTools: number; updatedAt: string | null; note?: string }>;
   servers: CatalogServer[]; total: number; nextOffset: number | null;
   capabilities: Array<{ id: string; label: string }>; authTypes: Array<{ id: string; label: string }>; updatedAt: string | null;
   indexing: boolean; stale: boolean; unavailable: boolean; notice: string;
@@ -39,6 +42,9 @@ export type CatalogStorage = {
 type Snapshot = { generation: string; updatedAt: number };
 type Pending = { generation: string; pages: number; cursor?: string; cursors: string[] };
 type State = { active?: Snapshot; pending?: Pending; nextRefresh: number; error?: string };
+export function catalogSearchText(server: CatalogServer): string {
+  return `${server.name} ${server.title} ${server.description} ${server.catalogEvidence?.tools.map(t => `${t.name.replace(/[_-]/g,' ')} ${t.description} ${JSON.stringify(t.inputSchema || {})} ${JSON.stringify(t.outputSchema || {})}`).join(' ') || ''}`.slice(0, 90000).toLowerCase();
+}
 const HOUR = 3_600_000;
 export const MAX_CATALOG_PAGES = 1000;
 const short = (v: unknown, max: number) => typeof v === "string" ? v.trim().slice(0, max) : "";
@@ -112,8 +118,9 @@ export class RegistryCatalog {
   private storage: CatalogStorage;
   private fetcher: typeof fetch;
   private clock: () => number;
-  constructor(storage: CatalogStorage, fetcher: typeof fetch = (input, init) => fetch(input, init), clock = Date.now) {
-    this.storage = storage; this.fetcher = fetcher; this.clock = clock;
+  private source?: CatalogSource;
+  constructor(storage: CatalogStorage, fetcher: typeof fetch = (input, init) => fetch(input, init), clock = Date.now, source?: CatalogSource) {
+    this.storage = storage; this.fetcher = fetcher; this.clock = clock; this.source = source;
     storage.sql.exec("CREATE TABLE IF NOT EXISTS registry_servers (generation TEXT NOT NULL, name TEXT NOT NULL, title TEXT NOT NULL, search TEXT NOT NULL, tags TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(generation, name))");
     storage.sql.exec("CREATE TABLE IF NOT EXISTS registry_state (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
   }
@@ -160,13 +167,14 @@ export class RegistryCatalog {
     if(mode!=='suggest') rankParams.push(query.toLowerCase(),query.toLowerCase());
     const result = this.storage.sql.exec(`SELECT payload FROM registry_servers WHERE ${where} ORDER BY (${rank}) DESC, name ASC LIMIT 20 OFFSET ?`, ...params, ...rankParams, offset).toArray();
     const indexing = Boolean(state.pending) || (!state.active && !state.error);
-    const stale = Boolean(state.active && (state.error || this.clock() - state.active.updatedAt >= HOUR));
+    const stale = Boolean(state.active && (state.error || this.clock() - state.active.updatedAt >= (this.source?.refreshMs || HOUR)));
     const authPending = this.storage.sql.exec("SELECT 1 FROM registry_servers WHERE generation = ? AND instr(tags, '|auth:') = 0 LIMIT 1", selected).toArray().length > 0;
-    return { servers: result.map(row => {
+    const coverage = this.storage.sql.exec("SELECT count(*) AS listings, sum(CASE WHEN instr(tags, '|catalog:tools|') > 0 THEN 1 ELSE 0 END) AS withTools FROM registry_servers WHERE generation = ?", selected).toArray()[0];
+    return { sources: [{ name: this.source?.label || 'Official MCP Registry', status: state.error ? 'unavailable' : indexing ? 'indexing' : stale ? 'stale' : 'ready', listings: Number(coverage.listings), withTools: Number(coverage.withTools || 0), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null, ...(this.source?.id === 'glama' ? {note:'Glama limits directory pagination to roughly 1,000 connectors. This is a catalog sample, not universal coverage.'} : {}) }], servers: result.map(row => {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
       // stored provider snapshot. No upstream refresh or data rewrite is needed.
-      return { ...server, ...(mode==='suggest'?{matchTerms:mcpMatching().match(query,server.title,server.name+' '+server.description).terms}:{}), inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
+      return { ...server, ...(mode==='suggest'?{matchTerms:mcpMatching().match(query,server.title,catalogSearchText(server)).terms}:{}), inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
     }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),
@@ -184,16 +192,21 @@ export class RegistryCatalog {
     await this.storage.setAlarm(now + 300_000);
     let servers: CatalogServer[], cursor: unknown;
     try {
-      const url = new URL(REGISTRY_URL); url.searchParams.set("limit", "100"); url.searchParams.set("version", "latest");
-      if (pending.cursor) url.searchParams.set("cursor", pending.cursor);
-      const response = await this.fetcher(url.href, { headers: { accept: "application/json" }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
-      if (!response.ok) { await response.body?.cancel(); throw new Error("Registry unavailable"); }
-      const page = object(JSON.parse(await boundedText(response, 1_048_576)));
-      if (!Array.isArray(page.servers) || page.servers.length > 100) throw new Error("Invalid registry page");
-      const metadata = object(page.metadata); cursor = metadata.nextCursor;
-      if (cursor !== undefined && cursor !== null && cursor !== "" && (typeof cursor !== "string" || cursor.length > 2048 || pending.cursors.includes(cursor))) throw new Error("Invalid registry cursor");
-      if (pending.pages >= MAX_CATALOG_PAGES || (pending.pages === MAX_CATALOG_PAGES - 1 && cursor)) throw new Error("Catalog limit reached");
-      servers = page.servers.map(normalizeServer).filter((s): s is CatalogServer => Boolean(s));
+      if (this.source) {
+        const page = await this.source.readPage(pending.cursor); servers = page.servers; cursor = page.cursor;
+        if (servers.length > 100 || (cursor && (typeof cursor !== 'string' || cursor.length > 2048 || pending.cursors.includes(cursor)))) throw new Error('Invalid directory page');
+      } else {
+        const url = new URL(REGISTRY_URL); url.searchParams.set("limit", "100"); url.searchParams.set("version", "latest");
+        if (pending.cursor) url.searchParams.set("cursor", pending.cursor);
+        const response = await this.fetcher(url.href, { headers: { accept: "application/json" }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
+        if (!response.ok) { await response.body?.cancel(); throw new Error("Registry unavailable"); }
+        const page = object(JSON.parse(await boundedText(response, 1_048_576)));
+        if (!Array.isArray(page.servers) || page.servers.length > 100) throw new Error("Invalid registry page");
+        const metadata = object(page.metadata); cursor = metadata.nextCursor;
+        if (cursor !== undefined && cursor !== null && cursor !== "" && (typeof cursor !== "string" || cursor.length > 2048 || pending.cursors.includes(cursor))) throw new Error("Invalid registry cursor");
+        servers = page.servers.map(normalizeServer).filter((s): s is CatalogServer => Boolean(s));
+      }
+      if (pending.pages >= MAX_CATALOG_PAGES || (pending.pages === MAX_CATALOG_PAGES - 1 && cursor)) throw new Error('Catalog limit reached');
     } catch {
       // Do not publish a partial refresh or leak upstream response/error content.
       this.storage.transactionSync(() => {
@@ -206,12 +219,16 @@ export class RegistryCatalog {
       return;
     }
     this.storage.transactionSync(() => {
-      for (const server of servers) this.storage.sql.exec("INSERT OR REPLACE INTO registry_servers VALUES (?, ?, ?, ?, ?, ?)", pending.generation, server.name, server.title.toLowerCase(), `${server.name} ${server.title} ${server.description}`.toLowerCase(), `|${[...server.capabilities, ...server.authTypes.map(t => `auth:${t}`)].join("|")}|`, JSON.stringify(server));
+      for (const server of servers) {
+        const search = catalogSearchText(server);
+        server.capabilities = [...new Set([...server.capabilities, ...CAPABILITIES.filter(c => c.terms.some(t => contains(search,t))).map(c => c.id)])];
+        this.storage.sql.exec("INSERT OR REPLACE INTO registry_servers VALUES (?, ?, ?, ?, ?, ?)", pending.generation, server.name, server.title.toLowerCase(), search, `|${[...server.capabilities, ...server.authTypes.map(t => `auth:${t}`), ...(server.catalogEvidence?.tools.length ? ['catalog:tools'] : [])].join("|")}|`, JSON.stringify(server));
+      }
       pending.pages++;
       if (typeof cursor === "string" && cursor) { pending.cursor = cursor; pending.cursors.push(cursor); }
       else {
         state.active = { generation: pending.generation, updatedAt: this.clock() };
-        state.pending = undefined; state.error = undefined; state.nextRefresh = this.clock() + HOUR;
+        state.pending = undefined; state.error = undefined; state.nextRefresh = this.clock() + (this.source?.refreshMs || HOUR);
         this.storage.sql.exec("DELETE FROM registry_servers WHERE generation != ?", pending.generation);
       }
       this.save(state);
