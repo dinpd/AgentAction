@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.32.0-rc.1 - 2026-09-21
+
+### Added
+
+- Discover MCP servers within each required draft capability, including unconnected registry servers and relevant connected tools. Show match reasons, provider details and connection state, with editable searches and a connect-your-own action for every capability.
+- Preserve the originating capability through server setup and return to its actual discovered tools for an explicit selection. Keep other mappings and saved field checks intact. Show actionable prompts for unmapped capabilities; expose coverage details after selection.
+- Add bounded, ranked registry suggestions using published descriptions and related subject terms. Search the cached registry without forwarding draft inputs or search queries to publishers. Handle empty, stale, failed and outdated requests explicitly.
+
+### Compatibility and migration
+
+- Significant functionality: minor RC for an additive registry suggestion query mode and revised connection workflow. No persisted schema migration. Existing drafts and mappings remain valid, and the general registry browser retains its existing search behavior.
+- Suggestions are metadata matches, not verified capability or account access. Unsupported server setup remains explicit. Endpoint approval, consent, authentication and tool-execution approval are unchanged; selecting a recommendation never connects or executes automatically.
+- Install Python artifacts from the GitHub v0.32.0-rc.1 prerelease. No PyPI or npm publication is implied; the console deploys from the merged commit.
+
 ## 0.31.0-rc.1 - 2026-09-20
 
 ### Added

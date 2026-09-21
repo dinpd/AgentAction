@@ -79,8 +79,8 @@ try {
  assert.ok(!(await page.locator('body').innerText()).includes('PRIVATE-FIXTURE-CREDENTIAL'));
  await page.locator('#connections').screenshot({path:'/tmp/aa-241-server.png'});
  await page.goto(base+'/agents');await page.locator('#job-description').fill('Find the broken widget ticket and close it');await page.locator('#generate-draft').click();
- await page.locator('[data-tool-mapping]').first().waitFor();
- for(const [index,name] of ['tickets.search','tickets.update'].entries()) await page.locator('[data-tool-mapping]').nth(index).selectOption(JSON.stringify({connectionId,tool:name}));
+ await page.locator('[data-tool-mapping]').first().waitFor({state:'attached'});
+ for(const [index,name] of ['tickets.search','tickets.update'].entries()) {await page.locator('.other-tools > summary').nth(index).click();await page.locator('[data-tool-mapping]').nth(index).selectOption(JSON.stringify({connectionId,tool:name}));}
  const first=page.locator('[data-capability-step=step_1]'), second=page.locator('[data-capability-step=step_2]');
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  for(const card of [first,second]) await card.locator('.field-check-editor > summary').click();

@@ -4,6 +4,7 @@ import test from "node:test";
 import { RegistryCatalog, normalizeServer, parseCatalogQuery, REGISTRY_URL, MAX_CATALOG_PAGES, type CatalogStorage } from "../src/mcp-registry.ts";
 import worker from "../src/worker.ts";
 import demo from "../src/demo-worker.ts";
+import { mcpMatching } from '../src/mcp-matching.ts';
 
 function entry(name: string, description: string, extra: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) {
   return { server: { name: `org.example/${name}`, title: name, description, version: "1", remotes: [{ type: "streamable-http", url: `https://${name}.example/mcp` }], ...extra }, _meta: { "io.modelcontextprotocol.registry/official": { status: "active", isLatest: true, ...meta } } };
@@ -11,7 +12,7 @@ function entry(name: string, description: string, extra: Record<string, unknown>
 function harness(pages: unknown[]) {
   const db = new DatabaseSync(":memory:"); let alarm: number | null = null, now = 1000000;
   const storage: CatalogStorage = {
-    sql: { exec(query, ...values) { const rows = db.prepare(query).all(...values) as Record<string, unknown>[]; return { toArray: () => rows }; } },
+    sql: { exec(query, ...values) { assert.ok(values.length<=100,'Cloudflare SQL parameter limit');const rows = db.prepare(query).all(...values) as Record<string, unknown>[]; return { toArray: () => rows }; } },
     transactionSync(work) { db.exec("BEGIN"); try { const result = work(); db.exec("COMMIT"); return result; } catch (e) { db.exec("ROLLBACK"); throw e; } },
     async getAlarm() { return alarm; }, async setAlarm(value) { alarm = value; },
   };
@@ -28,6 +29,27 @@ function harness(pages: unknown[]) {
   return { catalog, search, tick, requests, pages, storage, db };
 }
 const page = (servers: unknown[], nextCursor?: string) => ({ servers, metadata: { nextCursor } });
+
+test('per-capability suggestions rank published matches, expand terms and exclude generic noise',async()=>{
+ const h=harness([page([entry('Contractor license records','License lookup and history for contractors'),entry('License helper','Licensing metadata'),entry('Employment statistics','Workforce and labour trends'),entry('Contact enrichment','CRM people records'),entry('Unrelated storage','Read data and information'),entry('Stock market','Financial market research')])]);await h.tick();
+ const suggest=(query:string)=>h.catalog.search({query,capability:'',offset:0,mode:'suggest'});
+ const license=await suggest('Contractor License History');assert.equal(license.servers[0].title,'Contractor license records');assert.deepEqual(license.servers[0].matchTerms,['contractor','license']);
+ assert.deepEqual((await suggest('Labor Market Data')).servers.map(s=>s.title),['Employment statistics']);
+ assert.deepEqual((await suggest('Contact Information')).servers.map(s=>s.title),['Contact enrichment']);
+ assert.equal((await suggest('Read data information')).total,0);assert.equal((await suggest('UnfindableNeedXYZ')).total,0);
+ assert.equal((await suggest("' OR 1=1 --")).total,0);assert.equal(h.requests.length,1);
+ await h.catalog.search({query:'license labor contact email web database document social calendar ticket',capability:'web',auth:'unspecified',offset:20,mode:'suggest'});
+ assert.deepEqual(parseCatalogQuery(new URLSearchParams('q=licenses&mode=suggest')).mode,'suggest');
+ for(const params of ['mode=all','mode=suggest&mode=suggest','mode=','q='+ 'a'.repeat(201)]) assert.throws(()=>parseCatalogQuery(new URLSearchParams(params)));
+ await assert.rejects(()=>h.catalog.search({query:'test',capability:'',offset:0,mode:'invalid' as any}));
+});
+
+test('matching is bounded and provider text is treated only as metadata',()=>{
+ const matcher=mcpMatching();assert.ok(matcher.groups('x '.repeat(1000)).length<=8);
+ assert.equal(matcher.match('License History','send_mail','Send email to a contact').score,0);
+ assert.equal(matcher.match('Contact information','get_people','Read CRM records').terms[0],'contact');
+ assert.deepEqual(matcher.groups('data information'),[]);
+});
 
 test("indexes all pages, categorizes capabilities, ranks names, paginates and never forwards queries", async () => {
   const h = harness([page([entry("letters", "Deliver messages to email accounts"), entry("database", "SQL queries"), entry("retired", "email", {}, { status: "deleted" }), entry("old", "email", {}, { isLatest: false })], "next/page"), page([entry("warehouse", "Postgres analytics"), ...Array.from({ length: 24 }, (_, i) => entry(`mail${i}`, "Email tools"))])]);
@@ -73,7 +95,7 @@ test("discovery requires membership, allows viewer reads, preserves mutation pro
   let reads = 0;
   const h = harness([]);
   const env = { CONSOLE_ENVIRONMENT: "development", CONSOLE_ENABLE_MOCK_IDENTITY: "true", CONSOLE_MOCK_TENANT_ID: "workspace-a", CONSOLE_STATIC_TENANT_ROLE: "viewer", CONSOLE_MOCK_SUBJECT: "local-operator", MCP_REGISTRY: { getByName(name: string) { assert.equal(name, "official-v1"); return { async search(query: Parameters<RegistryCatalog["search"]>[0]) { reads++; return h.catalog.search(query); } }; } } };
-  const path = "https://console.test/api/agents/workspace-a/catalog?q=send+emails";
+  const path = "https://console.test/api/agents/workspace-a/catalog?q=send+emails&mode=suggest";
   assert.notEqual((await worker.fetch(new Request(path), {})).status, 200);
   assert.equal((await worker.fetch(new Request(path.replace("workspace-a", "workspace-b")), env)).status, 403);
   assert.equal(reads, 0);
