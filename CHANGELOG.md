@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.33.0-rc.1 - 2026-09-21
+
+### Added
+
+- Optional Smithery and Glama directory enrichment for MCP discovery before account connection. Search locally cached tool names, descriptions and input/result schemas; show potential matching tools, fields, source links, retrieval dates and unknown/partial/stale metadata.
+- Report catalog coverage per source, including Glama's traversal limit and missing configuration. Isolate source snapshots and failures; retain the last complete catalog on refresh failure. Credit Glama wherever its tool catalog is displayed.
+- Keep publisher documentation as a fallback and compare indexed tool names with connected-account discovery. Advertised tools cannot create executable bindings or prove permissions, execution or result completeness.
+
+### Compatibility and migration
+
+- Significant functionality: minor RC for optional external catalogs and additive evidence fields. Existing official registry state, drafts, connection approvals and tool-call approvals remain valid. No new Durable Object class migration; existing storage gains a source-identity table.
+- Configure `MCP_SMITHERY_API_KEY` and/or `MCP_GLAMA_API_KEY` as operator Worker secrets to enable enrichment. No credentials are needed for the existing official registry. Provider integrations are fixture-tested; live availability and coverage require configured provider credentials.
+- Search pages contain up to 20 listings per configured source and advance each source by 20. Totals count listings, including duplicates across sources. Queries and tenant credentials are never forwarded to directory providers. OAuth login and automatic documentation extraction are not included.
+- Install Python artifacts from the GitHub v0.33.0-rc.1 prerelease. No PyPI or npm publication is implied; the console deploys from the merged commit.
+
 ## 0.32.0-rc.1 - 2026-09-21
 
 ### Added

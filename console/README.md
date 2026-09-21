@@ -482,6 +482,54 @@ After deployment:
 
 The public recipe directory links to `/?recipe=<catalog-id>&recipe_version=<version>#setup`. Only the bundled catalog's exact ID/version pair is recognized. The client displays setup context and retains this non-secret pair in console navigation. Unknown, duplicate or stale parameters receive a directory link, never injected query text. Recipe metadata is not forwarded to gateway data APIs and grants no permissions. Users still configure runtime connections and Evals explicitly.
 
+## Tool catalogs before connection
+
+The official MCP Registry's standard server record does not contain the
+`tools/list` catalog. The console can enrich discovery using optional directory
+APIs, without sending users' workflow text, search queries or account credentials
+to those providers. Configure either or both secrets on the **operator** Worker:
+
+```bash
+cd console
+npx wrangler secret put MCP_SMITHERY_API_KEY --env=""
+npx wrangler secret put MCP_GLAMA_API_KEY --env=""
+```
+
+Do not configure these secrets on the public demo. Each credential is sent only
+to its fixed provider API origin. Directory API keys are independent of the
+user's MCP server login. Missing keys show **not configured** in catalog coverage;
+the official registry and manual connection keep working.
+
+Separate `smithery-v1` and `glama-v1` instances of the existing `McpRegistry`
+Durable Object start indexing on the first catalog request. Each alarm loads ten
+listings and their details (two detail requests concurrently), with a 10-second
+request timeout and 1 MiB body limit. No MCP server is contacted by enrichment.
+Snapshots refresh daily; a failed refresh retains the previous complete snapshot
+and retries hourly. Crawls stop with an explicit error at 1,000 pages. Glama also
+limits traversal to roughly 1,000 connectors: its results are a sample, not a
+complete global catalog. The UI reports indexed listings and how many have tools.
+Smithery and Glama failures are independent of the official registry.
+
+Indexed tools are searchable by names, descriptions and schema fields. Each
+listing retains at most 64 tools, 8 KiB per whole schema and 60 KB of tool metadata.
+Oversized schemas are omitted whole, never rewritten into a misleading contract.
+Missing, empty or unusable catalogs remain **unknown**; bounded or incomplete
+catalogs are **partial**. Retrieval time is distinct from the provider's last
+server-check time. Source declarations never become executable tool bindings.
+Connection discovery and explicit actual-tool selection remain required. A
+connected server's tool names can be compared with the indexed declarations;
+matching names still do not prove matching schemas, permissions or completeness.
+
+Every card using Glama data credits Glama and links its listing. See the
+[Glama directory API and data license](https://glama.ai/mcp/reference) and
+[Smithery server-details API](https://smithery.ai/docs/api-reference/servers/get-a-server).
+Publisher documentation is the fallback link when schemas are absent; the
+console does not invent tools from the underlying service's REST API, scrape
+publisher pages, or infer unsupported operations from a missing catalog.
+OAuth-only MCP login remains unsupported in this release. Fixture-based tests
+validate adapters and UI behavior; enable keys and inspect coverage to verify
+live provider availability and actual indexed coverage in your deployment.
+
 ## MCP registry discovery
 
 The authenticated `/agents` builder searches a shared catalog from the
@@ -518,11 +566,11 @@ labels incomplete initial results; subsequent refreshes retain the previous
 complete snapshot until successful replacement. A failed or oversized refresh
 keeps the last complete snapshot, shows a stale warning and retries in an hour.
 Deprecated, deleted and non-latest entries are excluded on successful refresh.
-There is no new cron, external database, API key or Context7 dependency.
+The official registry requires no API key. Optional directory enrichment is described below. No Context7 dependency is added.
 
 `GET /api/agents/:tenant/catalog?q=...&capability=...&auth=...&offset=...` requires the
 same authenticated workspace membership as agent state; viewers may search.
-Results have 20 entries per page and a `nextOffset`. Registry metadata is shared;
+Results have up to 20 entries per configured source per page and a `nextOffset`; the offset advances each source by 20. Counts describe directory listings, including cross-source duplicates. Registry metadata is shared;
 workspace IDs, queries and credentials are not forwarded upstream. All external
 fetches use the fixed registry API, reject redirects and bound response sizes.
 Only public metadata is retained. Provider text is rendered as text and links

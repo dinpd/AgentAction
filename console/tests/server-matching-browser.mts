@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { RegistryCatalog,parseCatalogQuery } from '../src/mcp-registry.ts';
+import { normalizeDirectory } from '../src/mcp-directory.ts';
+import { RegistryCatalog,parseCatalogQuery,catalogSearchText } from '../src/mcp-registry.ts';
 import worker from '../src/worker.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -28,6 +29,12 @@ const registry=new RegistryCatalog(registryStorage as any,async()=>Response.json
  entry('licenses-two','Licensing Archive','Contractor licensing archives.'),entry('licenses-three','Licensing Lookup','Contractor licensing lookup.'),
  entry('unrelated','Email Tools','Send email messages.','https://email.example/mcp')
 ],metadata:{}}));await registry.alarm();
+// Provider response fixture flows through normalization and the same SQL index.
+const listing={namespace:'org.example',slug:'records',name:'Records API',description:'A public records interface.',connection:{transport:'streamable_http',url:endpoint}};
+const indexed=normalizeDirectory('glama',listing,{...listing,toolCount:2,tools:[{name:'lookup_record',description:'Retrieve records. <img src=x onerror="window.injected=true">',inputSchema:{type:'object',properties:{contact_id:{type:'string'}}},outputSchema:{type:'object',properties:{contact_email:{type:'string'}}}}]},'2026-01-01T00:00:00.000Z')!;
+const indexedGeneration=db.prepare('SELECT generation FROM registry_servers LIMIT 1').get()!.generation;
+db.prepare('INSERT INTO registry_servers VALUES (?,?,?,?,?,?)').run(indexedGeneration,indexed.name,indexed.title.toLowerCase(),catalogSearchText(indexed),'|auth:unspecified|catalog:tools|',JSON.stringify(indexed));
+
 let failSuggestions=false,delaySuggestions=false,releaseSuggestions:(()=>void)|undefined;
 const searches:any[]=[];
 
@@ -84,6 +91,19 @@ try {
  const license=page.locator('[data-capability-step=step_1]'),labor=page.locator('[data-capability-step=step_2]'),contact=page.locator('[data-capability-step=step_3]');
  await license.locator('[data-registry-server="org.example/licenses"]').waitFor();await labor.locator('[data-registry-server="org.example/employment"]').waitFor();
  await contact.locator('[data-registry-server="org.example/contacts"]').waitFor();
+ const indexedCard=contact.locator('[data-registry-server="glama:org.example/records"]');await indexedCard.waitFor();
+ assert.match(await indexedCard.innerText(),/Potential matching tool: lookup_record/);
+ assert.match(await indexedCard.innerText(),/contact_id/);assert.match(await indexedCard.innerText(),/contact_email/);
+ assert.match(await indexedCard.innerText(),/partial metadata/);assert.match(await indexedCard.innerText(),/may be stale/);
+ assert.equal(await indexedCard.getByRole('link',{name:'Tool catalog data from Glama ↗'}).getAttribute('href'),'https://glama.ai/mcp/connectors/org.example/records');
+ assert.equal(await indexedCard.getByRole('button',{name:'Use this tool',exact:true}).count(),0);
+ assert.match(await contact.locator('[data-registry-server="org.example/contacts"]').innerText(),/Tool catalog unknown/);
+ await indexedCard.locator('.capability-details > summary').click();await indexedCard.getByText('lookup_record',{exact:true}).click();
+ assert.match(await indexedCard.innerText(),/Result fields: \/contact_email/);assert.equal(await indexedCard.locator('img').count(),0);
+ await contact.locator('.catalog-sources > summary').click();assert.match(await contact.innerText(),/1 of 8 indexed listings have tool metadata/);
+ await indexedCard.screenshot({path:'/tmp/aa245-catalog-desktop.png'});
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await indexedCard.screenshot({path:'/tmp/aa245-catalog-mobile.png'});await page.setViewportSize({width:1440,height:1050});
+
  assert.equal(await page.locator('[data-coverage-report]:visible').count(),0);assert.equal(await page.locator('.field-check-editor:visible').count(),0);
  assert.equal(await page.locator('[data-tool-mapping]:visible').count(),0);assert.equal(await page.locator('.server-suggestions img').count(),0);
  assert.ok(!JSON.stringify(searches).includes('PRIVATE-JOB-123'));assert.equal(await license.locator('[data-registry-server="org.example/unrelated"]').count(),0);
@@ -100,7 +120,9 @@ try {
  await page.locator('#connect [name=token]').fill('PRIVATE-ACCOUNT-TOKEN');await page.locator('#connect [name=consent]').check();
  await page.getByRole('button',{name:'Connect server',exact:true}).click();await license.getByText('Choose an actual tool from your new connection',{exact:true}).waitFor();
  assert.equal(await page.locator('#connect [name=token]').inputValue(),'');assert.equal(await license.locator('[data-tool-mapping]').inputValue(),'');
- assert.equal(await license.locator('[data-connected-tool]').count(),2);assert.equal(await labor.locator('[data-tool-mapping]').inputValue(),'');
+ assert.equal(await license.locator('[data-connected-tool]').count(),2);
+ assert.match(await contact.locator('[data-registry-server="glama:org.example/records"]').innerText(),/Account catalog comparison: 0 of 1/);
+ assert.match(await contact.locator('[data-registry-server="glama:org.example/records"]').innerText(),/Not discovered: lookup_record/);assert.equal(await labor.locator('[data-tool-mapping]').inputValue(),'');
  await license.locator('[data-connected-tool=license_history]').getByRole('button',{name:'Use this tool',exact:true}).click();
  assert.match(await license.locator('.selected-tool').innerText(),/license_history/);
  await license.locator('.field-check-editor > summary').click();await license.getByLabel('Required result fields',{exact:true}).fill('/id');

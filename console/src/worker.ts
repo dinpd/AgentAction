@@ -1,3 +1,5 @@
+import { searchCatalogs } from './mcp-catalog-search.ts';
+import type { Directory } from './mcp-directory.ts';
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { RECURRING_HTML, RECURRING_JS } from "./recurring-ui.ts";
 import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
@@ -12,7 +14,9 @@ type Fetcher = {
 };
 
 export type Env = {
-  MCP_REGISTRY?: { getByName(name: string): { search(query: CatalogQuery): Promise<CatalogResult> } };
+  MCP_SMITHERY_API_KEY?: string;
+  MCP_GLAMA_API_KEY?: string;
+  MCP_REGISTRY?: { getByName(name: string): { search(query: CatalogQuery, source?: Directory | 'official'): Promise<CatalogResult> } };
   RECURRING_WORKSPACES?: { getByName(name: string): { request(request: Request): Promise<Response> } };
   AGENT_WORKSPACES?: { getByName(name: string): { request(request: Request): Promise<Response> } };
   AGENTID_GATEWAY?: Fetcher;
@@ -5270,7 +5274,9 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
   if (["approve-endpoint", "remove-endpoint"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "endpoint_owner_required", "Only a workspace owner can change endpoint approvals.", "forbidden");
   if (catalogQuery) {
     if (!env.MCP_REGISTRY) throw new ConsoleError(503, "catalog_unavailable", "Registry discovery is unavailable. Enter an MCP endpoint manually.", "unavailable");
-    const catalog = await env.MCP_REGISTRY.getByName("official-v1").search(catalogQuery);
+    let catalog: CatalogResult;
+    try { catalog = await searchCatalogs(env.MCP_REGISTRY, catalogQuery, [...(env.MCP_SMITHERY_API_KEY ? ['smithery' as const] : []), ...(env.MCP_GLAMA_API_KEY ? ['glama' as const] : [])]); }
+    catch { throw new ConsoleError(503, 'catalog_unavailable', 'Registry discovery is unavailable. Enter an MCP endpoint manually.', 'unavailable'); }
     return new Response(JSON.stringify(catalog), { headers: secureHeaders("application/json; charset=utf-8") });
   }
   const namespace = recurring ? env.RECURRING_WORKSPACES : env.AGENT_WORKSPACES;
