@@ -880,7 +880,7 @@ Acceptance: `node --experimental-strip-types tests/guided-create-browser.mts`,
 
 ## Public MCP readiness checker
 
-The [MCP Readiness Check](https://agentaction-mcp-check.drisw.workers.dev/) is a
+The [MCP Readiness Check](https://mcpcheck.agentaction.dev/) is a
 separate public Worker. It shares `mcp-precheck.ts` and the versioned
 `mcp-readiness.ts` profile engine with workspace inspections. The public page
 supports anonymous HTTPS Streamable HTTP discovery, protocol selection,
@@ -940,3 +940,7 @@ The readiness browser asset serializes functions from the Worker bundle. Keep
 otherwise become unresolved references in the browser. Worker acceptance builds
 with the production Wrangler configuration and executes the served script,
 checking that form and export event handlers register before exercising the API.
+
+The checker uses the `mcpcheck.agentaction.dev` custom domain on the existing
+readiness Worker. Its workers.dev address remains available for existing links;
+both hosts share report storage and quotas. Forms require the same request origin.

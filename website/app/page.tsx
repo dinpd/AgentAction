@@ -222,7 +222,7 @@ export default function Home() {
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/gateway">Action gateway</Link>
           <Link className="nav-page" href="/landscape">Landscape</Link>
-          <Link className="nav-page nav-recipe" href="/recipes">Recipes</Link>
+          <a className="nav-page nav-mcp-checker" href="https://mcpcheck.agentaction.dev">MCP Checker</a>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>
           </a>
@@ -307,6 +307,25 @@ export default function Home() {
             The agent proposes. The trust layer assesses and enforces.
           </div>
         </div>
+      </section>
+
+      <section className="home-mcp-checker section-shell" aria-labelledby="mcp-checker-title">
+        <div>
+          <p className="section-index">For MCP developers · Preview</p>
+          <h2 id="mcp-checker-title">Building an MCP server?</h2>
+          <p>
+            Check protocol discovery, tool descriptions, and declared schemas.
+            Get actionable findings with versioned spec guidance, without signing in.
+            Publish your report to make those observations available in AgentAction discovery.
+          </p>
+          <p className="mcp-checker-note">
+            Anonymous metadata inspection. No credentials or tool execution.
+            Runtime behavior remains untested.
+          </p>
+        </div>
+        <a className="button button-primary" href="https://mcpcheck.agentaction.dev">
+          Check your MCP server <span aria-hidden="true">↗</span>
+        </a>
       </section>
 
       <section className="thesis" aria-labelledby="thesis-title">
@@ -842,6 +861,7 @@ export default function Home() {
         <Brand href="#top" footer />
         <p>Trust infrastructure for autonomous AI agents.</p>
         <div className="footer-links">
+          <Link href="/recipes">Agent recipes</Link>
           <a href={github}>GitHub</a>
           <a href={`${github}/blob/main/LICENSE`}>Apache-2.0</a>
           <a href={`${github}/blob/main/SUPPORT.md`}>Support</a>
