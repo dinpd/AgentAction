@@ -7,7 +7,7 @@ import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, ty
 import { recipeById, type Recipe } from "../../recipes/registry.ts";
 import { inspectEndpoint, type PrecheckReport } from "./mcp-precheck.ts";
 import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type EndpointAccess } from "./endpoint-policy.ts";
-import { McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
+import { mcpFailureReason, McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
 
 export type RuntimeStorage = {
@@ -102,7 +102,7 @@ export class AgentRuntime {
         return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator", request.headers.get("x-runtime-role") || "operator"));
       });
     } catch (error) {
-      return json({ ...(error instanceof OAuthFailure ? { oauthFailure: error.code } : {}), error: error instanceof RuntimeError ? error.message : "The agent operation failed. Review the connection and retry when ready." }, error instanceof RuntimeError ? error.status : 502);
+      return json({ ...(error instanceof OAuthFailure ? { oauthFailure: error.code, oauthProvider: error.providerId } : {}), error: error instanceof RuntimeError ? error.message : "The agent operation failed. Review the connection and retry when ready." }, error instanceof RuntimeError ? error.status : 502);
     }
   }
   async snapshot(): Promise<Record<string, unknown>> {
@@ -311,10 +311,10 @@ export class AgentRuntime {
         // Invalidate approvals before changing the identity behind this connection.
         await this.pauseConnection(connection.id);
         await this.storage.put(`connection:${connection.id}`, connection);
-      } catch (error) { await oauth.disconnect(grant.oauth); throw new OAuthFailure('discovery', error); }
+      } catch (error) { console.warn(JSON.stringify({ event: 'oauth_discovery_failed', reason: mcpFailureReason(error) })); await oauth.disconnect(grant.oauth); throw new OAuthFailure('discovery', error, grant.oauth.providerId); }
       await oauth.cancelPending(connection.id);
       if (previous?.oauth) await oauth.disconnect(previous.oauth);
-      return { connectionId: connection.id, toolCount: connection.tools.length };
+      return { connectionId: connection.id, toolCount: connection.tools.length, oauthProvider: grant.oauth.providerId };
     }
     if (path === "/connect" || path === '/refresh-capabilities') {
       if(!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must discover server capabilities.',403);

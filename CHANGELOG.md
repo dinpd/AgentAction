@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.35.2-rc.1 - 2026-09-22
+
+### Fixed
+
+- Restore live Notion OAuth discovery, verified with 45 account tools. Support large MCP tool schemas without truncating their validation rules. Input and output schemas are bounded at 128 KiB and the complete catalog at 512 KiB; the 80-tool count and response limits remain enforced.
+- Show OAuth progress and results directly beneath the provider connect button, with the provider name and endpoint. Restore the attempted provider after redirect, identify the target of inspection and connection, and clear stale feedback when the endpoint changes.
+- After connection, show the authenticated account status and tool count; move earlier anonymous warnings into a labeled historical section while keeping behavior-verification limits visible. Disconnected accounts keep their cached catalog and timestamp without implying current access.
+- Record fixed discovery failure categories without provider payloads or credentials.
+
+### Compatibility and migration
+
+- Backward-compatible patch prerelease; no migration or permission changes. Uses the existing SQLite Durable Object storage. AI context and action approval limits remain unchanged; large catalogs can still require selecting a narrower set of tools for a job.
+- Install Python artifacts from the GitHub v0.35.2-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.35.1-rc.1 - 2026-09-22
 
 ### Fixed

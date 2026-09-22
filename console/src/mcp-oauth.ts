@@ -19,9 +19,10 @@ export type OAuthFailureCode = 'authorization' | 'exchange' | 'response' | 'disc
 // Only local categories cross the browser callback boundary; never provider text.
 export class OAuthFailure extends RuntimeError {
   code: OAuthFailureCode;
-  constructor(code: OAuthFailureCode, error: unknown) {
+  providerId?: string;
+  constructor(code: OAuthFailureCode, error: unknown, providerId?: string) {
     super(error instanceof RuntimeError ? error.message : 'OAuth connection failed.', error instanceof RuntimeError ? error.status : 502);
-    this.code = code;
+    this.code = code; this.providerId = providerId;
   }
 }
 type Sealed = { key: string; iv: string; data: string };
@@ -170,12 +171,13 @@ export class WorkspaceOAuth {
     return { access: result.access_token, refresh, scopes, expires: Date.now() + lifetime * 1000 };
   }
   async complete(input: Record<string, unknown>, actor: string, authorizeEndpoint: (endpoint: string) => Promise<unknown> = async () => {}): Promise<{ connectionId: string; endpoint: string; label: string; oauth: OAuthConnection }> {
-    let phase: OAuthFailureCode = 'authorization';
+    let phase: OAuthFailureCode = 'authorization', providerId: string | undefined;
     try {
       const state = textField(input.state, 'OAuth state', 400);
       if (oauthStateWorkspace(state) !== this.workspace) fail('OAuth workspace mismatch.', 403);
       const key = `oauth-pending:${state}`, pending = await this.read<Pending>(key);
       if (!pending || pending.expires <= Date.now()) { await this.storage.delete(key); return fail('OAuth state expired or was already used.', 400); }
+      providerId = pending.providerId;
       if (pending.actor !== actor || pending.workspace !== this.workspace) fail('OAuth callback must be completed by the owner who started it.', 403);
       await this.storage.delete(key); // Persist single use before exchanging a code.
       if ((pending.metadata.issuerResponse && input.iss === undefined) || (input.iss !== undefined && input.iss !== pending.metadata.issuer)) fail('OAuth issuer mismatch.', 400);
@@ -190,7 +192,7 @@ export class WorkspaceOAuth {
       const credentialId = crypto.randomUUID();
       await this.write(`oauth-grant:${credentialId}`, { providerId: p.id, config: pending.config, metadata: pending.metadata, clientId: pending.clientId, ...this.tokens(result, p.scopes), previous: [] } satisfies Grant);
       return { connectionId: pending.connectionId, endpoint: p.endpoint, label: p.label, oauth: { providerId: p.id, credentialId, connectedBy: actor, connectedAt: new Date().toISOString(), ownership: 'workspace', scopes: p.scopes } };
-    } catch (error) { throw new OAuthFailure(phase, error); }
+    } catch (error) { throw new OAuthFailure(phase, error, providerId); }
   }
   // Called within AgentRuntime's workspace queue, including alarms. A durable
   // refreshing marker prevents replaying a rotating refresh token after a crash.

@@ -384,3 +384,18 @@ test('large UTF-8 evidence stays within storage limits and omitted fields cannot
   assert.equal(completed.evaluation?.status,'insufficient_evidence');
   const before=structuredClone(completed);await h.runtime.recover();assert.deepEqual(await h.storage.get(`run:${pending.id}`),before);
 });
+
+
+test('large provider schemas retain validation rules within byte and catalog bounds',async()=>{
+ const schema={type:'object',properties:{body:{type:'string',description:'Long provider documentation. '.repeat(1500),enum:['approved']}},required:['body'],additionalProperties:false};
+ const make=(schemas:unknown[],paginate=false)=>new McpClient({endpoint,protocol:'2026-07-28',tools:[]},async(_url,init)=>{
+  const rpc=JSON.parse(String(init?.body)), page=rpc.params.cursor?1:0;
+  return Response.json({jsonrpc:'2.0',id:rpc.id,result:{tools:schemas.map((inputSchema,i)=>({name:`tool_${page}_${i}`,description:'Provider tool',inputSchema})),...(paginate&&!page?{nextCursor:'two'}:{})}});
+ });
+ const tools=await make(Array(4).fill(schema)).discover();assert.equal(tools.length,4);assert.deepEqual(tools[0].inputSchema,schema);
+ assert.deepEqual(validateArguments(tools[0],{body:'approved'}),{body:'approved'});assert.throws(()=>validateArguments(tools[0],{body:'other'}));
+ await assert.rejects(()=>make([{type:'object',description:'é'.repeat(66000)}]).discover(),/schema is too large/);
+ await assert.rejects(()=>make(Array(81).fill({type:'object'})).discover(),/80 tools/);
+ // Each page fits the wire limit; the combined catalog must still be bounded.
+ await assert.rejects(()=>make(Array(7).fill(schema),true).discover(),/512 KiB/);
+});

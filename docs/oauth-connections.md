@@ -75,14 +75,24 @@ The Notion example uses `https://mcp.notion.com/mcp`, resource/issuer
 A deployment-owned public client was also registered with Notion for the fixed
 production callback, allowing the console to retain Cloudflare Access on every
 route. Its client ID is stored in deployment configuration. Neither discovery
-nor client registration proves a successful real-account login.
+nor client registration alone proves a successful real-account login. The
+production owner consent flow was verified on 2026-09-22 with 45 discovered
+Notion tools after correcting the schema-size limit; this does not establish
+permission to execute every advertised tool.
 Notion access follows the connected account's provider permissions; use a demo
 account/workspace containing only demo data. See the [Notion client guide](https://developers.notion.com/guides/mcp/build-mcp-client)
 and [organization connection guidance](https://developers.notion.com/guides/mcp/get-started-with-mcp).
 
 For live rollout, approve Notion's exact endpoint in the AgentAction workspace,
 choose **Connect with Notion**, approve sharing and provider consent, and verify
-that the returned connection displays account tools. Create a read-only search
+that the returned connection displays account tools. The callback restores the
+configured provider and shows its name, endpoint and outcome beneath its connect
+button. After connection, the inspection panel shows the current account and
+tool count; anonymous findings remain in a collapsed section. Disconnecting
+retains the cached catalog with a disconnected label and discovery timestamp;
+reconnection verifies current access and updates the catalog. Discovery accepts complete schemas up to 128 KiB each and an 80-tool,
+512 KiB catalog, within the existing SQLite storage and bounded response limits.
+Schemas are never truncated to fit; AI context limits still apply to selected tools. Create a read-only search
 agent, run a trial, and approve its exact search call. Verify another operator
 can run that shared agent, then disconnect as an owner and verify further calls
 stop. Provider consent must be performed by the account owner. Until this is

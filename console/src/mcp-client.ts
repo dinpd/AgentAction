@@ -8,6 +8,28 @@ export class RuntimeError extends Error {
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 export class McpPreflightError extends RuntimeError {}
+// Fixed local failure categories only: never log provider responses or credentials.
+export function mcpFailureReason(error: unknown): string {
+  const reasons: Record<string, string> = {
+    'A tool schema is too large.': 'schema_limit',
+    'The tool catalog exceeds 80 tools or 512 KiB. Use a scoped MCP endpoint.': 'catalog_limit',
+    'The server response exceeds the supported size limit.': 'response_limit',
+    'This server uses an unsupported MCP version.': 'protocol_version',
+    'MCP authentication failed. Reconnect the account or provide a valid bearer token.': 'authentication',
+    'MCP request failed. Check the connection and retry discovery; tool execution is never retried automatically.': 'http_status',
+    'MCP returned an invalid or failed response.': 'rpc_response',
+    'MCP response could not be read. The request may have reached the server; execution will not be retried automatically.': 'response_read',
+    'The server did not return a tool catalog.': 'missing_catalog',
+    'The tool catalog has invalid or duplicate names.': 'tool_names',
+    'No tools are available for this account.': 'empty_catalog',
+    'The tool catalog could not be completely discovered.': 'pagination',
+  };
+  return error instanceof RuntimeError && Object.hasOwn(reasons, error.message) ? reasons[error.message] : 'unexpected';
+}
+
+const MAX_SCHEMA_BYTES = 128 * 1024;
+const MAX_CATALOG_BYTES = 512 * 1024;
+const encodedSize = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 export const DEFAULT_ENDPOINTS = "https://mcp.firecrawl.dev/v2/mcp";
 const SUPPORTED = ["2025-03-26", "2025-06-18", "2025-11-25", "2026-07-28"];
 
@@ -125,18 +147,18 @@ export class McpClient {
         const name = textField(tool.name, "tool name", 128);
         if (!/^[a-zA-Z0-9_.:-]+$/.test(name) || names.has(name)) throw new RuntimeError("The tool catalog has invalid or duplicate names.", 502);
         const schema = object(tool.inputSchema);
-        if (JSON.stringify(schema).length > 16000) throw new RuntimeError("A tool schema is too large.", 502);
+        if (encodedSize(schema) > MAX_SCHEMA_BYTES) throw new RuntimeError("A tool schema is too large.", 502);
         names.add(name);
         const retained: McpTool = { name, description: typeof tool.description === "string" ? tool.description.slice(0, 1200) : "", inputSchema: schema };
         const issues:string[]=[];
         for (const key of ['outputSchema','annotations'] as const) if (tool[key]!==undefined) {
-          if(!tool[key] || typeof tool[key]!=='object' || Array.isArray(tool[key]) || new TextEncoder().encode(JSON.stringify(tool[key])).byteLength>(key==='outputSchema'?16000:2000)) issues.push(`${key==='outputSchema'?'Result schema':'Annotations'} omitted: malformed or exceeds the metadata limit.`);
+          if(!tool[key] || typeof tool[key]!=='object' || Array.isArray(tool[key]) || new TextEncoder().encode(JSON.stringify(tool[key])).byteLength>(key==='outputSchema'?MAX_SCHEMA_BYTES:2000)) issues.push(`${key==='outputSchema'?'Result schema':'Annotations'} omitted: malformed or exceeds the metadata limit.`);
           else retained[key]=tool[key] as Record<string,unknown>;
         }
         if(typeof tool.description==='string' && tool.description.length>1200) issues.push('Provider description truncated to 1,200 characters; some limits may be omitted.');
         if(issues.length) retained.capabilityMetadataIssues=issues;
         tools.push(retained);
-        if (tools.length > 80 || JSON.stringify(tools).length > 80000) throw new RuntimeError("This connection supports at most 80 tools. Use a scoped MCP endpoint.", 502);
+        if (tools.length > 80 || encodedSize(tools) > MAX_CATALOG_BYTES) throw new RuntimeError("The tool catalog exceeds 80 tools or 512 KiB. Use a scoped MCP endpoint.", 502);
       }
       if (!result.nextCursor) { if (!tools.length && !options.allowEmpty) throw new RuntimeError("No tools are available for this account."); return tools; }
       cursor = textField(result.nextCursor, "tool cursor", 2048);
