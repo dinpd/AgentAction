@@ -24,6 +24,7 @@ const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'oauth-test',mo
   }
   if(url.pathname==='/revoke'){revocations++;return new Response(null,{status:200});}
   if(url.pathname==='/mcp'){
+   if (!request.headers.has('authorization')) return new Response(null,{status:401,headers:{'www-authenticate':`Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource"`}});
    assert.equal(request.headers.get('authorization'),`Bearer ${token}`);
    const rpc=await request.json() as any;
    if(rpc.method==='notifications/initialized')return new Response(null,{status:202});
@@ -50,6 +51,7 @@ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
 const local=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
 const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
 const page=await browser.newPage({viewport:{width:1440,height:1050}}),errors:string[]=[];
+page.setDefaultTimeout(45000);
 page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
 await page.route(`${issuer}/authorize?**`,async route=>{
  const url=new URL(route.request().url());challenge=url.searchParams.get('code_challenge')!;
@@ -62,6 +64,7 @@ try {
  await page.locator('#builder').waitFor();
  await page.locator('#manual-connect').click();
  await page.locator('#connect [name=endpoint]').fill(provider[0].endpoint);
+ await page.getByText('Review: Tool catalog requires authentication',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Connect with Notion',exact:true}).click();
  await page.getByRole('link',{name:'Allow workspace sharing'}).click();
  await page.locator('#oauth-feedback').filter({hasText:'Notion · https://mcp.notion.com/mcp: Connected'}).waitFor();
@@ -70,6 +73,11 @@ try {
  assert.equal(await page.locator('#oauth-options + #oauth-feedback').count(),1);
  assert.ok((await page.locator('#connection-target').innerText()).includes('Notion'));
  assert.ok((await page.locator('#inspection-target').innerText()).includes(provider[0].endpoint));
+ assert.equal(await page.locator('#precheck-heading').innerText(),'Connection status');
+ assert.equal(await page.getByText('Connected · 4 tools discovered',{exact:true}).isVisible(),true);
+ assert.equal(await page.getByText('Review: Tool catalog requires authentication',{exact:true}).isVisible(),false);
+ assert.equal(await page.locator('[data-anonymous-history]').getAttribute('open'),null);
+ assert.match(await page.locator('#precheck-status').innerText(),/Connected to Notion/);
  assert.equal(tokenCalls,1);assert.match(await page.locator('#connections').innerText(),/Shared workspace OAuth/);
  assert.ok(!(await page.content()).includes(token));assert.ok(!(await page.content()).includes(refresh));
  await mf.unsafeEvictDurableObject('oauth-test','AgentWorkspace',{name:'workspace:acme'});
@@ -79,6 +87,13 @@ try {
  await page.screenshot({path:'/tmp/agentaction-oauth-mobile.png',fullPage:true});
  await page.getByRole('button',{name:'Disconnect',exact:true}).click();
  await page.locator('#connections-feedback').filter({hasText:'provider revocation accepted'}).waitFor();assert.equal(revocations,1);
+ assert.equal(await page.locator('#precheck-heading').innerText(),'Connection status');
+ assert.equal(await page.getByText('Disconnected · 4 cached tools',{exact:true}).isVisible(),true);
+ assert.equal(await page.getByText('Connected · 4 tools discovered',{exact:true}).count(),0);
+ assert.equal(await page.getByText('Review: Tool catalog requires authentication',{exact:true}).isVisible(),false);
+ assert.match(await page.locator('#precheck-results').innerText(),/Access is disconnected; reconnect/);
+ await page.reload();await page.locator('#manage-connections').click();
+ assert.equal(await page.getByText('Disconnected · 4 cached tools',{exact:true}).isVisible(),true);
  await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=discovery&oauth_provider=notion#connect`);
  await page.locator('#oauth-feedback').filter({hasText:'OAuth authorization succeeded, but MCP tool discovery failed.'}).waitFor();
  assert.ok(!page.url().includes('oauth_failure'));

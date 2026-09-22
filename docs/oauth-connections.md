@@ -87,7 +87,10 @@ For live rollout, approve Notion's exact endpoint in the AgentAction workspace,
 choose **Connect with Notion**, approve sharing and provider consent, and verify
 that the returned connection displays account tools. The callback restores the
 configured provider and shows its name, endpoint and outcome beneath its connect
-button. Discovery accepts complete schemas up to 128 KiB each and an 80-tool,
+button. After connection, the inspection panel shows the current account and
+tool count; anonymous findings remain in a collapsed section. Disconnecting
+retains the cached catalog with a disconnected label and discovery timestamp;
+reconnection verifies current access and updates the catalog. Discovery accepts complete schemas up to 128 KiB each and an 80-tool,
 512 KiB catalog, within the existing SQLite storage and bounded response limits.
 Schemas are never truncated to fit; AI context limits still apply to selected tools. Create a read-only search
 agent, run a trial, and approve its exact search call. Verify another operator
