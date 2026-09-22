@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { readinessFixture } from './readiness-fixture.mts';
 const {mf,calls,headers,post}=await readinessFixture();
 const endpoint='https://mcp.vendor.com/mcp';
 try {
   const html=await mf.dispatchFetch('https://checker.test/');assert.equal(html.status,200);assert.match(html.headers.get('content-security-policy')!,/script-src 'self'/);assert.match(await html.text(),/MCP READINESS CHECK/);
+  const script=await (await mf.dispatchFetch('https://checker.test/assets/check.js')).text();
+  const listeners:string[]=[];
+  runInNewContext(script,{document:{getElementById:(id:string)=>({addEventListener:(event:string)=>listeners.push(id+':'+event)})},location:{pathname:'/'}},{timeout:1000});
+  assert.deepEqual(listeners,['check-form:submit','export:click']);
+  const css=await (await mf.dispatchFetch('https://checker.test/assets/check.css')).text();
+  assert.doesNotMatch(css,/Soleil|@font-face|\/res\//i);
   let response=await post('/api/check',{endpoint,protocol:'2026-07-28',publish:false});assert.equal(response.status,200);const hidden=await response.json() as any;assert.equal(hidden.published,false);assert.equal(hidden.id,null);assert.equal(hidden.report.readiness.coverage.execution,'untested');
   assert.deepEqual(await (await post('/api/lookup',[endpoint])).json(),[]);
   response=await post('/api/check',{endpoint,protocol:'2025-11-25',publish:true});assert.equal(response.status,200);const published=await response.json() as any;assert.ok(published.id);assert.equal(published.report.readiness.server.version,'1.2.3');

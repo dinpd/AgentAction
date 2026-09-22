@@ -6,6 +6,7 @@
   "compatibility_flags": ["global_fetch_strictly_public"],
   "workers_dev": true,
   "preview_urls": false,
+  "keep_names": false,
   "durable_objects": { "bindings": [{ "name": "MCP_READINESS", "class_name": "McpReadiness" }] },
   "migrations": [{ "tag": "readiness-v1", "new_sqlite_classes": ["McpReadiness"] }],
   "ratelimits": [{ "name": "CHECK_LIMITER", "namespace_id": "247", "simple": { "limit": 5, "period": 60 } }]

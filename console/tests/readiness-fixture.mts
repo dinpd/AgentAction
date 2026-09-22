@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { build } from '../node_modules/esbuild/lib/main.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Miniflare, convertV4MiniflareOptions } from '../node_modules/miniflare/dist/src/index.js';
 export async function readinessFixture() {
   const calls:string[]=[];
-  const bundled=await build({entryPoints:[fileURLToPath(new URL('../src/readiness-worker.ts',import.meta.url))],bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],write:false});
-  const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'readiness-test',modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-09-18',
+  // Exercise the exact production compiler/config. A separate esbuild invocation
+  // missed Wrangler's keep_names helpers inside the serialized browser script.
+  const directory=mkdtempSync(join(tmpdir(),'agentaction-readiness-test-'));
+  let script:string;
+  try {
+    execFileSync(process.execPath,[fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js',import.meta.url)),'deploy','--config','wrangler.readiness.jsonc','--dry-run','--outdir',directory],{cwd:fileURLToPath(new URL('../',import.meta.url)),env:{...process.env,WRANGLER_LOG_PATH:join(directory,'wrangler.log')},stdio:'pipe'});
+    script=readFileSync(join(directory,'readiness-worker.js'),'utf8');
+  } finally {rmSync(directory,{recursive:true,force:true});}
+  const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'readiness-test',modules:true,script,compatibilityDate:'2026-09-18',
     durableObjects:{MCP_READINESS:{className:'McpReadiness',useSQLite:true}},ratelimits:{CHECK_LIMITER:{namespace_id:"247",simple:{limit:5,period:60}}},
     outboundService:async request=>{
       const url=new URL(request.url);calls.push(request.url);
