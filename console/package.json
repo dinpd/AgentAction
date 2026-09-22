@@ -12,7 +12,11 @@
     "dry-run:demo": "WRANGLER_LOG_PATH=/tmp/agentaction-console-demo-wrangler.log wrangler deploy --config wrangler.demo.toml --dry-run --outdir /tmp/agentaction-console-demo-worker-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "test:browser": "node --experimental-strip-types tests/registry-browser.mts",
-    "test:catalog-worker": "node --experimental-strip-types tests/directory-worker.mts"
+    "test:catalog-worker": "node --experimental-strip-types tests/directory-worker.mts",
+    "dry-run:readiness": "WRANGLER_LOG_PATH=/tmp/agentaction-readiness-wrangler.log wrangler deploy --config wrangler.readiness.jsonc --dry-run --outdir /tmp/agentaction-readiness-dist",
+    "deploy:readiness": "wrangler deploy --config wrangler.readiness.jsonc",
+    "test:readiness-worker": "node --experimental-strip-types tests/readiness-worker.mts",
+    "test:readiness-browser": "node --experimental-strip-types tests/readiness-browser.mts"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"

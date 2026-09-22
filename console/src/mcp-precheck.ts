@@ -2,8 +2,12 @@ import { McpClient, RuntimeError, boundedText, object, type McpTool } from "./mc
 import { publicEndpointURL, validatePublicEndpoint } from "./endpoint-policy.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
 
+import { createReadinessProfile, type ReadinessProfile } from "./mcp-readiness.ts";
+
 export type PrecheckFinding = { level: "info" | "review" | "blocked"; title: string; detail: string };
 export type PrecheckReport = {
+  readiness?: ReadinessProfile;
+  server?: { name?: string; version?: string };
   capabilities?: ReturnType<ReturnType<typeof capabilityEngine>['inventory']>;
   endpoint: string; checkedAt: string; protocol: string; requestedProtocol?: string;
   authentication: "oauth" | "required" | "not-observed" | "unknown";
@@ -24,6 +28,7 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
   const finding = (level: PrecheckFinding["level"], title: string, detail: string) => { if (report.findings.length < 20) report.findings.push({ level, title, detail }); };
   const deadline = AbortSignal.timeout(LIMIT_MS);
   let requests = 0, challenge = "", authRequired = false;
+  let discoveredTools: McpTool[] = [];
   const limitedFetch: typeof fetch = (input, init) => fetcher(input, { ...init, credentials: "omit", redirect: "manual", signal: AbortSignal.any([deadline, AbortSignal.timeout(7000), ...(init?.signal ? [init.signal] : [])]) });
   const probe: typeof fetch = async (input, init = {}) => {
     if (deadline.aborted || ++requests > MAX_REQUESTS) throw new RuntimeError("Pre-check request or time limit reached.");
@@ -54,7 +59,7 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
     const connection = { endpoint, protocol, tools: [] as McpTool[] };
     const client = new McpClient(connection, probe);
     try {
-      const tools = await client.discover(); report.protocol = connection.protocol;
+      const tools = await client.discover({ allowEmpty: true }); report.protocol = connection.protocol; discoveredTools = tools; report.server = client.discoveredServerInfo();
       report.visibility = "public-tools"; report.toolCount = tools.length;
       report.tools = tools.slice(0, 20).map(t => ({ name: t.name, description: t.description.slice(0, 160), inputs: Object.keys(t.inputSchema.properties && typeof t.inputSchema.properties === "object" ? t.inputSchema.properties : {}).slice(0, 8).map(s => s.slice(0, 40)) }));
       report.capabilities=capabilityEngine().inventory(tools.slice(0,20)).map(t=>({...t,description:t.description.slice(0,160),inputs:t.inputs.slice(0,8).map(p=>p.slice(0,120)),outputs:t.outputs.slice(0,8).map(p=>p.slice(0,120)),restrictions:t.restrictions.slice(0,2).map(s=>s.slice(0,200)),annotations:{}}));
@@ -113,5 +118,6 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
     finding("blocked", "Inspection incomplete or blocked", error instanceof RuntimeError ? error.message : "A request failed or returned malformed, oversized or timed-out metadata. No credentials were sent.");
   }
   finding("review", "Limited assessment, not a safety certification", "No provider account or OAuth client was created. No credentials, AI requests or tool executions were sent. Backend behavior, account permissions, pricing and data handling remain unverified; assess again after authorization.");
+  report.readiness = await createReadinessProfile(report, discoveredTools);
   return report;
 }

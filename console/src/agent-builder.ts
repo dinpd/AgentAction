@@ -23,7 +23,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 </div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
 <div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
 <form id="connect"><div class="fields setup-fields"><label>Server / account name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
-<div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
+<div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p class="note"><a href="https://agentaction-mcp-check.drisw.workers.dev" target="_blank" rel="noopener noreferrer">Developer readiness checker ↗</a> · inspect, export and optionally publish a public profile.</p><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
 <div class="connection-access"><h3>Approve and connect</h3><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
 <div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
@@ -149,9 +149,19 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     details.append(node('p','Coverage describes our indexed listings. It does not measure all MCP servers or confirm your account access.','note'));host.append(details);
   }
   function catalogEvidence(card: HTMLElement, server: CatalogServer, query='') {
+    for (const profile of server.readiness || []) {
+      const section = node('div', '', 'precheck-panel');
+      section.append(node('strong', profile.stale ? 'Public readiness · stale' : 'Public readiness · recent observations'),
+        node('p', `${profile.endpoint} · ${profile.toolCount} tools listed · ${profile.failureCount} schema findings · ${profile.reviewCount} review findings`, 'note'),
+        node('p', `Checked ${new Date(profile.checkedAt).toLocaleString()} · protocol ${profile.observedProtocol}. Anonymous discovery: ${profile.visibility}. Execution, account permissions and retries remain untested.`, 'note'));
+      if (profile.toolNames.length) section.append(node('p', 'Observed tool names: ' + profile.toolNames.slice(0,8).join(', ') + (profile.toolNames.length>8?' …':''), 'note'));
+      const link=node('a','View evidence and fixes ↗') as HTMLAnchorElement;
+      if (/^[a-f0-9]{64}$/.test(profile.id)) {link.href='https://agentaction-mcp-check.drisw.workers.dev/reports/'+profile.id;link.target='_blank';link.rel='noopener noreferrer';section.append(link);}
+      card.append(section);
+    }
     const evidence=server.catalogEvidence;
     if(!evidence) {
-      card.append(node('p','Tool catalog unknown · this listing contains server metadata only. Check publisher documentation or connect to discover available tools.','note'));
+      card.append(node('p','Directory tool catalog unknown · review any public observations above, check publisher documentation or connect to discover account-specific tools.','note'));
       return;
     }
     card.dataset.catalogSource=evidence.source;
@@ -705,6 +715,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       results.append(node("p", `Advertised supported scopes: ${report.scopes.join(", ") || "Not specified"}`, "note"), node("p", `Scopes challenged for this request: ${report.challengedScopes.join(", ") || "Not specified"}`, "note"));
       for (const f of report.findings) { const row = node("div", "", "precheck-finding"); row.dataset.level = f.level; row.append(node("strong", `${f.level === "blocked" ? "Blocked / incomplete" : f.level === "review" ? "Review" : "Observed"}: ${f.title}`), node("p", f.detail, "note")); results.append(row); }
       if (report.tools.length) { const tools = node("details"); tools.append(node("summary", "Inspected tool descriptions (untrusted provider text)")); for (const t of report.tools) tools.append(node("p", `${t.name}: ${t.description} · Inputs: ${t.inputs.join(", ") || "Not declared"}`, "note")); results.append(tools); }
+      if(report.readiness) results.append(node('p', `Readiness ruleset ${report.readiness.ruleset} · ${report.readiness.findingCounts.fail + report.readiness.findingCounts.review} findings · behavior untested. Workspace findings stay private.`, 'note'));
       if(report.capabilities?.length) results.append(capabilityDetails(report.capabilities,'Public pre-check without credentials. Connected-account catalogs can differ. Field lists and descriptions are bounded summaries; resources were not inspected.',report.toolCount,true));
       const evidence = node("details"); evidence.append(node("summary", "HTTP evidence")); for (const e of report.evidence) evidence.append(node("p", `${e.status} · ${e.url}`, "note")); results.append(evidence);
 

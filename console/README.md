@@ -877,3 +877,60 @@ may retain capability labels but never account mappings or private inputs.
 
 Acceptance: `node --experimental-strip-types tests/guided-create-browser.mts`,
 `tests/agent-plans.test.ts`, and the template/evaluation browser suites.
+
+## Public MCP readiness checker
+
+The [MCP Readiness Check](https://agentaction-mcp-check.drisw.workers.dev/) is a
+separate public Worker. It shares `mcp-precheck.ts` and the versioned
+`mcp-readiness.ts` profile engine with workspace inspections. The public page
+supports anonymous HTTPS Streamable HTTP discovery, protocol selection,
+source-linked findings, declared tool schemas, JSON export and opt-in public
+reports. No tool calls, resource reads, model calls or credentials are sent.
+
+Only checks explicitly submitted with publication enabled enter the separate
+`McpReadiness` SQLite store. Unpublished checks return to the caller without
+report persistence; the daily counter contains no endpoint or account data.
+The latest 1,000 published reports are retained. Publication does not establish
+publisher ownership or certify a provider. Anyone knowing a report link can read
+it; published observations can appear in AgentAction discovery. Do not publish
+sensitive endpoint names. No workspace report is copied into this store.
+
+Discovery uses the optional `MCP_READINESS_SERVICE` binding to look up public
+profiles by exact endpoint. Only catalog endpoint URLs cross that binding, never
+workspace IDs, search text, credentials or connected-account evidence. The most
+recent published check wins, including failures. Cards label tool declarations,
+public observations, time/protocol and untested behavior separately; failure of
+the evidence service does not block catalog search or authorize any endpoint.
+
+Profiles use `agentaction.mcp-readiness.v1` and an independently versioned ruleset.
+They expire after 24 hours or a ruleset change. The SHA-256 catalog fingerprint
+canonicalizes bounded discovered tool metadata (sorted tool names and object
+keys); omitted/truncated metadata and changed backend behavior are not covered.
+Server identity is retained when initialization exposes it; stateless discovery
+may not expose a server version. No account-level permissions, retry behavior,
+side effects or full conformance are verified. Test a changed catalog again;
+there is no scheduled refresh in this release. Workspace inspection reuse remains
+one hour; force a recheck for new readiness fields on older cached reports.
+
+The public API accepts only endpoint, supported protocol, and explicit boolean
+`publish`. Unknown fields, credentials, local/IP/query-bearing endpoints and
+redirects are rejected. The Worker sets `global_fetch_strictly_public` to enforce
+the egress boundary even across DNS changes. Request/response/time budgets are
+inherited from the pre-check engine. Reports show up to 20 tools / 32 KB and 32
+findings, with omissions labeled. This limit is separate from discovery's 80-tool,
+five-page and 80,000-character metadata ceiling.
+
+Abuse controls: Cloudflare's per-IP rate limiter permits five checks per minute
+(per location, approximate); the Durable Object enforces 100 attempts per UTC day
+across the service and three concurrent probes. Requests without the edge's IP
+header fail closed. Same-origin JSON plus a custom header prevents browser
+cross-site submissions. Public lookups never trigger probes. The report API has
+no credential-bearing or imported-evidence ingestion route.
+
+Deploy `npm run deploy:readiness` before `npm run deploy`; CI performs this order.
+The new Worker has its own `readiness-v1` SQLite migration and needs no secret.
+Its compatibility date is 2026-09-18, the newest date supported by the repository's
+current local runtime. `npm run dry-run:readiness`, `npm run test:readiness-worker`
+and `npm run test:readiness-browser` validate it. Browser checks use Playwright
+via `PLAYWRIGHT_MODULE` when not installed locally. Generated binding types live
+in `src/readiness-env.d.ts`.

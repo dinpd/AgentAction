@@ -26,6 +26,7 @@ boundaries.
 
 | Experience | What it demonstrates |
 | --- | --- |
+| [MCP Readiness Check](https://agentaction-mcp-check.drisw.workers.dev/) | Anonymous server inspection, actionable guidance and exportable profiles; opt-in public evidence reused in discovery. |
 | [Gateway and refund control](https://agentid-refund-demo.drisw.workers.dev/) | Approval, scoped JIT authority, idempotency, audit, and provider-tool authorization in a support workflow. |
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |

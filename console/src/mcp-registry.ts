@@ -1,3 +1,4 @@
+import type { ReadinessSummary } from "./mcp-readiness.ts";
 import { boundedText, object } from "./mcp-client.ts";
 import type { CatalogEvidence, CatalogSource } from './mcp-directory.ts';
 import { mcpMatching } from './mcp-matching.ts';
@@ -20,6 +21,7 @@ export const AUTH_TYPES = [
 ] as const;
 type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
+  readiness?: ReadinessSummary[];
   catalogEvidence?: CatalogEvidence;
   matchTerms?: string[];
   name: string; title: string; description: string; version: string; publisher: string;
