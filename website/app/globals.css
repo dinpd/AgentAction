@@ -53,7 +53,6 @@ code,
 pre,
 .section-index,
 .eyebrow,
-.note-label,
 .proof-state,
 .console-header,
 .console-footer,
@@ -159,33 +158,6 @@ nav a:not(.nav-cta):hover,
 .nav-cta:hover {
   background: var(--ink);
   color: var(--paper);
-}
-
-.transition-note {
-  width: min(calc(100% - 3rem), var(--max));
-  margin: 1rem auto 0;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.7rem 1rem;
-  border: 1px solid rgba(17, 19, 15, 0.25);
-  background: rgba(250, 249, 244, 0.74);
-  font-size: 0.8rem;
-  backdrop-filter: blur(12px);
-}
-
-.note-label {
-  flex: 0 0 auto;
-  padding-right: 1rem;
-  border-right: 1px solid rgba(17, 19, 15, 0.25);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.transition-note p {
-  color: #474b43;
 }
 
 .hero {
@@ -2068,10 +2040,6 @@ button:focus-visible {
 
   .nav-divider {
     display: none;
-  }
-
-  .transition-note {
-    align-items: flex-start;
   }
 
   .hero,

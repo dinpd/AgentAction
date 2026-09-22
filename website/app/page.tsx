@@ -11,6 +11,7 @@ const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
 const consoleDemo = "https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview";
 const operatorConsole = "https://observability-console.agentaction.dev/?window=7#overview";
+const monitoringSetup = "https://observability-console.agentaction.dev/#setup";
 const agentBuilder = "https://observability-console.agentaction.dev/agents";
 const consoleDocs = `${github}/tree/main/console`;
 
@@ -207,7 +208,7 @@ const transitionStages = [
 
 export default function Home() {
   return (
-    <main>
+    <main id="top">
       <a className="skip-link" href="#content">
         Skip to content
       </a>
@@ -229,15 +230,6 @@ export default function Home() {
         </nav>
       </header>
 
-      <div id="top" className="transition-note" role="note">
-        <span className="note-label">Compatibility</span>
-        <p>
-          AgentAction is the canonical project brand. Versioned protocol
-          identifiers and the legacy command names remain compatible for existing
-          integrations.
-        </p>
-      </div>
-
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <p className="eyebrow">Trust infrastructure for autonomous AI agents</p>
@@ -253,9 +245,9 @@ export default function Home() {
             <a className="button button-primary" href={agentBuilder}>
               Connect an MCP <span aria-hidden="true">↗</span>
             </a>
-            <Link className="button button-secondary" href="/recipes">
-              Browse agent recipes <span aria-hidden="true">→</span>
-            </Link>
+            <a className="button button-secondary" href={monitoringSetup}>
+              Start monitoring your agents <span aria-hidden="true">↗</span>
+            </a>
           </div>
           <p className="hero-onboarding">
             Already running an agent? <a href={observerQuickStart}>Observe an MCP workflow</a>.{" "}
