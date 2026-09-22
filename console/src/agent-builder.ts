@@ -23,14 +23,14 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 </div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
 <div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
 <form id="connect"><div class="fields setup-fields"><label>Server / account name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
-<div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p class="note"><a href="https://mcpcheck.agentaction.dev" target="_blank" rel="noopener noreferrer">Developer readiness checker ↗</a> · inspect, export and optionally publish a public profile.</p><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
-<div class="connection-access"><h3>Approve and connect</h3><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
+<div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3>Pre-check findings</h3><p id="inspection-target" class="note"></p><p class="note"><a href="https://mcpcheck.agentaction.dev" target="_blank" rel="noopener noreferrer">Developer readiness checker ↗</a> · inspect, export and optionally publish a public profile.</p><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
+<div class="connection-access"><h3>Approve and connect</h3><p id="connection-target" class="note"></p><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
 <div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
 <p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Shared OAuth is available for configured providers. Local stdio is not supported.</p>
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<div id="oauth-options"></div><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
+<div id="oauth-options"></div><p id="oauth-feedback" tabindex="-1" class="action-feedback" role="status" aria-live="polite" hidden></p><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
 <section class="panel" data-builder-stage="create" hidden id="guided-create">
 <form id="draft-request"><label for="job-description">What would you like your agent to do?<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><p class="note">Describe the outcome and any details you already know. You can connect tools later.</p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button></div><p class="note">AI creates an editable draft. Nothing runs until you approve an action.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
 <details id="agent-profiler"><summary>Help me choose an agent</summary>
@@ -621,7 +621,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function feedback(id: string, value: string, error = false) { const el = get(id); el.textContent = value; el.dataset.error = String(error); el.hidden = !value; }
   function schedulePrecheck() {
     cancelScheduledPrecheck(); inspectionGeneration++; inspecting = false; precheckTouched = true; precheckError = undefined;
-    feedback("connect-feedback", ""); feedback("approval-feedback", ""); updateEndpointAccess(true); renderPrechecks();
+    feedback("oauth-feedback", ""); feedback("connect-feedback", ""); feedback("approval-feedback", ""); updateEndpointAccess(true); renderPrechecks();
     const endpoint = get<HTMLInputElement>("precheck-endpoint").value.trim();
     if (!get("setup-view").hidden && validInspectionEndpoint(endpoint) && role !== "viewer") precheckTimer = runtime.setTimeout(() => { void runPrecheck(endpoint); }, 700);
   }
@@ -703,6 +703,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const field = get<HTMLInputElement>("precheck-endpoint");
     if (!precheckTouched && !field.value && reports.length) { const latest = [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))[0]; field.value = latest.endpoint; (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value = latest.requestedProtocol || "2025-03-26"; }
     const endpoint = canonicalEndpoint(field.value.trim());
+    get('inspection-target').textContent = field.value ? `Analyzing ${connectionTarget()}` : 'Choose an MCP server to analyze.';
+    get('connection-target').textContent = field.value ? `Connecting to ${connectionTarget()}` : 'Choose an MCP server to connect.';
     const report = reports.find(r => r.endpoint === endpoint && (!r.requestedProtocol || r.requestedProtocol === requestedProtocol()));
     const results = get("precheck-results"); results.replaceChildren();
     if (report) {
@@ -722,7 +724,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
 
     }
     get("precheck-status").dataset.error = "false";
-    get("precheck-status").textContent = inspecting ? "Inspecting without credentials. This may take up to 30 seconds; no tools will be executed." : report ? "Saved pre-check findings for this exact endpoint. Review the observations and limitations below." : role === "viewer" ? "An owner or operator can run a pre-check. Saved workspace reports are available below." : !field.value ? "Enter an HTTPS endpoint to start an automatic pre-check." : !validInspectionEndpoint(field.value) ? "Enter a public HTTPS URL without credentials, query parameters or fragments. No check has been sent." : "No current findings. Edit the endpoint to check automatically, or select Recheck endpoint.";
+    get("precheck-status").textContent = inspecting ? `Inspecting ${endpoint} without credentials. This may take up to 30 seconds; no tools will be executed.` : report ? "Saved pre-check findings for this exact endpoint. Review the observations and limitations below." : role === "viewer" ? "An owner or operator can run a pre-check. Saved workspace reports are available below." : !field.value ? "Enter an HTTPS endpoint to start an automatic pre-check." : !validInspectionEndpoint(field.value) ? "Enter a public HTTPS URL without credentials, query parameters or fragments. No check has been sent." : "No current findings. Edit the endpoint to check automatically, or select Recheck endpoint.";
     if (precheckError?.endpoint === endpoint && precheckError.protocol === requestedProtocol()) { get("precheck-status").textContent = precheckError.detail; get("precheck-status").dataset.error = "true"; }
     const history = get("precheck-history"); history.replaceChildren();
     for (const r of [...reports].sort((a,b) => b.checkedAt.localeCompare(a.checkedAt))) { const el = node("button", `${inspectionLabel(r)} · ${r.endpoint}`, "secondary") as HTMLButtonElement; el.type = "button"; el.addEventListener("click", () => { clearSelection(); (get<HTMLFormElement>("connect").elements.namedItem("protocol") as HTMLSelectElement).value = r.requestedProtocol || "2025-03-26"; selectPrecheck(r.endpoint); }); history.append(el); }
@@ -759,7 +761,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function clearSelection() {
     cancelScheduledPrecheck(); inspectionGeneration++; inspecting = false; precheckTouched = true; precheckError = undefined;
-    get<HTMLFormElement>("connect").reset(); feedback("connect-feedback", ""); feedback("approval-feedback", "");
+    get<HTMLFormElement>("connect").reset(); feedback("oauth-feedback", ""); feedback("connect-feedback", ""); feedback("approval-feedback", "");
     get("catalog-selection").textContent = "Already have a server? Enter its HTTPS endpoint below.";
     updateEndpointAccess(true);
   }
@@ -853,9 +855,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   async function mutate(action: string, body: any) { return request(`/api/agents/${encodeURIComponent(tenant)}/${action}`, body); }
   async function perform(el: HTMLButtonElement, action: () => Promise<void>, feedbackId?: string) {
-    const localFeedback = feedbackId || (el.closest("#setup-view") ? "connections-feedback" : undefined);
+    const localFeedback = feedbackId || el.dataset.feedback || (el.closest("#setup-view") ? "connections-feedback" : undefined);
     el.disabled = true; el.setAttribute("aria-busy", "true"); workspace.disabled = true; updateEndpointAccess();
-    try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); if (localFeedback && tenant) feedback(localFeedback, failure, true); else message(failure, true); }
+    try { await action(); } catch (error) { const failure = error instanceof Error ? error.message : "Unable to complete the request."; await refresh().catch(() => {}); if (localFeedback && tenant) feedback(localFeedback, localFeedback === 'oauth-feedback' ? `${connectionTarget()}: ${failure}` : failure, true); else message(failure, true); }
     finally { el.removeAttribute("aria-busy"); el.disabled = role === "viewer"; workspace.disabled = !memberships.length; updateEndpointAccess(); }
   }
   async function refresh() {
@@ -865,9 +867,26 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if (current !== generation) return;
     state = data; recurring = checks; get("builder").hidden = false; render();
   }
+  function connectionTarget() {
+    const form = get<HTMLFormElement>('connect');
+    const endpoint = (form.elements.namedItem('endpoint') as HTMLInputElement).value.trim();
+    const provider = (state.oauthProviders || []).find((p: any) => p.endpoint === endpoint);
+    const label = provider?.label || (form.elements.namedItem('label') as HTMLInputElement).value.trim();
+    return label ? `${label} · ${endpoint}` : endpoint || 'MCP server';
+  }
+  function selectOAuthProvider(provider: any) {
+    precheckTouched = true;
+    const form = get<HTMLFormElement>('connect');
+    (form.elements.namedItem('endpoint') as HTMLInputElement).value = provider.endpoint;
+    (form.elements.namedItem('label') as HTMLInputElement).value = provider.label;
+    renderOAuth(); updateEndpointAccess(); showMcpView(true);
+    get('setup-heading').textContent = `Connect ${provider.label}`;
+  }
   async function connectOAuth(provider: any, connectionId?: string) {
     if (role !== 'owner') throw new Error('A workspace owner must connect shared OAuth accounts.');
     if (!runtime.confirm(`Share this ${provider.label} account with workspace agents? Owners and operators can use its tools. Access continues if you leave, until an owner disconnects or the provider revokes it. Requested scopes: ${provider.scopes.join(', ') || 'provider defaults'}.`)) return;
+    selectOAuthProvider(provider);
+    feedback('oauth-feedback', `${connectionTarget()}: Starting authorization…`);
     const result = await mutate('oauth-start', { providerId: provider.id, ...(connectionId ? { connectionId } : {}), shared: true });
     runtime.location.assign(result.authorizationUrl);
   }
@@ -878,6 +897,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     for (const provider of providers) {
       options.append(node('p', `Shared workspace OAuth · ${provider.label} · ${provider.issuer}. Scopes: ${provider.scopes.join(', ') || 'provider defaults'}. Use a dedicated provider account for shared agents.`, 'note'));
       const connect = button(`Connect with ${provider.label}`, async () => connectOAuth(provider));
+      connect.dataset.feedback = 'oauth-feedback'; connect.setAttribute('aria-describedby', 'oauth-feedback');
       connect.disabled = role !== 'owner' || !endpointEnabled(provider.endpoint); options.append(connect);
     }
     if (!providers.length) options.append(node('p', 'OAuth is available for providers configured by the deployment owner. Other servers can use public or bearer access.', 'note'));
@@ -915,6 +935,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         const provider = (state.oauthProviders || []).find((p: any) => p.id === c.oauth.providerId);
         if (provider) {
           const reconnect = button('Reconnect shared OAuth account', async () => connectOAuth(provider, c.id));
+          reconnect.dataset.feedback = 'oauth-feedback';
           reconnect.disabled = role !== 'owner'; detail.append(reconnect);
         }
       } else {
@@ -1053,11 +1074,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const payload = { label: data.get("label"), endpoint: data.get("endpoint"), token: data.get("token"), protocol: data.get("protocol") };
     (form.elements.namedItem("token") as HTMLInputElement).value = "";
     void perform(submit, async () => {
-      feedback("connect-feedback", "Connecting and discovering the server’s actual tools…");
+      feedback("connect-feedback", `Connecting to ${connectionTarget()} and discovering its tools…`);
       let connected:{connectionId:string};const origin=capabilitySetup;
       try { connected=await mutate("connect", payload); } finally { payload.token = null; }
       if(origin && origin===capabilitySetup && origin.tenant===tenant && origin.planId===currentPlan?.id) origin.connectionId=connected.connectionId;
-      await refresh();feedback("connect-feedback", "MCP server connected. Its tools are now available for your agent.");
+      await refresh();feedback("connect-feedback", `${connectionTarget()}: MCP server connected. Its tools are now available for your agent.`);
       if (selectedRecipe || currentPlan) {
         if(currentPlan) renderMappings();runtime.location.hash="create";showStage("create");
         message("Server connected. Review the tool mappings in your agent setup.");
@@ -1130,7 +1151,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     }).finally(() => { creating = false; updateMappingStatus(); });
   });
   get<HTMLButtonElement>("refresh").addEventListener("click", () => { void refresh().catch(e => message(e.message, true)); });
-  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search MCP directories by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
+  workspace.addEventListener("change", () => { cancelScheduledPrecheck(); showMcpView(false); feedback("connections-feedback", ""); feedback("oauth-feedback", ""); get("builder").hidden = true; catalogGeneration++; inspectionGeneration++; inspecting = false; precheckTouched = false; get<HTMLInputElement>("precheck-endpoint").value = ""; catalogOffset = null; get("catalog-results").replaceChildren(); get("catalog-more").hidden = true; get("catalog-status").textContent = "Search MCP directories by name or capability."; state = { connections: [], agents: [], runs: [], workspaceRecipes: [] }; editorRecipe = undefined; editorGeneration++; resetDraft(); get("tool-options").replaceChildren(); get("editor-connection").replaceChildren(); get("eval-checks").replaceChildren(); get("recipe-save-status").textContent = ""; clearSelection(); tenant = workspace.value; role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer"; renderAccountRole(); chosen = undefined; get("configure").hidden = true; get<HTMLFormElement>("create").reset(); get<HTMLFormElement>("connect").reset(); void refresh().then(() => message(`Workspace ready · ${role}`)).catch(e => message(e.message, true)); });
   get('recipe-browser').replaceChildren(...recipeCatalog.map(recipe => {
     const card = node('article', '', 'card'); card.append(node('h3', recipe.title), node('p', recipe.summary), node('p', recipe.servers.map(server => server.name).join(' + '), 'note'));
     const use = node('button', 'Use this template') as HTMLButtonElement; use.type = 'button'; use.onclick = () => { recipeContext(recipe); get('recipe-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.append(use); return card;
@@ -1160,11 +1181,13 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         discovery: 'OAuth authorization succeeded, but MCP tool discovery failed. Check server compatibility and account access, then reconnect.',
         owner: 'OAuth requires an active owner session in the same workspace. Sign in as the owner who started the connection and reconnect.',
       };
+      const provider = (state.oauthProviders || []).find((p: any) => p.id === callback.searchParams.get('oauth_provider'));
       const reason = callback.searchParams.get('oauth_failure') || '';
       const failure = Object.hasOwn(reasons, reason) ? reasons[reason] : 'OAuth callback failed or expired. Start a new connection and check provider configuration if it repeats.';
+      callback.searchParams.delete('oauth_provider');
       callback.searchParams.delete('oauth_failure');
       callback.searchParams.delete('oauth'); runtime.history.replaceState(null, '', callback.pathname + callback.search + callback.hash);
-      if (outcome) { showMcpView(true); feedback('connections-feedback', outcome === 'connected' ? 'OAuth account connected for shared workspace agents. Review discovered tools and run a trial before activation.' : failure, outcome !== 'connected'); }
+      if (outcome) { if (provider) selectOAuthProvider(provider); else showMcpView(true); feedback('oauth-feedback', `${provider ? connectionTarget() : 'OAuth connection'}: ${outcome === 'connected' ? 'Connected for shared workspace agents. Review discovered tools and run a trial before activation.' : failure}`, outcome !== 'connected'); get('oauth-feedback').focus(); message(`Workspace ready · ${role}`); }
       else if (tenant) message(`Workspace ready · ${role}`);
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();

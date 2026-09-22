@@ -1,3 +1,4 @@
+import { mcpFailureReason, RuntimeError } from '../src/mcp-client.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AgentRuntime, type RuntimeStorage, type Connection, type Agent, type Run } from '../src/agent-runtime.ts';
@@ -239,4 +240,10 @@ test('invalid explicit expiry remains rejected and callback stages expose no pro
   const r=await h.complete(u,stage==='authorization'?{error:'SECRET-PROVIDER-ERROR'}:{});
   assert.equal(r.body.oauthFailure,stage);assert.ok(!JSON.stringify(r).includes('SECRET'));assert.ok(!JSON.stringify(r).includes('DO-NOT-LEAK'));
  }
+});
+
+
+test('discovery diagnostics only allow fixed local categories',()=>{
+ assert.equal(mcpFailureReason(new RuntimeError('A tool schema is too large.')),'schema_limit');
+ for(const value of [new Error('PRIVATE-CODE'), new RuntimeError('SECRET-TOKEN'), new RuntimeError('__proto__'), null]) assert.equal(mcpFailureReason(value),'unexpected');
 });

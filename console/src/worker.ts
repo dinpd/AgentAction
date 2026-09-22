@@ -1,4 +1,4 @@
-import { oauthCallback, oauthOrigin, oauthClientMetadata, oauthStateWorkspace, type OAuthEnv } from './mcp-oauth.ts';
+import { oauthProviders, oauthCallback, oauthOrigin, oauthClientMetadata, oauthStateWorkspace, type OAuthEnv } from './mcp-oauth.ts';
 import { enrichReadiness } from "./readiness-discovery.ts";
 import { searchCatalogs } from './mcp-catalog-search.ts';
 import type { Directory } from './mcp-directory.ts';
@@ -5267,7 +5267,7 @@ async function completeMcpOAuth(request: Request, identity: ConsoleIdentity, env
   const url = new URL(request.url);
   if (request.method !== 'GET' || env.CONSOLE_PUBLIC_DEMO === 'true' || env.AGENT_OAUTH_ENABLED !== 'true' || `${url.origin}${url.pathname}` !== oauthCallback(env)) throw new ConsoleError(404, 'oauth_route_invalid', 'OAuth callback is unavailable.');
   let tenantId: string | undefined;
-  let success = false, failure = 'callback';
+  let success = false, failure = 'callback', providerId: string | undefined;
   try {
     const allowed = ['state', 'code', 'iss', 'error', 'error_description', 'error_uri'];
     if (url.search.length > 12000 || [...url.searchParams.keys()].some(k => !allowed.includes(k) || url.searchParams.getAll(k).length !== 1)) throw new Error('Invalid callback');
@@ -5282,13 +5282,13 @@ async function completeMcpOAuth(request: Request, identity: ConsoleIdentity, env
     const response = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request('https://agent-runtime.internal/oauth-complete', { method: 'POST', headers: { 'content-type': 'application/json', 'x-runtime-actor': identity.subject, 'x-runtime-role': 'owner', 'x-runtime-workspace': tenantId }, body: JSON.stringify(body) }));
     success = response.ok;
     failure = 'callback';
-    if (!success) {
-      const result = JSON.parse(await boundedText(response, 4096));
-      if (['authorization', 'exchange', 'response', 'discovery'].includes(result?.oauthFailure)) failure = result.oauthFailure;
-    } else await response.body?.cancel();
+    const result = JSON.parse(await boundedText(response, 4096));
+    if (oauthProviders(env).some(p => p.id === result?.oauthProvider)) providerId = result.oauthProvider;
+    if (!success && ['authorization', 'exchange', 'response', 'discovery'].includes(result?.oauthFailure)) failure = result.oauthFailure;
   } catch { /* Never display provider errors, codes, state, or token responses. */ }
   const target = new URL('/agents', url.origin);
   if (tenantId) target.searchParams.set('workspace', tenantId);
+  if (providerId) target.searchParams.set('oauth_provider', providerId);
   if (!success) target.searchParams.set('oauth_failure', failure);
   target.searchParams.set('oauth', success ? 'connected' : 'failed'); target.hash = 'connect';
   const headers = secureHeaders('text/plain; charset=utf-8');

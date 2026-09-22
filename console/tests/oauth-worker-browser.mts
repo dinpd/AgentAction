@@ -27,7 +27,7 @@ const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'oauth-test',mo
    assert.equal(request.headers.get('authorization'),`Bearer ${token}`);
    const rpc=await request.json() as any;
    if(rpc.method==='notifications/initialized')return new Response(null,{status:202});
-   const result=rpc.method==='initialize'?{protocolVersion:'2025-03-26',capabilities:{tools:{}}}:{tools:[{name:'search',description:'Search workspace pages',inputSchema:{type:'object',properties:{}}}]};
+   const result=rpc.method==='initialize'?{protocolVersion:'2025-03-26',capabilities:{tools:{}}}:{tools:Array.from({length:4},(_,i)=>({name:`search_${i}`,description:'Search workspace pages',inputSchema:{type:'object',properties:{query:{type:'string',description:'Provider schema documentation. '.repeat(1500)}},required:['query']}}))};
    return Response.json({jsonrpc:'2.0',id:rpc.id,result});
   }
   throw new Error(`Unexpected outbound ${url}`);
@@ -64,7 +64,12 @@ try {
  await page.locator('#connect [name=endpoint]').fill(provider[0].endpoint);
  await page.getByRole('button',{name:'Connect with Notion',exact:true}).click();
  await page.getByRole('link',{name:'Allow workspace sharing'}).click();
- await page.locator('#connections-feedback').filter({hasText:'OAuth account connected'}).waitFor();
+ await page.locator('#oauth-feedback').filter({hasText:'Notion · https://mcp.notion.com/mcp: Connected'}).waitFor();
+ assert.equal(await page.locator('#precheck-endpoint').inputValue(),provider[0].endpoint);
+ assert.equal(await page.locator('#connections-feedback').innerText(),'');
+ assert.equal(await page.locator('#oauth-options + #oauth-feedback').count(),1);
+ assert.ok((await page.locator('#connection-target').innerText()).includes('Notion'));
+ assert.ok((await page.locator('#inspection-target').innerText()).includes(provider[0].endpoint));
  assert.equal(tokenCalls,1);assert.match(await page.locator('#connections').innerText(),/Shared workspace OAuth/);
  assert.ok(!(await page.content()).includes(token));assert.ok(!(await page.content()).includes(refresh));
  await mf.unsafeEvictDurableObject('oauth-test','AgentWorkspace',{name:'workspace:acme'});
@@ -74,12 +79,16 @@ try {
  await page.screenshot({path:'/tmp/agentaction-oauth-mobile.png',fullPage:true});
  await page.getByRole('button',{name:'Disconnect',exact:true}).click();
  await page.locator('#connections-feedback').filter({hasText:'provider revocation accepted'}).waitFor();assert.equal(revocations,1);
- await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=discovery#connect`);
- await page.locator('#connections-feedback').filter({hasText:'OAuth authorization succeeded, but MCP tool discovery failed.'}).waitFor();
+ await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=discovery&oauth_provider=notion#connect`);
+ await page.locator('#oauth-feedback').filter({hasText:'OAuth authorization succeeded, but MCP tool discovery failed.'}).waitFor();
  assert.ok(!page.url().includes('oauth_failure'));
- await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=PRIVATE-PROVIDER-ERROR#connect`);
- await page.locator('#connections-feedback').filter({hasText:'OAuth callback failed or expired.'}).waitFor();
+ assert.match(await page.locator('#oauth-feedback').innerText(),/Notion · https:\/\/mcp.notion.com\/mcp/);
+ await page.locator('#precheck-endpoint').fill('https://another.example/mcp');
+ assert.equal(await page.locator('#oauth-feedback').isVisible(),false);
+ await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=PRIVATE-PROVIDER-ERROR&oauth_provider=untrusted-provider#connect`);
+ await page.locator('#oauth-feedback').filter({hasText:'OAuth callback failed or expired.'}).waitFor();
  assert.ok(!(await page.locator('body').innerText()).includes('PRIVATE-PROVIDER-ERROR'));
+ await page.screenshot({path:'/tmp/agentaction-257-inline-mobile.png',fullPage:true});
  assert.deepEqual(errors,[]);console.log('PASS OAuth Worker/browser: PKCE consent redirect, authenticated callback, durable grant across eviction, shared ownership UI, mobile, disconnect and no credential leakage.');
 } catch(error) {console.error({url:page.url(),errors,body:(await page.locator('body').innerText()).slice(-7000)});throw error;}
 finally{await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await mf.dispose();}
