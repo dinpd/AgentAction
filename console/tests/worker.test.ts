@@ -792,8 +792,8 @@ test("workspace recipe writes require current membership, same origin and a veri
 });
 
 test('OAuth start and callback require current owner membership, bind trusted identity and strip provider errors', async () => {
- let role='owner', present=true; const forwarded: Request[]=[];
- const env:Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:present?[{tenant:{tenant_id:'acme'},membership:{role}}]:[]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_OAUTH_ENABLED:'true',AGENT_OAUTH_ORIGIN:'https://console.agentaction.dev',AGENT_WORKSPACES:{getByName(name){assert.equal(name,'workspace:acme');return{async request(request){forwarded.push(request);return json({ok:true});}};}}};
+ let role='owner', present=true, failure: string | undefined; const forwarded: Request[]=[];
+ const env:Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:present?[{tenant:{tenant_id:'acme'},membership:{role}}]:[]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_OAUTH_ENABLED:'true',AGENT_OAUTH_ORIGIN:'https://console.agentaction.dev',AGENT_WORKSPACES:{getByName(name){assert.equal(name,'workspace:acme');return{async request(request){forwarded.push(request);return failure ? Response.json({oauthFailure:failure,error:"PRIVATE-TOKEN"},{status:409}) : json({ok:true});}};}}};
  const request=(path:string,init:RequestInit={})=>{const signed=accessRequest(path,init,{custom:{}});return new Request(`https://console.agentaction.dev${path}`,signed);};
  const post=(origin='https://console.agentaction.dev')=>request('/api/agents/acme/oauth-start',{method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder','x-runtime-actor':'attacker'},body:'{}'});
  assert.equal((await worker.fetch(post('https://evil.com'),env)).status,403);
@@ -806,5 +806,10 @@ test('OAuth start and callback require current owner membership, bind trusted id
  for(const denied of ['operator','viewer']) {role=denied;const r=await worker.fetch(request(callback),env);assert.match(r.headers.get('location')!,/oauth=failed/);}
  role='owner';present=false;assert.match((await worker.fetch(request(callback),env)).headers.get('location')!,/oauth=failed/);present=true;
  assert.match((await worker.fetch(request(callback+'&state=duplicate'),env)).headers.get('location')!,/oauth=failed/);assert.equal(forwarded.length,2);
+ for(const code of ['authorization','exchange','response','discovery','PRIVATE-TOKEN','__proto__']) {
+  failure=code;const result=await worker.fetch(request(callback),env), location=new URL(result.headers.get('location')!);
+  assert.equal(location.searchParams.get('oauth_failure'),['PRIVATE-TOKEN','__proto__'].includes(code)?'callback':code);
+  assert.ok(!location.href.includes('PRIVATE'));assert.equal(await result.text(),'');
+ }
  assert.equal((await worker.fetch(request('/api/agents/acme/oauth-complete',{method:'POST',headers:{origin:'https://console.agentaction.dev','content-type':'application/json','x-agentaction-request':'agent-builder'},body:'{}'}),env)).status,405);
 });

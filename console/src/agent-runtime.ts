@@ -1,4 +1,4 @@
-import { WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
+import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
 import { proposedPlan, planBindings, PLAN_PROMPT, type AgentPlan, type ToolSource, type ToolBindings, type AvailableTool } from './agent-plans.ts';
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation } from "./recipe-evaluation.ts";
@@ -102,7 +102,7 @@ export class AgentRuntime {
         return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator", request.headers.get("x-runtime-role") || "operator"));
       });
     } catch (error) {
-      return json({ error: error instanceof RuntimeError ? error.message : "The agent operation failed. Review the connection and retry when ready." }, error instanceof RuntimeError ? error.status : 502);
+      return json({ ...(error instanceof OAuthFailure ? { oauthFailure: error.code } : {}), error: error instanceof RuntimeError ? error.message : "The agent operation failed. Review the connection and retry when ready." }, error instanceof RuntimeError ? error.status : 502);
     }
   }
   async snapshot(): Promise<Record<string, unknown>> {
@@ -311,7 +311,7 @@ export class AgentRuntime {
         // Invalidate approvals before changing the identity behind this connection.
         await this.pauseConnection(connection.id);
         await this.storage.put(`connection:${connection.id}`, connection);
-      } catch (error) { await oauth.disconnect(grant.oauth); throw error; }
+      } catch (error) { await oauth.disconnect(grant.oauth); throw new OAuthFailure('discovery', error); }
       await oauth.cancelPending(connection.id);
       if (previous?.oauth) await oauth.disconnect(previous.oauth);
       return { connectionId: connection.id, toolCount: connection.tools.length };

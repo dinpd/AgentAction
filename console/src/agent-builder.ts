@@ -1153,8 +1153,18 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer";
       renderAccountRole(); await refresh(); if (tenant) void searchCatalog();
       const callback = new URL(runtime.location.href), outcome = callback.searchParams.get('oauth');
+      const reasons: Record<string, string> = {
+        authorization: 'OAuth authorization expired, was declined, or no longer matches this owner and configuration. Start a new connection.',
+        exchange: 'The provider token exchange failed. Start a new connection; if it repeats, check the registered client and callback configuration.',
+        response: 'The provider returned an unsupported token response or different scopes. Check provider compatibility before reconnecting.',
+        discovery: 'OAuth authorization succeeded, but MCP tool discovery failed. Check server compatibility and account access, then reconnect.',
+        owner: 'OAuth requires an active owner session in the same workspace. Sign in as the owner who started the connection and reconnect.',
+      };
+      const reason = callback.searchParams.get('oauth_failure') || '';
+      const failure = Object.hasOwn(reasons, reason) ? reasons[reason] : 'OAuth callback failed or expired. Start a new connection and check provider configuration if it repeats.';
+      callback.searchParams.delete('oauth_failure');
       callback.searchParams.delete('oauth'); runtime.history.replaceState(null, '', callback.pathname + callback.search + callback.hash);
-      if (outcome) { showMcpView(true); feedback('connections-feedback', outcome === 'connected' ? 'OAuth account connected for shared workspace agents. Review discovered tools and run a trial before activation.' : 'OAuth connection failed or expired. Check owner access and provider configuration, then reconnect.', outcome !== 'connected'); }
+      if (outcome) { showMcpView(true); feedback('connections-feedback', outcome === 'connected' ? 'OAuth account connected for shared workspace agents. Review discovered tools and run a trial before activation.' : failure, outcome !== 'connected'); }
       else if (tenant) message(`Workspace ready · ${role}`);
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();

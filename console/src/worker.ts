@@ -5267,11 +5267,12 @@ async function completeMcpOAuth(request: Request, identity: ConsoleIdentity, env
   const url = new URL(request.url);
   if (request.method !== 'GET' || env.CONSOLE_PUBLIC_DEMO === 'true' || env.AGENT_OAUTH_ENABLED !== 'true' || `${url.origin}${url.pathname}` !== oauthCallback(env)) throw new ConsoleError(404, 'oauth_route_invalid', 'OAuth callback is unavailable.');
   let tenantId: string | undefined;
-  let success = false;
+  let success = false, failure = 'callback';
   try {
     const allowed = ['state', 'code', 'iss', 'error', 'error_description', 'error_uri'];
     if (url.search.length > 12000 || [...url.searchParams.keys()].some(k => !allowed.includes(k) || url.searchParams.getAll(k).length !== 1)) throw new Error('Invalid callback');
     tenantId = validateTenantId(oauthStateWorkspace(url.searchParams.get('state') || ''), 'workspace');
+    failure = 'owner';
     const session = await consoleSession(identity, env);
     if (!session.ok) throw new Error('Session unavailable');
     const data = await session.json() as { memberships?: Array<{ tenant: { tenant_id: string }; membership: { role: string } }> };
@@ -5279,10 +5280,16 @@ async function completeMcpOAuth(request: Request, identity: ConsoleIdentity, env
     if (!env.AGENT_WORKSPACES) throw new Error('Runtime unavailable');
     const body = Object.fromEntries(['state', 'code', 'iss', 'error'].filter(k => url.searchParams.has(k)).map(k => [k, url.searchParams.get(k)]));
     const response = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request('https://agent-runtime.internal/oauth-complete', { method: 'POST', headers: { 'content-type': 'application/json', 'x-runtime-actor': identity.subject, 'x-runtime-role': 'owner', 'x-runtime-workspace': tenantId }, body: JSON.stringify(body) }));
-    success = response.ok; await response.body?.cancel();
+    success = response.ok;
+    failure = 'callback';
+    if (!success) {
+      const result = JSON.parse(await boundedText(response, 4096));
+      if (['authorization', 'exchange', 'response', 'discovery'].includes(result?.oauthFailure)) failure = result.oauthFailure;
+    } else await response.body?.cancel();
   } catch { /* Never display provider errors, codes, state, or token responses. */ }
   const target = new URL('/agents', url.origin);
   if (tenantId) target.searchParams.set('workspace', tenantId);
+  if (!success) target.searchParams.set('oauth_failure', failure);
   target.searchParams.set('oauth', success ? 'connected' : 'failed'); target.hash = 'connect';
   const headers = secureHeaders('text/plain; charset=utf-8');
   headers.set('location', target.href); headers.set('referrer-policy', 'no-referrer');

@@ -20,7 +20,7 @@ const mf=new Miniflare(convertV4MiniflareOptions({workers:[{name:'oauth-test',mo
    tokenCalls++;const body=new URLSearchParams(await request.text());
    assert.equal(body.get('resource'),issuer);assert.equal(body.get('redirect_uri'),`${origin}/oauth/mcp/callback`);
    const actual=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body.get('code_verifier')!))).toString('base64url');assert.equal(actual,challenge);
-   return Response.json({token_type:'Bearer',access_token:token,refresh_token:refresh,scope:'default',expires_in:3600});
+   return Response.json({token_type:'Bearer',access_token:token,refresh_token:refresh,scope:'default'});
   }
   if(url.pathname==='/revoke'){revocations++;return new Response(null,{status:200});}
   if(url.pathname==='/mcp'){
@@ -74,6 +74,12 @@ try {
  await page.screenshot({path:'/tmp/agentaction-oauth-mobile.png',fullPage:true});
  await page.getByRole('button',{name:'Disconnect',exact:true}).click();
  await page.locator('#connections-feedback').filter({hasText:'provider revocation accepted'}).waitFor();assert.equal(revocations,1);
+ await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=discovery#connect`);
+ await page.locator('#connections-feedback').filter({hasText:'OAuth authorization succeeded, but MCP tool discovery failed.'}).waitFor();
+ assert.ok(!page.url().includes('oauth_failure'));
+ await page.goto(`${local}/agents?workspace=acme&oauth=failed&oauth_failure=PRIVATE-PROVIDER-ERROR#connect`);
+ await page.locator('#connections-feedback').filter({hasText:'OAuth callback failed or expired.'}).waitFor();
+ assert.ok(!(await page.locator('body').innerText()).includes('PRIVATE-PROVIDER-ERROR'));
  assert.deepEqual(errors,[]);console.log('PASS OAuth Worker/browser: PKCE consent redirect, authenticated callback, durable grant across eviction, shared ownership UI, mobile, disconnect and no credential leakage.');
 } catch(error) {console.error({url:page.url(),errors,body:(await page.locator('body').innerText()).slice(-7000)});throw error;}
 finally{await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await mf.dispose();}
