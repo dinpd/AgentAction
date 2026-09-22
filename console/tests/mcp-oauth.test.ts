@@ -22,7 +22,7 @@ function harness() {
   const storage = new Storage();
   const env = { AGENT_OAUTH_ENABLED: 'true', AGENT_OAUTH_ORIGIN: origin, AGENT_OAUTH_ACTIVE_KEY: 'one', AGENT_OAUTH_KEYS: JSON.stringify({one:key}), AGENT_OAUTH_PROVIDERS: JSON.stringify([provider]), AGENT_MCP_ENDPOINTS: endpoint, AGENT_AI: { async run(_: string, input: unknown) { prompts.push(JSON.stringify(input)); return { response: outputs.shift(), usage: { total_tokens: 1 } }; } } };
   const requests: Array<{url: string; init: RequestInit}> = [], prompts: string[] = [], outputs: unknown[] = [];
-  let sequence = 0, tokenCalls = 0, refreshCalls = 0, revokeCalls = 0, calls = 0, rejectToken = false, rejectMcp = false, malicious = false, scopeChanged = false, failRevoke = false, authCode = 'valid-code', expectedChallenge = '', metadataOverrides: Record<string, unknown> = {};
+  let sequence = 0, tokenCalls = 0, refreshCalls = 0, revokeCalls = 0, calls = 0, rejectToken = false, rejectMcp = false, malicious = false, scopeChanged = false, failRevoke = false, authCode = 'valid-code', expectedChallenge = '', metadataOverrides: Record<string, unknown> = {}, tokenOverrides: Record<string, unknown> = {};
   const token = () => `ACCESS-SECRET-${sequence}`;
   const fetcher: typeof fetch = async (input, init = {}) => {
     const url = String(input); requests.push({ url, init });
@@ -42,7 +42,7 @@ function harness() {
         if (challenge !== expectedChallenge) return Response.json({ error: 'invalid_grant' }, { status: 400 });
       } else { refreshCalls++; assert.equal(body.get('refresh_token'), `REFRESH-SECRET-${sequence}`); }
       sequence++;
-      return Response.json({ token_type: 'Bearer', access_token: token(), refresh_token: `REFRESH-SECRET-${sequence}`, expires_in: 3600, scope: scopeChanged ? 'admin' : 'default' });
+      return Response.json({ token_type: 'Bearer', access_token: token(), refresh_token: `REFRESH-SECRET-${sequence}`, expires_in: 3600, scope: scopeChanged ? 'admin' : 'default', ...tokenOverrides });
     }
     if (url.endsWith('/revoke')) { revokeCalls++; return new Response(null, {status: failRevoke ? 500 : 200}); }
     if (url === endpoint) {
@@ -77,7 +77,7 @@ function harness() {
     const agent: Agent = { id:'agent-1', connectionId, title:'Workspace search',goal:'Find pages',setup:'Read only',success:'Pages found',tools:['search'],status:'active',nextRun:Date.now()-1,createdAt:new Date().toISOString(),lastTrial:'old-trial' };
     await storage.put('agent:agent-1',agent); return agent;
   };
-  return {storage,env,runtime,fetcher,request,start,complete,connect,vault,editGrant,seedAgent,requests,prompts,outputs, counts:()=>({tokenCalls,refreshCalls,revokeCalls,calls}), rejectToken:()=>rejectToken=true,rejectMcp:()=>rejectMcp=true,privateDns:()=>malicious=true,changeScopes:()=>scopeChanged=true,failRevoke:()=>failRevoke=true,metadata:(v:Record<string,unknown>)=>metadataOverrides=v,badPkce:()=>expectedChallenge='wrong'};
+  return {storage,env,runtime,fetcher,request,start,complete,connect,vault,editGrant,seedAgent,requests,prompts,outputs, counts:()=>({tokenCalls,refreshCalls,revokeCalls,calls}), rejectToken:()=>rejectToken=true,rejectMcp:()=>rejectMcp=true,privateDns:()=>malicious=true,changeScopes:()=>scopeChanged=true,failRevoke:()=>failRevoke=true,metadata:(v:Record<string,unknown>)=>metadataOverrides=v,tokens:(v:Record<string,unknown>)=>tokenOverrides=v,badPkce:()=>expectedChallenge='wrong'};
 }
 
 test('owner OAuth callback encrypts shared credentials and discovers the actual account; no secrets in snapshots', async()=>{
@@ -215,4 +215,28 @@ test('owner can remove a grant and pending states even after its encryption key 
  const result=await h.request('disconnect',{connectionId:id});assert.equal(result.status,200);assert.equal(result.body.revoked,false);
  assert.equal((await h.storage.list({prefix:'oauth-grant:'})).size,0);assert.equal((await h.storage.list({prefix:'oauth-pending:'})).size,0);
  const u=await h.start(id);assert.equal((await h.complete(u)).status,200);
+});
+
+
+test('optional and long token lifetimes use bounded leases and still rotate on expiry',async()=>{
+ for(const expiry of [undefined, 315360000]) {
+  const h=harness();h.tokens({expires_in:expiry});const before=Date.now(),id=await h.connect();
+  const record=[...(await h.storage.list({prefix:'oauth-grant:'})).keys()][0];
+  const grant=await h.vault().read<any>(record), lease=expiry===undefined?3600000:31536000000;
+  assert.ok(grant.expires>=before+lease && grant.expires<=Date.now()+lease);
+  await h.editGrant({expires:0});assert.equal((await h.request('refresh-capabilities',{connectionId:id})).status,200);assert.equal(h.counts().refreshCalls,1);
+ }
+});
+
+test('invalid explicit expiry remains rejected and callback stages expose no provider text',async()=>{
+ for(const expiry of [null,0,-1,'3600']) {
+  const h=harness();h.tokens({expires_in:expiry});const r=await h.complete(await h.start());
+  assert.equal(r.status,409);assert.equal(r.body.oauthFailure,'response');assert.equal((await h.storage.list({prefix:'oauth-grant:'})).size,0);
+ }
+ for(const stage of ['authorization','exchange','discovery']) {
+  const h=harness(),u=await h.start();
+  if(stage==='exchange')h.rejectToken();if(stage==='discovery')h.rejectMcp();
+  const r=await h.complete(u,stage==='authorization'?{error:'SECRET-PROVIDER-ERROR'}:{});
+  assert.equal(r.body.oauthFailure,stage);assert.ok(!JSON.stringify(r).includes('SECRET'));assert.ok(!JSON.stringify(r).includes('DO-NOT-LEAK'));
+ }
 });

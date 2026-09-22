@@ -59,8 +59,10 @@ this initial release does not automatically request new scopes from challenges.
 For preregistration, add `clientId` and optionally `clientAuth` (`none`,
 `client_secret_post` or `client_secret_basic`) plus `clientSecret`. Otherwise the
 provider must advertise client ID metadata document support. PKCE S256,
-authorization code, bearer tokens, and a positive `expires_in` up to one year are
-required. Providers without refresh tokens work until expiry and then require an
+authorization code and bearer tokens are required. When present, `expires_in`
+must be a positive finite number; the local lease is capped at one year. When
+omitted, a one-hour local lease applies. This is a client use limit, not an
+assertion of provider token expiry. Providers without refresh tokens work until expiry and then require an
 owner to reconnect. Scope changes fail closed and require review/reconnection.
 Dynamic registration, device flow, URL query credentials, automatic scope
 escalation and arbitrary unconfigured OAuth providers are not supported.

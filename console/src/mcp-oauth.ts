@@ -15,6 +15,15 @@ export type OAuthProvider = {
   clientAuth?: 'none' | 'client_secret_post' | 'client_secret_basic';
 };
 export type OAuthConnection = { providerId: string; credentialId: string; connectedBy: string; connectedAt: string; ownership: 'workspace'; scopes: string[] };
+export type OAuthFailureCode = 'authorization' | 'exchange' | 'response' | 'discovery';
+// Only local categories cross the browser callback boundary; never provider text.
+export class OAuthFailure extends RuntimeError {
+  code: OAuthFailureCode;
+  constructor(code: OAuthFailureCode, error: unknown) {
+    super(error instanceof RuntimeError ? error.message : 'OAuth connection failed.', error instanceof RuntimeError ? error.status : 502);
+    this.code = code;
+  }
+}
 type Sealed = { key: string; iv: string; data: string };
 type Metadata = { issuer: string; authorization: string; token: string; revocation?: string; issuerResponse: boolean };
 type Pending = { actor: string; workspace: string; connectionId: string; providerId: string; config: string; verifier: string; redirect: string; clientId: string; metadata: Metadata; expires: number };
@@ -150,30 +159,38 @@ export class WorkspaceOAuth {
   }
   private tokens(result: Record<string, unknown>, requested: string[], prior?: Grant) {
     if (String(result.token_type).toLowerCase() !== 'bearer' || typeof result.access_token !== 'string' || !/^[\x21-\x7e]{1,8192}$/.test(result.access_token)) fail('Provider returned an unsupported token response.');
-    if (!Number.isFinite(result.expires_in) || Number(result.expires_in) <= 0 || Number(result.expires_in) > 31536000) fail('Provider must return a bounded access-token expiration.');
+    // expires_in is optional (RFC6749/Notion). A local lease bounds use even
+    // when the provider omits it or advertises a longer-lived token.
+    if (result.expires_in !== undefined && (typeof result.expires_in !== 'number' || !Number.isFinite(result.expires_in) || result.expires_in <= 0)) fail('Provider returned an invalid access-token expiration.');
+    const lifetime = Math.min(result.expires_in === undefined ? 3600 : result.expires_in as number, 31536000);
     const refresh = result.refresh_token === undefined ? prior?.refresh : textField(result.refresh_token, 'refresh token', 8192);
     if (result.scope !== undefined && typeof result.scope !== 'string') fail('Invalid granted scopes.');
     const scopes = result.scope === undefined ? requested : String(result.scope).split(' ').filter(Boolean);
     if (scopes.length !== requested.length || scopes.some(s => !requested.includes(s))) fail('Granted scopes changed. Reconnect and review permissions.');
-    return { access: result.access_token, refresh, scopes, expires: Date.now() + Number(result.expires_in) * 1000 };
+    return { access: result.access_token, refresh, scopes, expires: Date.now() + lifetime * 1000 };
   }
   async complete(input: Record<string, unknown>, actor: string, authorizeEndpoint: (endpoint: string) => Promise<unknown> = async () => {}): Promise<{ connectionId: string; endpoint: string; label: string; oauth: OAuthConnection }> {
-    const state = textField(input.state, 'OAuth state', 400);
-    if (oauthStateWorkspace(state) !== this.workspace) fail('OAuth workspace mismatch.', 403);
-    const key = `oauth-pending:${state}`, pending = await this.read<Pending>(key);
-    if (!pending || pending.expires <= Date.now()) { await this.storage.delete(key); return fail('OAuth state expired or was already used.', 400); }
-    if (pending.actor !== actor || pending.workspace !== this.workspace) fail('OAuth callback must be completed by the owner who started it.', 403);
-    await this.storage.delete(key); // Persist single use before exchanging a code.
-    if ((pending.metadata.issuerResponse && input.iss === undefined) || (input.iss !== undefined && input.iss !== pending.metadata.issuer)) fail('OAuth issuer mismatch.', 400);
-    if (input.error !== undefined) fail('Provider authorization was declined or failed.', 400);
-    const p = this.provider(pending.providerId);
-    if (pending.config !== await digest(JSON.stringify(p)) || pending.redirect !== oauthCallback(this.env)) fail('OAuth configuration changed. Start again.');
-    await authorizeEndpoint(p.endpoint);
-    const code = textField(input.code, 'authorization code', 8192);
-    const result = await this.tokenRequest(p, pending.metadata.token, pending.clientId, { grant_type: 'authorization_code', code, code_verifier: pending.verifier, redirect_uri: pending.redirect, resource: p.resource });
-    const credentialId = crypto.randomUUID();
-    await this.write(`oauth-grant:${credentialId}`, { providerId: p.id, config: pending.config, metadata: pending.metadata, clientId: pending.clientId, ...this.tokens(result, p.scopes), previous: [] } satisfies Grant);
-    return { connectionId: pending.connectionId, endpoint: p.endpoint, label: p.label, oauth: { providerId: p.id, credentialId, connectedBy: actor, connectedAt: new Date().toISOString(), ownership: 'workspace', scopes: p.scopes } };
+    let phase: OAuthFailureCode = 'authorization';
+    try {
+      const state = textField(input.state, 'OAuth state', 400);
+      if (oauthStateWorkspace(state) !== this.workspace) fail('OAuth workspace mismatch.', 403);
+      const key = `oauth-pending:${state}`, pending = await this.read<Pending>(key);
+      if (!pending || pending.expires <= Date.now()) { await this.storage.delete(key); return fail('OAuth state expired or was already used.', 400); }
+      if (pending.actor !== actor || pending.workspace !== this.workspace) fail('OAuth callback must be completed by the owner who started it.', 403);
+      await this.storage.delete(key); // Persist single use before exchanging a code.
+      if ((pending.metadata.issuerResponse && input.iss === undefined) || (input.iss !== undefined && input.iss !== pending.metadata.issuer)) fail('OAuth issuer mismatch.', 400);
+      if (input.error !== undefined) fail('Provider authorization was declined or failed.', 400);
+      const p = this.provider(pending.providerId);
+      if (pending.config !== await digest(JSON.stringify(p)) || pending.redirect !== oauthCallback(this.env)) fail('OAuth configuration changed. Start again.');
+      await authorizeEndpoint(p.endpoint);
+      const code = textField(input.code, 'authorization code', 8192);
+      phase = 'exchange';
+      const result = await this.tokenRequest(p, pending.metadata.token, pending.clientId, { grant_type: 'authorization_code', code, code_verifier: pending.verifier, redirect_uri: pending.redirect, resource: p.resource });
+      phase = 'response';
+      const credentialId = crypto.randomUUID();
+      await this.write(`oauth-grant:${credentialId}`, { providerId: p.id, config: pending.config, metadata: pending.metadata, clientId: pending.clientId, ...this.tokens(result, p.scopes), previous: [] } satisfies Grant);
+      return { connectionId: pending.connectionId, endpoint: p.endpoint, label: p.label, oauth: { providerId: p.id, credentialId, connectedBy: actor, connectedAt: new Date().toISOString(), ownership: 'workspace', scopes: p.scopes } };
+    } catch (error) { throw new OAuthFailure(phase, error); }
   }
   // Called within AgentRuntime's workspace queue, including alarms. A durable
   // refreshing marker prevents replaying a rotating refresh token after a crash.

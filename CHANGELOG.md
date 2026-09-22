@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.35.1-rc.1 - 2026-09-22
+
+### Fixed
+
+- Accept OAuth token responses that omit expiration, as allowed by Notion's client contract, using a one-hour local lease. Cap longer advertised lifetimes at one year; malformed explicit lifetimes remain rejected. Expired local leases refresh or require owner reconnection.
+- Distinguish authorization, token exchange, response validation, and MCP discovery failures using fixed callback messages without exposing provider errors or credentials.
+
+### Compatibility and migration
+
+- Backward-compatible patch prerelease for the shared OAuth pilot; no migration or new permissions. Existing grants and public/bearer connections remain compatible. Live Notion account acceptance remains pending a new owner attempt.
+- Install Python artifacts from the GitHub v0.35.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.35.0-rc.1 - 2026-09-22
 
 ### Added
