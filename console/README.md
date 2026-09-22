@@ -934,3 +934,9 @@ current local runtime. `npm run dry-run:readiness`, `npm run test:readiness-work
 and `npm run test:readiness-browser` validate it. Browser checks use Playwright
 via `PLAYWRIGHT_MODULE` when not installed locally. Generated binding types live
 in `src/readiness-env.d.ts`.
+
+The readiness browser asset serializes functions from the Worker bundle. Keep
+`keep_names: false` in its Wrangler configuration: name-preservation helpers
+otherwise become unresolved references in the browser. Worker acceptance builds
+with the production Wrangler configuration and executes the served script,
+checking that form and export event handlers register before exercising the API.

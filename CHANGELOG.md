@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.34.1-rc.1 - 2026-09-22
+
+### Fixed
+
+- Restore public MCP checker form initialization in production. Disable Wrangler name-preservation helpers that cannot be referenced from the serialized browser script.
+- Run readiness acceptance against the actual Wrangler bundle and execute its served JavaScript to catch missing browser helpers before deployment.
+
+### Compatibility and migration
+
+- Backward-compatible patch prerelease; no schema, storage, permissions or configuration migration. Existing public reports and workspace data remain valid.
+- The checker continues to use system fonts and a strict CSP. Its assets do not request Soleil; no font allowlist or unrelated font asset is added.
+- Reload the checker after deployment. Install Python artifacts from the GitHub v0.34.1-rc.1 prerelease; no registry publication is implied.
+
 ## 0.34.0-rc.1 - 2026-09-22
 
 ### Added
