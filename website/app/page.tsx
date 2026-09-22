@@ -208,7 +208,7 @@ const transitionStages = [
 
 export default function Home() {
   return (
-    <main>
+    <main id="top">
       <a className="skip-link" href="#content">
         Skip to content
       </a>
@@ -229,15 +229,6 @@ export default function Home() {
           </a>
         </nav>
       </header>
-
-      <div id="top" className="transition-note" role="note">
-        <span className="note-label">Compatibility</span>
-        <p>
-          AgentAction is the canonical project brand. Versioned protocol
-          identifiers and the legacy command names remain compatible for existing
-          integrations.
-        </p>
-      </div>
 
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">

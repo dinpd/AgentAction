@@ -61,7 +61,8 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /authenticated tools may remain unseen/);
   assert.match(html, /OAuth discovery is available; OAuth login is not yet supported/);
   assert.doesNotMatch(html, /Starters available/);
-  assert.match(html, /AgentAction is the canonical project brand/);
+  assert.doesNotMatch(html, /transition-note|AgentAction is the canonical project brand/);
+  assert.match(html, /<main id="top">/);
   assert.match(html, /Trusted action boundary/);
   assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
   assert.match(html, /href="\/landscape"[^>]*>Landscape</i);
