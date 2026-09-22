@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.35.3-rc.1 - 2026-09-22
+
+### Fixed
+
+- Make the selected MCP server name and endpoint bold in both connection panels, with primary text contrast and wrapping for narrow screens.
+
+### Compatibility and migration
+
+- Backward-compatible presentation-only patch prerelease; no behavior, permission, schema or migration changes.
+- Install Python artifacts from the GitHub v0.35.3-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.35.2-rc.1 - 2026-09-22
 
 ### Fixed
