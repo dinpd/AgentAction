@@ -79,7 +79,7 @@ export class McpClient {
     try {
       const response = await this.fetcher(this.connection.endpoint, {
         method: "POST", redirect: "manual", signal: controller.signal, headers,
-        body: JSON.stringify({ jsonrpc: "2.0", ...(id === undefined ? {} : { id }), method, params: modern ? { ...params, _meta: { "io.modelcontextprotocol/protocolVersion": this.connection.protocol, "io.modelcontextprotocol/clientInfo": { name: "AgentAction", version: "0.16.0" } } } : params }),
+        body: JSON.stringify({ jsonrpc: "2.0", ...(id === undefined ? {} : { id }), method, params: modern ? { ...params, _meta: { "io.modelcontextprotocol/protocolVersion": this.connection.protocol, "io.modelcontextprotocol/clientInfo": { name: "AgentAction", version: "0.16.0" }, "io.modelcontextprotocol/clientCapabilities": {} } } : params }),
       });
       if (!response.ok) {
         await response.body?.cancel();
@@ -112,7 +112,7 @@ export class McpClient {
     }
     await this.rpc("notifications/initialized", {}, true);
   }
-  async discover(): Promise<McpTool[]> {
+  async discover(options: { allowEmpty?: boolean } = {}): Promise<McpTool[]> {
     await this.initialize();
     const tools: McpTool[] = [];
     const names = new Set<string>(), cursors = new Set<string>();
@@ -138,13 +138,14 @@ export class McpClient {
         tools.push(retained);
         if (tools.length > 80 || JSON.stringify(tools).length > 80000) throw new RuntimeError("This connection supports at most 80 tools. Use a scoped MCP endpoint.", 502);
       }
-      if (!result.nextCursor) { if (!tools.length) throw new RuntimeError("No tools are available for this account."); return tools; }
+      if (!result.nextCursor) { if (!tools.length && !options.allowEmpty) throw new RuntimeError("No tools are available for this account."); return tools; }
       cursor = textField(result.nextCursor, "tool cursor", 2048);
       if (cursors.has(cursor)) break;
       cursors.add(cursor);
     }
     throw new RuntimeError("The tool catalog could not be completely discovered.", 502);
   }
+  discoveredServerInfo(): { name?: string; version?: string } { return { ...this.serverInfo }; }
   async discoverMetadata(): Promise<CatalogMetadata> {
     const deadline=Date.now()+10000;
     const catalog:CatalogMetadata={capturedAt:new Date().toISOString(),server:this.serverInfo,tools:'complete',resources:{status:'unknown',items:[]},resourceTemplates:{status:'unknown',items:[]}};

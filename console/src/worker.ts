@@ -1,3 +1,4 @@
+import { enrichReadiness } from "./readiness-discovery.ts";
 import { searchCatalogs } from './mcp-catalog-search.ts';
 import type { Directory } from './mcp-directory.ts';
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
@@ -14,6 +15,7 @@ type Fetcher = {
 };
 
 export type Env = {
+  MCP_READINESS_SERVICE?: Fetcher;
   MCP_SMITHERY_API_KEY?: string;
   MCP_GLAMA_API_KEY?: string;
   MCP_REGISTRY?: { getByName(name: string): { search(query: CatalogQuery, source?: Directory | 'official'): Promise<CatalogResult> } };
@@ -5277,6 +5279,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     let catalog: CatalogResult;
     try { catalog = await searchCatalogs(env.MCP_REGISTRY, catalogQuery, [...(env.MCP_SMITHERY_API_KEY ? ['smithery' as const] : []), ...(env.MCP_GLAMA_API_KEY ? ['glama' as const] : [])]); }
     catch { throw new ConsoleError(503, 'catalog_unavailable', 'Registry discovery is unavailable. Enter an MCP endpoint manually.', 'unavailable'); }
+    catalog = await enrichReadiness(catalog, env.MCP_READINESS_SERVICE);
     return new Response(JSON.stringify(catalog), { headers: secureHeaders("application/json; charset=utf-8") });
   }
   const namespace = recurring ? env.RECURRING_WORKSPACES : env.AGENT_WORKSPACES;

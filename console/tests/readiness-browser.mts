@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readinessFixture } from './readiness-fixture.mts';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const {mf}=await readinessFixture();
+let count=1;
+const server=createServer(async(req,res)=>{
+  const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(chunk);
+  const headers=new Headers();for(const [k,v] of Object.entries(req.headers))if(v)headers.set(k,Array.isArray(v)?v.join(','):v);
+  headers.set('cf-connecting-ip',`192.0.2.${count++}`);
+  const response=await mf.dispatchFetch('http://'+req.headers.host+req.url,{method:req.method,headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});
+  res.statusCode=response.status;response.headers.forEach((v,k)=>res.setHeader(k,v));res.end(Buffer.from(await response.arrayBuffer()));
+});
+await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+const address=server.address() as {port:number};const origin=`http://127.0.0.1:${address.port}`;
+const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const errors:string[]=[];page.on('pageerror',(e:Error)=>errors.push(e.message));
+try {
+ await page.goto(origin);await page.getByRole('heading',{name:'Give agents a clearer path to your tools.'}).waitFor();
+ assert.equal(await page.locator('#publish').isChecked(),false);
+ await page.screenshot({path:'/tmp/agentaction-readiness-desktop.png',fullPage:true});
+ await page.locator('#endpoint').fill('https://mcp.vendor.com/mcp');await page.locator('#run').click();await page.locator('#status').filter({hasText:'has not been published'}).waitFor();
+ assert.match(await page.locator('#report').innerText(),/Behavior untested/);assert.equal(await page.locator('#report img').count(),0);
+ assert.equal(await page.locator('#share').isVisible(),false);
+ const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;assert.equal(download.suggestedFilename(),'mcp-readiness.json');
+ const stream=await download.createReadStream();let body='';for await(const chunk of stream)body+=chunk;assert.equal(JSON.parse(body).readiness.coverage.execution,'untested');
+ await page.locator('#publish').check();await page.locator('#run').click();await page.locator('#status').filter({hasText:'This report is public'}).waitFor();
+ const share=await page.locator('#share').getAttribute('href');assert.match(share!,/^\/reports\/[a-f0-9]{64}$/);await page.locator('#share').click();await page.locator('#status').filter({hasText:'Published anonymous observations'}).waitFor();
+ assert.equal(await page.locator('#endpoint').inputValue(),'https://mcp.vendor.com/mcp');
+ await page.screenshot({path:'/tmp/agentaction-readiness-report.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'/tmp/agentaction-readiness-mobile.png',fullPage:true});
+ await page.locator('#endpoint').fill('https://127.0.0.1/mcp');await page.locator('#run').click();await page.locator('#status[data-error=true]').waitFor();assert.equal(await page.locator('#report').isVisible(),false);assert.equal(await page.locator('#run').isEnabled(),true);
+ await page.locator('#endpoint').fill('https://auth.vendor.com/mcp');await page.locator('#run').click();await page.locator('#status').filter({hasText:'Check complete'}).waitFor();assert.match(await page.locator('#coverage').innerText(),/Discovery incomplete/);
+ await page.goto(origin+'/reports/'+'a'.repeat(64));await page.locator('#status[data-error=true]').waitFor();assert.match(await page.locator('#status').innerText(),/not found/);assert.equal(await page.locator('#run').isEnabled(),true);
+ assert.deepEqual(errors,[]);console.log('PASS public checker browser: real Worker, opt-in publication/share/reload, JSON export, failure recovery, XSS inertness, desktop/mobile and no page errors.');
+} finally {await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await mf.dispose();}

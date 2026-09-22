@@ -43,6 +43,9 @@ jobs:
       - name: Verify catalog RPC, storage and alarms
         run: npm run test:catalog-worker
 
+      - name: Verify readiness Worker and persistence
+        run: npm run dry-run:readiness && npm run test:readiness-worker
+
       - name: Verify public demo Worker bundle
         run: npm run dry-run:demo
 
@@ -56,6 +59,13 @@ jobs:
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy public MCP readiness checker
+        if: github.event_name != 'pull_request' && steps.cloudflare-secrets.outputs.configured == 'true'
+        run: npm run deploy:readiness
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

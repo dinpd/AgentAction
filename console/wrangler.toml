@@ -21,6 +21,10 @@ CONSOLE_STALE_AFTER_SECONDS = "300"
 binding = "AGENTID_GATEWAY"
 service = "agentid-gateway"
 
+[[services]]
+binding = "MCP_READINESS_SERVICE"
+service = "agentaction-mcp-check"
+
 [ai]
 binding = "AGENT_AI"
 

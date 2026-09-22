@@ -4,6 +4,22 @@
 
 No changes yet.
 
+## 0.34.0-rc.1 - 2026-09-22
+
+### Added
+
+- Public MCP Readiness Check with anonymous HTTPS discovery, protocol selection, source-linked schema findings, usability guidance, metadata heuristics, JSON export and explicit opt-in publication.
+- Versioned readiness profiles shared with workspace pre-checks, including a fingerprint of bounded discovered metadata, requested/observed protocol, available server identity, 24-hour freshness and explicit untested behavior/permissions/retries/conformance.
+- Exact-endpoint public evidence in discovery cards and capability suggestions. Public service failures leave catalog discovery available; workspace/account observations are never published.
+
+### Compatibility and migration
+
+- Significant functionality: minor RC for a new public network surface and additive evidence schema. No changes to connection approval, credentials, tool execution authorization, or existing catalog storage.
+- Deploy the new `agentaction-mcp-check` Worker before the operator console. Its SQLite Durable Object stores only explicitly published anonymous reports, bounded to the latest 1,000. Existing workspace inspection records remain readable; recheck to obtain readiness profiles.
+- Preview limits: five requests per minute per IP, 100 new checks per UTC day across the service, and three concurrent checks. DNS validation plus the strictly public Worker network boundary blocks private destinations; probes send no credentials or tool calls.
+- Inspection supports up to 80 tools and five catalog pages. Reports display up to 20 tools / 32 KB metadata and 32 findings, with omissions labeled. Fingerprints cover retained discovery metadata, not complete server implementation or backend behavior. Findings are limited checks, not an MCP conformance or safety certificate.
+- Install Python artifacts from the GitHub v0.34.0-rc.1 prerelease. No PyPI or npm publication is implied; hosted services deploy from the merged commit. Local stdio, authenticated execution, model evals and automated profile refresh are outside this release.
+
 ## 0.33.0-rc.1 - 2026-09-21
 
 ### Added
