@@ -526,7 +526,7 @@ Every card using Glama data credits Glama and links its listing. See the
 Publisher documentation is the fallback link when schemas are absent; the
 console does not invent tools from the underlying service's REST API, scrape
 publisher pages, or infer unsupported operations from a missing catalog.
-OAuth-only MCP login remains unsupported in this release. Fixture-based tests
+Shared OAuth login is available for explicitly configured providers; see the OAuth section below. Fixture-based tests
 validate adapters and UI behavior; enable keys and inspect coverage to verify
 live provider availability and actual indexed coverage in your deployment.
 
@@ -603,8 +603,8 @@ network boundary is required because DNS prechecks alone cannot prevent rebindin
 between validation and connection. Do not replace MCP fetch with a private/VPC
 binding or disable the flag. See [Cloudflare's compatibility flag documentation](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#global-fetch-strictly-public).
 
- Only public/bearer-token Streamable HTTP connections are supported;
-OAuth-only servers, stdio, legacy SSE, custom headers and parameterized URLs need
+Public/bearer-token and configured shared OAuth Streamable HTTP connections are supported;
+unconfigured OAuth providers, stdio, legacy SSE, custom headers and parameterized URLs need
 setup outside the builder. Registry listings do not establish provider trust or
 authorize access. Manual endpoint entry remains available during catalog outages.
 
@@ -672,7 +672,7 @@ This is available after signing into AgentAction, before creating or authorizing
 a provider account; the public demo does not expose an anonymous scanner.
 
 `/state` includes workspace-scoped `inspections`. The UI shows observations and
-limitations prominently, including **OAuth discovered · login not supported yet**,
+limitations prominently, including **OAuth discovered · workspace connection required**,
 issuer metadata matching, advertised and challenged scopes separately, tool
 visibility, bounded tool summaries and HTTP evidence. These are point-in-time
 provider claims, not a safety certification, verified identity, granted scopes,
@@ -709,8 +709,8 @@ still reach 30 seconds. Individual checks are lightweight, but scanning every
 catalog listing would multiply infrastructure work and provider traffic. Actual
 billing depends on the deployment’s Cloudflare plan and usage.
 
-See [OAuth connection implementation plan](../docs/oauth-connections.md) for the
-separate work required to turn discovery into a supported account login flow.
+See [Shared workspace OAuth](../docs/oauth-connections.md) for deployment, ownership
+and provider compatibility. Discovery itself never starts a login flow.
 
 
 ## Agent lifecycle workspace
@@ -944,3 +944,10 @@ checking that form and export event handlers register before exercising the API.
 The checker uses the `mcpcheck.agentaction.dev` custom domain on the existing
 readiness Worker. Its workers.dev address remains available for existing links;
 both hosts share report storage and quotas. Forms require the same request origin.
+
+## Shared workspace OAuth
+
+Owners can connect configured OAuth providers for shared agents. See
+[OAuth deployment and ownership](../docs/oauth-connections.md) and the
+[Notion configuration](examples/oauth-notion.json). The feature is disabled until
+provider settings, a fixed callback origin and encryption secrets are configured.

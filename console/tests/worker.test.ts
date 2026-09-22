@@ -790,3 +790,21 @@ test("workspace recipe writes require current membership, same origin and a veri
   present = false; assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(writes, 2);
   }
 });
+
+test('OAuth start and callback require current owner membership, bind trusted identity and strip provider errors', async () => {
+ let role='owner', present=true; const forwarded: Request[]=[];
+ const env:Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:present?[{tenant:{tenant_id:'acme'},membership:{role}}]:[]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_OAUTH_ENABLED:'true',AGENT_OAUTH_ORIGIN:'https://console.agentaction.dev',AGENT_WORKSPACES:{getByName(name){assert.equal(name,'workspace:acme');return{async request(request){forwarded.push(request);return json({ok:true});}};}}};
+ const request=(path:string,init:RequestInit={})=>{const signed=accessRequest(path,init,{custom:{}});return new Request(`https://console.agentaction.dev${path}`,signed);};
+ const post=(origin='https://console.agentaction.dev')=>request('/api/agents/acme/oauth-start',{method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder','x-runtime-actor':'attacker'},body:'{}'});
+ assert.equal((await worker.fetch(post('https://evil.com'),env)).status,403);
+ role='operator';assert.equal((await worker.fetch(post(),env)).status,403);role='owner';assert.equal((await worker.fetch(post(),env)).status,200);
+ assert.equal(forwarded[0].headers.get('x-runtime-actor'),'operator-123');assert.equal(forwarded[0].headers.get('x-runtime-workspace'),'acme');
+ const state=`${Buffer.from('acme').toString('base64url')}.${'x'.repeat(43)}`;
+ const callback=`/oauth/mcp/callback?state=${state}&code=PRIVATE-CODE&iss=https%3A%2F%2Fmcp.notion.com`;
+ const ok=await worker.fetch(request(callback),env);assert.equal(ok.status,303);assert.equal(ok.headers.get('location'),'https://console.agentaction.dev/agents?workspace=acme&oauth=connected#connect');assert.equal(ok.headers.get('referrer-policy'),'no-referrer');
+ assert.equal(new URL(forwarded[1].url).pathname,'/oauth-complete');assert.equal(forwarded[1].headers.get('x-runtime-role'),'owner');
+ for(const denied of ['operator','viewer']) {role=denied;const r=await worker.fetch(request(callback),env);assert.match(r.headers.get('location')!,/oauth=failed/);}
+ role='owner';present=false;assert.match((await worker.fetch(request(callback),env)).headers.get('location')!,/oauth=failed/);present=true;
+ assert.match((await worker.fetch(request(callback+'&state=duplicate'),env)).headers.get('location')!,/oauth=failed/);assert.equal(forwarded.length,2);
+ assert.equal((await worker.fetch(request('/api/agents/acme/oauth-complete',{method:'POST',headers:{origin:'https://console.agentaction.dev','content-type':'application/json','x-agentaction-request':'agent-builder'},body:'{}'}),env)).status,405);
+});

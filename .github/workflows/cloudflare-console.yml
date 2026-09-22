@@ -40,6 +40,16 @@ jobs:
       - name: Verify operator Worker bundle
         run: npm run dry-run
 
+      - name: Install OAuth browser acceptance runtime
+        run: |
+          npm install --prefix /tmp/agentaction-oauth-browser --no-save playwright@1.63.0
+          /tmp/agentaction-oauth-browser/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify OAuth browser and durable workspace flow
+        run: npm run test:oauth-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify catalog RPC, storage and alarms
         run: npm run test:catalog-worker
 

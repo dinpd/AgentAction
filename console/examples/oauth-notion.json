@@ -1,0 +1,11 @@
+[
+  {
+    "id": "notion",
+    "label": "Notion",
+    "endpoint": "https://mcp.notion.com/mcp",
+    "resource": "https://mcp.notion.com",
+    "resourceMetadata": "https://mcp.notion.com/.well-known/oauth-protected-resource",
+    "issuer": "https://mcp.notion.com",
+    "scopes": ["default"]
+  }
+]

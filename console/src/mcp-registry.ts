@@ -62,7 +62,7 @@ function safeURL(value: unknown, endpoint = false): string | undefined {
   } catch { return; }
 }
 function setupInstructions(endpoints: string[]): string {
-  return endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public or bearer-token access is supported; OAuth-only access is not yet supported."
+  return endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public and bearer-token access are supported; shared OAuth requires a deployment-configured provider and workspace owner consent."
       : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.";
 }
 function declaredAuth(remotes: Record<string, unknown>[], packages: Record<string, unknown>[]): AuthType[] {
