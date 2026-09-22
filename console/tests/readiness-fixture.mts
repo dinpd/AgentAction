@@ -34,8 +34,8 @@ export async function readinessFixture() {
       return new Response(null,{status:404});
     },
   }]}));
-  const headers={'origin':'https://checker.test','x-readiness-request':'mcp-check','content-type':'application/json','cf-connecting-ip':'192.0.2.1'};
+  const headers={'origin':'https://mcpcheck.agentaction.dev','x-readiness-request':'mcp-check','content-type':'application/json','cf-connecting-ip':'192.0.2.1'};
   let ip=1;
-  const post=(path:string,body:unknown)=>mf.dispatchFetch('https://checker.test'+path,{method:'POST',headers:{...headers,'cf-connecting-ip':`192.0.2.${ip++}`},body:JSON.stringify(body)});
+  const post=(path:string,body:unknown)=>mf.dispatchFetch('https://mcpcheck.agentaction.dev'+path,{method:'POST',headers:{...headers,'cf-connecting-ip':`192.0.2.${ip++}`},body:JSON.stringify(body)});
   return {mf,calls,headers,post};
 }

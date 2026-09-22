@@ -3,7 +3,7 @@ import type { PrecheckReport } from './mcp-precheck.ts';
 
 export const READINESS_RULESET = '2026-09-22.1';
 export const READINESS_PROTOCOLS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'] as const;
-export const READINESS_ORIGIN = 'https://agentaction-mcp-check.drisw.workers.dev';
+export const READINESS_ORIGIN = 'https://mcpcheck.agentaction.dev';
 export type ReadinessFinding = {
   id: string; category: 'protocol' | 'usability' | 'action-safety';
   basis: 'requirement' | 'guidance' | 'heuristic' | 'observation';

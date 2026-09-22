@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.34.2-rc.1 - 2026-09-22
+
+### Changed
+
+- Make the existing MCP readiness checker available at `https://mcpcheck.agentaction.dev`, with website navigation and a homepage entry point for MCP developers.
+- Replace Recipes in the primary navigation with MCP Checker; retain recipe browsing on the homepage and in the footer. Console discovery and evidence links use the branded checker domain.
+
+### Compatibility and migration
+
+- Backward-compatible patch prerelease; no new checker capabilities, schema, permissions, storage changes, or user migration. Existing reports, quotas, and workers.dev URLs continue to work.
+- The checker remains a preview of anonymous metadata inspection; runtime behavior is untested and report publication remains optional.
+- Install Python artifacts from the GitHub v0.34.2-rc.1 prerelease. Website and checker deployments use their existing hosting; no registry publication is implied.
+
 ## 0.34.1-rc.1 - 2026-09-22
 
 ### Fixed

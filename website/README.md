@@ -55,3 +55,10 @@ succeed.
 `/recipes` is the job-oriented directory, with reviewed manifests in `../recipes/catalog.json`. Each detail page exposes instructions, required tools, boundaries, outcome fixtures, and portable downloads. `/recipes/publish` explains provider submissions. The initial entries have fixture evidence only; no live-performance badge is inferred from those checks.
 
 Run `node --experimental-strip-types ../recipes/check.ts` and `node --experimental-strip-types --test ../recipes/registry.test.ts` alongside the site tests. Recipe changes trigger website and console CI. The console receives a non-secret catalog ID/version; it still requires normal authentication and explicit workspace setup.
+
+## MCP checker
+
+The primary navigation and homepage developer section link to
+[the public MCP checker](https://mcpcheck.agentaction.dev). It runs on its existing
+Worker with a custom domain; there is no duplicate website page or embedded frame.
+Recipes remain available from the homepage section and footer.

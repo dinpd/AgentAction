@@ -114,6 +114,24 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/);
 });
 
+test("makes the MCP checker discoverable while retaining recipe access", async () => {
+  for (const path of ["/", "/gateway", "/landscape"]) {
+    const html = await (await render(path)).text();
+    const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
+    assert.ok(nav);
+    assert.match(nav, /href="https:\/\/mcpcheck\.agentaction\.dev">MCP Checker<\/a>/);
+    assert.doesNotMatch(nav, /href="\/recipes"/);
+    if (path === "/") {
+      assert.match(html, /Building an MCP server\?/);
+      assert.match(html, /href="https:\/\/mcpcheck\.agentaction\.dev">Check your MCP server/);
+      assert.match(html, /Runtime behavior remains untested/);
+      assert.match(html, /Browse all recipes/);
+      assert.match(html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? "", /href="\/recipes">Agent recipes/);
+    }
+  }
+  assert.equal((await render("/recipes")).status, 200);
+});
+
 test("delivers a valid project inquiry through the server-side Cloudflare email API", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("inquiry-test", `${process.pid}-${Date.now()}`);
