@@ -544,7 +544,8 @@ test("removes starter-only assets and metadata", async () => {
 test("keeps navigation and local links accessible", async () => {
   const response = await render();
   const html = await response.text();
-  assert.match(html, /Browse agent recipes/);
+  assert.match(html, /class="button button-secondary" href="https:\/\/observability-console\.agentaction\.dev\/#setup">Start monitoring your agents/);
+  assert.doesNotMatch(html, /Browse agent recipes/);
   assert.match(html, /id="home-recipes-title"/);
   assert.ok(html.indexOf('id="home-recipes-title"') > html.indexOf('id="community-title"'));
   assert.ok(html.indexOf('id="home-recipes-title"') < html.indexOf('id="transition-title"'));

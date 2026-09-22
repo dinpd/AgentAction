@@ -11,6 +11,7 @@ const github = "https://github.com/dinpd/AgentAction";
 const observerQuickStart = `${github}#recommended-observe-an-mcp-workflow`;
 const consoleDemo = "https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview";
 const operatorConsole = "https://observability-console.agentaction.dev/?window=7#overview";
+const monitoringSetup = "https://observability-console.agentaction.dev/#setup";
 const agentBuilder = "https://observability-console.agentaction.dev/agents";
 const consoleDocs = `${github}/tree/main/console`;
 
@@ -253,9 +254,9 @@ export default function Home() {
             <a className="button button-primary" href={agentBuilder}>
               Connect an MCP <span aria-hidden="true">↗</span>
             </a>
-            <Link className="button button-secondary" href="/recipes">
-              Browse agent recipes <span aria-hidden="true">→</span>
-            </Link>
+            <a className="button button-secondary" href={monitoringSetup}>
+              Start monitoring your agents <span aria-hidden="true">↗</span>
+            </a>
           </div>
           <p className="hero-onboarding">
             Already running an agent? <a href={observerQuickStart}>Observe an MCP workflow</a>.{" "}
