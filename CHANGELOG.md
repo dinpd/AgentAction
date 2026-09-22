@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.35.0-rc.1 - 2026-09-22
+
+### Added
+
+- Owner-managed OAuth accounts for shared workspace MCP agents, with PKCE, authenticated callbacks, encrypted credentials, refresh rotation and disconnect/revocation. Operators can use shared accounts through existing action approvals and schedules; grants remain workspace-owned after the connecting member leaves.
+- Explicit provider configuration with preregistered clients or public client metadata, plus a Notion demo configuration. Reconnecting or changing account capabilities invalidates agent trials and pending approvals.
+- Controlled-provider security and real Worker/browser acceptance covering cross-workspace isolation, callback replay, refresh failure/concurrency, durable storage, key rotation and credential redaction.
+
+### Compatibility and migration
+
+- Significant functionality: minor prerelease for the new authorization boundary. Existing public and bearer connections remain compatible; OAuth adds encrypted records to existing workspace storage without a schema migration.
+- OAuth is disabled by default. Configure the provider allowlist, fixed console origin, encryption keys and active key ID, then enable it explicitly. Client metadata must be publicly retrievable while callbacks remain authenticated. See `docs/oauth-connections.md` for deployment, key rotation and real-account rollout checks.
+- Initial compatibility requires reviewed scopes, PKCE S256 and expiring bearer tokens. Dynamic client registration and automatic scope escalation are not included. Live Notion discovery and client registration are verified; real-account consent remains a deployment acceptance step. QuantApe currently exposes public/bearer tools without discovered MCP OAuth metadata.
+- Install Python artifacts from the GitHub v0.35.0-rc.1 prerelease. Hosted services deploy from the merged commit; no package-registry publication is implied.
+
 ## 0.34.2-rc.1 - 2026-09-22
 
 ### Changed

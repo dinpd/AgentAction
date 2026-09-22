@@ -94,7 +94,7 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
       const issuers = [...new Set(resource.authorization_servers.map(v => { publicEndpointURL(v); return v as string; }))];
       report.authentication = "oauth"; report.scopes = strings(resource.scopes_supported);
       if (resource.scopes_supported !== undefined && (!Array.isArray(resource.scopes_supported) || resource.scopes_supported.length !== report.scopes.length)) finding("review", "Supported scope list is incomplete", "The provider returned malformed or excessive scope values. Only up to 32 short scopes are shown; this is not a complete permissions assessment.");
-      finding("review", "OAuth discovered · login not supported yet", "Public metadata advertises OAuth. AgentAction can inspect it, but cannot yet register an OAuth client, open consent, exchange tokens or refresh access.");
+      finding("review", "OAuth discovered · workspace connection required", "Public metadata advertises OAuth. A workspace owner can connect a deployment-configured provider in the agent builder. Inspection does not register clients, request tokens or grant access.");
       for (const issuer of issuers) {
         const provider: PrecheckReport["providers"][number] = { issuer, verified: false, pkce: false }; report.providers.push(provider);
         const u = new URL(issuer), path = u.pathname.replace(/\/$/, "");

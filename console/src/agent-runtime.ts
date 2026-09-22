@@ -1,3 +1,4 @@
+import { WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
 import { proposedPlan, planBindings, PLAN_PROMPT, type AgentPlan, type ToolSource, type ToolBindings, type AvailableTool } from './agent-plans.ts';
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation } from "./recipe-evaluation.ts";
@@ -17,12 +18,12 @@ export type RuntimeStorage = {
   setAlarm(time: number): Promise<void>;
   deleteAlarm(): Promise<void>;
 };
-export type RuntimeEnv = {
+export type RuntimeEnv = OAuthEnv & {
   AGENT_AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   AGENT_MCP_ENDPOINTS?: string;
 };
 export type Suggestion = { id: string; title: string; goal: string; setup: string; success: string; tools: string[] };
-export type Connection = McpConnection & { catalog?:CatalogMetadata; id: string; label: string; suggestions: Suggestion[]; status: "connected" | "disconnected"; createdAt: string };
+export type Connection = McpConnection & { oauth?: OAuthConnection; catalog?:CatalogMetadata; id: string; label: string; suggestions: Suggestion[]; status: "connected" | "disconnected"; createdAt: string };
 export type Agent = { toolBindings?: ToolBindings; evaluationBinding?: RecipeEvalBinding; definition?: RecipeDefinition; workspaceRecipe?: { id: string; version: number }; recipe?: Pick<Recipe, "id" | "version" | "instructions" | "boundaries"> & { requirements: string[] }; id: string; connectionId: string; title: string; goal: string; setup: string; success: string; tools: string[]; status: "draft" | "active" | "paused"; nextRun?: number; lastTrial?: string; createdAt: string };
 export type Run = {
   contract?: HostedContract; evaluation?: HostedEvaluation;
@@ -89,9 +90,13 @@ export class AgentRuntime {
   }
   async handle(request: Request): Promise<Response> {
     try {
-      if (request.method === "GET" && new URL(request.url).pathname === "/state") return json(await this.snapshot());
       return await this.serialize(async () => {
+        const workspace = request.headers.get('x-runtime-workspace');
+        const saved = await this.storage.get<string>('oauth-workspace');
+        if (workspace && saved && saved !== workspace) throw new RuntimeError('Workspace context mismatch.', 403);
+        if (workspace && !saved) await this.storage.put('oauth-workspace', workspace);
         const path = new URL(request.url).pathname;
+        if (request.method === 'GET' && path === '/state') return json(await this.snapshot());
         if (request.method !== "POST") throw new RuntimeError("Route not found.", 404);
         const body = object(JSON.parse(await boundedText(new Response(request.body), 24000)));
         return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator", request.headers.get("x-runtime-role") || "operator"));
@@ -101,8 +106,8 @@ export class AgentRuntime {
     }
   }
   async snapshot(): Promise<Record<string, unknown>> {
-    const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, catalog:c.catalog, protocol: c.protocol, suggestions: c.suggestions, status: c.status, hasCredential: Boolean(c.token) }));
-    return { drafts: [...(await this.storage.list<AgentPlan>({ prefix: "draft:" })).values()].filter(p => !p.agentId), connections, workspaceRecipes: [...(await this.storage.list<WorkspaceRecipe>({ prefix: "workspace-recipe:" })).values()].map(r => ({ id: r.id, ...r.revisions[r.revisions.length - 1] })), inspections: [...(await this.storage.list<PrecheckReport>({ prefix: "inspection:" })).values()], endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
+    const connections = [...(await this.storage.list<Connection>({ prefix: "connection:" })).values()].map(c => ({ id: c.id, label: c.label, endpoint: c.endpoint, tools: c.tools, catalog:c.catalog, protocol: c.protocol, suggestions: c.suggestions, status: c.status, oauth: c.oauth, hasCredential: Boolean(c.token || (c.oauth && c.status === 'connected')) }));
+    return { oauthProviders: oauthProviders(this.env).map(({ id, label, endpoint, issuer, scopes }) => ({ id, label, endpoint, issuer, scopes })), drafts: [...(await this.storage.list<AgentPlan>({ prefix: "draft:" })).values()].filter(p => !p.agentId), connections, workspaceRecipes: [...(await this.storage.list<WorkspaceRecipe>({ prefix: "workspace-recipe:" })).values()].map(r => ({ id: r.id, ...r.revisions[r.revisions.length - 1] })), inspections: [...(await this.storage.list<PrecheckReport>({ prefix: "inspection:" })).values()], endpointAccess: await this.endpointAccess(), agents: [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()], runs: [...(await this.storage.list<Run>({ prefix: "run:" })).values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), model: MODEL, limits: { toolsPerRun: 4, runsPerDay: 20, retainedRuns: 40, schedule: "daily, with approval before each tool call" } };
   }
   private async endpointAccess(): Promise<EndpointAccess> {
     return { deployment: (this.env.AGENT_MCP_ENDPOINTS ?? DEFAULT_ENDPOINTS).split(",").map(v => v.trim()).filter(Boolean), workspace: await this.storage.get<EndpointApproval[]>("endpoint-approvals") || [] };
@@ -111,11 +116,36 @@ export class AgentRuntime {
     const access = await this.endpointAccess();
     return endpointURL(value, [...access.deployment, ...access.workspace.map(a => a.endpoint)].join(","));
   }
+  private async oauth(): Promise<WorkspaceOAuth> {
+    return new WorkspaceOAuth(this.storage, this.env, await this.storage.get<string>('oauth-workspace') || '', this.fetcher);
+  }
+  private async pauseConnection(connectionId: string): Promise<void> {
+    for (const agent of (await this.storage.list<Agent>({ prefix: 'agent:' })).values()) if (this.usesConnection(agent, connectionId)) {
+      agent.status = 'paused'; delete agent.nextRun; delete agent.lastTrial;
+      await this.storage.put(`agent:${agent.id}`, agent); await this.cancelPending(agent.id);
+    }
+    await this.reschedule();
+  }
   private client(connection: Connection): McpClient {
-    return new McpClient(connection, this.fetcher, async () => {
+    // Only this ephemeral transport receives the access token. Persisted Connection
+    // objects and model context carry a credential reference, never OAuth secrets.
+    const transport = { ...connection };
+    const fetcher: typeof fetch = async (input, init) => {
+      const response = await this.fetcher(input, init);
+      if (connection.oauth && (response.status === 401 || response.status === 403)) {
+        await (await this.oauth()).invalidate(connection.oauth);
+        await this.pauseConnection(connection.id);
+      }
+      return response;
+    };
+    return new McpClient(transport, fetcher, async () => {
       await this.allowedEndpoint(connection.endpoint);
       const access = await this.endpointAccess();
-      if (!access.deployment.includes(connection.endpoint)) await validatePublicEndpoint(connection.endpoint, this.fetcher);
+      if (connection.oauth || !access.deployment.includes(connection.endpoint)) await validatePublicEndpoint(connection.endpoint, this.fetcher);
+      if (connection.oauth) {
+        try { transport.token = await (await this.oauth()).access(connection.oauth); }
+        catch (error) { await this.pauseConnection(connection.id); throw error; }
+      }
     });
   }
   private async required<T>(prefix: string, value: unknown): Promise<T> {
@@ -125,6 +155,7 @@ export class AgentRuntime {
     return item;
   }
   private async checkDefinitionCredentials(definition: RecipeDefinition): Promise<void> {
+    await this.noCredentials(definition);
     const serialized = JSON.stringify(definition);
     for (const c of (await this.storage.list<Connection>({ prefix: "connection:" })).values()) {
       if (c.token && redact(definition, c.token) !== serialized) throw new RuntimeError("Keep connection credentials out of recipe definitions.");
@@ -161,7 +192,7 @@ export class AgentRuntime {
   private async clean(value: unknown): Promise<string> {
     let result = redact(value);
     for (const c of (await this.storage.list<Connection>({prefix:'connection:'})).values()) if(c.token) result = redact(result,c.token);
-    return result;
+    return (await this.oauth()).scrub(result);
   }
   private async noCredentials(value: unknown): Promise<void> {
     if (await this.clean(value) !== (typeof value === "string" ? value : JSON.stringify(value))) throw new RuntimeError('Keep MCP credentials in server setup, not agent inputs or definitions.');
@@ -252,21 +283,55 @@ export class AgentRuntime {
       }
       return { endpoint, removed: true };
     }
+    if (path === '/oauth-start') {
+      if (role !== 'owner') throw new RuntimeError('Only a workspace owner can share an OAuth account.', 403);
+      if (Object.keys(body).some(k => !['providerId', 'connectionId', 'shared'].includes(k)) || body.shared !== true) throw new RuntimeError('Confirm that this account will be shared with workspace agents.');
+      const provider = oauthProviders(this.env).find(p => p.id === body.providerId);
+      if (!provider) throw new RuntimeError('This OAuth provider is not enabled.', 400);
+      await this.allowedEndpoint(provider.endpoint);
+      const previous = body.connectionId ? await this.required<Connection>('connection', body.connectionId) : undefined;
+      if (previous && previous.endpoint !== provider.endpoint) throw new RuntimeError('Reconnect the same approved MCP endpoint.');
+      if (!previous && (await this.storage.list({ prefix: 'connection:' })).size >= 8) throw new RuntimeError('This workspace supports up to eight connections.');
+      await this.charge('oauth', 20);
+      return (await this.oauth()).start(provider.id, actor, previous?.id || id());
+    }
+    if (path === '/oauth-complete') {
+      if (role !== 'owner') throw new RuntimeError('A current workspace owner must complete OAuth.', 403);
+      if (Object.keys(body).some(k => !['state', 'code', 'iss', 'error'].includes(k))) throw new RuntimeError('Invalid OAuth callback.');
+      const oauth = await this.oauth();
+      const grant = await oauth.complete(body, actor, endpoint => this.allowedEndpoint(endpoint));
+      const previous = await this.storage.get<Connection>(`connection:${grant.connectionId}`);
+      const connection: Connection = { id: grant.connectionId, endpoint: grant.endpoint, label: previous?.label || grant.label, protocol: '2025-03-26', tools: [], suggestions: [], status: 'connected', createdAt: previous?.createdAt || now(), oauth: grant.oauth };
+      try {
+        await this.allowedEndpoint(connection.endpoint);
+        if (!previous && (await this.storage.list({ prefix: 'connection:' })).size >= 8) throw new RuntimeError('This workspace supports up to eight connections.');
+        const client = this.client(connection);
+        try { connection.tools = JSON.parse(await this.clean(await client.discover())); connection.catalog = JSON.parse(await this.clean(await client.discoverMetadata())); connection.protocol = client.connection.protocol; }
+        finally { await client.close(); }
+        // Invalidate approvals before changing the identity behind this connection.
+        await this.pauseConnection(connection.id);
+        await this.storage.put(`connection:${connection.id}`, connection);
+      } catch (error) { await oauth.disconnect(grant.oauth); throw error; }
+      await oauth.cancelPending(connection.id);
+      if (previous?.oauth) await oauth.disconnect(previous.oauth);
+      return { connectionId: connection.id, toolCount: connection.tools.length };
+    }
     if (path === "/connect" || path === '/refresh-capabilities') {
       if(!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must discover server capabilities.',403);
       const refreshing=path==='/refresh-capabilities';
       if(refreshing && (Object.keys(body).some(k=>k!=='connectionId') || !body.connectionId)) throw new RuntimeError('Choose the connected server to refresh.');
       if (!body.connectionId && (await this.storage.list({ prefix: "connection:" })).size >= 8) throw new RuntimeError("This workspace supports up to eight connections.");
       const previous = body.connectionId ? await this.required<Connection>("connection", body.connectionId) : undefined;
+      if (previous?.oauth && !refreshing) throw new RuntimeError('Reconnect this workspace account using OAuth.', 409);
       const endpoint = await this.allowedEndpoint(previous?.endpoint || body.endpoint);
       if(refreshing && previous?.status!=='connected') throw new RuntimeError('Reconnect this server before refreshing its capabilities.',409);
       const token = refreshing ? previous!.token : body.token === undefined || body.token === "" ? undefined : textField(body.token, "bearer credential", 4096);
       if (token && !/^[\x21-\x7e]+$/.test(token)) throw new RuntimeError("The bearer credential must contain printable ASCII characters without spaces.");
       const protocol = (previous?.protocol || body.protocol) === "2026-07-28" ? "2026-07-28" : "2025-03-26";
       await this.charge("connect", 30);
-      const connection: Connection = { id: previous?.id || id(), label: textField(previous?.label || body.label || new URL(endpoint).hostname, "connection name", 100), endpoint, token, protocol, tools: [], suggestions: [], status: "connected", createdAt: now() };
+      const connection: Connection = { ...(previous?.oauth ? { oauth: previous.oauth } : {}), id: previous?.id || id(), label: textField(previous?.label || body.label || new URL(endpoint).hostname, "connection name", 100), endpoint, token, protocol, tools: [], suggestions: [], status: "connected", createdAt: now() };
       const client = this.client(connection);
-      try { connection.tools = JSON.parse(redact(await client.discover(), token)); connection.catalog=JSON.parse(redact(await client.discoverMetadata(),token)); } finally { await client.close(); }
+      try { connection.tools = JSON.parse(await this.clean(redact(await client.discover(), token))); connection.catalog=JSON.parse(await this.clean(redact(await client.discoverMetadata(),token))); connection.protocol = client.connection.protocol; } finally { await client.close(); }
       await this.storage.put(`connection:${connection.id}`, connection);
       if (previous) {
         for (const agent of (await this.storage.list<Agent>({ prefix: "agent:" })).values()) if (this.usesConnection(agent, connection.id)) {
@@ -536,6 +601,13 @@ export class AgentRuntime {
     }
     if (path === "/disconnect") {
       const connection = await this.required<Connection>("connection", body.connectionId);
+      if (connection.oauth && role !== 'owner') throw new RuntimeError('Only a workspace owner can disconnect a shared OAuth account.', 403);
+      let revoked: boolean | undefined;
+      if (connection.oauth) {
+        const oauth = await this.oauth();
+        await oauth.cancelPending(connection.id);
+        revoked = await oauth.disconnect(connection.oauth);
+      }
       connection.status = "disconnected"; delete connection.token; connection.suggestions = [];
       await this.storage.put(`connection:${connection.id}`, connection);
       for (const agent of (await this.storage.list<Agent>({ prefix: "agent:" })).values()) if (this.usesConnection(agent, connection.id)) {
@@ -543,7 +615,7 @@ export class AgentRuntime {
         await this.storage.put(`agent:${agent.id}`, agent); await this.cancelPending(agent.id);
       }
       await this.reschedule();
-      return { disconnected: true };
+      return { disconnected: true, ...(revoked === undefined ? {} : { revoked, message: revoked ? "Disconnected and provider revocation accepted." : "Disconnected locally. Provider revocation was not confirmed; remove the grant in the provider account settings." }) };
     }
     throw new RuntimeError("Agent operation not found.", 404);
   }

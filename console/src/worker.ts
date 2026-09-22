@@ -1,3 +1,4 @@
+import { oauthCallback, oauthOrigin, oauthClientMetadata, oauthStateWorkspace, type OAuthEnv } from './mcp-oauth.ts';
 import { enrichReadiness } from "./readiness-discovery.ts";
 import { searchCatalogs } from './mcp-catalog-search.ts';
 import type { Directory } from './mcp-directory.ts';
@@ -14,7 +15,7 @@ type Fetcher = {
   fetch(request: Request): Promise<Response>;
 };
 
-export type Env = {
+export type Env = OAuthEnv & {
   MCP_READINESS_SERVICE?: Fetcher;
   MCP_SMITHERY_API_KEY?: string;
   MCP_GLAMA_API_KEY?: string;
@@ -4861,6 +4862,14 @@ const APP_JS = `(${consoleApp.toString()})(window, ${JSON.stringify(recipes.map(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // Public client metadata contains no credentials. Access must permit only this
+    // exact URL for providers to retrieve it; the callback remains authenticated.
+    if (request.method === 'GET' && url.pathname === '/.well-known/oauth-client.json' && env.AGENT_OAUTH_ENABLED === 'true' && env.CONSOLE_PUBLIC_DEMO !== 'true') {
+      try {
+        if (url.origin !== oauthOrigin(env) || url.search) return new Response(null, { status: 404 });
+        return new Response(JSON.stringify(oauthClientMetadata(env)), { headers: secureHeaders('application/json; charset=utf-8') });
+      } catch { return new Response(null, { status: 503 }); }
+    }
     let identity: ConsoleIdentity;
     try {
       identity = await authenticateConsoleRequest(request, env);
@@ -4869,6 +4878,7 @@ export default {
     }
 
     try {
+      if (url.pathname === '/oauth/mcp/callback') return await completeMcpOAuth(request, identity, env);
       if (request.method === "GET" && ["/favicon.png", "/favicon.ico"].includes(url.pathname)) return new Response(faviconBytes(), { headers: secureHeaders("image/png") });
       if (request.method === "GET" && url.pathname === "/") {
         return htmlResponse(consoleShell(env));
@@ -5253,6 +5263,32 @@ function membershipTenantId(value: unknown): string | undefined {
   return typeof tenantId === "string" && tenantId ? tenantId : undefined;
 }
 
+async function completeMcpOAuth(request: Request, identity: ConsoleIdentity, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || env.CONSOLE_PUBLIC_DEMO === 'true' || env.AGENT_OAUTH_ENABLED !== 'true' || `${url.origin}${url.pathname}` !== oauthCallback(env)) throw new ConsoleError(404, 'oauth_route_invalid', 'OAuth callback is unavailable.');
+  let tenantId: string | undefined;
+  let success = false;
+  try {
+    const allowed = ['state', 'code', 'iss', 'error', 'error_description', 'error_uri'];
+    if (url.search.length > 12000 || [...url.searchParams.keys()].some(k => !allowed.includes(k) || url.searchParams.getAll(k).length !== 1)) throw new Error('Invalid callback');
+    tenantId = validateTenantId(oauthStateWorkspace(url.searchParams.get('state') || ''), 'workspace');
+    const session = await consoleSession(identity, env);
+    if (!session.ok) throw new Error('Session unavailable');
+    const data = await session.json() as { memberships?: Array<{ tenant: { tenant_id: string }; membership: { role: string } }> };
+    if (!data.memberships?.some(m => m.tenant?.tenant_id === tenantId && m.membership?.role === 'owner')) throw new Error('Owner membership required');
+    if (!env.AGENT_WORKSPACES) throw new Error('Runtime unavailable');
+    const body = Object.fromEntries(['state', 'code', 'iss', 'error'].filter(k => url.searchParams.has(k)).map(k => [k, url.searchParams.get(k)]));
+    const response = await env.AGENT_WORKSPACES.getByName(`workspace:${tenantId}`).request(new Request('https://agent-runtime.internal/oauth-complete', { method: 'POST', headers: { 'content-type': 'application/json', 'x-runtime-actor': identity.subject, 'x-runtime-role': 'owner', 'x-runtime-workspace': tenantId }, body: JSON.stringify(body) }));
+    success = response.ok; await response.body?.cancel();
+  } catch { /* Never display provider errors, codes, state, or token responses. */ }
+  const target = new URL('/agents', url.origin);
+  if (tenantId) target.searchParams.set('workspace', tenantId);
+  target.searchParams.set('oauth', success ? 'connected' : 'failed'); target.hash = 'connect';
+  const headers = secureHeaders('text/plain; charset=utf-8');
+  headers.set('location', target.href); headers.set('referrer-policy', 'no-referrer');
+  return new Response(null, { status: 303, headers });
+}
+
 async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, env: Env, recurring = false): Promise<Response> {
   const url = new URL(request.url);
   const parts = url.pathname.split("/");
@@ -5265,7 +5301,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["inspect-endpoint", "connect", "refresh-capabilities", "suggest", "profile-agents", "draft", "save-draft", "template-draft", "create-bound", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["oauth-start", "inspect-endpoint", "connect", "refresh-capabilities", "suggest", "profile-agents", "draft", "save-draft", "template-draft", "create-bound", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;
@@ -5273,7 +5309,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
   const membership = data.memberships?.find(entry => entry.tenant?.tenant_id === tenantId)?.membership;
   if (!membership) throw new ConsoleError(403, "agent_membership_required", "Workspace membership is required.", "forbidden");
   if (!isRead && membership.role !== "owner" && membership.role !== "operator") throw new ConsoleError(403, "agent_operator_required", "An owner or operator must approve this operation.", "forbidden");
-  if (["approve-endpoint", "remove-endpoint"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "endpoint_owner_required", "Only a workspace owner can change endpoint approvals.", "forbidden");
+  if (["oauth-start", "approve-endpoint", "remove-endpoint"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "endpoint_owner_required", "Only a workspace owner can change endpoint approvals.", "forbidden");
   if (catalogQuery) {
     if (!env.MCP_REGISTRY) throw new ConsoleError(503, "catalog_unavailable", "Registry discovery is unavailable. Enter an MCP endpoint manually.", "unavailable");
     let catalog: CatalogResult;
@@ -5282,6 +5318,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     catalog = await enrichReadiness(catalog, env.MCP_READINESS_SERVICE);
     return new Response(JSON.stringify(catalog), { headers: secureHeaders("application/json; charset=utf-8") });
   }
+  if (action === 'oauth-start' && (env.AGENT_OAUTH_ENABLED !== 'true' || url.origin !== oauthOrigin(env))) throw new ConsoleError(503, 'oauth_unavailable', 'OAuth is not configured on this console origin.');
   const namespace = recurring ? env.RECURRING_WORKSPACES : env.AGENT_WORKSPACES;
   if (!namespace) throw new ConsoleError(503, "agent_runtime_unavailable", "Agent runtime has not been configured.", "unavailable");
   let body: string | undefined;

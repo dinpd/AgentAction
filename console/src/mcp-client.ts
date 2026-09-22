@@ -83,7 +83,7 @@ export class McpClient {
       });
       if (!response.ok) {
         await response.body?.cancel();
-        throw new RuntimeError(response.status === 401 || response.status === 403 ? "MCP authentication failed. Use a valid bearer token; OAuth-only connections are not supported yet." : "MCP request failed. Check the connection and retry discovery; tool execution is never retried automatically.", 502);
+        throw new RuntimeError(response.status === 401 || response.status === 403 ? "MCP authentication failed. Reconnect the account or provide a valid bearer token." : "MCP request failed. Check the connection and retry discovery; tool execution is never retried automatically.", 502);
       }
       const session = response.headers.get("Mcp-Session-Id");
       if (session && /^[\x21-\x7e]{1,256}$/.test(session)) this.session = session;

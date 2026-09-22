@@ -27,10 +27,10 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <div class="connection-access"><h3>Approve and connect</h3><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
 <div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
-<p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Local stdio and OAuth-only connections are not supported yet.</p>
+<p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Shared OAuth is available for configured providers. Local stdio is not supported.</p>
 <label>Bearer token <span class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
+<div id="oauth-options"></div><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
 <section class="panel" data-builder-stage="create" hidden id="guided-create">
 <form id="draft-request"><label for="job-description">What would you like your agent to do?<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><p class="note">Describe the outcome and any details you already know. You can connect tools later.</p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button></div><p class="note">AI creates an editable draft. Nothing runs until you approve an action.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
 <details id="agent-profiler"><summary>Help me choose an agent</summary>
@@ -176,7 +176,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if(evidence.observedAt) card.append(node('p',`Source last checked the server: ${new Date(evidence.observedAt).toLocaleString()}`,'note'));
     if(Date.now()-Date.parse(evidence.retrievedAt)>86_400_000) card.append(node('p','Cached catalog may be stale. Connect to check current tools.','note'));
     card.append(node('p',evidence.note,'note'));
-    if(evidence.authentication) card.append(node('p',`Directory-declared authentication: ${evidence.authentication==='oauth2'?'OAuth 2.0 · login is not supported in this console yet':evidence.authentication==='none'?'none (unverified)':evidence.authentication==='api_key'?'API key':'Basic authentication (not supported here)'}.`,'note'));
+    if(evidence.authentication) card.append(node('p',`Directory-declared authentication: ${evidence.authentication==='oauth2'?'OAuth 2.0 · requires a configured provider and workspace owner':evidence.authentication==='none'?'none (unverified)':evidence.authentication==='api_key'?'API key':'Basic authentication (not supported here)'}.`,'note'));
     const observed=state.connections.find((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
     if(observed && evidence.tools.length) {
       const absent=evidence.tools.filter(t=>!observed.tools.some((actual:any)=>actual.name===t.name));
@@ -662,6 +662,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const connecting = submit.getAttribute("aria-busy") === "true";
     approve.disabled = role !== "owner" || !reviewed.checked || !canonical || enabled || approve.getAttribute("aria-busy") === "true";
     submit.disabled = role === "viewer" || !enabled || connecting;
+    renderOAuth();
     submit.textContent = connecting ? "Connecting…" : "Connect server";
     get("connect-readiness").dataset.state = connecting ? "busy" : role === "viewer" || (endpoint && !enabled) ? "blocked" : "ready";
     get("connect-readiness").textContent = connecting ? "Connecting to the server and inspecting its tools. Please wait." : role === "viewer" ? "You have view-only access. Ask a workspace owner or operator to connect this server." : !endpoint ? "Enter an MCP endpoint above to check access." : !enabled ? role === "owner" ? "Connection blocked: this endpoint is not approved. Review its exact URL and select “Approve endpoint for workspace” above." : "Connection blocked: this endpoint is not approved. Ask a workspace owner to approve its exact URL." : "Endpoint access is enabled. Complete the connection details and AI consent above, then select Connect server.";
@@ -684,7 +685,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if (!container.children.length) container.append(node("p", "No workspace-specific approvals yet.", "empty"));
   }
   function inspectionLabel(report: PrecheckReport): string {
-    return report.authentication === "oauth" ? "OAuth discovered · login not supported yet" : report.authentication === "required" ? "Authentication required · type unconfirmed" : report.authentication === "not-observed" ? "Tools listed without authentication" : "Authentication unknown";
+    return report.authentication === "oauth" ? "OAuth discovered · check configured providers below" : report.authentication === "required" ? "Authentication required · type unconfirmed" : report.authentication === "not-observed" ? "Tools listed without authentication" : "Authentication unknown";
   }
   function updatePrecheckButton() {
     const el = get<HTMLButtonElement>("precheck-run");
@@ -864,7 +865,25 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if (current !== generation) return;
     state = data; recurring = checks; get("builder").hidden = false; render();
   }
+  async function connectOAuth(provider: any, connectionId?: string) {
+    if (role !== 'owner') throw new Error('A workspace owner must connect shared OAuth accounts.');
+    if (!runtime.confirm(`Share this ${provider.label} account with workspace agents? Owners and operators can use its tools. Access continues if you leave, until an owner disconnects or the provider revokes it. Requested scopes: ${provider.scopes.join(', ') || 'provider defaults'}.`)) return;
+    const result = await mutate('oauth-start', { providerId: provider.id, ...(connectionId ? { connectionId } : {}), shared: true });
+    runtime.location.assign(result.authorizationUrl);
+  }
+  function renderOAuth() {
+    const options = get('oauth-options'); options.replaceChildren();
+    const endpoint = get<HTMLFormElement>('connect').elements.namedItem('endpoint') as HTMLInputElement;
+    const providers = (state.oauthProviders || []).filter((p: any) => p.endpoint === endpoint.value.trim());
+    for (const provider of providers) {
+      options.append(node('p', `Shared workspace OAuth · ${provider.label} · ${provider.issuer}. Scopes: ${provider.scopes.join(', ') || 'provider defaults'}. Use a dedicated provider account for shared agents.`, 'note'));
+      const connect = button(`Connect with ${provider.label}`, async () => connectOAuth(provider));
+      connect.disabled = role !== 'owner' || !endpointEnabled(provider.endpoint); options.append(connect);
+    }
+    if (!providers.length) options.append(node('p', 'OAuth is available for providers configured by the deployment owner. Other servers can use public or bearer access.', 'note'));
+  }
   function render() {
+    renderOAuth();
     renderEndpointApprovals(); renderPrechecks(); renderRecipe(); renderWorkspaceRecipes(); renderDraftConnections();
     showStage(builderStage);
     const connections = get("connections"), suggestions = get("suggestions"), agents = get("agents"), runs = get("runs");
@@ -875,7 +894,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         node("strong", c.label),
         node("p", `Server: ${c.endpoint}`, "note"),
         node("p", `${c.tools.length} discovered tools · ${c.status}`, "note"),
-        node("p", c.hasCredential ? "Connected account: credential stored" : "Authentication: no stored credential", "note"),
+        node("p", c.oauth ? `Shared workspace OAuth · connected by ${c.oauth.connectedBy} · scopes: ${c.oauth.scopes.join(", ")}. Access persists until an owner disconnects or the provider revokes it.` : c.hasCredential ? "Connected account: credential stored" : "Authentication: no stored credential", "note"),
       );
       row.append(detail);
       const cap=capabilityDetails(c.tools,c.catalog ? `Connected server snapshot · ${new Date(c.catalog.capturedAt).toLocaleString()} · ${c.protocol}. ${c.status==='connected'?'This connection is active; permissions remain unverified.':'Disconnected — retained catalog is historical.'}` : 'Older connection snapshot. Refresh capabilities to capture current metadata; discovery completeness is unknown.');
@@ -888,9 +907,17 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       detail.append(cap);
       if (c.status === "connected") {
         const actions = node("div", "", "actions");
-        actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); get<HTMLDetailsElement>("example-library").open = true; runtime.location.hash = "create"; }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this server, remove the stored credential and pause its agents?")) return; await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Disconnected. The credential was removed and its agents were paused."); }));
+        actions.append(button("Suggest agents", async () => { feedback("connections-feedback", "AI is finding useful jobs in this server’s tool catalog…"); await mutate("suggest", { connectionId: c.id }); await refresh(); feedback("connections-feedback", "Suggestions are ready. Review a job, its tools and setup requirements."); get<HTMLDetailsElement>("example-library").open = true; runtime.location.hash = "create"; }), button("Disconnect", async () => { if (!runtime.confirm("Disconnect this server, remove the stored credential and pause its agents?")) return; const result = await mutate("disconnect", { connectionId: c.id }); await refresh(); feedback("connections-feedback", result.message || "Disconnected. The credential was removed and its agents were paused."); }));
+        if (c.oauth && role !== 'owner') for (const control of Array.from(actions.querySelectorAll('button'))) if (control.textContent === 'Disconnect') (control as HTMLButtonElement).disabled = true;
         row.append(actions);
       }
+      if (c.oauth) {
+        const provider = (state.oauthProviders || []).find((p: any) => p.id === c.oauth.providerId);
+        if (provider) {
+          const reconnect = button('Reconnect shared OAuth account', async () => connectOAuth(provider, c.id));
+          reconnect.disabled = role !== 'owner'; detail.append(reconnect);
+        }
+      } else {
       const credentialLabel = node("label", "Replace credential / reconnect");
       const credential = doc.createElement("input"); credential.type = "password"; credential.autocomplete = "off"; credential.maxLength = 4096; credential.placeholder = "New bearer token (blank for public access)"; credential.disabled = role === "viewer";
       credentialLabel.append(credential);
@@ -900,6 +927,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Server reconnected. Its agents are paused; run a new trial before reactivation.");
       });
       const replacement = node("details"); replacement.append(node("summary", "MCP server credentials"), credentialLabel, replace); detail.append(replacement);
+      }
       connections.append(row);
       for (const s of c.suggestions) {
         const card = node("article", "", "card");
@@ -1123,7 +1151,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const preferred = new URLSearchParams(runtime.location.search).get("workspace");
       tenant = memberships.some(m => m.tenant.tenant_id === preferred) ? preferred! : session.tenant_id || workspace.value; workspace.value = tenant;
       role = memberships.find(m => m.tenant.tenant_id === tenant)?.membership.role || "viewer";
-      renderAccountRole(); await refresh(); if (tenant) void searchCatalog(); if (tenant) message(`Workspace ready · ${role}`);
+      renderAccountRole(); await refresh(); if (tenant) void searchCatalog();
+      const callback = new URL(runtime.location.href), outcome = callback.searchParams.get('oauth');
+      callback.searchParams.delete('oauth'); runtime.history.replaceState(null, '', callback.pathname + callback.search + callback.hash);
+      if (outcome) { showMcpView(true); feedback('connections-feedback', outcome === 'connected' ? 'OAuth account connected for shared workspace agents. Review discovered tools and run a trial before activation.' : 'OAuth connection failed or expired. Check owner access and provider configuration, then reconnect.', outcome !== 'connected'); }
+      else if (tenant) message(`Workspace ready · ${role}`);
     } catch (error) { message(error instanceof Error ? error.message : "Unable to load the workspace.", true); }
   })();
 }

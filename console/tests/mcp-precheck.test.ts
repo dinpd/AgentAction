@@ -39,7 +39,7 @@ test("OAuth is discovered before credentials or client registration with bound r
   const h=transport(), r=await inspectEndpoint(endpoint,undefined,h.fetcher);
   assert.equal(r.authentication,"oauth");assert.equal(r.visibility,"authentication-required");assert.equal(r.providers[0].verified,true);assert.equal(r.providers[0].pkce,true);
   assert.deepEqual(r.scopes,["files:read","files:write"]);assert.deepEqual(r.challengedScopes,["files:read"]);assert.equal(r.toolCount,0);
-  assert.ok(r.findings.some(f=>f.title.includes("login not supported yet")));assert.ok(r.findings.some(f=>f.title.includes("Limited assessment")));
+  assert.ok(r.findings.some(f=>f.title.includes("workspace connection required")));assert.ok(r.findings.some(f=>f.title.includes("Limited assessment")));
   assert.ok(!h.calls.some(c=>/\/authorize$|\/token$|\/register$/.test(c.url)));assert.ok(!JSON.stringify(h.calls).includes("tools/call"));
   assert.equal(h.calls.filter(c=>c.url.startsWith("https://cloudflare-dns.com")).length,2+h.calls.filter(c=>!c.url.startsWith("https://cloudflare-dns.com")).length*2);
 });
