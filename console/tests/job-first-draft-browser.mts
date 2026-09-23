@@ -72,6 +72,10 @@ try {
  assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
  assert.ok(await page.locator('#draft-policy').evaluate(el=>el.compareDocumentPosition(document.querySelector('#agent-tools')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+ await page.locator('[data-registry-server="research/social"]').getByRole('button',{name:'Select server & review setup',exact:true}).click();
+ await page.getByRole('heading',{name:'Connect a server for Search public social media posts',exact:true}).waitFor();
+ await page.locator('#recipe-return a').click();await page.locator('#draft-answer-0').waitFor();
+ assert.equal(await page.locator('#draft-answer-0').inputValue(),'');
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');

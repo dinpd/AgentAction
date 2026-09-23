@@ -442,8 +442,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   async function savePlan(reviewed=false): Promise<AgentPlan> {
     const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration, revision=draftGeneration;
+    const unanswered=draftQuestions.filter((_,i)=>{const input=get<HTMLInputElement>(`draft-answer-${i}`);return !input.disabled && !input.value.trim();});
     const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings(),fieldChecks:plan.fieldChecks || {},...(reviewed?{reviewed:true}:{})});
-    if(selectedTenant===tenant && editor===editorGeneration && revision===draftGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; draftQuestions=[]; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden=true; state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
+    if(selectedTenant===tenant && editor===editorGeneration && revision===draftGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; showQuestions(unanswered); state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
     return saved;
   }
   function updateDraftPreview() {

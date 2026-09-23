@@ -8,6 +8,7 @@ No changes yet.
 
 ### Fixed
 
+- Preserve unanswered scope questions when selecting a provider and returning from connection setup.
 - Keep generic text analysis, reasoning and report writing inside the agent instead of adding redundant MCP setup requirements alongside external capabilities. Preserve named/specialized services and concrete tool bindings.
 - Require tool recommendations to match both the requested source and operation; do not fill suggestions with tools needing adaptation. Clarify that completeness ratios count findings once, not individual fields.
 
