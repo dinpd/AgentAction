@@ -1,3 +1,4 @@
+import { mcpEndpointConfig } from "./mcp-endpoint-config.ts";
 import { Validator } from "@cfworker/json-schema";
 
 export type McpTool = { name: string; description: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown>; annotations?: Record<string, unknown>; capabilityMetadataIssues?: string[] };
@@ -37,7 +38,7 @@ export function parseEndpointURL(value: unknown): string {
   if (typeof value !== "string" || value.length > 2048) throw new RuntimeError("Enter an approved MCP HTTPS endpoint.");
   let url: URL;
   try { url = new URL(value); } catch { throw new RuntimeError("Enter a valid MCP HTTPS endpoint."); }
-  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || (url.port && url.port !== "443")) throw new RuntimeError("Use an HTTPS endpoint without credentials, query parameters or fragments.");
+  if (url.protocol !== "https:" || url.username || url.password || !mcpEndpointConfig().supportedQuery(url) || url.hash || (url.port && url.port !== "443")) throw new RuntimeError("Use an HTTPS endpoint without credentials or fragments. Only documented Apify single-Actor query configuration is supported.");
   return url.href;
 }
 

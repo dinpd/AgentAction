@@ -1,3 +1,4 @@
+import { withProviderSetup } from '../src/mcp-registry.ts';
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
@@ -27,6 +28,11 @@ const ai={async run(_model:any,input:any){
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'An unrelated post: https://social.example/post/1, dated 2026-09-22.',outcome:'met',reason:'Search succeeded.'}};
 }};
 const transport=async (_url:any,init:any)=>{
+ if(new URL(String(_url)).hostname==='mcp.apify.com') {
+  assert.equal(new Headers(init?.headers).has('authorization'),false);
+  if(init?.method==='POST') {assert.equal(JSON.parse(init.body).method,'initialize');return new Response(null,{status:401,headers:{'www-authenticate':'Bearer'}});}
+  return new Response(null,{status:404});
+ }
  if(!init?.body)return Response.json({Status:0,Answer:[{type:1,data:'104.26.5.12'}]});
  if(init.method==='DELETE')return new Response(null,{status:204});const message=JSON.parse(init.body);
  if(message.method==='notifications/initialized')return new Response(null,{status:202});
@@ -42,7 +48,7 @@ const server = createServer(async (req, res) => {
  if (!url.pathname.startsWith('/api/')) { const out = await worker.fetch(new Request(url), env); res.statusCode = out.status; out.headers.forEach((v,k)=>res.setHeader(k,v)); res.end(Buffer.from(await out.arrayBuffer())); return; }
  let value: any = {};
  if (url.pathname === '/api/console/session') value = {tenant_id:'acme', email:'owner@example.com', memberships:['acme','beta'].map(id=>({tenant:{tenant_id:id,display_name:id},membership:{role:viewer?'viewer':'owner'}}))};
- else if (url.pathname.endsWith('/catalog')) value = {servers:[{name:'research/social',title:'Social post search',website:'https://provider.example/pricing',description:'Search public social media posts with source links and timestamps',version:'1',publisher:'research',endpoints:[],inspectableEndpoints:[],hosting:'Remote server',setup:'Connect',capabilities:[],authTypes:[]}],total:1,capabilities:[],authTypes:[],nextOffset:null};
+ else if (url.pathname.endsWith('/catalog')) value = {servers:[{name:'research/social',title:'Social post search',website:'https://provider.example/pricing',description:'Search public social media posts with source links and timestamps',version:'1',publisher:'research',endpoints:[],inspectableEndpoints:[],hosting:'Remote server',setup:'Connect',capabilities:[],authTypes:[]},withProviderSetup({name:'io.github.harshmaur/reddit-scraper',title:'Reddit Scraper (Apify)',website:'https://apify.com/harshmaur/reddit-scraper',description:'Search public social media posts on Reddit',version:'1',publisher:'harshmaur',endpoints:[],inspectableEndpoints:[],hosting:'Remote server',setup:'',capabilities:[],authTypes:['authorization-header']})],total:2,capabilities:[],authTypes:[],nextOffset:null};
  else if (url.pathname.endsWith('/evals')) value={schema_version:'agentaction.tenant-evals.v1',definitions:[],assignments:[]};
  else if (url.pathname.endsWith('/setup')) value={membership:{role:viewer?'viewer':'owner'},sources:[]};
  else if (url.pathname.startsWith('/api/agents/')) {
@@ -92,12 +98,28 @@ try {
  await provider.getByRole('button',{name:'Select server & review setup',exact:true}).click();
  await page.getByRole('heading',{name:'Connect a server for Search public social media posts',exact:true}).waitFor();
  assert.match(await page.locator('#catalog-selection').innerText(),/Selected for setup: Social post search/);
- assert.match(await page.locator('#catalog-selection').innerText(),/local stdio/);
+ assert.match(await page.locator('#catalog-selection').innerText(),/Automatic setup unavailable/);
+ assert.equal(await page.locator('#connect').isVisible(),false);
+ await page.getByRole('button',{name:'Enter an endpoint manually',exact:true}).click();
+ assert.equal(await page.locator('#connect').isVisible(),true);
  assert.equal(await page.locator('#catalog-selection a').getAttribute('href'),'https://provider.example/pricing');
  assert.equal(await page.locator('#precheck-endpoint').inputValue(),'');
  assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
  assert.equal((await latest()).drafts[0].review,undefined);
  await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor();
+ await page.locator('[data-registry-server="io.github.harshmaur/reddit-scraper"]').getByRole('button',{name:'Select server & connect',exact:true}).click();
+ await page.getByText('Review: Tool catalog requires authentication',{exact:true}).waitFor();
+ assert.equal(await page.locator('#precheck-endpoint').inputValue(),'https://mcp.apify.com/?tools=harshmaur/reddit-scraper');
+ assert.equal(await page.locator('#connect').isVisible(),true);
+ await page.getByText('Review: Tool catalog requires authentication',{exact:true}).waitFor();
+ assert.match(await page.locator('#catalog-selection').innerText(),/Apify API token required/);
+ assert.equal(await page.getByRole('link',{name:'Endpoint setup source: Apify ↗'}).getAttribute('href'),'https://apify.com/harshmaur/reddit-scraper/api/mcp');
+ assert.equal(posts.filter(p=>p.action==='inspect-endpoint').length,1);
+ assert.equal(posts.filter(p=>['connect','approve-endpoint'].includes(p.action)).length,0);
+ assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
+ assert.match((await latest()).drafts[0].setup,/Reddit, last seven days/);
+ await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor();
+
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'/tmp/aa267-mobile.png',fullPage:true});
  await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:'/tmp/aa267-desktop.png',fullPage:true});

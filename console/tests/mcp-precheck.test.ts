@@ -183,3 +183,22 @@ test("recent pre-checks reuse quota and network work across concurrent callers a
   assert.equal((await request({endpoint,protocol:"2026-07-28",force:true})).status,429); assert.equal(h.calls.length,before);
   assert.equal((await request({endpoint},new AgentRuntime(new Storage(),{},h.fetcher))).status,200); assert.ok(h.calls.length>before);
 });
+
+
+test('Actor-scoped Apify precheck reports authentication without granting access or executing tools',async()=>{
+ const endpoint='https://mcp.apify.com/?tools=harshmaur/reddit-scraper', calls:string[]=[];
+ const report=await inspectEndpoint(endpoint,undefined,async(input,init)=>{
+  const url=new URL(String(input));const headers=new Headers(init?.headers);
+  assert.equal(headers.has('authorization'),false);assert.equal(headers.has('cookie'),false);assert.equal(init?.redirect,'manual');
+  if(url.hostname==='cloudflare-dns.com')return Response.json({Status:0,Answer:[{type:1,data:'1.1.1.1'}]});
+  calls.push(url.href);
+  if(init?.method==='POST'){assert.equal(url.href,endpoint);assert.equal(JSON.parse(String(init.body)).method,'initialize');return new Response(null,{status:401,headers:{'www-authenticate':'Bearer'}});}
+  return Response.json({resource:'https://mcp.apify.com',authorization_servers:['https://apify.com']});
+ });
+ assert.equal(report.visibility,'authentication-required');assert.equal(report.authentication,'required');
+ assert.equal(report.providers.length,0);assert.equal(report.toolCount,0);
+ assert.ok(report.findings.some(f=>f.title==='Public HTTPS destination'));
+ assert.ok(report.findings.some(f=>f.title==='Authentication metadata describes the provider base endpoint'));
+ assert.equal(report.findings.some(f=>f.level==='blocked'),false);
+ assert.deepEqual(calls,[endpoint,'https://mcp.apify.com/.well-known/oauth-protected-resource']);
+});
