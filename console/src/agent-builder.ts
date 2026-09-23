@@ -1159,7 +1159,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const description = get<HTMLTextAreaElement>('job-description').value.trim();
     const button = get<HTMLButtonElement>('generate-draft');
     void perform(button, async () => {
-      feedback('draft-feedback', 'Preparing a draft from your job and connected tools…');
+      feedback('draft-feedback', 'Preparing your plan, guardrails and success checks…');
       let draft: AgentPlan;
       try { draft = await mutate('draft', { description }); }
       catch (error) {

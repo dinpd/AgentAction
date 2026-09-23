@@ -18,7 +18,7 @@ let step=0, failDraft=false, holdDraft=false, releaseDraft:(()=>void)|undefined;
 const ai={async run(_model:any,input:any){
  if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
 
- if(input.messages[0].content.startsWith('Assess each frozen'))return {response:{criteria:[{id:'grounded',status:'pass',reason:'Price supported by source.',calls:[0]}]}};
+ if(input.messages[0].content.startsWith('Assess each frozen'))return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Price supported by source.',calls:[0]}]}};
  if(input.messages[0].content.startsWith('Design an agent')) {
   if(holdDraft) await new Promise<void>(resolve=>{releaseDraft=resolve;});
   if(failDraft) throw new Error('offline');
