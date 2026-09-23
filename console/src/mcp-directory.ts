@@ -1,4 +1,4 @@
-import { boundedText } from './mcp-client.ts';
+import { boundedText, parseEndpointURL } from './mcp-client.ts';
 import type { CatalogServer } from './mcp-registry.ts';
 
 export type Directory = 'smithery' | 'glama';
@@ -19,6 +19,7 @@ const component = (v: unknown) => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0
 export function catalogURL(value: unknown, endpoint = false): string | undefined {
   if (typeof value !== 'string' || value.length > 2048 || /[{}]/.test(value)) return;
   try {
+    if (endpoint) return parseEndpointURL(value);
     const u = new URL(value);
     if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || (endpoint && u.port && u.port !== '443')) return;
     return u.href;

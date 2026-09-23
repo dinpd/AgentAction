@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { publicEndpointURL, validatePublicEndpoint, isPublicAddress, type EndpointApproval } from "../src/endpoint-policy.ts";
 import { AgentRuntime, type RuntimeStorage, type Connection, type Agent, type Run } from "../src/agent-runtime.ts";
-import { McpClient } from "../src/mcp-client.ts";
+import { McpClient, endpointURL } from "../src/mcp-client.ts";
 const endpoint = "https://mcp.vendor.com/mcp";
 const tool = { name: "read", description: "Read a document", inputSchema: { type: "object", properties: {}, additionalProperties: false } };
 class Storage implements RuntimeStorage {
@@ -120,4 +120,22 @@ test("removing a redundant workspace approval preserves deployment-managed acces
 test("the production console retains the public global fetch network boundary",()=>{
   const config=readFileSync(new URL("../wrangler.toml",import.meta.url),"utf8");
   assert.match(config.split("[vars]")[0],/compatibility_flags\s*=\s*\["global_fetch_strictly_public"\]/);
+});
+
+
+test('only documented single-Actor Apify configuration passes and approvals stay exact',async()=>{
+ const endpoint='https://mcp.apify.com/?tools=harshmaur/reddit-scraper';
+ assert.equal(publicEndpointURL(endpoint),endpoint);
+ assert.equal(endpointURL(endpoint,endpoint),endpoint);
+ assert.throws(()=>endpointURL(endpoint,'https://mcp.apify.com/'),/approval/);
+ assert.throws(()=>endpointURL(endpoint.replace('reddit-scraper','other-actor'),endpoint),/approval/);
+ for(const invalid of [endpoint+'&token=secret',endpoint+'&tools=other/actor',endpoint+',other/actor',endpoint+'#secret',endpoint.replace('mcp.apify.com','mcp.apify.com.evil.com'),endpoint.replace('/?','/mcp?'),endpoint.replace('tools=','token='),endpoint.replace('tools=','%74ools='),endpoint.replace('/reddit','%2Freddit'),endpoint.replace('harshmaur/reddit-scraper','../actor'),endpoint.replace('https://','https://user:pw@')])assert.throws(()=>publicEndpointURL(invalid),invalid);
+ const storage=new Storage(),requests:string[]=[];
+ const runtime=new AgentRuntime(storage,{},async(input)=>{requests.push(String(input));return Response.json({Status:0,Answer:[{type:1,data:'1.1.1.1'}]});});
+ const post=(action:string,body:unknown)=>runtime.handle(new Request('https://runtime.test/'+action,{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify(body)}));
+ assert.equal((await post('connect',{endpoint,label:'Apify'})).status,403);
+ assert.equal(requests.length,0);
+ assert.equal((await post('approve-endpoint',{endpoint,reviewed:true})).status,200);
+ assert.equal((await post('connect',{endpoint:endpoint.replace('reddit-scraper','other-actor'),label:'Other'})).status,403);
+ assert.equal(requests.length,2); // DNS only: no automatic MCP connection.
 });

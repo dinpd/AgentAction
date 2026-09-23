@@ -1,5 +1,5 @@
 import type { ReadinessSummary } from "./mcp-readiness.ts";
-import { boundedText, object } from "./mcp-client.ts";
+import { boundedText, object, parseEndpointURL } from "./mcp-client.ts";
 import type { CatalogEvidence, CatalogSource } from './mcp-directory.ts';
 import { mcpMatching } from './mcp-matching.ts';
 
@@ -22,6 +22,7 @@ export const AUTH_TYPES = [
 type AuthType = typeof AUTH_TYPES[number]["id"];
 export type CatalogServer = {
   readiness?: ReadinessSummary[];
+  providerSetup?: { source: string; actor: string; authentication: string };
   catalogEvidence?: CatalogEvidence;
   matchTerms?: string[];
   name: string; title: string; description: string; version: string; publisher: string;
@@ -56,14 +57,31 @@ function contains(text: string, term: string): boolean { return ` ${words(text).
 function safeURL(value: unknown, endpoint = false): string | undefined {
   if (typeof value !== "string" || value.length > 2048 || /[{}]/.test(value)) return;
   try {
+    if (endpoint) return parseEndpointURL(value);
     const u = new URL(value);
     if (u.protocol !== "https:" || u.username || u.password || (endpoint && (u.search || u.hash || (u.port && u.port !== "443")))) return;
     return u.href;
   } catch { return; }
 }
+// Resolve documented provider configuration even for snapshots indexed before
+// support was added. A listing is a suggestion, never endpoint approval.
+export function withProviderSetup(server: CatalogServer): CatalogServer {
+  let website: URL;
+  try { website = new URL(server.website || ''); } catch { return server; }
+  if (website.origin !== 'https://apify.com' || website.username || website.password || website.search || website.hash) return server;
+  const actor = /^\/([a-zA-Z0-9][a-zA-Z0-9_-]{0,99}\/[a-zA-Z0-9][a-zA-Z0-9_-]{0,99})(?:\/api\/mcp)?\/?$/.exec(website.pathname)?.[1];
+  if (!actor) return server;
+  const endpoint = `https://mcp.apify.com/?tools=${actor}`;
+  // Do not silently replace another deployment explicitly offered by a listing.
+  if (server.endpoints.length && !server.endpoints.includes(endpoint)) return server;
+  return { ...server, endpoints: [endpoint], inspectableEndpoints: [endpoint],
+    providerSetup: { source: `https://apify.com/${actor}/api/mcp`, actor, authentication: 'Apify API token required. Get it from your Apify account, then enter it in the Bearer token field. Never put a token in the endpoint URL.' },
+    setup: `Apify hosted MCP, scoped to ${actor}. The endpoint is supplied from Apify’s documented setup. Pre-check runs without credentials; tool discovery requires your Apify API token. Workspace access approval is separate.` };
+}
+
 function setupInstructions(endpoints: string[]): string {
   return endpoints.length ? "Workspace-owner approval or deployment-managed access is required. Check provider authentication: public and bearer-token access are supported; shared OAuth requires a deployment-configured provider and workspace owner consent."
-      : "Requires setup outside this builder: local packages, legacy SSE, custom headers or parameterized URLs are not supported here. Check the provider documentation.";
+      : "Requires setup outside this builder: local packages, legacy SSE, custom headers or unsupported URL parameters are not supported here. Check the provider documentation.";
 }
 function declaredAuth(remotes: Record<string, unknown>[], packages: Record<string, unknown>[]): AuthType[] {
   const found = new Set<AuthType>();
@@ -94,7 +112,7 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
   const endpoints = [...new Set(remotes.filter(r => r.type === "streamable-http" && (!Array.isArray(r.headers) || r.headers.length === 0)).map(r => safeURL(r.url, true)).filter((v): v is string => Boolean(v)))].slice(0, 3);
   const title = short(server.title, 120) || name;
   const text = `${name} ${title} ${description}`;
-  return {
+  return withProviderSetup({
     name, title, description, version, publisher: name.split("/")[0],
     website: safeURL(server.websiteUrl) || safeURL(record(server.repository).url), endpoints,
     hosting: remotes.length ? (packages.length ? "Remote and local packages" : "Remote server") : "Local package",
@@ -102,7 +120,7 @@ export function normalizeServer(raw: unknown): CatalogServer | undefined {
     setup: setupInstructions(endpoints),
     authTypes: declaredAuth(remotes, packages),
     capabilities: CAPABILITIES.filter(c => c.terms.some(t => contains(text, t))).map(c => c.id),
-  };
+  });
 }
 export function parseCatalogQuery(params: URLSearchParams): CatalogQuery {
   for (const key of params.keys()) if (!["q", "capability", "auth", "offset", "mode"].includes(key) || params.getAll(key).length !== 1) throw new Error("Invalid catalog search parameters.");
@@ -176,7 +194,7 @@ export class RegistryCatalog {
       const server = JSON.parse(String(row.payload)) as CatalogServer;
       // Application guidance follows the deployed policy, not the age of the
       // stored provider snapshot. No upstream refresh or data rewrite is needed.
-      return { ...server, ...(mode==='suggest'?{matchTerms:mcpMatching().match(query,server.title,catalogSearchText(server)).terms}:{}), inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) };
+      return withProviderSetup({ ...server, ...(mode==='suggest'?{matchTerms:mcpMatching().match(query,server.title,catalogSearchText(server)).terms}:{}), inspectableEndpoints: server.inspectableEndpoints || server.endpoints, authTypes: server.authTypes || ["unspecified"], setup: setupInstructions(server.endpoints) });
     }), total, nextOffset: offset + 20 < total ? offset + 20 : null,
       capabilities: CAPABILITIES.map(({ id, label }) => ({ id, label })), updatedAt: state.active ? new Date(state.active.updatedAt).toISOString() : null,
       authTypes: AUTH_TYPES.map(({ id, label }) => ({ id, label })),

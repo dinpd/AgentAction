@@ -1,3 +1,4 @@
+import { mcpEndpointConfig } from './mcp-endpoint-config.ts';
 import { McpClient, RuntimeError, boundedText, object, type McpTool } from "./mcp-client.ts";
 import { publicEndpointURL, validatePublicEndpoint } from "./endpoint-policy.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
@@ -84,6 +85,10 @@ export async function inspectEndpoint(value: unknown, protocol = "2025-03-26", f
     for (const url of candidates) {
       resource = await metadata(url);
       if (resource) {
+        if (mcpEndpointConfig().apifyActor(base) && [base.origin, base.origin + '/'].includes(String(resource.resource))) {
+          finding("review", "Authentication metadata describes the provider base endpoint", "Apify advertises authentication for its base service, not this Actor-specific URL. Exact scoped OAuth metadata is unverified; use the documented API-token setup. No access was granted.");
+          resource = undefined; break;
+        }
         if (resource.resource !== endpoint) throw new RuntimeError("Protected-resource metadata does not match this exact MCP endpoint.");
         finding("info", "Protected-resource metadata found", "The metadata resource identifier matches the inspected endpoint. Provider declarations still require trust review.");
         break;

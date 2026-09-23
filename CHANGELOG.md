@@ -4,6 +4,23 @@
 
 No changes yet.
 
+## 0.38.0-rc.1 - 2026-09-23
+
+### Added
+
+- Resolve Apify Actor listings to documented hosted MCP endpoints, including existing catalog snapshots. Selecting a server fills its Actor-scoped endpoint, starts an anonymous pre-check, and explains the API-token requirement with a setup source link.
+- Support the single-Actor `tools` query on the exact Apify MCP endpoint. Credentials and all other query configurations remain rejected; workspace approvals still apply to the exact endpoint.
+
+### Fixed
+
+- Explain when automatic setup is unavailable before offering manual endpoint entry. Do not present an empty connection form as ready to connect.
+- Show authentication-required pre-check findings when Apify advertises base-service OAuth metadata, without claiming scoped OAuth verification or granting access.
+
+### Compatibility and migration
+
+- Existing query-free endpoints remain compatible. No stored-data migration or automatic endpoint approval. No credentials or tool executions are used by pre-checks.
+- Install Python artifacts from the GitHub v0.38.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.37.2-rc.1 - 2026-09-23
 
 ### Fixed

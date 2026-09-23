@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { RegistryCatalog, normalizeServer, parseCatalogQuery, REGISTRY_URL, MAX_CATALOG_PAGES, type CatalogStorage } from "../src/mcp-registry.ts";
+import { RegistryCatalog, normalizeServer, withProviderSetup, parseCatalogQuery, REGISTRY_URL, MAX_CATALOG_PAGES, type CatalogStorage } from "../src/mcp-registry.ts";
 import worker from "../src/worker.ts";
 import demo from "../src/demo-worker.ts";
 import { mcpMatching } from '../src/mcp-matching.ts';
@@ -190,4 +190,25 @@ test("legacy rows match unspecified until atomic refresh supplies declared authe
   assert.match(unknown.notice, /Authentication details.*awaiting the next registry refresh/);
   assert.match((await search("api-key")).notice, /authentication-filtered results may be incomplete/);
   await h.tick(); assert.equal((await search("api-key")).total, 1); assert.equal((await search("unspecified")).total, 0); assert.doesNotMatch((await search("")).notice, /awaiting the next registry refresh/); h.db.close();
+});
+
+
+test('Apify Actor setup resolves both fresh registry entries and existing snapshots', async () => {
+  const websiteUrl = 'https://apify.com/harshmaur/reddit-scraper';
+  const endpoint = 'https://mcp.apify.com/?tools=harshmaur/reddit-scraper';
+  const raw = entry('reddit', 'Search social posts', {websiteUrl, remotes:[{type:'streamable-http',url:endpoint,headers:[{name:'Authorization',isSecret:true,value:'NEVER-IMPORT'}]}]});
+  const fresh = normalizeServer(raw)!;
+  assert.deepEqual(fresh.endpoints,[endpoint]);assert.deepEqual(fresh.inspectableEndpoints,[endpoint]);
+  assert.equal(fresh.providerSetup?.source,websiteUrl+'/api/mcp');
+  assert.doesNotMatch(JSON.stringify(fresh),/NEVER-IMPORT/);
+  const h=harness([page([raw])]);await h.tick();
+  const old={...fresh,endpoints:[],inspectableEndpoints:[],providerSetup:undefined,setup:'Unsupported'};
+  h.db.prepare('UPDATE registry_servers SET payload = ?').run(JSON.stringify(old));
+  const loaded=(await h.search()).servers[0];
+  assert.deepEqual(loaded.endpoints,[endpoint]);assert.match(loaded.setup,/Pre-check runs without credentials/);
+  for(const website of ['https://apify.com.evil.com/harshmaur/reddit-scraper','https://user:pw@apify.com/harshmaur/reddit-scraper',websiteUrl+'?token=secret',websiteUrl+'#token',websiteUrl+'/unknown','https://apify.com/{user}/actor']) {
+    assert.deepEqual(withProviderSetup({...old,website}).endpoints,[],website);
+  }
+  assert.deepEqual(withProviderSetup({...old,endpoints:['https://custom.vendor.com/mcp']}).endpoints,['https://custom.vendor.com/mcp']);
+  h.db.close();
 });
