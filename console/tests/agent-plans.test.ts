@@ -184,3 +184,13 @@ test('new drafts require complete measurement procedures while retaining server-
  const p=proposedPlan(draft,[]);
  assert.deepEqual(p.definition.evaluation!.rubrics![0].measurement,draft.evaluation.rubrics[0].measurement);
 });
+
+test('built-in analysis does not add an external setup dependency to research',()=>{
+ const p=proposedPlan({...draft,requirements:[{label:'Text analysis capability',matches:[]},{label:'Social-post search/retrieval capability',matches:[]},{label:'Report writing',matches:[]}]},[]);
+ assert.deepEqual(p.requirements,[{id:'step_1',label:'Social-post search/retrieval capability',matches:[]}]);
+ assert.deepEqual(p.definition.tools,['step_1']);assert.equal(p.definition.instructions,draft.instructions);
+ assert.deepEqual(p.definition.evaluation,proposedPlan(draft,[]).definition.evaluation);
+ const specialized=proposedPlan({...draft,requirements:[{label:'Acme specialized text analysis',matches:[]},{label:'Search posts',matches:[]}]},[]);assert.equal(specialized.requirements.length,2);
+ const bound=proposedPlan({...draft,requirements:[{label:'Text analysis capability',matches:['actual']},{label:'Search posts',matches:[]}]},[{id:'actual',connectionId:'service',tool:'analyze'}]);assert.equal(bound.requirements.length,2);assert.equal(bound.bindings.step_1.tool,'analyze');
+ assert.throws(()=>proposedPlan({...draft,requirements:[{label:'Text analysis',matches:[],permissions:['*']},{label:'Search posts',matches:[]}]},[]));
+});

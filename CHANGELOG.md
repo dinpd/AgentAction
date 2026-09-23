@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.37.1-rc.1 - 2026-09-23
+
+### Fixed
+
+- Preserve unanswered scope questions when selecting a provider and returning from connection setup.
+- Keep generic text analysis, reasoning and report writing inside the agent instead of adding redundant MCP setup requirements alongside external capabilities. Preserve named/specialized services and concrete tool bindings.
+- Require tool recommendations to match both the requested source and operation; do not fill suggestions with tools needing adaptation. Clarify that completeness ratios count findings once, not individual fields.
+
+### Compatibility and migration
+
+- Backward-compatible draft-generation correction; existing plans, contracts and permissions are unchanged. No migration required.
+- Install Python artifacts from the GitHub v0.37.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.37.0-rc.1 - 2026-09-23
 
 ### Added
