@@ -39,8 +39,10 @@ let failSuggestions=false,delaySuggestions=false,releaseSuggestions:(()=>void)|u
 const searches:any[]=[];
 
 const ai={async run(_model:any,input:any){
- if(input.messages[0].content.startsWith('Draft a narrow')) {
-  return {response:{title:'Contractor market monitoring',goal:'Review licensing and workforce changes',instructions:'Look up the license history and labour data, then identify contacts.',success:'A sourced report',requirements:[{label:'License History',matches:[]},{label:'Labor Market Data',matches:[]},{label:'Contact Information',matches:[]}],questions:[]}};
+ if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
+
+ if(input.messages[0].content.startsWith('Design an agent')) {
+  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Contractor market monitoring',goal:'Review licensing and workforce changes',instructions:'Look up the license history and labour data, then identify contacts.',success:'A sourced report',requirements:[{label:'License History',matches:[]},{label:'Labor Market Data',matches:[]},{label:'Contact Information',matches:[]}],questions:[]}};
  }
  throw new Error('Unexpected AI call during setup');
 }};
@@ -91,13 +93,14 @@ try {
  const license=page.locator('[data-capability-step=step_1]'),labor=page.locator('[data-capability-step=step_2]'),contact=page.locator('[data-capability-step=step_3]');
  await license.locator('[data-registry-server="org.example/licenses"]').waitFor();await labor.locator('[data-registry-server="org.example/employment"]').waitFor();
  await contact.locator('[data-registry-server="org.example/contacts"]').waitFor();
- const indexedCard=contact.locator('[data-registry-server="glama:org.example/records"]');await indexedCard.waitFor();
+ const indexedCard=contact.locator('[data-registry-server="glama:org.example/records"]');await indexedCard.waitFor();await indexedCard.getByText('Provider details & limitations',{exact:true}).click();
  assert.match(await indexedCard.innerText(),/Potential matching tool: lookup_record/);
  assert.match(await indexedCard.innerText(),/contact_id/);assert.match(await indexedCard.innerText(),/contact_email/);
  assert.match(await indexedCard.innerText(),/partial metadata/);assert.match(await indexedCard.innerText(),/may be stale/);
  assert.equal(await indexedCard.getByRole('link',{name:'Tool catalog data from Glama ↗'}).getAttribute('href'),'https://glama.ai/mcp/connectors/org.example/records');
  assert.equal(await indexedCard.getByRole('button',{name:'Use this tool',exact:true}).count(),0);
- assert.match(await contact.locator('[data-registry-server="org.example/contacts"]').innerText(),/Tool catalog unknown/);
+ await contact.locator('[data-registry-server="org.example/contacts"]').getByText('Provider details & limitations',{exact:true}).click();
+ assert.match(await contact.locator('[data-registry-server="org.example/contacts"]').innerText(),/tool catalog unknown/i);
  await indexedCard.locator('.capability-details > summary').click();await indexedCard.getByText('lookup_record',{exact:true}).click();
  assert.match(await indexedCard.innerText(),/Result fields: \/contact_email/);assert.equal(await indexedCard.locator('img').count(),0);
  await contact.locator('.catalog-sources > summary').click();assert.match(await contact.innerText(),/1 of 8 indexed listings have tool metadata/);
@@ -118,9 +121,10 @@ try {
  await page.getByRole('heading',{name:'Connect a server for License History',exact:true}).waitFor();
  assert.equal(await page.locator('#connect [name=endpoint]').inputValue(),endpoint);assert.equal(await page.locator('#connect [name=consent]').isChecked(),false);
  await page.locator('#connect [name=token]').fill('PRIVATE-ACCOUNT-TOKEN');await page.locator('#connect [name=consent]').check();
- await page.getByRole('button',{name:'Connect server',exact:true}).click();await license.getByText('Choose an actual tool from your new connection',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Connect server',exact:true}).click();await license.locator('[data-connected-tool=license_history]').waitFor();
  assert.equal(await page.locator('#connect [name=token]').inputValue(),'');assert.equal(await license.locator('[data-tool-mapping]').inputValue(),'');
  assert.equal(await license.locator('[data-connected-tool]').count(),2);
+ await contact.locator('[data-registry-server="glama:org.example/records"]').getByText('Provider details & limitations',{exact:true}).click();
  assert.match(await contact.locator('[data-registry-server="glama:org.example/records"]').innerText(),/Account catalog comparison: 0 of 1/);
  assert.match(await contact.locator('[data-registry-server="glama:org.example/records"]').innerText(),/Not discovered: lookup_record/);assert.equal(await labor.locator('[data-tool-mapping]').inputValue(),'');
  await license.locator('[data-connected-tool=license_history]').getByRole('button',{name:'Use this tool',exact:true}).click();

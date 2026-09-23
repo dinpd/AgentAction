@@ -16,6 +16,8 @@ const connection = { id:'server', label:'Research server', status:'connected', e
 
 let failProfile=false, holdProfile=false, releaseProfile:(()=>void)|undefined;
 const ai={async run(_model:any,input:any){
+ if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
+
  const data=JSON.parse(input.messages[1].content);
  if(input.messages[0].content.startsWith('Suggest useful agents')) {
   if(holdProfile) await new Promise<void>(resolve=>{releaseProfile=resolve;});
@@ -27,7 +29,7 @@ const ai={async run(_model:any,input:any){
    {title:'Release digest',benefit:'Identify changes that may need attention.',description:'Summarize supplied release notes for my review.',capabilities:[{label:'Read release notes',matches:[]}]}
   ]}};
  }
- return {response:{title:'Research brief',goal:data.description,instructions:'Read supplied pages.',success:'A sourced brief',requirements:[{label:'Read source pages',matches:[]}],questions:[]}};
+ return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Research brief',goal:data.description,instructions:'Read supplied pages.',success:'A sourced brief',requirements:[{label:'Read source pages',matches:[]}],questions:[]}};
 }};
 const transport=async (_url:any,init:any)=>{
  if(!init?.body)return Response.json({Status:0,Answer:[{type:1,data:'104.26.5.12'}]});

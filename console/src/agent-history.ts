@@ -52,11 +52,11 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
   function appendEvaluation(parent: HTMLElement, run: { contract?: HostedContract; evaluation?: HostedEvaluation }) {
     if (!run.contract) { parent.append(node('p', 'No bound evaluation. This run has no frozen hosted contract.', 'note')); return; }
     const { intent, binding } = run.contract, evaluation = run.evaluation;
-    const detail = node('details') as HTMLDetailsElement; detail.dataset.hostedEvaluation = intent.job_id;
+    const detail = node('details') as HTMLDetailsElement; detail.dataset.hostedEvaluation = intent.job_id; detail.open=Boolean(binding.specification.rubrics?.length);
     const result = evaluation ? evaluation.status.replaceAll('_',' ') : 'pending';
     detail.append(node('summary', `Contract & evaluation · ${result}`), node('p', `Contract: ${intent.intent_id}`), node('p', `Profile: ${intent.profile}`), node('p', `Contract digest: ${intent.intent_digest}`, 'note'), node('p', `Profile digest: ${intent.profile_digest}`, 'note'));
     if (binding.recipe) detail.append(node('p', `Agent template: ${binding.recipe.id} · v${binding.recipe.version}`));
-    detail.append(node('p', 'All measurable checks are required. Runtime records establish recorded execution; provider-reported fields are not independently verified. This is a hosted evaluation, not a signed gateway receipt.', 'note'));
+    detail.append(node('p', 'All checks are required. Outcome rubrics are AI assessments of the answer and tool evidence, not independent verification. Runtime records establish recorded execution; provider-reported fields are not independently verified. This is a hosted evaluation, not a signed gateway receipt.', 'note'));
     if (evaluation) {
       detail.append(node('p', `Evidence digest: ${evaluation.evidence_digest}`, 'note'), node('p', `Recorded source digest: ${evaluation.source_digest}`, 'note'));
       for (const c of evaluation.criteria) {

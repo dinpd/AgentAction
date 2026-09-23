@@ -951,3 +951,26 @@ Owners can connect configured OAuth providers for shared agents. See
 [OAuth deployment and ownership](../docs/oauth-connections.md) and the
 [Notion configuration](examples/oauth-notion.json). The feature is disabled until
 provider settings, a fixed callback origin and encryption secrets are configured.
+
+### Job-first agent drafts
+
+The guided builder generates the plan, proposed written guardrails and outcome
+rubrics in one schema-constrained model response, without connected inventory.
+Capability discovery searches indexed providers and connected tools together;
+a bounded model comparison ranks the candidate shortlist without connection
+status. Recommendations explain fit and limitations. Metadata-only fallback is
+labeled when the comparison is unavailable; neither path establishes provider
+quality, account access or exhaustive catalog coverage.
+
+Operators edit guardrails and success checks before approving a generated draft.
+The stored review binds the definition, job inputs, tool mappings and field
+checks; changing these requires review again. Approval does not execute tools.
+Written guardrails are model instructions, while selected-tool scope, recorded
+approval before each exact action and four total calls remain runtime controls.
+
+Outcome rubrics are frozen with the run contract and assessed against the answer
+and retained tool evidence. These criteria carry `ai_assessed` provenance,
+separate from `runtime_recorded` and `provider_reported` checks. A missing or
+invalid assessment, changed evidence, failed calls or unusable/truncated results
+leave outcome checks inconclusive. Assessment and recommendation calls share the
+workspace inference budget. Existing definitions without rubrics remain valid.

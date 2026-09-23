@@ -38,3 +38,19 @@ test('profiles are stable across instances, definitions change identity and lega
  const changed=(await bindRecipeEval({...definition,evaluation:{version:1,checks:[{...checks[2],value:21}]}}))!;assert.notEqual(changed.profile.profile_digest,a.profile.profile_digest);
  assert.equal(await bindRecipeEval({...definition,evaluation:undefined}),undefined);
 });
+
+test('outcome rubrics are frozen, AI-labeled, evidence-bound and fail closed',async()=>{
+ const {rubricAssessment,hasRubricEvidence}=await import('../src/recipe-evaluation.ts');
+ const r=await run();r.summary='The reports support the comparison.';
+ r.contract=await issueHostedContract((await bindRecipeEval({...definition,evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded comparison',criterion:'Claims agree with the retrieved reports.'}]}}))!,r,{id:'a',goal:'Compare',setup:'Reports',connectionId:'c'});
+ assert.equal((await evaluateHostedRun(r)).criteria.find(c=>c.id==='grounded')?.status,'insufficient_evidence');
+ for(const status of ['pass','fail','insufficient_evidence']) {
+  r.rubricAssessment=await rubricAssessment({criteria:[{id:'grounded',status,reason:'Evidence-based explanation.',calls:[0]}]},r);
+  const criterion=(await evaluateHostedRun(r)).criteria.find(c=>c.id==='grounded')!;
+  assert.equal(criterion.status,status);assert.equal(criterion.trust,'ai_assessed');assert.match(criterion.evidence,/call:0/);
+ }
+ for(const value of [{criteria:[]},{criteria:[{id:'grounded',status:'pass',reason:'Fine',calls:[]}]},{criteria:[{id:'grounded',status:'pass',reason:'Fine',calls:[99]}]}]) await assert.rejects(()=>rubricAssessment(value,r));
+ r.rubricAssessment=await rubricAssessment({criteria:[{id:'grounded',status:'pass',reason:'Grounded.',calls:[0]}]},r);
+ r.summary='Changed answer';assert.equal((await evaluateHostedRun(r)).criteria.find(c=>c.id==='grounded')?.status,'insufficient_evidence');
+ for(const result of ['broken JSON','[Result omitted: retained run evidence exceeded the storage limit.]',JSON.stringify({isError:true}),JSON.stringify({content:[{text:'[truncated]'}]})]) {r.events[0].result=result;assert.equal(hasRubricEvidence(r),false);}
+});

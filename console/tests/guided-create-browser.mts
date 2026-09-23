@@ -16,11 +16,14 @@ const connection = { id:'server', label:'Research server', status:'connected', e
 
 let step=0, failDraft=false, holdDraft=false, releaseDraft:(()=>void)|undefined;
 const ai={async run(_model:any,input:any){
- if(input.messages[0].content.startsWith('Draft a narrow')) {
+ if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
+
+ if(input.messages[0].content.startsWith('Assess each frozen'))return {response:{criteria:[{id:'grounded',status:'pass',reason:'Price supported by source.',calls:[0]}]}};
+ if(input.messages[0].content.startsWith('Design an agent')) {
   if(holdDraft) await new Promise<void>(resolve=>{releaseDraft=resolve;});
   if(failDraft) throw new Error('offline');
   const {description}=JSON.parse(input.messages[1].content);
-  return {response:{title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',requirements:[{label:'Read pricing page',matches:JSON.parse(input.messages[1].content).tools.filter((t:any)=>t.tool==='firecrawl_scrape').map((t:any)=>t.id)}],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
+  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',requirements:[{label:'Read pricing page',matches:[]}],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
  }
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};
 }};
@@ -115,6 +118,7 @@ try {
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
  const serverId=(await latest()).connections[0].id;
  await page.locator('.other-tools > summary').click();await page.locator('[data-tool-mapping]').selectOption(JSON.stringify({connectionId:serverId,tool:'firecrawl_scrape'}));
+ await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-mobile.png'});
@@ -127,9 +131,9 @@ try {
  await page.getByRole('button',{name:'Approve and execute',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#runs')?.textContent?.includes('The price is 20.'));
  assert.equal((await latest()).runs[0].evaluation.status,'pass');
- // Unique tool matches prefill, equivalent accounts remain explicitly unresolved.
+ // Inventory never preselects a source, even when only one account exists.
  await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
- assert.ok(await page.locator('[data-tool-mapping]').inputValue());
+ assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');
  await storage.put('connection:other',{...connection,id:'other',label:'Second account'});
  await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
  assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
