@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.36.1-rc.1 - 2026-09-23
+
+### Fixed
+
+- Assign generated outcome-check IDs in the application. Missing, duplicated or reserved model-authored IDs no longer reject otherwise valid guardrails and evaluation criteria; labels and criteria remain intact and validated.
+- Describe draft generation as preparing the plan, guardrails and success checks, without implying connected-tool bias.
+
+### Compatibility and migration
+
+- Backward-compatible patch prerelease; no permission or data migration changes. Existing saved evaluation IDs remain unchanged.
+- Install Python artifacts from the GitHub v0.36.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.36.0-rc.1 - 2026-09-23
 
 ### Added

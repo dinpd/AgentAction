@@ -23,7 +23,7 @@ const ai={async run(_model:any,input:any){
   assert.deepEqual(Object.keys(JSON.parse(input.messages[1].content)),['description']);
   return {response:{title:'Social research',goal:'Research social posts relevant to the supplied company',instructions:'Search the selected platforms and summarize relevant findings with links.',success:'A sourced research brief with coverage gaps',boundaries:'Read public posts only. Do not publish, reply, send messages or purchase data.',requirements:[{label:'Search public social media posts',matches:[]}],questions:['Which platforms and time window should the research cover?'],evaluation:{version:1,checks:[],rubrics:[{id:'relevance',label:'Relevant findings',criterion:'Each finding explains its relevance to the supplied company using retrieved evidence.'},{id:'sources',label:'Traceable sources',criterion:'Each finding includes its original source link and date, or explicitly flags missing metadata.'}]}}};
  }
- if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'relevance',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',calls:[0]},{id:'sources',status:'pass',reason:'The finding includes the retrieved source URL and date.',calls:[0]}]}};
+ if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',calls:[0]},{id:'outcome_2',status:'pass',reason:'The finding includes the retrieved source URL and date.',calls:[0]}]}};
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'An unrelated post: https://social.example/post/1, dated 2026-09-22.',outcome:'met',reason:'Search succeeded.'}};
 }};
 const transport=async (_url:any,init:any)=>{
@@ -65,7 +65,7 @@ try {
  page.setDefaultTimeout(10000);
  await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  await page.locator('#job-description').fill('social media post scanner for example.com');await page.locator('#generate-draft').click();
- await page.locator('[data-rubric-id=relevance]').waitFor();
+ await page.locator('[data-rubric-id=outcome_1]').waitFor();
  assert.equal(await field('boundaries').isVisible(),true);assert.equal(await page.locator('[data-rubric-criterion]').count(),2);
  assert.equal(await page.locator('[data-connected-tool="notion-search"]').count(),0);
  await page.locator('[data-registry-server="research/social"]').waitFor();
@@ -74,10 +74,10 @@ try {
  assert.ok(await page.locator('#draft-policy').evaluate(el=>el.compareDocumentPosition(document.querySelector('#agent-tools')!) & Node.DOCUMENT_POSITION_FOLLOWING));
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
- await page.locator('[data-rubric-id=relevance] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
+ await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
  await page.locator('#create-agent').click();await page.getByText('Agent draft saved. Continue setup whenever you are ready.',{exact:true}).waitFor();
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
- assert.match(await field('boundaries').inputValue(),/No posts/);assert.match(await page.locator('[data-rubric-id=relevance] textarea').inputValue(),/directly concern/);
+ assert.match(await field('boundaries').inputValue(),/No posts/);assert.match(await page.locator('[data-rubric-id=outcome_1] textarea').inputValue(),/directly concern/);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'/tmp/aa263-mobile.png',fullPage:true});
  await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:'/tmp/aa263-desktop.png',fullPage:true});
@@ -93,6 +93,6 @@ try {
  const trial=(await latest()).runs[0];assert.equal(trial.status,'awaiting_approval');assert.equal(trial.events.length,0);
  const approved=await runtimes.acme.handle(new Request('https://runtime.test/approve',{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify({runId:trial.id,approvalId:trial.pending.id})}));assert.equal(approved.status,200);
  await page.locator('#refresh').click();await page.getByText('Relevant findings · fail',{exact:true}).waitFor({state:'attached'});
- assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='relevance').trust,'ai_assessed');
+ assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='outcome_1').trust,'ai_assessed');
  assert.deepEqual(errors,[]);console.log('Job-first browser acceptance passed: scope, ranking, editing, persistence, review, mobile, exact-action approval and outcome failure.');
 } finally {await browser.close();await new Promise<void>(r=>server.close(()=>r()));}

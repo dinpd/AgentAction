@@ -15,7 +15,7 @@ const draft={title:'Compare reports',goal:'Compare supplied reports',instruction
 const schema={name:'read',description:'Read a report',inputSchema:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false}};
 function harness(outputs:any[]=[draft]) {
  const storage=new Storage(),calls:any[]=[],prompts:string[]=[];
- const env={AGENT_MCP_ENDPOINTS:'https://one.example/mcp,https://two.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(JSON.stringify(input));if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'comparison',status:'pass',reason:'Both reports were retrieved and compared.',calls:[0]}]}};assert.ok(outputs.length);return {response:outputs.shift()};}}};
+ const env={AGENT_MCP_ENDPOINTS:'https://one.example/mcp,https://two.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(JSON.stringify(input));if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Both reports were retrieved and compared.',calls:[0]}]}};assert.ok(outputs.length);return {response:outputs.shift()};}}};
  const fetcher=async(url:any,init:any)=>{
   if(init.method==='DELETE')return new Response(null,{status:204});
   const message=JSON.parse(init.body);if(message.method==='notifications/initialized')return new Response(null,{status:202});
@@ -164,5 +164,15 @@ test('an unavailable outcome assessor leaves a completed trial inconclusive',asy
  const trial=await h.request('trial',{agentId:agent.body.agentId}),pending=(await h.storage.get<Run>('run:'+trial.body.runId))!;
  h.env.AGENT_AI.run=async (_:string,input:any)=>{if(input.messages[0].content.startsWith('Assess each frozen'))throw new Error('assessor offline');return {response:{type:'finish',summary:'A result',outcome:'met',reason:'Read succeeded'}};};
  assert.equal((await h.request('approve',{runId:pending.id,approvalId:pending.pending!.id})).status,200);
- const run=(await h.storage.get<Run>('run:'+pending.id))!;assert.equal(run.status,'completed');assert.equal(run.evaluation!.status,'insufficient_evidence');assert.equal(run.evaluation!.criteria.find(c=>c.id==='comparison')!.trust,'ai_assessed');
+ const run=(await h.storage.get<Run>('run:'+pending.id))!;assert.equal(run.status,'completed');assert.equal(run.evaluation!.status,'insufficient_evidence');assert.equal(run.evaluation!.criteria.find(c=>c.id==='outcome_1')!.trust,'ai_assessed');
+});
+
+
+test('draft outcome IDs are application-assigned without losing model criteria',()=>{
+ for(const ids of [[undefined,undefined],['scope','scope'],['NOT A VALID ID','approval']]) {
+  const rubrics=ids.map((id,i)=>({...(id===undefined?{}:{id}),label:'Check '+i,criterion:'Evidence criterion '+i}));
+  const plan=proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics}},[]);
+  assert.deepEqual(plan.definition.evaluation!.rubrics,rubrics.map((r,i)=>({...r,id:'outcome_'+(i+1)})));
+ }
+ assert.throws(()=>proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics:[{label:'Check',criterion:'Evidence',permissions:['*']}]}},[]));
 });
