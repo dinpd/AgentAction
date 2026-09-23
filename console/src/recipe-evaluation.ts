@@ -4,12 +4,12 @@ import { object, RuntimeError, textField } from "./mcp-client.ts";
 import type { RecipeDefinition } from "./workspace-recipes.ts";
 
 export type RecipeCheck = { id: string; label: string; kind: "tool_succeeded" | "tool_not_called" | "result_field"; tool: string; path?: string; operator?: "equals" | "gte" | "lte" | "exists"; value?: string | number | boolean };
-export type OutcomeRubric = { id: string; label: string; criterion: string };
+export type OutcomeRubric = { id: string; label: string; criterion: string; measurement?: { method: string; evidence: string } };
 export type RecipeEval = { version: 1; checks: RecipeCheck[]; rubrics?: OutcomeRubric[] };
-export type RubricAssessment = { sourceDigest: string; specificationDigest: string; criteria: Array<{id:string; status:'pass'|'fail'|'insufficient_evidence'; reason:string; calls:number[]}> };
+export type RubricAssessment = { sourceDigest: string; specificationDigest: string; criteria: Array<{id:string; status:'pass'|'fail'|'insufficient_evidence'; reason:string; observed?:string; calls:number[]}> };
 export type RecipeEvalBinding = { tool_bindings?: ToolBindings; schema_version: "agentaction.hosted-eval-binding.v1"; definition_digest: string; profile: IntentProfile; specification: RecipeEval; allowed_tools: string[]; recipe?: { id: string; version: number } };
-export type HostedContract = { binding: RecipeEvalBinding; intent: IntentContract };
-export type HostedEvaluation = { status: "pass" | "fail" | "insufficient_evidence"; receipt: IntentEvaluationReceipt; evidence_digest: string; source_digest: string; criteria: Array<{ id: string; label: string; status: "pass" | "fail" | "insufficient_evidence"; reason: string; evidence: string; trust: "runtime_recorded" | "provider_reported" | "ai_assessed" }> };
+export type HostedContract = { inputs?: string; binding: RecipeEvalBinding; intent: IntentContract };
+export type HostedEvaluation = { status: "pass" | "fail" | "insufficient_evidence"; receipt: IntentEvaluationReceipt; evidence_digest: string; source_digest: string; criteria: Array<{ id: string; label: string; status: "pass" | "fail" | "insufficient_evidence"; reason: string; observed?:string; evidence: string; trust: "runtime_recorded" | "provider_reported" | "ai_assessed" }> };
 export type EvaluationRun = { id: string; agentId: string; status: string; startedAt: string; finishedAt?: string; summary?:string; rubricAssessment?:RubricAssessment; events: Array<{ source?: ToolSource; tool: string; arguments: Record<string, unknown>; status: string; result?: string; approval?: { id: string; actor: string; at: string } }>; contract?: HostedContract; evaluation?: HostedEvaluation };
 const RESERVED = new Set(["__proto__", "prototype", "constructor"]);
 const BUILTIN_IDS = new Set(["run_completed", "successful_call", "scope", "budget", "approval"]);
@@ -48,16 +48,22 @@ export function validateRecipeEval(value: unknown, tools: string[]): RecipeEval 
     if(!Array.isArray(raw.rubrics)||raw.rubrics.length>6) throw new RuntimeError('Choose up to six outcome checks.');
     rubrics=raw.rubrics.map(value=>{
       const r=object(value),id=textField(r.id,'outcome check ID',50);
-      if(Object.keys(r).some(k=>!['id','label','criterion'].includes(k))||!/^[a-z][a-z0-9_]{0,49}$/.test(id)||RESERVED.has(id)||BUILTIN_IDS.has(id)||ids.has(id)) throw new RuntimeError('Outcome check IDs must be unique lowercase identifiers.');
+      if(Object.keys(r).some(k=>!['id','label','criterion','measurement'].includes(k))||!/^[a-z][a-z0-9_]{0,49}$/.test(id)||RESERVED.has(id)||BUILTIN_IDS.has(id)||ids.has(id)) throw new RuntimeError('Outcome check IDs must be unique lowercase identifiers.');
       ids.add(id);
-      return {id,label:textField(r.label,'outcome check name',120),criterion:textField(r.criterion,'outcome criterion',500)};
+      let measurement:OutcomeRubric['measurement'];
+      if(r.measurement!==undefined) {
+        const m=object(r.measurement);
+        if(Object.keys(m).some(k=>!['method','evidence'].includes(k))) throw new RuntimeError('Unsupported measurement settings.');
+        measurement={method:textField(m.method,'measurement procedure',500),evidence:textField(m.evidence,'measurement evidence',300)};
+      }
+      return {id,label:textField(r.label,'outcome check name',120),criterion:textField(r.criterion,'outcome criterion',500),...(measurement?{measurement}:{})};
     });
   }
   return { version: 1, checks, ...(rubrics ? {rubrics} : {}) };
 }
 
 export function rubricEvidence(run:EvaluationRun) {
-  return {status:run.status,events:run.events,finishedAt:run.finishedAt,summary:run.summary || ''};
+  return {status:run.status,events:run.events,finishedAt:run.finishedAt,summary:run.summary || '',...(run.contract?.inputs!==undefined?{task:{goal:run.contract.intent.objective,inputs:run.contract.inputs}}:{})};
 }
 export function hasRubricEvidence(run:EvaluationRun):boolean {
   return run.status==='completed' && Boolean(run.summary) && run.events.length>0 && run.events.every(e=>{
@@ -67,13 +73,16 @@ export function hasRubricEvidence(run:EvaluationRun):boolean {
 }
 export async function rubricAssessment(value:unknown,run:EvaluationRun):Promise<RubricAssessment> {
   const raw=object(value),rubrics=run.contract!.binding.specification.rubrics || [];
+  if(rubrics.some(r=>r.measurement) && (run.contract!.inputs===undefined || await evidenceDigest(run.contract!.inputs)!==run.contract!.intent.profile_variables?.inputs_digest)) throw new RuntimeError('Frozen measurement inputs are unavailable or invalid.');
   if(Object.keys(raw).some(k=>k!=='criteria')||!Array.isArray(raw.criteria)||raw.criteria.length!==rubrics.length) throw new RuntimeError('Invalid outcome assessment.');
   const ids=new Set<string>();
   const criteria=raw.criteria.map(value=>{
     const c=object(value),id=textField(c.id,'outcome check ID',50);
-    if(Object.keys(c).some(k=>!['id','status','reason','calls'].includes(k))||!rubrics.some(r=>r.id===id)||ids.has(id)||!['pass','fail','insufficient_evidence'].includes(String(c.status))||!Array.isArray(c.calls)||c.calls.length>4||new Set(c.calls).size!==c.calls.length||c.calls.some(i=>!Number.isInteger(i)||Number(i)<0||Number(i)>=run.events.length)||c.status!=='insufficient_evidence'&&!c.calls.length) throw new RuntimeError('Invalid outcome assessment evidence.');
+    if(Object.keys(c).some(k=>!['id','status','reason','observed','calls'].includes(k))||!rubrics.some(r=>r.id===id)||ids.has(id)||!['pass','fail','insufficient_evidence'].includes(String(c.status))||!Array.isArray(c.calls)||c.calls.length>4||new Set(c.calls).size!==c.calls.length||c.calls.some(i=>!Number.isInteger(i)||Number(i)<0||Number(i)>=run.events.length)||c.status!=='insufficient_evidence'&&!c.calls.length) throw new RuntimeError('Invalid outcome assessment evidence.');
     ids.add(id);
-    return {id,status:c.status as 'pass'|'fail'|'insufficient_evidence',reason:textField(c.reason,'outcome reasoning',600),calls:c.calls as number[]};
+    const measured=rubrics.find(r=>r.id===id)!.measurement;
+    const observed=measured || c.observed!==undefined ? textField(c.observed,'observed measurement (or why unavailable)',600) : undefined;
+    return {id,status:c.status as 'pass'|'fail'|'insufficient_evidence',reason:textField(c.reason,'outcome reasoning',600),...(observed?{observed}:{}),calls:c.calls as number[]};
   });
   return {sourceDigest:await evidenceDigest(rubricEvidence(run)),specificationDigest:await evidenceDigest(run.contract!.binding.specification),criteria};
 }
@@ -102,7 +111,7 @@ export async function bindRecipeEval(definition: RecipeDefinition, recipe?: Reci
 }
 export async function issueHostedContract(binding: RecipeEvalBinding, run: EvaluationRun, agent: { id: string; goal: string; setup: string; connectionId: string }): Promise<HostedContract> {
   const intent = issueIntentContract(binding.profile, { intent_id: `hosted_intent_${run.id}`, job_id: `supervised:${run.id}`, issued_at: run.startedAt, variables: { goal: agent.goal, definition_digest: binding.definition_digest, inputs_digest: await evidenceDigest(agent.setup), connection_id: agent.connectionId, agent_id: agent.id, specification_digest: await evidenceDigest(binding.specification), scope_digest: await evidenceDigest(binding.tool_bindings ? {tools:binding.allowed_tools,bindings:binding.tool_bindings} : binding.allowed_tools), recipe_ref: canonical(binding.recipe || null) } });
-  return { binding: structuredClone(binding), intent };
+  return { binding: structuredClone(binding), intent, ...(binding.specification.rubrics?.some(r=>r.measurement)?{inputs:agent.setup}:{}) };
 }
 function ownPath(value: unknown, path: string): { present: boolean; value?: unknown } {
   for (const key of path.split('.')) {
@@ -113,6 +122,7 @@ function ownPath(value: unknown, path: string): { present: boolean; value?: unkn
 }
 export async function evaluateHostedRun(run: EvaluationRun): Promise<HostedEvaluation> {
   const { binding, intent } = run.contract!;
+  if(run.contract!.inputs!==undefined && await evidenceDigest(run.contract!.inputs)!==intent.profile_variables?.inputs_digest) throw new RuntimeError('The frozen job inputs are invalid.',409);
   if (binding.profile.profile_digest !== digestIntentProfile(binding.profile) || intent.profile_digest !== binding.profile.profile_digest || intent.profile_variables?.definition_digest !== binding.definition_digest || intent.profile_variables?.agent_id !== run.agentId || intent.job_id !== `supervised:${run.id}` || intent.intent_id !== `hosted_intent_${run.id}`) throw new RuntimeError('The frozen contract binding is invalid.', 409);
   if (intent.profile_variables?.specification_digest !== await evidenceDigest(binding.specification) || intent.profile_variables?.scope_digest !== await evidenceDigest(binding.tool_bindings ? {tools:binding.allowed_tools,bindings:binding.tool_bindings} : binding.allowed_tools) || intent.profile_variables?.recipe_ref !== canonical(binding.recipe || null)) throw new RuntimeError('The frozen evaluation specification is invalid.', 409);
   const checks: Record<string, string | number | boolean> = {};
@@ -153,7 +163,7 @@ export async function evaluateHostedRun(run: EvaluationRun): Promise<HostedEvalu
     const rubric=binding.specification.rubrics?.find(c=>c.id===r.predicate_id);
     const assessment=rubric && assessed ? run.rubricAssessment?.criteria.find(c=>c.id===r.predicate_id) : undefined;
     const label = [...intent.required_outcomes, ...intent.hard_constraints].find(p => p.id === r.predicate_id)!.description!;
-    return { id: r.predicate_id, label, status: r.status === 'indeterminate' ? 'insufficient_evidence' as const : r.status, reason: assessment ? assessment.reason : r.status === 'indeterminate' ? 'The required evidence is missing, incomplete or unavailable.' : r.reason, evidence: refs.get(r.predicate_id) || `run:${run.id}:recorded-state`, trust: rubric ? 'ai_assessed' as const : c?.kind === 'result_field' ? 'provider_reported' as const : 'runtime_recorded' as const };
+    return { id: r.predicate_id, label, ...(assessment?.observed?{observed:assessment.observed}:{}), status: r.status === 'indeterminate' ? 'insufficient_evidence' as const : r.status, reason: assessment ? assessment.reason : r.status === 'indeterminate' ? 'The required evidence is missing, incomplete or unavailable.' : r.reason, evidence: refs.get(r.predicate_id) || `run:${run.id}:recorded-state`, trust: rubric ? 'ai_assessed' as const : c?.kind === 'result_field' ? 'provider_reported' as const : 'runtime_recorded' as const };
   });
   return { status: criteria.some(c => c.status === 'fail') ? 'fail' : criteria.some(c => c.status === 'insufficient_evidence') ? 'insufficient_evidence' : 'pass', receipt, evidence_digest: await evidenceDigest(job), source_digest: sourceDigest, criteria };
 }

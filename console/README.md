@@ -974,3 +974,21 @@ separate from `runtime_recorded` and `provider_reported` checks. A missing or
 invalid assessment, changed evidence, failed calls or unusable/truncated results
 leave outcome checks inconclusive. Assessment and recommendation calls share the
 workspace inference budget. Existing definitions without rubrics remain valid.
+
+Generated outcome checks include an editable `measurement` object (`method` and
+`evidence`) and a `criterion` describing the pass threshold or binary rule. The
+Original job inputs are retained with the trial and checked against the frozen
+input digest so coverage is assessed against the requested scope. The
+AI assessor follows that procedure and must record `observed` (counts/units or
+why measurement was unavailable). These are evidence-grounded AI assessments,
+not deterministic arithmetic or independent verification. Existing saved checks
+without measurements remain readable and are labeled in the editor; new drafts
+require complete measurement details. Exact structured-field checks remain
+available separately once tools and output schemas are known.
+
+Catalog adapters currently do not collect structured pricing. Provider and
+connected-tool cards explicitly show unknown pricing; no free tier or price is
+inferred. Every provider card offers setup, including listings without a usable
+endpoint. Selecting a listing saves the draft and opens contextual setup; only
+choosing an account-discovered tool resolves a missing capability. Local-only
+servers remain unsupported and require choosing another provider.

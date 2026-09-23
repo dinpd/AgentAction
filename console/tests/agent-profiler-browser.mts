@@ -29,7 +29,7 @@ const ai={async run(_model:any,input:any){
    {title:'Release digest',benefit:'Identify changes that may need attention.',description:'Summarize supplied release notes for my review.',capabilities:[{label:'Read release notes',matches:[]}]}
   ]}};
  }
- return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Research brief',goal:data.description,instructions:'Read supplied pages.',success:'A sourced brief',requirements:[{label:'Read source pages',matches:[]}],questions:[]}};
+ return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]},title:'Research brief',goal:data.description,instructions:'Read supplied pages.',success:'A sourced brief',requirements:[{label:'Read source pages',matches:[]}],questions:[]}};
 }};
 const transport=async (_url:any,init:any)=>{
  if(!init?.body)return Response.json({Status:0,Answer:[{type:1,data:'104.26.5.12'}]});

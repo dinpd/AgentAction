@@ -27,7 +27,7 @@ const ai={async run(_model:any,input:any){
   if(holdDraft) await new Promise<void>(resolve=>{releaseDraft=resolve;});
   if(failDraft) throw new Error('offline');
   const {description}=JSON.parse(input.messages[1].content);
-  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Close a ticket',goal:'Find and close a supplied ticket',instructions:'Find the ticket then close it.',success:'The matching ticket is closed',requirements:[{label:'Find ticket',matches:[]},{label:'Close ticket',matches:[]}],questions:[]}};
+  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'100% of claims supported by sources.',measurement:{method:'Count sourced claims / all claims; no source evidence is inconclusive.',evidence:'Final answer and retained source results.'}}]},title:'Close a ticket',goal:'Find and close a supplied ticket',instructions:'Find the ticket then close it.',success:'The matching ticket is closed',requirements:[{label:'Find ticket',matches:[]},{label:'Close ticket',matches:[]}],questions:[]}};
  }
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};
 }};

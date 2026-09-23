@@ -18,12 +18,12 @@ let step=0, failDraft=false, holdDraft=false, releaseDraft:(()=>void)|undefined;
 const ai={async run(_model:any,input:any){
  if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
 
- if(input.messages[0].content.startsWith('Assess each frozen'))return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Price supported by source.',calls:[0]}]}};
+ if(input.messages[0].content.startsWith('Assess each frozen'))return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Price supported by source.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};
  if(input.messages[0].content.startsWith('Design an agent')) {
   if(holdDraft) await new Promise<void>(resolve=>{releaseDraft=resolve;});
   if(failDraft) throw new Error('offline');
   const {description}=JSON.parse(input.messages[1].content);
-  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',requirements:[{label:'Read pricing page',matches:[]}],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
+  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]},title:'Pricing brief',goal:'Summarize a supplied pricing page',instructions:'Read the supplied page and cite it.',success:'A concise pricing summary with sources',requirements:[{label:'Read pricing page',matches:[]}],questions:description.includes('example.com')?[]:['Which pricing page should I read?']}};
  }
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};
 }};
