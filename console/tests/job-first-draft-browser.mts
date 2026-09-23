@@ -23,7 +23,7 @@ const ai={async run(_model:any,input:any){
   assert.deepEqual(Object.keys(JSON.parse(input.messages[1].content)),['description']);
   return {response:{title:'Social research',goal:'Research social posts relevant to the supplied company',instructions:'Search the selected platforms and summarize relevant findings with links.',success:'A sourced research brief with coverage gaps',boundaries:'Read public posts only. Do not publish, reply, send messages or purchase data.',requirements:[{label:'Search public social media posts',matches:[]}],questions:['Which platforms and time window should the research cover?'],evaluation:{version:1,checks:[],rubrics:[{id:'relevance',label:'Relevant findings',criterion:'Each finding explains its relevance to the supplied company using retrieved evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}},{id:'sources',label:'Traceable sources',criterion:'Each finding includes its original source link and date, or explicitly flags missing metadata.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]}}};
  }
- if(input.messages[0].content.startsWith('Assess each frozen')) {assert.match(JSON.parse(input.messages[1].content).task.inputs,/Reddit, last seven days/);return {response:{criteria:[{id:'outcome_1',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',observed:'1 / 1 claims supported (100%).',calls:[0]},{id:'outcome_2',status:'pass',reason:'The finding includes the retrieved source URL and date.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};}
+ if(input.messages[0].content.startsWith('Assess each frozen')) {assert.match(JSON.parse(input.messages[1].content).task.inputs,/Reddit, last seven days/);return {response:{criteria:[{id:'outcome_1',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',observed:'0 / 1 claims supported (0%).',calls:[0]},{id:'outcome_2',status:'pass',reason:'The finding includes the retrieved source URL and date.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};}
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'An unrelated post: https://social.example/post/1, dated 2026-09-22.',outcome:'met',reason:'Search succeeded.'}};
 }};
 const transport=async (_url:any,init:any)=>{
@@ -103,6 +103,8 @@ try {
  await page.locator('[data-connected-tool=social_search]').getByRole('button',{name:'Use this tool',exact:true}).click();
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
+ await page.locator('[data-rubric-id=outcome_1] [data-rubric-evidence]').fill('Final findings and original social post results.');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
+ await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  await field('boundaries').fill('Public posts only; never write or buy data.');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  await page.locator('#review-first-action').click();await page.getByText('First trial planned. Review its proposed action or result below.',{exact:true}).waitFor();
@@ -110,7 +112,7 @@ try {
  const approved=await runtimes.acme.handle(new Request('https://runtime.test/approve',{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify({runId:trial.id,approvalId:trial.pending.id})}));assert.equal(approved.status,200);
  await page.locator('#refresh').click();await page.getByText('Relevant findings · fail',{exact:true}).waitFor({state:'attached'});
  assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='outcome_1').trust,'ai_assessed');
- assert.match(await page.locator('[data-hosted-evaluation]').first().innerText(),/Observed measurement: 1 \/ 1/);
+ assert.match(await page.locator('[data-hosted-evaluation]').first().innerText(),/Observed measurement: 0 \/ 1/);
  assert.match((await latest()).runs[0].contract.binding.specification.rubrics[0].measurement.method,/divided by all findings/);
  assert.deepEqual(errors,[]);console.log('Job-first browser acceptance passed: scope, ranking, editing, persistence, review, mobile, exact-action approval and outcome failure.');
 } finally {await browser.close();await new Promise<void>(r=>server.close(()=>r()));}
