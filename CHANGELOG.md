@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.37.2-rc.1 - 2026-09-23
+
+### Fixed
+
+- Recognize combined generic processing labels such as text analysis and summarization, so they do not become redundant MCP setup requirements alongside external capabilities. Preserve specialized/provider terms, source retrieval and concrete tool bindings.
+
+### Compatibility and migration
+
+- Backward-compatible draft normalization fix; existing saved plans and permissions are unchanged. No migration required.
+- Install Python artifacts from the GitHub v0.37.2-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.37.1-rc.1 - 2026-09-23
 
 ### Fixed

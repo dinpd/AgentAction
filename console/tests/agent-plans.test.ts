@@ -194,3 +194,14 @@ test('built-in analysis does not add an external setup dependency to research',(
  const bound=proposedPlan({...draft,requirements:[{label:'Text analysis capability',matches:['actual']},{label:'Search posts',matches:[]}]},[{id:'actual',connectionId:'service',tool:'analyze'}]);assert.equal(bound.requirements.length,2);assert.equal(bound.bindings.step_1.tool,'analyze');
  assert.throws(()=>proposedPlan({...draft,requirements:[{label:'Text analysis',matches:[],permissions:['*']},{label:'Search posts',matches:[]}]},[]));
 });
+
+
+test('combined built-in labels normalize by constituent functions without swallowing external capabilities',()=>{
+ for(const label of ['Text analysis and summarization capability','Summarisation & text analysis','Report writing / reasoning','Summarize retrieved content','Analyze retrieved results','Text analysis,  summarization and report generation']) {
+  const p=proposedPlan({...draft,requirements:[{label,matches:[]},{label:'Social-post search/retrieval',matches:[]}]},[]);
+  assert.deepEqual(p.requirements.map(r=>r.label),['Social-post search/retrieval']);
+ }
+ for(const label of ['Acme text analysis and summarization','Specialized sentiment analysis','Retrieve source reports','Text report capability','分析 text analysis']) {
+  assert.equal(proposedPlan({...draft,requirements:[{label,matches:[]},{label:'Social-post search/retrieval',matches:[]}]},[]).requirements.length,2);
+ }
+});

@@ -41,7 +41,12 @@ export function proposedPlan(value: unknown, catalog: AvailableTool[]): Pick<Age
   });
   // Generic processing of retrieved content is already provided by the agent.
   // Keep named/specialized capabilities and all concrete tool bindings intact.
-  const builtIn=(r:ToolRequirement)=>!r.matches.length && /^(?:text analysis|reasoning|summari[sz]ation|report writing|report generation)(?: capability)?$/i.test(r.label.trim());
+  const processing=new Set(['analysis','reasoning','summarization','summarisation','writing','generation','summarize','summarise','summarizing','summarising','summary','summaries','analyze','analyse']);
+  const genericWords=new Set([...processing,'text','content','report','reports','retrieved','results','and','of','the','capability','capabilities']);
+  const builtIn=(r:ToolRequirement)=>{
+    const words=r.label.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+    return !r.matches.length && words.some(w=>processing.has(w)) && words.every(w=>genericWords.has(w));
+  };
   const external=proposedRequirements.filter(r=>!builtIn(r));
   const requirements=(external.length ? external : proposedRequirements).map((r,i)=>({...r,id:`step_${i+1}`}));
   if (!Array.isArray(raw.questions) || raw.questions.length > 3) throw new RuntimeError('Drafts may ask at most three essential questions.',502);
