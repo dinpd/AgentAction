@@ -7,7 +7,7 @@ export function mcpMatching() {
     ['contact','crm','people','enrichment'], ['email','mail','gmail','outlook'],
     ['web','website','scrape','crawl','browser'], ['ticket','issue','helpdesk'],
     ['database','sql','postgres','mysql','sqlite'], ['document','file','pdf','drive'],
-    ['calendar','appointment','scheduling'], ['social','twitter','mastodon','bluesky','linkedin','instagram'],
+    ['calendar','appointment','scheduling'], ['social','twitter','mastodon','bluesky','linkedin','instagram','reddit','youtube','tiktok','facebook'],
   ];
   function groups(query:string) {
     const tokens=[...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu)||[]).filter(t=>t.length>2&&!stop.has(t)))].slice(0,8);
@@ -27,6 +27,9 @@ export function mcpMatching() {
     if(requested.some(g=>g.terms.length>1) && !matched.some(g=>g.terms.length>1)) return {score:0,terms:[]};
     return {score:matched.reduce((n,g)=>n+8+(g.terms.some(t=>name.includes(t))?4:0),0),terms:matched.map(g=>g.label)};
   }
-  return {groups,match};
+  function rank<T extends {id:string;title:string;description:string}>(query:string,candidates:T[]) {
+    return candidates.map(c=>({...c,...match(query,c.title,c.description)})).filter(c=>c.score>0).sort((a,b)=>b.score-a.score || a.id.localeCompare(b.id));
+  }
+  return {groups,match,rank};
 }
 export const MATCHING_FACTORY_JS=`(${mcpMatching.toString()})`;

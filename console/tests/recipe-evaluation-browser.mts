@@ -15,7 +15,7 @@ const storage = new Storage(), beta = new Storage();
 const connection = { id:'server', label:'Research server', status:'connected', endpoint:'https://mcp.firecrawl.dev/v2/mcp', protocol:'2025-03-26', tools:[{name:'firecrawl_scrape',description:'',inputSchema:{type:'object'}},{name:'search',description:'',inputSchema:{type:'object'}}], suggestions:[{id:'suggested',title:'Suggested brief',goal:'Research a market',setup:'Provide a market',success:'Cite sources',tools:['search']}] };
 await storage.put('connection:server', connection);
 let step=0;
-const ai={async run(){return {response:step++%2===0?{type:'call',tool:'firecrawl_scrape',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};}};
+const ai={async run(_model:any,input:any){if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:[]}};return {response:step++%2===0?{type:'call',tool:'firecrawl_scrape',arguments:{}}:{type:'finish',summary:'The price is 20.',outcome:'met',reason:'Read the structured result.'}};}};
 const transport=async (_url:any,init:any)=>{
  if(init.method==='DELETE')return new Response(null,{status:204});const message=JSON.parse(init.body);
  if(message.method==='notifications/initialized')return new Response(null,{status:202});

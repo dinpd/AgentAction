@@ -9,7 +9,7 @@ import type { PrecheckReport } from "./mcp-precheck.ts";
 import { mcpMatching, MATCHING_FACTORY_JS } from './mcp-matching.ts';
 import type { CatalogResult, CatalogServer } from "./mcp-registry.ts";
 import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
-const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
+const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.outcome-rubric{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,2fr) auto;gap:12px;align-items:start;margin:16px 0}.outcome-rubric textarea{width:100%}#draft-policy,#draft-approval{margin:28px 0;padding-top:20px;border-top:1px solid #cbd0c4}@media(max-width:850px){.outcome-rubric{grid-template-columns:1fr}}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -42,18 +42,18 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <details id="manual-options"><summary>Set up manually</summary><button id="start-scratch" type="button" class="secondary">Start from scratch</button></details>
 <section id="continue-agents" hidden><h2>Continue an agent</h2><div id="agent-drafts" class="grid"></div></section>
 </section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="agent-tools" hidden><h3>Tools &amp; MCP servers</h3><p class="note">Find a tool for each capability: use a connected account, review suggested MCP servers, or connect your own.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><details id="draft-customize"><summary>Customize instructions, tools and checks</summary>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><section id="draft-policy"><h3>Guardrails &amp; success checks</h3><p class="note">Review and edit these proposals before approving your draft.</p><label>Proposed guardrails<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope, prohibited actions and when the agent should stop."></textarea></label><p class="note">Agent instructions: these guide the model. Runtime-enforced controls remain selected tools only, approval before every exact action, and four calls per trial.</p><h4>What a good result looks like</h4><p class="note">Each outcome check is assessed by AI against the answer and retained tool evidence after the trial. Missing evidence is inconclusive.</p><div id="outcome-rubrics"></div><button id="add-outcome-rubric" type="button" class="secondary">Add outcome check</button></section><section id="agent-tools" hidden><h3>Find the best tools for this job</h3><p class="note">Candidates are ranked by capability fit across the catalog and your connections. Connection status affects setup, not ranking. Provider declarations need verification.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><details id="draft-customize"><summary>Advanced instructions &amp; evidence checks</summary>
 <div class="fields"><label>Agent name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
 <label>Inputs this agent needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
 <fieldset id="editor-tools"><legend>Allowed tools · choose up to four</legend><div id="tool-options" class="fields"></div></fieldset>
-<div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label><label>Boundaries<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope and actions the agent should avoid."></textarea></label></div>
+<div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label></div>
 <label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label>
 <p id="selected-tools" class="note">The success text guides the AI assessment. Measurable checks below evaluate recorded evidence separately.</p>
 <label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
 <fieldset id="eval-editor"><legend>Measurable checks</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save as a template</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new template</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
-</details><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></div></form></section>
+</details><section id="draft-approval" hidden><h3>Approve your draft</h3><p id="draft-review-status" role="status" class="note"></p><button id="approve-draft" type="button" class="secondary">Approve guardrails and success checks</button><p class="note">Approval covers this draft and tool selections. Each actual tool call still needs separate approval.</p></section><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
@@ -98,7 +98,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let creating = false;
   function resetDraft() {
     draftGeneration++; draftQuestions = []; currentPlan = undefined;
-    profileGeneration++;capabilitySetup=undefined;serverQueries.clear();serverSuggestions.clear();
+    profileGeneration++;capabilitySetup=undefined;serverQueries.clear();serverSuggestions.clear();toolRankings.clear();
     get<HTMLFormElement>('profile-request').reset(); get<HTMLDetailsElement>('agent-profiler').open = false;
     get('agent-ideas').replaceChildren(); feedback('profile-feedback','');
     get('continue-agents').hidden = true; get('saved-examples').hidden = true; get('suggested-examples').hidden = true;
@@ -124,6 +124,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   // Results are workspace/draft scoped; only capability text is sent to the cached registry.
   const serverQueries=new Map<string,string>();
   const serverSuggestions=new Map<string,Promise<CatalogResult>>();
+  const toolRankings=new Map<string,Promise<{recommendations:Array<{id:string;reason:string}>}>>();
   let capabilitySetup:{tenant:string;planId:string;stepId:string;connectionId?:string}|undefined;
   function suggestionKey(stepId:string) {return `${tenant}:${currentPlan!.id}:${stepId}`;}
   async function setupCapability(stepId:string,endpoint='',label='',setup='') {
@@ -201,25 +202,47 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(serverSuggestions.size>=32) serverSuggestions.delete(serverSuggestions.keys().next().value!);
       serverSuggestions.set(requestKey,pending!);
     }
-    void pending!.then(data=>{
+    void pending!.then(async data=>{
       if(!host.isConnected || host.dataset.generation!==generation || tenant!==selectedTenant || currentPlan?.id!==planId || (serverQueries.get(key) ?? requirement.label)!==query) return;
       host.replaceChildren();
       if(data.indexing || data.stale || data.unavailable) host.append(node('p',data.notice || 'Registry results may be incomplete.','note'));
       sourceStatus(host,data);
-      const servers=data.servers.filter(s=>matcher.match(query,s.title,listingText(s)).score>0).slice(0,3);
-      if(!servers.length) host.append(node('p','No matching servers found in the current registry. Refine the search or connect your own MCP server.','note'));
+      const connectedCandidates=state.connections.filter((c:any)=>c.status==='connected').flatMap((c:any)=>c.tools.map((t:any)=>({id:c.id+':'+t.name,title:t.name,description:t.description || '',connection:c,tool:t})));
+      const shortlist=matcher.rank(query,[...data.servers.map(s=>({id:s.name,title:s.title,description:listingText(s),server:s})),...connectedCandidates]).slice(0,10);
+      const proposed=shortlist.map((c,i)=>({id:'candidate_'+i,title:c.title.slice(0,200),description:c.description.slice(0,1500) || c.title}));
+      let candidates=shortlist.slice(0,4).map(c=>({...c,fitReason:'Metadata match only; AI fit assessment unavailable. Verify capability support before selecting.'}));
+      if(proposed.length) {
+        const rankKey=JSON.stringify({planId,requirement:requirement.id,query,proposed});
+        let ranking=toolRankings.get(rankKey);
+        if(!ranking) {ranking=mutate('rank-tools',{id:planId,requirement:requirement.id,candidates:proposed});if(toolRankings.size>=32)toolRankings.delete(toolRankings.keys().next().value!);toolRankings.set(rankKey,ranking!);}
+        host.append(node('p','Comparing capability fit across available candidates…','note'));
+        try {const result=await ranking!;candidates=result.recommendations.map(r=>({...shortlist[proposed.findIndex(c=>c.id===r.id)],fitReason:r.reason})).filter(c=>c.id);}
+        catch {toolRankings.delete(rankKey);}
+        if(!host.isConnected || host.dataset.generation!==generation || tenant!==selectedTenant || currentPlan?.id!==planId || (serverQueries.get(key) ?? requirement.label)!==query)return;
+        host.replaceChildren();if(data.indexing||data.stale||data.unavailable)host.append(node('p',data.notice || 'Catalog results may be incomplete.','note'));sourceStatus(host,data);
+      }
+      const servers=candidates.filter((c:any)=>c.server).map((c:any)=>c.server as CatalogServer);
+      // Render into one ordered list; connection status is never a ranking input.
+      const cards=new Map<string,HTMLElement>();
+      for(const candidate of candidates) if('connection' in candidate) {
+        const c=candidate.connection as any,t=candidate.tool as any,card=node('article','','server-choice');card.dataset.connectedTool=t.name;
+        card.append(node('strong',`${c.label} · ${t.name}`),node('span','Connected','pill'),node('p',candidate.fitReason,'note'));
+        const detail=node('details');detail.append(node('summary','Tool details'),node('p',t.description || 'No description supplied.','note'));card.append(detail,button('Use this tool',async()=>chooseTool(requirement.id,{connectionId:c.id,tool:t.name})));cards.set(candidate.id,card);
+      }
+      if(!candidates.length) host.append(node('p','No matching servers found in the current registry. Refine the search or connect your own MCP server.','note'));
       for(const server of servers) {
         const card=node('article','','server-choice');card.dataset.registryServer=server.name;
         const connected=state.connections.filter((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
-        card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',server.description,'note'));
+        card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',candidates.find(c=>c.id===server.name)!.fitReason,'note'));
         const terms=server.matchTerms || matcher.match(query,server.title,listingText(server)).terms;
         card.append(node('p',`Listing or tool metadata mentions: ${terms.join(', ')}.`,'note'));
         card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'));
-        catalogEvidence(card,server,query);
+        const details=node('details');details.append(node('summary','Provider details & limitations'));catalogEvidence(details,server,query);card.append(details);
         if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Provider details ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
         if(connected.length) {
           card.append(node('p','Choose an actual tool from this connected server.','note'));
-          for(const c of connected) for(const tool of c.tools.slice(0,8)) card.append(button(`Use ${c.label} · ${tool.name}`,async()=>chooseTool(requirement.id,{connectionId:c.id,tool:tool.name})));
+          if(!connected.some((c:any)=>c.tools.some((t:any)=>matcher.match(query,t.name,t.description || '').score>0))) card.append(node('p','This account has no matching discovered tool. Review provider access or choose another source.','note'));
+          for(const c of connected) for(const tool of c.tools.filter((t:any)=>matcher.match(query,t.name,t.description || '').score>0).slice(0,3)) card.append(button(`Use ${c.label} · ${tool.name}`,async()=>chooseTool(requirement.id,{connectionId:c.id,tool:tool.name})));
           if(connected.some((c:any)=>c.tools.length>8)) card.append(node('p','More tools are available under “Choose another connected tool”.','note'));
         } else if(server.endpoints.length) {
           const label=node('label','Endpoint'),select=doc.createElement('select');select.setAttribute('aria-label',`Endpoint for ${server.title}`);
@@ -227,8 +250,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           select.disabled=role==='viewer';if(server.endpoints.length>1) {label.append(select);card.append(label);}
           card.append(node('p','Review provider authentication and workspace access before connecting.','note'),button('Review & connect',async()=>setupCapability(requirement.id,select.value,server.title,server.setup)));
         } else card.append(node('p','Setup outside this console is required. Use the provider details, then connect your own supported HTTPS endpoint.','note'));
-        host.append(card);
+        cards.set(server.name,card);
       }
+      for(const candidate of candidates) {const card=cards.get(candidate.id);if(card)host.append(card);}
       if(data.servers.length>3 || data.nextOffset!==null && data.nextOffset!==undefined) host.append(button('Browse more matches',async()=>{
         const selectedTenant=tenant,editor=editorGeneration;await savePlan();if(tenant!==selectedTenant || editor!==editorGeneration)return;
         capabilitySetup={tenant,planId,stepId:requirement.id};runtime.location.hash='connect';showStage('connect');showMcpView(false);
@@ -241,6 +265,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function chooseTool(stepId:string,binding?:{connectionId:string;tool:string}) {
     if(role==='viewer'||!currentPlan)return;
+    draftGeneration++;delete currentPlan.review;
     if(binding) currentPlan.bindings={...currentPlan.bindings,[stepId]:binding};else delete currentPlan.bindings[stepId];
     if(capabilitySetup?.stepId===stepId) capabilitySetup=undefined;
     renderMappings();updateDraftPreview();
@@ -259,31 +284,22 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const choices=node('details','','capability-choices') as HTMLDetailsElement;choices.open=!selected;choices.append(node('summary',selected?'Change tool or server':'Find a tool for this capability'));card.append(choices);
       const tools=state.connections.filter((c:any)=>c.status==='connected').flatMap((c:any)=>c.tools.map((t:any)=>{
         const match=matcher.match(requirement.label,t.name,t.description || '');
-        const suggested=requirement.matches.some(m=>m.connectionId===c.id && m.tool===t.name);
-        return {connection:c,tool:t,score:match.score+(suggested?100:0),reason:suggested?'Suggested by your draft; review tool support.':`Tool metadata mentions ${match.terms.join(', ')}.`};
+        return {connection:c,tool:t,score:match.score,reason:`Tool metadata mentions ${match.terms.join(', ')}.`};
       })).sort((a:any,b:any)=>b.score-a.score);
-      const justConnected=capabilitySetup?.tenant===tenant && capabilitySetup.planId===currentPlan.id && capabilitySetup.stepId===requirement.id ? capabilitySetup.connectionId : undefined;
-      const candidates=tools.filter((t:any)=>justConnected ? t.connection.id===justConnected : t.score>0).slice(0,4);
-      if(candidates.length) choices.append(node('h5',justConnected?'Choose an actual tool from your new connection':'Relevant connected tools'));
-      else if(tools.length) choices.append(node('p','No relevant connected tools found. Try a server below or connect your own.','note'));
-      for(const {connection:c,tool,reason} of candidates) {
-        const item=node('article','','server-choice');item.dataset.connectedTool=tool.name;
-        item.append(node('strong',`${c.label} · ${tool.name}`),node('span','Connected','pill'),node('p',tool.description || 'No tool description supplied.','note'),node('p',justConnected?'Newly discovered tool; review whether it supports this capability.':reason,'note'),button('Use this tool',async()=>chooseTool(requirement.id,{connectionId:c.id,tool:tool.name})));choices.append(item);
-      }
       // Explicit fallback for valid tools whose descriptions do not match the need.
       const other=node('details','','other-tools');other.append(node('summary','Choose another connected tool'));
       const label=node('label','All connected tools'),select=doc.createElement('select');select.dataset.toolMapping=requirement.id;select.setAttribute('aria-label',`Other connected tool for ${requirement.label}`);
       select.append(new Option('Choose a connected tool',''));
       for(const {connection:c,tool} of tools) select.append(new Option(`${c.label} · ${tool.name}`,JSON.stringify({connectionId:c.id,tool:tool.name})));
-      select.value=selected?JSON.stringify(binding):'';select.disabled=role==='viewer';select.onchange=()=>chooseTool(requirement.id,select.value?JSON.parse(select.value):undefined);label.append(select);other.append(label);other.hidden=!tools.length;choices.append(other);
-      choices.append(node('h5','Suggested MCP servers'),node('p','Matches come from registry descriptions. Review the server and its actual tools before relying on it.','note'));
+      select.value=selected?JSON.stringify(binding):'';select.disabled=role==='viewer';select.onchange=()=>chooseTool(requirement.id,select.value?JSON.parse(select.value):undefined);label.append(select);other.append(label);other.hidden=!tools.length;
+      choices.append(node('h5','Capability matches'),node('p','Compare source support first; connect the best fit when needed.','note'));
       const key=suggestionKey(requirement.id),query=serverQueries.get(key) ?? requirement.label;
       const searchRow=node('div','','capability-search'),searchLabel=node('label','Find servers for'),input=doc.createElement('input');input.value=query;input.maxLength=160;input.setAttribute('aria-label',`Find servers for ${requirement.label}`);input.disabled=role==='viewer';searchLabel.append(input);
       const suggestions=node('div','','server-suggestions');suggestions.dataset.serverSuggestions=requirement.id;
       const search=async()=>{const q=input.value.trim();serverQueries.set(key,q);serverSuggestions.delete(key+':'+q);suggestionCards(requirement,suggestions,q);};
       input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();void search();}};
       input.oninput=()=>{suggestions.dataset.generation=String(Number(suggestions.dataset.generation || 0)+1);serverQueries.set(key,input.value.trim());suggestions.replaceChildren(node('p','Select Find servers to update the suggestions.','note'));};
-      searchRow.append(searchLabel,button('Find servers',search),button('Connect your own MCP server',async()=>setupCapability(requirement.id)));choices.append(searchRow,suggestions);
+      searchRow.append(searchLabel,button('Find servers',search),button('Connect your own MCP server',async()=>setupCapability(requirement.id)));choices.append(searchRow,suggestions,other);
       suggestionCards(requirement,suggestions,query);
       const report=node('div','','capability-report');report.dataset.coverageReport=requirement.id;report.setAttribute('aria-live','polite');report.hidden=!binding;card.append(report);
       fieldCheckEditor(requirement.id,card);(card.querySelector('.field-check-editor') as HTMLElement).hidden=!binding;
@@ -377,8 +393,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function updateMappingStatus() {
     if(!currentPlan) return;
     const missing=currentPlan.requirements.length-Object.keys(selectedBindings()).length;
-    get('mapping-status').textContent=missing ? `${missing} ${missing===1?'capability':'capabilities'} still need an MCP tool. You can save this draft now.` : 'All capabilities mapped. Review the first action when ready.';
-    get<HTMLButtonElement>('review-first-action').disabled=role==='viewer' || missing>0 || creating;
+    get('mapping-status').textContent=missing ? `${missing} ${missing===1?'capability':'capabilities'} still need an MCP tool. You can save this draft now.` : 'Sources selected · capability support still needs a trial. Review and approve the draft before the first action.';
+    const needsReview=currentPlan.requiresReview && !currentPlan.review;
+    get('draft-review-status').textContent=needsReview?'Review the current guardrails and success checks. Edits to the draft or tools require a new approval.':'Draft approved. Any edit will require review again.';
+    get<HTMLButtonElement>('approve-draft').disabled=role==='viewer' || Boolean(currentPlan.review);
+    get<HTMLButtonElement>('review-first-action').disabled=role==='viewer' || missing>0 || creating || Boolean(needsReview);
   }
   function showQuestions(questions:string[]) {
     get('draft-question-fields').replaceChildren();
@@ -399,13 +418,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('agent-tools').hidden=false; get('editor-tools').hidden=true;
     const select=get<HTMLSelectElement>('editor-connection');select.required=false;select.disabled=true;select.parentElement!.hidden=true;
     get<HTMLDetailsElement>('draft-customize').open=false;
+    get('draft-approval').hidden=!plan.requiresReview;
     get('editor-source').textContent='Untested agent draft. Tools and written instructions are suggestions; the runtime enforces approvals, mapped tool scope and four total calls.';
     editorTools(plan.definition.tools); updateEvalTools(); renderMappings(); updateDraftPreview();
   }
-  async function savePlan(): Promise<AgentPlan> {
-    const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration;
-    const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings(),fieldChecks:plan.fieldChecks || {}});
-    if(selectedTenant===tenant && editor===editorGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; draftQuestions=[]; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden=true; state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
+  async function savePlan(reviewed=false): Promise<AgentPlan> {
+    const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration, revision=draftGeneration;
+    const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings(),fieldChecks:plan.fieldChecks || {},...(reviewed?{reviewed:true}:{})});
+    if(selectedTenant===tenant && editor===editorGeneration && revision===draftGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; draftQuestions=[]; get('draft-question-fields').replaceChildren(); get('draft-questions').hidden=true; state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
     return saved;
   }
   function updateDraftPreview() {
@@ -417,7 +437,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const tools = [...doc.querySelectorAll<HTMLInputElement>('#tool-options input:checked')].map(el => el.value);
     preview.append(node('p', `Tools: ${currentPlan ? currentPlan.requirements.map(r=>r.label).join(', ') : tools.join(', ') || 'Choose tools in Customize'}`, 'note'));
     const enabled = get<HTMLInputElement>('eval-enabled').checked;
-    preview.append(node('p', enabled ? 'Enforced boundaries: mapped tools only, approval for every call, four total calls. Checks: completion and successful execution.' : 'Measured checks are off. Success will be AI-assessed.', 'note'));
+    preview.append(node('p', enabled ? 'Enforced boundaries: mapped tools only, approval for every call, four total calls. Checks: runtime controls and the outcome criteria below.' : 'Measured checks are off. Success will be AI-assessed.', 'note'));
     if (enabled) for (const field of doc.querySelectorAll<HTMLInputElement>('[data-check-label]')) preview.append(node('p', field.value || 'Unnamed custom check', 'note'));
   }
   function jobInputs(): string {
@@ -444,7 +464,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       }
       return check;
     });
-    return { version: 1, checks };
+    const rubrics=[...doc.querySelectorAll<HTMLElement>('[data-rubric-id]')].map(row=>({id:row.dataset.rubricId!,label:row.querySelector<HTMLInputElement>('[data-rubric-label]')!.value.trim(),criterion:row.querySelector<HTMLTextAreaElement>('[data-rubric-criterion]')!.value.trim()}));
+    return { version: 1, checks, ...(rubrics.length?{rubrics}:{}) };
   }
   function definitionFromEditor(): RecipeDefinition {
     const evaluation = readEvalChecks();
@@ -486,7 +507,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if (operator.value === 'gte' || operator.value === 'lte') type.value = 'number';
     };
     kind.onchange = update; operator.onchange = update;
-    const remove = node('button','Remove check','secondary') as HTMLButtonElement; remove.type='button'; remove.onclick=()=>{row.remove();updateEvalEditor();updateDraftPreview();}; row.append(remove);
+    const remove = node('button','Remove check','secondary') as HTMLButtonElement; remove.type='button'; remove.onclick=()=>{row.remove();invalidateReview();updateEvalEditor();updateDraftPreview();}; row.append(remove);
     get('eval-checks').append(row); update(); updateEvalTools(); updateEvalEditor(); updateDraftPreview();
   }
   function editorTools(selected: string[] = []) {
@@ -512,6 +533,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('eval-checks').replaceChildren(); get<HTMLInputElement>('eval-enabled').checked = Boolean(definition.evaluation) || !saved;
     for (const check of definition.evaluation?.checks || []) addEvalCheck(check);
     get('editor-source').textContent = saved ? `Agent template · version ${saved.version}. Saving edits creates a new version; existing agents keep their original definition.` : source.recipeId ? 'Customize this catalog recipe for your workspace.' : source.id ? 'Review and customize this AI suggestion.' : 'Create a job using your connected tools. No AI suggestion is needed.';
+    get('draft-approval').hidden=true;
+    get('outcome-rubrics').replaceChildren();for(const rubric of definition.evaluation?.rubrics || []) addOutcomeRubric(rubric);
     get('duplicate-recipe').hidden = !saved;
     get('save-recipe').textContent = saved ? 'Save new version' : 'Save as a template';
     get('recipe-save-status').textContent = '';
@@ -522,6 +545,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get<HTMLDetailsElement>('example-library').open = false; get<HTMLDetailsElement>('manual-options').open = false;
     profileGeneration++; get<HTMLDetailsElement>('agent-profiler').open = false; get('agent-ideas').replaceChildren(); feedback('profile-feedback','');
     showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function invalidateReview() { draftGeneration++;if(currentPlan) {delete currentPlan.review;updateMappingStatus();} }
+  function addOutcomeRubric(rubric?:{id:string;label:string;criterion:string}) {
+    if(get('outcome-rubrics').children.length>=6)return;
+    const row=node('div','','outcome-rubric');row.dataset.rubricId=rubric?.id || 'outcome_'+crypto.randomUUID().replaceAll('-','');
+    const label=node('label','Check name'),name=doc.createElement('input');name.dataset.rubricLabel='';name.value=rubric?.label || '';name.maxLength=120;name.required=true;name.disabled=role==='viewer';label.append(name);
+    const criterionLabel=node('label','Pass when'),criterion=doc.createElement('textarea');criterion.dataset.rubricCriterion='';criterion.value=rubric?.criterion || '';criterion.maxLength=500;criterion.rows=2;criterion.required=true;criterion.disabled=role==='viewer';criterionLabel.append(criterion);
+    row.append(label,criterionLabel,button('Remove outcome check',async()=>{row.remove();invalidateReview();}));get('outcome-rubrics').append(row);
   }
   function renderWorkspaceRecipes() {
     const list = get('workspace-recipes'); list.replaceChildren();
@@ -1114,7 +1145,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   };
   get('tool-options').addEventListener('change', updateEvalTools);
   get('eval-enabled').addEventListener('change', updateEvalEditor);
-  get<HTMLButtonElement>('add-eval-check').onclick = () => addEvalCheck();
+  get<HTMLButtonElement>('add-eval-check').onclick = () => {addEvalCheck();invalidateReview();};
+  get<HTMLButtonElement>('add-outcome-rubric').onclick=()=>{addOutcomeRubric();get<HTMLInputElement>('eval-enabled').checked=true;updateEvalEditor();invalidateReview();};
+  get<HTMLButtonElement>('approve-draft').onclick=event=>{void perform(event.currentTarget as HTMLButtonElement,async()=>{await savePlan(true);updateMappingStatus();},'draft-review-status');};
   for (const [id, duplicate] of [['save-recipe', false], ['duplicate-recipe', true]] as const) get<HTMLButtonElement>(id).onclick = event => {
     if (role === 'viewer' || !chosen) return;
     void perform(event.currentTarget as HTMLButtonElement, () => saveEditorRecipe(duplicate), 'recipe-save-status');
@@ -1137,11 +1170,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       openPlan(draft); state.drafts=[...(state.drafts || []),draft]; renderDraftConnections();
       editorField('setup').value = description;
       get('editor-source').textContent = 'AI-drafted · untested. Review the suggested result and tools. Written boundaries guide the model; mapped tool scope, approval and the call limit are enforced.';
-      feedback('draft-feedback', 'Draft ready. Review it below.'); updateDraftPreview();
+      feedback('draft-feedback', 'Draft generated. Review its scope, guardrails and success checks below.'); updateDraftPreview();
     }, 'draft-feedback').finally(renderDraftConnections);
   });
-  get<HTMLFormElement>('create').addEventListener('input', () => { draftGeneration++; updateDraftPreview(); });
-  get<HTMLFormElement>('create').addEventListener('change', () => { draftGeneration++; updateDraftPreview(); });
+  get<HTMLFormElement>('create').addEventListener('input', () => { draftGeneration++; invalidateReview();updateDraftPreview(); });
+  get<HTMLFormElement>('create').addEventListener('change', () => { draftGeneration++; invalidateReview();updateDraftPreview(); });
   get<HTMLFormElement>('create').addEventListener('invalid', event => {
     const fieldEditor=(event.target as HTMLElement).closest<HTMLDetailsElement>('.field-check-editor');if(fieldEditor) fieldEditor.open=true;
     if ((event.target as HTMLElement).closest('#draft-customize')) get<HTMLDetailsElement>('draft-customize').open = true;

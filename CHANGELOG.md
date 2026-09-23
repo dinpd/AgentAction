@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.36.0-rc.1 - 2026-09-23
+
+### Added
+
+- Generate job-specific guardrails and outcome evaluation criteria together with provider-neutral capability requirements. Connected inventory no longer shapes the draft objective or preselects tools.
+- Compare catalog and connected candidates by capability fit, followed by an AI suitability assessment with explicit limitations. Connection status affects setup rather than ranking; provider metadata remains unverified.
+- Review and edit guardrails and outcome checks before tool setup. Record approval of the current definition, job inputs and mappings before a generated draft can start its supervised trial; edits invalidate approval.
+- Evaluate frozen outcome criteria against the final answer and retained tool evidence. Label these results as AI assessments separately from recorded runtime controls and provider-reported field checks. Missing, invalid, changed or truncated evidence remains inconclusive.
+
+### Compatibility and migration
+
+- Minor prerelease: additive hosted evaluation rubrics and draft-review metadata. Existing saved definitions and trials remain readable; no data migration. Generated drafts require review, while exact-action approvals and the four-call runtime limit remain unchanged.
+- Proposed written guardrails are agent instructions, not new runtime-enforced policies or grants of permission. AI outcome assessments are not independent verification. Tool discovery is limited to indexed candidates and available metadata, not a guarantee of globally optimal providers.
+- Install Python artifacts from the GitHub v0.36.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.35.3-rc.1 - 2026-09-22
 
 ### Fixed
