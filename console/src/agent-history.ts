@@ -62,8 +62,14 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       for (const c of evaluation.criteria) {
         const item = node('div', '', 'evaluation-criterion');
         item.append(node('strong', `${c.label} · ${c.status.replaceAll('_',' ')}`), node('p', c.reason, 'note'), node('p', `Evidence: ${c.evidence} · ${c.trust.replaceAll('_',' ')}`, 'note'));
+        const rubric=binding.specification.rubrics?.find(r=>r.id===c.id);
+        if(rubric) {
+          item.append(node('p',`Pass threshold / rule: ${rubric.criterion}`,'note'));
+          if(rubric.measurement)item.append(node('p',`How measured: ${rubric.measurement.method}`,'note'),node('p',`Evidence used: ${rubric.measurement.evidence}`,'note'));
+          item.append(node('p',`Observed measurement: ${c.observed || 'Unavailable; no measurement was recorded.'}`,'note'));
+        }
         const raw = [...evaluation.receipt.outcomes,...evaluation.receipt.constraints].find(r => r.predicate_id === c.id);
-        if (raw && c.status !== 'insufficient_evidence') item.append(node('pre', JSON.stringify({expected:raw.expected,actual:raw.actual},null,2)));
+        if (raw && !rubric && c.status !== 'insufficient_evidence') item.append(node('pre', JSON.stringify({expected:raw.expected,actual:raw.actual},null,2)));
         detail.append(item);
       }
     } else {

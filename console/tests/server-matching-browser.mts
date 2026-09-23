@@ -42,7 +42,7 @@ const ai={async run(_model:any,input:any){
  if(input.messages[0].content.startsWith('Rank candidate')) return {response:{recommendations:JSON.parse(input.messages[1].content).candidates.slice(0,4).map((c:any)=>({id:c.id,reason:'Declared capability fits the requested source; access remains unverified.'}))}};
 
  if(input.messages[0].content.startsWith('Design an agent')) {
-  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'Support the requested result with retrieved source evidence.'}]},title:'Contractor market monitoring',goal:'Review licensing and workforce changes',instructions:'Look up the license history and labour data, then identify contacts.',success:'A sourced report',requirements:[{label:'License History',matches:[]},{label:'Labor Market Data',matches:[]},{label:'Contact Information',matches:[]}],questions:[]}};
+  return {response:{boundaries:'Use supplied sources only; stop if evidence is unavailable.',evaluation:{version:1,checks:[],rubrics:[{id:'grounded',label:'Grounded result',criterion:'100% of claims supported by sources.',measurement:{method:'Count sourced claims / all claims; no source evidence is inconclusive.',evidence:'Final answer and retained source results.'}}]},title:'Contractor market monitoring',goal:'Review licensing and workforce changes',instructions:'Look up the license history and labour data, then identify contacts.',success:'A sourced report',requirements:[{label:'License History',matches:[]},{label:'Labor Market Data',matches:[]},{label:'Contact Information',matches:[]}],questions:[]}};
  }
  throw new Error('Unexpected AI call during setup');
 }};
@@ -110,11 +110,11 @@ try {
  assert.equal(await page.locator('[data-coverage-report]:visible').count(),0);assert.equal(await page.locator('.field-check-editor:visible').count(),0);
  assert.equal(await page.locator('[data-tool-mapping]:visible').count(),0);assert.equal(await page.locator('.server-suggestions img').count(),0);
  assert.ok(!JSON.stringify(searches).includes('PRIVATE-JOB-123'));assert.equal(await license.locator('[data-registry-server="org.example/unrelated"]').count(),0);
- assert.match(await contact.innerText(),/Setup outside this console/);
+ assert.match(await contact.innerText(),/No supported endpoint is listed/);
  await page.locator('#configure').screenshot({path:'/tmp/aa-243-empty-desktop.png'});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await license.screenshot({path:'/tmp/aa-243-empty-mobile.png'});await page.setViewportSize({width:1440,height:1050});
- await license.locator('[data-registry-server="org.example/licenses"]').getByRole('button',{name:'Review & connect',exact:true}).click();
+ await license.locator('[data-registry-server="org.example/licenses"]').getByRole('button',{name:'Select server & connect',exact:true}).click();
  await page.getByRole('heading',{name:'Connect a server for License History',exact:true}).waitFor();
  await page.getByRole('link',{name:'← Back to License History',exact:true}).click();await license.getByRole('button',{name:'Browse more matches',exact:true}).click();
  await page.locator('#catalog-results article').filter({has:page.getByRole('heading',{name:'License Records',exact:true})}).getByRole('button',{name:'Use this server',exact:true}).click();

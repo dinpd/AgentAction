@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.37.0-rc.1 - 2026-09-23
+
+### Added
+
+- Generate editable pass thresholds, measurement procedures and evidence sources with agent drafts. Freeze them into trial contracts and require the AI assessor to report observed measurements; missing evidence remains inconclusive.
+- Make every suggested provider actionable with contextual connection steps, explicit unknown pricing and provider links. Name and navigate to each capability still missing a discovered tool.
+
+### Compatibility and migration
+
+- Additive prerelease evaluation fields; existing definitions and contracts remain readable with no migration or new permissions. Newly generated drafts require measurement details. AI measurements remain labeled as assessments, not deterministic calculations.
+- Catalog pricing is not collected; no cost or free-tier claims are inferred. Selecting a provider does not bind a tool, approve an endpoint or authorize execution.
+- Install Python artifacts from the GitHub v0.37.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.36.1-rc.1 - 2026-09-23
 
 ### Fixed

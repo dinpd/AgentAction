@@ -54,3 +54,20 @@ test('outcome rubrics are frozen, AI-labeled, evidence-bound and fail closed',as
  r.summary='Changed answer';assert.equal((await evaluateHostedRun(r)).criteria.find(c=>c.id==='grounded')?.status,'insufficient_evidence');
  for(const result of ['broken JSON','[Result omitted: retained run evidence exceeded the storage limit.]',JSON.stringify({isError:true}),JSON.stringify({content:[{text:'[truncated]'}]})]) {r.events[0].result=result;assert.equal(hasRubricEvidence(r),false);}
 });
+
+test('measurement specifications validate, freeze and require an observed result from the assessor',async()=>{
+ const {validateRecipeEval,rubricAssessment}=await import('../src/recipe-evaluation.ts');
+ const rubric={id:'grounded',label:'Supported claims',criterion:'100% supported; no source evidence is inconclusive.',measurement:{method:'Count supported claims / all answer claims; report counts and percent.',evidence:'Answer and retained source results.'}};
+ for(const measurement of [{method:'Count'},{method:'',evidence:'Results'},{method:'Count',evidence:'Results',code:'execute()'}]) assert.throws(()=>validateRecipeEval({version:1,checks:[],rubrics:[{...rubric,measurement}]},['read']));
+ const r=await run();r.summary='Price is 20.';
+ r.contract=await issueHostedContract((await bindRecipeEval({...definition,evaluation:{version:1,checks:[],rubrics:[rubric]}}))!,r,{id:'a',goal:'Read',setup:'URL',connectionId:'c'});
+ assert.equal(r.contract.inputs,'URL');
+ const tampered=structuredClone(r);tampered.contract!.inputs='Different scope';await assert.rejects(()=>evaluateHostedRun(tampered));
+ const criterion={id:'grounded',status:'pass',reason:'Price claim matches source.',calls:[0]};
+ await assert.rejects(()=>rubricAssessment({criteria:[criterion]},r),/observed measurement/);
+ r.rubricAssessment=await rubricAssessment({criteria:[{...criterion,observed:'1 / 1 supported claims (100%).'}]},r);
+ const result=(await evaluateHostedRun(r)).criteria.find(c=>c.id==='grounded')!;
+ assert.equal(result.status,'pass');assert.equal(result.observed,'1 / 1 supported claims (100%).');
+ r.contract.binding.specification.rubrics![0].measurement!.method='Changed procedure';
+ await assert.rejects(()=>evaluateHostedRun(r));
+});

@@ -11,11 +11,11 @@ class Storage implements RuntimeStorage {
  async list<T>({prefix}:{prefix:string}){return new Map([...this.data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v) as T]));}
  async setAlarm(){} async deleteAlarm(){}
 }
-const draft={title:'Compare reports',goal:'Compare supplied reports',instructions:'Read both reports.',success:'A sourced comparison',requirements:[{label:'Read first report',matches:[]},{label:'Read second report',matches:[]}],questions:[],boundaries:'Read supplied reports only; never modify them.',evaluation:{version:1,checks:[],rubrics:[{id:'comparison',label:'Sourced comparison',criterion:'Compare both supplied reports using their retrieved evidence.'}]}};
+const draft={title:'Compare reports',goal:'Compare supplied reports',instructions:'Read both reports.',success:'A sourced comparison',requirements:[{label:'Read first report',matches:[]},{label:'Read second report',matches:[]}],questions:[],boundaries:'Read supplied reports only; never modify them.',evaluation:{version:1,checks:[],rubrics:[{id:'comparison',label:'Sourced comparison',criterion:'Compare both supplied reports using their retrieved evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]}};
 const schema={name:'read',description:'Read a report',inputSchema:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false}};
 function harness(outputs:any[]=[draft]) {
  const storage=new Storage(),calls:any[]=[],prompts:string[]=[];
- const env={AGENT_MCP_ENDPOINTS:'https://one.example/mcp,https://two.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(JSON.stringify(input));if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Both reports were retrieved and compared.',calls:[0]}]}};assert.ok(outputs.length);return {response:outputs.shift()};}}};
+ const env={AGENT_MCP_ENDPOINTS:'https://one.example/mcp,https://two.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(JSON.stringify(input));if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Both reports were retrieved and compared.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};assert.ok(outputs.length);return {response:outputs.shift()};}}};
  const fetcher=async(url:any,init:any)=>{
   if(init.method==='DELETE')return new Response(null,{status:204});
   const message=JSON.parse(init.body);if(message.method==='notifications/initialized')return new Response(null,{status:202});
@@ -130,7 +130,7 @@ test('job-first generation excludes connected inventory and requires complete pr
  assert.equal(response.status,200);assert.deepEqual(response.body.bindings,{});assert.equal(response.body.requiresReview,true);
  const input=JSON.parse(h.prompts[0]);assert.deepEqual(JSON.parse(input.messages[1].content),{description:'social media post scanner for example.com'});
  assert.equal(response.body.definition.evaluation.rubrics.length,1);assert.match(response.body.definition.boundaries,/never modify/);
- for(const change of [{boundaries:''},{evaluation:undefined},{evaluation:{version:1,checks:[]}},{evaluation:{version:1,checks:[],rubrics:Array(7).fill({id:'a',label:'A',criterion:'A'})}},{permissions:['*']}]) assert.throws(()=>proposedPlan({...draft,...change},[]));
+ for(const change of [{boundaries:''},{evaluation:undefined},{evaluation:{version:1,checks:[]}},{evaluation:{version:1,checks:[],rubrics:Array(7).fill({id:'a',label:'A',criterion:'A',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}})}},{permissions:['*']}]) assert.throws(()=>proposedPlan({...draft,...change},[]));
 });
 
 test('draft review is bound to definition, inputs and selected sources and cannot authorize actions',async()=>{
@@ -170,9 +170,17 @@ test('an unavailable outcome assessor leaves a completed trial inconclusive',asy
 
 test('draft outcome IDs are application-assigned without losing model criteria',()=>{
  for(const ids of [[undefined,undefined],['scope','scope'],['NOT A VALID ID','approval']]) {
-  const rubrics=ids.map((id,i)=>({...(id===undefined?{}:{id}),label:'Check '+i,criterion:'Evidence criterion '+i}));
+  const rubrics=ids.map((id,i)=>({...(id===undefined?{}:{id}),label:'Check '+i,criterion:'Evidence criterion '+i,measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}));
   const plan=proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics}},[]);
   assert.deepEqual(plan.definition.evaluation!.rubrics,rubrics.map((r,i)=>({...r,id:'outcome_'+(i+1)})));
  }
- assert.throws(()=>proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics:[{label:'Check',criterion:'Evidence',permissions:['*']}]}},[]));
+ assert.throws(()=>proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics:[{label:'Check',criterion:'Evidence',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'},permissions:['*']}]}},[]));
+});
+
+test('new drafts require complete measurement procedures while retaining server-owned IDs',()=>{
+ for(const measurement of [undefined,{}, {method:'Count'}, {method:'Count',evidence:''}]) {
+  assert.throws(()=>proposedPlan({...draft,evaluation:{version:1,checks:[],rubrics:[{label:'Grounding',criterion:'100% supported',measurement}]}},[]));
+ }
+ const p=proposedPlan(draft,[]);
+ assert.deepEqual(p.definition.evaluation!.rubrics![0].measurement,draft.evaluation.rubrics[0].measurement);
 });

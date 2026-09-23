@@ -21,9 +21,9 @@ const ai={async run(_model:any,input:any){
 
  if(input.messages[0].content.startsWith('Design an agent')) {
   assert.deepEqual(Object.keys(JSON.parse(input.messages[1].content)),['description']);
-  return {response:{title:'Social research',goal:'Research social posts relevant to the supplied company',instructions:'Search the selected platforms and summarize relevant findings with links.',success:'A sourced research brief with coverage gaps',boundaries:'Read public posts only. Do not publish, reply, send messages or purchase data.',requirements:[{label:'Search public social media posts',matches:[]}],questions:['Which platforms and time window should the research cover?'],evaluation:{version:1,checks:[],rubrics:[{id:'relevance',label:'Relevant findings',criterion:'Each finding explains its relevance to the supplied company using retrieved evidence.'},{id:'sources',label:'Traceable sources',criterion:'Each finding includes its original source link and date, or explicitly flags missing metadata.'}]}}};
+  return {response:{title:'Social research',goal:'Research social posts relevant to the supplied company',instructions:'Search the selected platforms and summarize relevant findings with links.',success:'A sourced research brief with coverage gaps',boundaries:'Read public posts only. Do not publish, reply, send messages or purchase data.',requirements:[{label:'Search public social media posts',matches:[]}],questions:['Which platforms and time window should the research cover?'],evaluation:{version:1,checks:[],rubrics:[{id:'relevance',label:'Relevant findings',criterion:'Each finding explains its relevance to the supplied company using retrieved evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}},{id:'sources',label:'Traceable sources',criterion:'Each finding includes its original source link and date, or explicitly flags missing metadata.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]}}};
  }
- if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',calls:[0]},{id:'outcome_2',status:'pass',reason:'The finding includes the retrieved source URL and date.',calls:[0]}]}};
+ if(input.messages[0].content.startsWith('Assess each frozen')) {assert.match(JSON.parse(input.messages[1].content).task.inputs,/Reddit, last seven days/);return {response:{criteria:[{id:'outcome_1',status:'fail',reason:'The retrieved posts do not establish relevance to the requested company.',observed:'1 / 1 claims supported (100%).',calls:[0]},{id:'outcome_2',status:'pass',reason:'The finding includes the retrieved source URL and date.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};}
  return {response:step++%2===0?{type:'call',tool:'step_1',arguments:{}}:{type:'finish',summary:'An unrelated post: https://social.example/post/1, dated 2026-09-22.',outcome:'met',reason:'Search succeeded.'}};
 }};
 const transport=async (_url:any,init:any)=>{
@@ -42,7 +42,7 @@ const server = createServer(async (req, res) => {
  if (!url.pathname.startsWith('/api/')) { const out = await worker.fetch(new Request(url), env); res.statusCode = out.status; out.headers.forEach((v,k)=>res.setHeader(k,v)); res.end(Buffer.from(await out.arrayBuffer())); return; }
  let value: any = {};
  if (url.pathname === '/api/console/session') value = {tenant_id:'acme', email:'owner@example.com', memberships:['acme','beta'].map(id=>({tenant:{tenant_id:id,display_name:id},membership:{role:viewer?'viewer':'owner'}}))};
- else if (url.pathname.endsWith('/catalog')) value = {servers:[{name:'research/social',title:'Social post search',description:'Search public social media posts with source links and timestamps',version:'1',publisher:'research',endpoints:['https://mcp.firecrawl.dev/v2/mcp'],inspectableEndpoints:[],hosting:'Remote server',setup:'Connect',capabilities:[],authTypes:[]}],total:1,capabilities:[],authTypes:[],nextOffset:null};
+ else if (url.pathname.endsWith('/catalog')) value = {servers:[{name:'research/social',title:'Social post search',website:'https://provider.example/pricing',description:'Search public social media posts with source links and timestamps',version:'1',publisher:'research',endpoints:[],inspectableEndpoints:[],hosting:'Remote server',setup:'Connect',capabilities:[],authTypes:[]}],total:1,capabilities:[],authTypes:[],nextOffset:null};
  else if (url.pathname.endsWith('/evals')) value={schema_version:'agentaction.tenant-evals.v1',definitions:[],assignments:[]};
  else if (url.pathname.endsWith('/setup')) value={membership:{role:viewer?'viewer':'owner'},sources:[]};
  else if (url.pathname.startsWith('/api/agents/')) {
@@ -75,12 +75,28 @@ try {
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
+ await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').fill('Count findings supported by sources divided by all findings. Pass at 100%; no search evidence is inconclusive.');
  await page.locator('#create-agent').click();await page.getByText('Agent draft saved. Continue setup whenever you are ready.',{exact:true}).waitFor();
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
- assert.match(await field('boundaries').inputValue(),/No posts/);assert.match(await page.locator('[data-rubric-id=outcome_1] textarea').inputValue(),/directly concern/);
+ assert.match(await field('boundaries').inputValue(),/No posts/);assert.match(await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').inputValue(),/directly concern/);
+ assert.match(await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').inputValue(),/divided by all findings/);
+ assert.match(await page.locator('#mapping-status').innerText(),/Search public social media posts/);
+ await page.locator('#mapping-status').getByRole('button',{name:'Search public social media posts',exact:true}).click();
+ assert.equal(await page.locator('[data-capability-step=step_1]').evaluate(el=>el===document.activeElement),true);
+ const provider=page.locator('[data-registry-server="research/social"]');
+ await provider.getByText('Pricing: not available in this catalog.',{exact:false}).waitFor();
+ await provider.getByRole('button',{name:'Select server & review setup',exact:true}).click();
+ await page.getByRole('heading',{name:'Connect a server for Search public social media posts',exact:true}).waitFor();
+ assert.match(await page.locator('#catalog-selection').innerText(),/Selected for setup: Social post search/);
+ assert.match(await page.locator('#catalog-selection').innerText(),/local stdio/);
+ assert.equal(await page.locator('#catalog-selection a').getAttribute('href'),'https://provider.example/pricing');
+ assert.equal(await page.locator('#precheck-endpoint').inputValue(),'');
+ assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
+ assert.equal((await latest()).drafts[0].review,undefined);
+ await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor();
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- await page.screenshot({path:'/tmp/aa263-mobile.png',fullPage:true});
- await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:'/tmp/aa263-desktop.png',fullPage:true});
+ await page.screenshot({path:'/tmp/aa267-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:'/tmp/aa267-desktop.png',fullPage:true});
  // Connecting a research source does not rewrite the job or approve a tool call.
  await storage.put('connection:research',{...connection,id:'research',label:'Research source',endpoint:'https://mcp.firecrawl.dev/v2/mcp',tools:[researchTool]});
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
@@ -94,5 +110,7 @@ try {
  const approved=await runtimes.acme.handle(new Request('https://runtime.test/approve',{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify({runId:trial.id,approvalId:trial.pending.id})}));assert.equal(approved.status,200);
  await page.locator('#refresh').click();await page.getByText('Relevant findings · fail',{exact:true}).waitFor({state:'attached'});
  assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='outcome_1').trust,'ai_assessed');
+ assert.match(await page.locator('[data-hosted-evaluation]').first().innerText(),/Observed measurement: 1 \/ 1/);
+ assert.match((await latest()).runs[0].contract.binding.specification.rubrics[0].measurement.method,/divided by all findings/);
  assert.deepEqual(errors,[]);console.log('Job-first browser acceptance passed: scope, ranking, editing, persistence, review, mobile, exact-action approval and outcome failure.');
 } finally {await browser.close();await new Promise<void>(r=>server.close(()=>r()));}

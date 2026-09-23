@@ -1,6 +1,6 @@
 import type { AgentIdea } from './agent-profiler.ts';
 import type { AgentPlan, ToolBindings } from './agent-plans.ts';
-import type { RecipeCheck, RecipeEval } from "./recipe-evaluation.ts";
+import type { RecipeCheck, RecipeEval, OutcomeRubric } from "./recipe-evaluation.ts";
 import type { RecipeDefinition, RecipeRevision } from "./workspace-recipes.ts";
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { recipes, type Recipe } from "../../recipes/registry.ts";
@@ -9,7 +9,7 @@ import type { PrecheckReport } from "./mcp-precheck.ts";
 import { mcpMatching, MATCHING_FACTORY_JS } from './mcp-matching.ts';
 import type { CatalogResult, CatalogServer } from "./mcp-registry.ts";
 import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
-const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.outcome-rubric{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,2fr) auto;gap:12px;align-items:start;margin:16px 0}.outcome-rubric textarea{width:100%}#draft-policy,#draft-approval{margin:28px 0;padding-top:20px;border-top:1px solid #cbd0c4}@media(max-width:850px){.outcome-rubric{grid-template-columns:1fr}}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
+const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.outcome-rubric{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin:16px 0;padding:16px;border:1px solid #cbd0c4;background:#fff}.outcome-rubric textarea{width:100%}#draft-policy,#draft-approval{margin:28px 0;padding-top:20px;border-top:1px solid #cbd0c4}@media(max-width:850px){.outcome-rubric{grid-template-columns:1fr}}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -21,7 +21,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <div id="catalog-view"><form id="catalog-search" role="search"><div class="fields catalog-filters"><label>What do you want your agent to do?<input id="catalog-query" name="q" type="search" maxlength="200" placeholder="Try send emails, query a database, or a service name"></label><label>Capability<select id="catalog-capability" name="capability"><option value="">All capabilities</option></select></label><label>Authentication<select id="catalog-auth" name="auth" aria-describedby="catalog-auth-help"><option value="">All authentication types</option></select></label></div><p id="catalog-auth-help" class="note">Authentication labels reflect declared headers or package inputs, including optional credentials. Not specified does not mean no authentication. Check provider documentation for OAuth, pricing and requirements for your chosen deployment.</p><div class="actions"><button type="submit">Search registry</button><button id="manual-connect" type="button" class="secondary">Add your own MCP server</button></div></form>
 <p id="catalog-status" class="note" role="status" aria-live="polite">Search MCP directories. Tool catalogs are advertised; connect to discover tools for your account.</p><div id="catalog-results" class="grid" aria-label="MCP server search results"></div><button id="catalog-more" type="button" class="secondary" hidden>Show more servers</button>
 </div><div id="setup-view" hidden><button id="back-to-results" type="button" class="secondary">← Back to results</button>
-<div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><p id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</p>
+<div id="connection-details"><h3 tabindex="-1" id="setup-heading">Add an MCP server</h3><div id="catalog-selection" class="note">Enter a server’s HTTPS endpoint to start an automatic pre-check.</div>
 <form id="connect"><div class="fields setup-fields"><label>Server / account name<input name="label" maxlength="100" placeholder="My Firecrawl" required></label><label>MCP endpoint<input id="precheck-endpoint" name="endpoint" type="url" maxlength="2048" placeholder="https://mcp.example.com/mcp" required aria-describedby="precheck-status"></label><label>Protocol<select name="protocol"><option value="2025-03-26">Session-based MCP (2025)</option><option value="2026-07-28">Stateless MCP (2026-07-28)</option></select></label></div>
 <div class="setup-columns"><section id="endpoint-precheck" class="precheck-panel" aria-label="Endpoint pre-check"><h3 id="precheck-heading">Pre-check findings</h3><p id="inspection-target" class="note"></p><p class="note"><a href="https://mcpcheck.agentaction.dev" target="_blank" rel="noopener noreferrer">Developer readiness checker ↗</a> · inspect, export and optionally publish a public profile.</p><p class="note">Runs automatically for the endpoint you choose. No AI, credentials or tool execution. Recent results are reused for one hour; Recheck requests fresh observations. Up to 30 new checks per workspace per day.</p><p id="precheck-status" role="status" aria-live="polite">Enter an HTTPS endpoint to start.</p><button id="precheck-run" type="button" class="secondary">Recheck endpoint</button><div id="precheck-results" aria-live="polite"></div><details><summary>Recent workspace pre-checks</summary><div id="precheck-history"></div></details></section>
 <div class="connection-access"><h3>Approve and connect</h3><p id="connection-target" class="note"></p><p class="note">Review the findings before sharing credentials. A pre-check does not approve an endpoint or certify a provider as safe.</p>
@@ -42,16 +42,16 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <details id="manual-options"><summary>Set up manually</summary><button id="start-scratch" type="button" class="secondary">Start from scratch</button></details>
 <section id="continue-agents" hidden><h2>Continue an agent</h2><div id="agent-drafts" class="grid"></div></section>
 </section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><section id="draft-policy"><h3>Guardrails &amp; success checks</h3><p class="note">Review and edit these proposals before approving your draft.</p><label>Proposed guardrails<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope, prohibited actions and when the agent should stop."></textarea></label><p class="note">Agent instructions: these guide the model. Runtime-enforced controls remain selected tools only, approval before every exact action, and four calls per trial.</p><h4>What a good result looks like</h4><p class="note">Each outcome check is assessed by AI against the answer and retained tool evidence after the trial. Missing evidence is inconclusive.</p><div id="outcome-rubrics"></div><button id="add-outcome-rubric" type="button" class="secondary">Add outcome check</button></section><section id="agent-tools" hidden><h3>Find the best tools for this job</h3><p class="note">Candidates are ranked by capability fit across the catalog and your connections. Connection status affects setup, not ranking. Provider declarations need verification.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><details id="draft-customize"><summary>Advanced instructions &amp; evidence checks</summary>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><section id="draft-policy"><h3>Guardrails &amp; success checks</h3><p class="note">Review and edit these proposals before approving your draft.</p><label>Proposed guardrails<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope, prohibited actions and when the agent should stop."></textarea></label><p class="note">Agent instructions: these guide the model. Runtime-enforced controls remain selected tools only, approval before every exact action, and four calls per trial.</p><h4>Measurable success checks</h4><p class="note">AI proposes the pass thresholds, measurement procedures and evidence below. Edit them before approval. After a trial, an AI assessor reports the observed measurement against each threshold using retained evidence; unavailable evidence is inconclusive. These are AI assessments, not deterministic calculations.</p><div id="outcome-rubrics"></div><button id="add-outcome-rubric" type="button" class="secondary">Add outcome check</button></section><section id="agent-tools" hidden><h3>Find the best tools for this job</h3><p class="note">Candidates are ranked by capability fit across the catalog and your connections. Connection status affects setup, not ranking. Provider declarations need verification.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><details id="draft-customize"><summary>Advanced instructions &amp; evidence checks</summary>
 <div class="fields"><label>Agent name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
 <label>Inputs this agent needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
 <fieldset id="editor-tools"><legend>Allowed tools · choose up to four</legend><div id="tool-options" class="fields"></div></fieldset>
 <div class="fields"><label>Instructions<textarea name="instructions" maxlength="2000" rows="4" placeholder="Steps the agent should follow."></textarea></label></div>
 <label>What counts as success?<textarea name="success" maxlength="2000" rows="3" required></textarea></label>
-<p id="selected-tools" class="note">The success text guides the AI assessment. Measurable checks below evaluate recorded evidence separately.</p>
+<p id="selected-tools" class="note">The success text guides the AI assessment. Optional deterministic checks below compare exact recorded tool fields. Generated success checks above use AI to assess their declared evidence; no result-field paths are invented before tool schemas are known.</p>
 <label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
-<fieldset id="eval-editor"><legend>Measurable checks</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
+<fieldset id="eval-editor"><legend>Additional checks on recorded fields</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save as a template</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new template</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
 </details><section id="draft-approval" hidden><h3>Approve your draft</h3><p id="draft-review-status" role="status" class="note"></p><button id="approve-draft" type="button" class="secondary">Approve guardrails and success checks</button><p class="note">Approval covers this draft and tool selections. Each actual tool call still needs separate approval.</p></section><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
@@ -136,6 +136,19 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const requirement=currentPlan.requirements.find(r=>r.id===stepId)!;
     get('setup-heading').textContent=`Connect a server for ${requirement.label}`;
     get('recipe-return').querySelector('a')!.textContent=`← Back to ${requirement.label}`;
+  }
+  function providerLink(host:HTMLElement,server:CatalogServer) {
+    try {const u=new URL(server.website || '');if(u.protocol==='https:'&&!u.username&&!u.password){const a=node('a','Open provider pricing & setup ↗') as HTMLAnchorElement;a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';host.append(a);}}catch{}
+  }
+  async function setupProvider(stepId:string|undefined,server:CatalogServer,endpoint:string) {
+    const selectedTenant=tenant,planId=currentPlan?.id,editor=editorGeneration;
+    if(stepId) await setupCapability(stepId,endpoint,server.title,server.setup);
+    else openSetup(endpoint,server.title,server.setup);
+    if(tenant!==selectedTenant || editor!==editorGeneration || stepId && (currentPlan?.id!==planId || capabilitySetup?.stepId!==stepId))return;
+    const context=get('catalog-selection');
+    context.append(node('p',`Selected for setup: ${server.title}. ${stepId?'This capability still needs a discovered tool. ':''}Pricing is unknown; check the provider before connecting.`, 'note'));
+    providerLink(context,server);
+    if(!endpoint) context.append(node('p','1. Check provider pricing and supported deployment. 2. Obtain a supported HTTPS MCP endpoint and account credentials from the provider. 3. Enter the endpoint below, connect, then return to choose a discovered tool. If only local stdio is offered, choose another server.','note'));
   }
   function listingText(server: CatalogServer) {
     return server.name+' '+server.description+' '+(server.catalogEvidence?.tools.map(t=>t.name.replace(/[_-]/g,' ')+' '+t.description+' '+JSON.stringify(t.inputSchema || {})+' '+JSON.stringify(t.outputSchema || {})).join(' ') || '');
@@ -226,7 +239,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const cards=new Map<string,HTMLElement>();
       for(const candidate of candidates) if('connection' in candidate) {
         const c=candidate.connection as any,t=candidate.tool as any,card=node('article','','server-choice');card.dataset.connectedTool=t.name;
-        card.append(node('strong',`${c.label} · ${t.name}`),node('span','Connected','pill'),node('p',candidate.fitReason,'note'));
+        card.append(node('strong',`${c.label} · ${t.name}`),node('span','Connected','pill'),node('p',candidate.fitReason,'note'),node('p','Pricing: not available in this catalog. Connected does not mean free. Check your provider account.','note'));
         const detail=node('details');detail.append(node('summary','Tool details'),node('p',t.description || 'No description supplied.','note'));card.append(detail,button('Use this tool',async()=>chooseTool(requirement.id,{connectionId:c.id,tool:t.name})));cards.set(candidate.id,card);
       }
       if(!candidates.length) host.append(node('p','No matching servers found in the current registry. Refine the search or connect your own MCP server.','note'));
@@ -236,9 +249,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',candidates.find(c=>c.id===server.name)!.fitReason,'note'));
         const terms=server.matchTerms || matcher.match(query,server.title,listingText(server)).terms;
         card.append(node('p',`Listing or tool metadata mentions: ${terms.join(', ')}.`,'note'));
-        card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'));
+        card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'),node('p','Pricing: not available in this catalog. Check provider pricing and usage charges before connecting.','note'));
         const details=node('details');details.append(node('summary','Provider details & limitations'));catalogEvidence(details,server,query);card.append(details);
-        if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Provider details ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
+        if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Check provider pricing & setup ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
         if(connected.length) {
           card.append(node('p','Choose an actual tool from this connected server.','note'));
           if(!connected.some((c:any)=>c.tools.some((t:any)=>matcher.match(query,t.name,t.description || '').score>0))) card.append(node('p','This account has no matching discovered tool. Review provider access or choose another source.','note'));
@@ -248,8 +261,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           const label=node('label','Endpoint'),select=doc.createElement('select');select.setAttribute('aria-label',`Endpoint for ${server.title}`);
           for(const endpoint of server.endpoints) select.append(new Option(endpoint,endpoint));
           select.disabled=role==='viewer';if(server.endpoints.length>1) {label.append(select);card.append(label);}
-          card.append(node('p','Review provider authentication and workspace access before connecting.','note'),button('Review & connect',async()=>setupCapability(requirement.id,select.value,server.title,server.setup)));
-        } else card.append(node('p','Setup outside this console is required. Use the provider details, then connect your own supported HTTPS endpoint.','note'));
+          card.append(node('p','Review provider authentication and workspace access before connecting.','note'),button('Select server & connect',async()=>setupProvider(requirement.id,server,select.value)));
+        } else card.append(node('p','No supported endpoint is listed. Check whether the provider offers an HTTPS MCP endpoint; local-only servers cannot connect here.','note'),button('Select server & review setup',async()=>setupProvider(requirement.id,server,'')));
         cards.set(server.name,card);
       }
       for(const candidate of candidates) {const card=cards.get(candidate.id);if(card)host.append(card);}
@@ -274,7 +287,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     if(!currentPlan) return;
     const host=get('tool-mappings');host.replaceChildren();
     for(const requirement of currentPlan.requirements) {
-      const card=node('section','','capability-step');card.dataset.capabilityStep=requirement.id;
+      const card=node('section','','capability-step');card.dataset.capabilityStep=requirement.id;card.tabIndex=-1;
       card.append(node('h4',requirement.label));host.append(card);
       const binding=currentPlan.bindings[requirement.id],connection=state.connections.find((c:any)=>c.id===binding?.connectionId && c.status==='connected');
       const selected=connection?.tools.find((t:any)=>t.name===binding?.tool);
@@ -392,8 +405,13 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function updateMappingStatus() {
     if(!currentPlan) return;
-    const missing=currentPlan.requirements.length-Object.keys(selectedBindings()).length;
-    get('mapping-status').textContent=missing ? `${missing} ${missing===1?'capability':'capabilities'} still need an MCP tool. You can save this draft now.` : 'Sources selected · capability support still needs a trial. Review and approve the draft before the first action.';
+    const bindings=selectedBindings(),unmapped=currentPlan.requirements.filter(r=>!bindings[r.id]),missing=unmapped.length;
+    const status=get('mapping-status');status.replaceChildren(node('span',missing ? 'Still needs a tool: ' : 'Sources selected · capability support still needs a trial. Review and approve the draft before the first action.'));
+    for(const requirement of unmapped) status.append(button(requirement.label,async()=>{
+      const target=[...doc.querySelectorAll<HTMLElement>('[data-capability-step]')].find(el=>el.dataset.capabilityStep===requirement.id);
+      if(target){target.scrollIntoView({block:'start'});target.focus();const choices=target.querySelector('details');if(choices)choices.open=true;}
+    }));
+    if(missing)status.append(node('span',' Select a provider, connect your account, then choose a discovered tool. You can save this draft now.'));
     const needsReview=currentPlan.requiresReview && !currentPlan.review;
     get('draft-review-status').textContent=needsReview?'Review the current guardrails and success checks. Edits to the draft or tools require a new approval.':'Draft approved. Any edit will require review again.';
     get<HTMLButtonElement>('approve-draft').disabled=role==='viewer' || Boolean(currentPlan.review);
@@ -464,7 +482,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       }
       return check;
     });
-    const rubrics=[...doc.querySelectorAll<HTMLElement>('[data-rubric-id]')].map(row=>({id:row.dataset.rubricId!,label:row.querySelector<HTMLInputElement>('[data-rubric-label]')!.value.trim(),criterion:row.querySelector<HTMLTextAreaElement>('[data-rubric-criterion]')!.value.trim()}));
+    const rubrics=[...doc.querySelectorAll<HTMLElement>('[data-rubric-id]')].map(row=>{
+      const value=(key:string)=>row.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-rubric-${key}]`)!.value.trim();
+      const method=value('method'),evidence=value('evidence');
+      return {id:row.dataset.rubricId!,label:value('label'),criterion:value('criterion'),...(method||evidence?{measurement:{method,evidence}}:{})};
+    });
     return { version: 1, checks, ...(rubrics.length?{rubrics}:{}) };
   }
   function definitionFromEditor(): RecipeDefinition {
@@ -547,12 +569,17 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function invalidateReview() { draftGeneration++;if(currentPlan) {delete currentPlan.review;updateMappingStatus();} }
-  function addOutcomeRubric(rubric?:{id:string;label:string;criterion:string}) {
+  function addOutcomeRubric(rubric?:OutcomeRubric) {
     if(get('outcome-rubrics').children.length>=6)return;
     const row=node('div','','outcome-rubric');row.dataset.rubricId=rubric?.id || 'outcome_'+crypto.randomUUID().replaceAll('-','');
     const label=node('label','Check name'),name=doc.createElement('input');name.dataset.rubricLabel='';name.value=rubric?.label || '';name.maxLength=120;name.required=true;name.disabled=role==='viewer';label.append(name);
-    const criterionLabel=node('label','Pass when'),criterion=doc.createElement('textarea');criterion.dataset.rubricCriterion='';criterion.value=rubric?.criterion || '';criterion.maxLength=500;criterion.rows=2;criterion.required=true;criterion.disabled=role==='viewer';criterionLabel.append(criterion);
-    row.append(label,criterionLabel,button('Remove outcome check',async()=>{row.remove();invalidateReview();}));get('outcome-rubrics').append(row);
+    const criterionLabel=node('label','Pass threshold / rule'),criterion=doc.createElement('textarea');criterion.dataset.rubricCriterion='';criterion.value=rubric?.criterion || '';criterion.maxLength=500;criterion.rows=2;criterion.required=true;criterion.disabled=role==='viewer';criterionLabel.append(criterion);
+    const methodLabel=node('label','How it is measured'),method=doc.createElement('textarea');method.dataset.rubricMethod='';method.value=rubric?.measurement?.method || '';method.maxLength=500;method.rows=3;method.disabled=role==='viewer';method.placeholder='Count supported findings / all findings; report counts and percentage. State the zero-result rule.';methodLabel.append(method);
+    const evidenceLabel=node('label','Evidence used'),evidence=doc.createElement('textarea');evidence.dataset.rubricEvidence='';evidence.value=rubric?.measurement?.evidence || '';evidence.maxLength=300;evidence.rows=3;evidence.disabled=role==='viewer';evidence.placeholder='Final findings and retained search results with source links and timestamps.';evidenceLabel.append(evidence);
+    const missing=node('p','Measurement details are missing. Add a procedure and evidence source before relying on this check.','note');
+    const updateMeasurement=()=>{missing.hidden=Boolean(method.value.trim() && evidence.value.trim());};
+    method.addEventListener('input',updateMeasurement);evidence.addEventListener('input',updateMeasurement);updateMeasurement();row.append(missing);
+    row.append(label,criterionLabel,methodLabel,evidenceLabel,button('Remove outcome check',async()=>{row.remove();invalidateReview();}));get('outcome-rubrics').append(row);
   }
   function renderWorkspaceRecipes() {
     const list = get('workspace-recipes'); list.replaceChildren();
@@ -841,6 +868,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       for (const server of data.servers) {
         const card = node("article", "", "card");
         card.append(node("span", "Advertised · tools unverified", "pill"), node("h3", server.title), node("p", server.description), node("p", `Publisher namespace: ${server.publisher} · ${server.hosting}`, "note"), node("p", `${server.name} · version ${server.version}`, "note"));
+        card.append(node('p','Pricing: not available in this catalog. Check provider pricing and usage charges.','note'));
         catalogEvidence(card,server,catalogQuery);
         if (server.capabilities.length) card.append(node("p", `Capabilities: ${server.capabilities.map((id: string) => capabilityLabels.get(id) || id).join(", ")}`, "note"));
         card.append(node("p", `Declared authentication: ${server.authTypes.map(id => authLabels.get(id) || id).join(", ")}`, "note"), node("p", server.setup, "note"));
@@ -859,9 +887,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required";
           select.addEventListener("change", () => { accessLabel.dataset.endpointAccess = select.value; accessLabel.textContent = endpointEnabled(select.value) ? "Enabled for this workspace" : "Owner approval required"; });
           endpointLabel.append(select); card.append(accessLabel, endpointLabel, button("Use this server", async () => {
-            if(capabilitySetup && currentPlan?.id===capabilitySetup.planId) await setupCapability(capabilitySetup.stepId,select.value,server.title);else openSetup(select.value, server.title);
+            await setupProvider(capabilitySetup && currentPlan?.id===capabilitySetup.planId ? capabilitySetup.stepId : undefined,server,select.value);
           }));
-        } else card.append(node("p", "Setup required outside this builder", "pill"));
+        } else card.append(node("p", "No supported endpoint listed", "pill"),button("Select server & review setup",async()=>setupProvider(capabilitySetup && currentPlan?.id===capabilitySetup.planId ? capabilitySetup.stepId : undefined,server,"")));
         const inspectable = server.inspectableEndpoints || server.endpoints;
         for (const endpoint of inspectable) {
           const badge = node("p", "Not pre-checked", "note"); badge.dataset.inspectionEndpoint = endpoint;
