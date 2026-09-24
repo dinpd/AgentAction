@@ -50,6 +50,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify explicit section saves and editable draft recovery
+        run: node --experimental-strip-types tests/section-save-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify OAuth browser and durable workspace flow
         run: npm run test:oauth-browser
         env:

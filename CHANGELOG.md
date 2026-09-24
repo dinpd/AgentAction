@@ -4,6 +4,23 @@
 
 No changes yet.
 
+## 0.40.0-rc.1 - 2026-09-24
+
+### Added
+
+- Explicit Save draft controls at the bottom of every setup section, saving all current draft edits with visible unsaved, saving, saved and retryable failure states. No autosave or execution is implied. Warn before leaving unsaved edits; concurrent saves cannot replace newer edits.
+- Collapsed setup headings summarize missing answers, selected tools and missing capabilities, draft approval and trial readiness. Rename the section to Tools to include action tools as well as data retrieval.
+
+### Fixed
+
+- Preserve clarification answers and covered-in-job-details choices in editable fields after saving and reloading instead of folding them away into job text. Update prerequisites and approval controls immediately as the draft changes.
+
+### Compatibility and migration
+
+- Add optional validated jobDetails editor metadata to saved drafts; composed job inputs remain the execution and review source of truth. Existing drafts and clients remain supported. Legacy answers already embedded in job text remain there and are marked covered; no destructive migration is performed.
+- Saving never grants approval or runs a tool. Credential exclusion also covers unused answers. No changes to existing agents or schedules.
+- Install Python artifacts from the GitHub v0.40.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.39.1-rc.1 - 2026-09-24
 
 ### Fixed

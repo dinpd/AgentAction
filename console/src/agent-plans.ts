@@ -5,8 +5,22 @@ import type { DraftFieldChecks } from './mcp-capabilities.ts';
 export type ToolSource = { connectionId: string; tool: string };
 export type ToolBindings = Record<string, ToolSource>;
 export type ToolRequirement = { id: string; label: string; matches: ToolSource[] };
-export type AgentPlan = { requiresReview?:boolean; review?:{digest:string;actor:string;at:string}; fieldChecks?: DraftFieldChecks; workspaceRecipe?: {id:string;version:number}; id: string; definition: RecipeDefinition; requirements: ToolRequirement[]; questions: string[]; setup: string; bindings: ToolBindings; createdAt: string; updatedAt: string; agentId?: string };
+export type DraftJobDetails = {text:string;answers:Array<{value:string;covered:boolean}>};
+export type AgentPlan = { jobDetails?:DraftJobDetails; requiresReview?:boolean; review?:{digest:string;actor:string;at:string}; fieldChecks?: DraftFieldChecks; workspaceRecipe?: {id:string;version:number}; id: string; definition: RecipeDefinition; requirements: ToolRequirement[]; questions: string[]; setup: string; bindings: ToolBindings; createdAt: string; updatedAt: string; agentId?: string };
 export type AvailableTool = ToolSource & { id: string; description?: string };
+
+export function draftJobDetails(value:unknown, questions:string[]): {details:DraftJobDetails;setup:string} {
+  const raw=object(value);
+  if(Object.keys(raw).some(k=>!['text','answers'].includes(k)) || typeof raw.text!=='string' || raw.text.length>4000 || !Array.isArray(raw.answers) || raw.answers.length!==questions.length) throw new RuntimeError('Job details must contain the job text and an answer for each draft question.');
+  const answers=raw.answers.map((value:unknown)=>{
+    const answer=object(value);
+    if(Object.keys(answer).sort().join(',')!=='covered,value' || typeof answer.value!=='string' || answer.value.length>400 || typeof answer.covered!=='boolean') throw new RuntimeError('Each answer needs text of up to 400 characters and a covered-in-job-details choice.');
+    return {value:answer.value,covered:answer.covered};
+  });
+  const setup=[raw.text.trim(),...answers.flatMap((a,i)=>a.covered||!a.value.trim()?[]:[`${questions[i]}\n${a.value.trim()}`])].filter(Boolean).join('\n\n');
+  if(setup.length>4000) throw new RuntimeError('Keep the job details and answers below 4,000 characters.');
+  return {details:{text:raw.text,answers},setup};
+}
 
 function builtInProcessing(r: ToolRequirement): boolean {
   const processing=new Set(['analysis','reasoning','summarization','summarisation','writing','generation','summarize','summarise','summarizing','summarising','summary','summaries','analyze','analyse']);

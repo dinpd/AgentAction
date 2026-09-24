@@ -154,7 +154,7 @@ try {
  releaseSuggestions?.();await page.waitForTimeout(100);assert.equal(await contact.locator('[data-registry-server="org.example/licenses"]').count(),0);
  // A response for a departed workspace cannot populate the next workspace.
  await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('Delayed license');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await page.waitForTimeout(100);
- await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();releaseSuggestions?.();await page.waitForTimeout(100);assert.equal(await page.locator('[data-registry-server]').count(),0);
+ page.once('dialog',dialog=>dialog.accept());await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();releaseSuggestions?.();await page.waitForTimeout(100);assert.equal(await page.locator('[data-registry-server]').count(),0);
  viewer=true;await page.goto(base+'/agents?workspace=acme');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Continue setup',exact:true}).isDisabled(),true);
  assert.ok(!methods.includes('tools/call'));assert.ok(!methods.includes('resources/read'));
  assert.equal(await page.evaluate(()=>(window as any).injected),undefined);assert.deepEqual(errors,[]);assert.ok(posts.every(p=>!['approve','trial','create-bound'].includes(p.action)));
