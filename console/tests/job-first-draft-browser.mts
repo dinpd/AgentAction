@@ -172,6 +172,7 @@ try {
  const trial=(await latest()).runs[0];assert.equal(trial.status,'awaiting_approval');assert.equal(trial.events.length,0);
  const approved=await runtimes.acme.handle(new Request('https://runtime.test/approve',{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify({runId:trial.id,approvalId:trial.pending.id})}));assert.equal(approved.status,200);
  await page.locator('#refresh').click();await page.getByText('Relevant findings · fail',{exact:true}).waitFor({state:'attached'});
+ await page.locator('[data-run-group] > summary').click();
  assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='outcome_1').trust,'ai_assessed');
  assert.match(await page.locator('[data-hosted-evaluation]').first().innerText(),/Observed measurement: 0 \/ 1/);
  assert.match((await latest()).runs[0].contract.binding.specification.rubrics[0].measurement.method,/divided by all findings/);
