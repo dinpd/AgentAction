@@ -138,7 +138,8 @@ try {
  await storage.put('connection:other',{...connection,id:'other',label:'Second account'});
  await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.locator('#draft-feedback').filter({hasText:'Draft generated.'}).waitFor({state:'attached'});await page.locator('#configure').waitFor();
  assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
- await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ assert.equal(await page.locator('#draft-save-shortcut').textContent(),'Saved');
+ assert.equal(await page.locator('#draft-save-shortcut').isDisabled(),true);
  // Switching workspaces clears private editing state; empty workspace can still draft.
  await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  assert.equal(await page.locator('#continue-agents').isHidden(),true);assert.equal(await page.locator('#saved-examples').isHidden(),true);
