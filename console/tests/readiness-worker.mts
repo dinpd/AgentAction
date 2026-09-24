@@ -7,7 +7,7 @@ try {
   const html=await mf.dispatchFetch('https://mcpcheck.agentaction.dev/');assert.equal(html.status,200);assert.match(html.headers.get('content-security-policy')!,/script-src 'self'/);assert.match(await html.text(),/MCP READINESS CHECK/);
   const script=await (await mf.dispatchFetch('https://mcpcheck.agentaction.dev/assets/check.js')).text();
   const listeners:string[]=[];
-  runInNewContext(script,{document:{getElementById:(id:string)=>({addEventListener:(event:string)=>listeners.push(id+':'+event)})},location:{pathname:'/'}},{timeout:1000});
+  runInNewContext(script,{URLSearchParams,document:{getElementById:(id:string)=>({addEventListener:(event:string)=>listeners.push(id+':'+event)})},location:{pathname:'/'}},{timeout:1000});
   assert.deepEqual(listeners,['check-form:submit','export:click']);
   const css=await (await mf.dispatchFetch('https://mcpcheck.agentaction.dev/assets/check.css')).text();
   assert.doesNotMatch(css,/Soleil|@font-face|\/res\//i);
@@ -39,5 +39,11 @@ try {
   assert.equal((await mf.dispatchFetch('https://mcpcheck.agentaction.dev/api/check',{method:'POST',headers,body:'x'.repeat(4097)})).status,413);
   for(let i=0;i<5;i++)assert.equal((await mf.dispatchFetch('https://mcpcheck.agentaction.dev/api/check',{method:'POST',headers:{...headers,'cf-connecting-ip':'192.0.2.200'},body:JSON.stringify({endpoint,protocol:'2026-07-28',publish:false})})).status,200);
   assert.equal((await mf.dispatchFetch('https://mcpcheck.agentaction.dev/api/check',{method:'POST',headers:{...headers,'cf-connecting-ip':'192.0.2.200'},body:JSON.stringify({endpoint,protocol:'2026-07-28',publish:false})})).status,429);
+  const beforePages=calls.length;
+  const directory=await mf.dispatchFetch('https://mcpcheck.agentaction.dev/servers?q=vendor');assert.equal(directory.status,200);assert.match(await directory.text(),/Review server profile/);
+  const profile=await mf.dispatchFetch('https://mcpcheck.agentaction.dev/servers/io.github.vendor%2Fserver');assert.equal(profile.status,200);const profileHTML=await profile.text();assert.match(profileHTML,/Vendor &lt;script&gt;/);assert.match(profileHTML,new RegExp(published.id));assert.match(profileHTML,/Suggest a correction/);
+  assert.ok(calls.slice(beforePages).every(u=>new URL(u).hostname==='registry.modelcontextprotocol.io'),'Browsing must never probe a provider');
+  assert.equal((await mf.dispatchFetch('https://mcpcheck.agentaction.dev/servers/io.github.vendor%2Fmissing')).status,404);
+  assert.equal((await mf.dispatchFetch('https://mcpcheck.agentaction.dev/servers?q=a&q=b')).status,400);
   console.log('PASS readiness Worker: real RPC/storage/eviction, optional publication, exact lookup, auth/private/redirect/empty/malformed fixtures, no credentials/tool calls, CSP/origin/body/quota controls.');
 } finally {await mf.dispose();}

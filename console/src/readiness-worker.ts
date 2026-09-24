@@ -1,3 +1,4 @@
+import { publicServers, PUBLIC_SERVERS_CSS } from './mcp-public-profiles.ts';
 import { boundedText, RuntimeError } from './mcp-client.ts';
 import { parseCheck } from './readiness-store.ts';
 import { READINESS_HTML, READINESS_CSS, READINESS_JS } from './readiness-ui.ts';
@@ -16,6 +17,8 @@ export default {
     const url = new URL(request.url);
     try {
       if (request.method === 'GET') {
+        if (url.pathname === '/servers' || url.pathname.startsWith('/servers/')) return publicServers(url, {cache:caches.default, lookup:endpoints => env.MCP_READINESS.getByName('public-v1').lookup(endpoints)});
+        if (url.pathname === '/assets/servers.css') return response(PUBLIC_SERVERS_CSS, 'text/css; charset=utf-8');
         if (url.pathname === '/' || /^\/reports\/[a-f0-9]{64}$/.test(url.pathname)) return response(READINESS_HTML, 'text/html; charset=utf-8');
         if (url.pathname === '/assets/check.css') return response(READINESS_CSS, 'text/css; charset=utf-8');
         if (url.pathname === '/assets/check.js') return response(READINESS_JS, 'text/javascript; charset=utf-8');
