@@ -64,6 +64,35 @@ export async function boundedText(response: Response, limit = 524288): Promise<s
   } finally { await reader.cancel().catch(() => {}); }
 }
 
+// A POST SSE stream can remain open after its response. Stop on the exact RPC
+// result, not EOF; notifications never extend the request's deadline or budget.
+async function streamedResponse(response: Response, id: number, limit = 524288): Promise<Record<string, unknown> | undefined> {
+  if (!response.body) return undefined;
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let size = 0, buffer = '';
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) return undefined;
+      size += chunk.value.byteLength;
+      if (size > limit) throw new RuntimeError("The server response exceeds the supported size limit.", 502);
+      buffer += decoder.decode(chunk.value, { stream: true });
+      for (;;) {
+        const boundary = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
+        if (!boundary) break;
+        const event = buffer.slice(0, boundary.index); buffer = buffer.slice(boundary.index + boundary[0].length);
+        const lines = event.split(/\r\n|\r|\n/).filter(line => line.startsWith('data:'));
+        if (!lines.length) continue;
+        const data = lines.map(line => line.slice(5).replace(/^ /, '')).join('\n');
+        const parsed: unknown = JSON.parse(data);
+        const messages: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+        const match = messages.map(object).find(message => message.id === id && !Object.hasOwn(message, 'method'));
+        if (match) return match;
+      }
+    }
+  } finally { await reader.cancel().catch(() => {}); }
+}
+
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new RuntimeError("Expected an object.");
   return value as Record<string, unknown>;
@@ -87,7 +116,7 @@ export class McpClient {
   fetcher: typeof fetch;
   private beforeRequest: () => Promise<void>;
   constructor(connection: McpConnection, fetcher: typeof fetch = (input, init) => fetch(input, init), beforeRequest: () => Promise<void> = async () => {}) { this.connection = connection; this.fetcher = fetcher; this.beforeRequest = beforeRequest; }
-  async rpc(method: string, params: Record<string, unknown> = {}, notification = false, timeoutMs = 20000): Promise<Record<string, unknown>> {
+  async rpc(method: string, params: Record<string, unknown> = {}, notification = false, timeoutMs = method === "tools/call" ? 60000 : 20000): Promise<Record<string, unknown>> {
     try { await this.beforeRequest(); } catch (error) {
       throw new McpPreflightError(error instanceof RuntimeError ? error.message : "Endpoint validation failed before sending the request.", error instanceof RuntimeError ? error.status : 400);
     }
@@ -111,12 +140,10 @@ export class McpClient {
       const session = response.headers.get("Mcp-Session-Id");
       if (session && /^[\x21-\x7e]{1,256}$/.test(session)) this.session = session;
       if (notification) { await response.body?.cancel(); return {}; }
-      const body = await boundedText(response);
-      const messages: unknown[] = response.headers.get("content-type")?.includes("text/event-stream")
-        ? body.split(/\r?\n\r?\n/).filter(s => /^data:/m.test(s)).map(s => JSON.parse(s.split(/\r?\n/).filter(l => l.startsWith("data:")).map(l => l.slice(5).trimStart()).join("\n")))
-        : [JSON.parse(body)];
-      const message = messages.map(object).find(m => m.id === id);
-      if (!message || message.error || message.jsonrpc !== "2.0") throw new RuntimeError("MCP returned an invalid or failed response.", 502);
+      const message = response.headers.get("content-type")?.includes("text/event-stream")
+        ? await streamedResponse(response, id!)
+        : object(JSON.parse(await boundedText(response)));
+      if (!message || message.id !== id || message.error || message.jsonrpc !== "2.0" || Object.hasOwn(message, "method")) throw new RuntimeError("MCP returned an invalid or failed response.", 502);
       return object(message.result);
     } catch (error) {
       if (error instanceof RuntimeError) throw error;
