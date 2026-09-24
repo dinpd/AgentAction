@@ -119,8 +119,8 @@ try {
  await page.getByRole('link',{name:'← Back to License History',exact:true}).click();await license.getByRole('button',{name:'Browse more matches',exact:true}).click();
  await page.locator('#catalog-results article').filter({has:page.getByRole('heading',{name:'License Records',exact:true})}).getByRole('button',{name:'Use this server',exact:true}).click();
  await page.getByRole('heading',{name:'Connect a server for License History',exact:true}).waitFor();
- assert.equal(await page.locator('#connect [name=endpoint]').inputValue(),endpoint);assert.equal(await page.locator('#connect [name=consent]').isChecked(),false);
- await page.locator('#connect [name=token]').fill('PRIVATE-ACCOUNT-TOKEN');await page.locator('#connect [name=consent]').check();
+ assert.equal(await page.locator('#connect [name=endpoint]').inputValue(),endpoint);assert.equal(await page.locator('#connect [name=consent]').count(),0);
+ await page.locator('#connect [name=token]').fill('PRIVATE-ACCOUNT-TOKEN');
  await page.getByRole('button',{name:'Connect server',exact:true}).click();await license.locator('[data-connected-tool=license_history]').waitFor();
  assert.equal(await page.locator('#connect [name=token]').inputValue(),'');assert.equal(await license.locator('[data-tool-mapping]').inputValue(),'');
  assert.equal(await license.locator('[data-connected-tool]').count(),2);
@@ -130,24 +130,27 @@ try {
  await license.locator('[data-connected-tool=license_history]').getByRole('button',{name:'Use this tool',exact:true}).click();
  assert.match(await license.locator('.selected-tool').innerText(),/license_history/);
  await license.locator('.field-check-editor > summary').click();await license.getByLabel('Required result fields',{exact:true}).fill('/id');
- await labor.getByRole('button',{name:'Connect your own MCP server',exact:true}).click();await page.getByRole('heading',{name:'Connect a server for Labor Market Data',exact:true}).waitFor();
+ await labor.locator('.capability-search-options > summary').click();await labor.getByRole('button',{name:'Connect your own MCP server',exact:true}).click();await page.getByRole('heading',{name:'Connect a server for Labor Market Data',exact:true}).waitFor();
  assert.equal(await page.locator('#connect [name=endpoint]').inputValue(),'');
- await page.locator('#connect [name=label]').fill('My workforce server');await page.locator('#connect [name=endpoint]').fill(ownEndpoint);await page.locator('#connect [name=consent]').check();
- await page.getByRole('button',{name:'Connect server',exact:true}).click();await labor.locator('[data-connected-tool=employment_trends]').waitFor();
+ await page.locator('#connect [name=label]').fill('My workforce server');await page.locator('#connect [name=endpoint]').fill(ownEndpoint);
+ await page.getByRole('button',{name:'Connect server',exact:true}).click();await labor.getByRole('button',{name:'Use My workforce server · employment_trends',exact:true}).waitFor();
  assert.equal(await labor.locator('[data-tool-mapping]').inputValue(),'');assert.match(await license.locator('.selected-tool').innerText(),/license_history/);
- await labor.locator('[data-connected-tool=employment_trends]').getByRole('button',{name:'Use this tool',exact:true}).click();
- await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ assert.equal(await labor.locator('[data-registry-server="org.example/employment"]').getAttribute('data-connection-status'),'connected');
+ assert.equal(await labor.locator('[data-connected-tool=employment_trends]').count(),0); // one representation, not duplicate buttons
+ await labor.getByRole('button',{name:'Use My workforce server · employment_trends',exact:true}).click();
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  const saved=(await latest()).drafts[0];assert.equal(saved.bindings.step_1.tool,'license_history');assert.equal(saved.bindings.step_2.tool,'employment_trends');assert.equal(saved.fieldChecks.step_1.required_outputs[0],'/id');assert.equal(saved.bindings.step_3,undefined);
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();assert.match(await license.locator('.selected-tool').innerText(),/license_history/);
  // Connected recommendations can be selected without another provider connection.
  await license.getByRole('button',{name:'Clear selection',exact:true}).click();await license.locator('[data-connected-tool=lookup_license]').getByRole('button',{name:'Use this tool',exact:true}).click();
  assert.match(await license.locator('.selected-tool').innerText(),/lookup_license/);
  // Refining one capability cannot replace another capability's suggestions.
+ await contact.locator('.capability-search-options > summary').click();
  await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('UnfindableNeedXYZ');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await contact.getByText('No matching servers found',{exact:false}).waitFor();
  failSuggestions=true;await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('contact');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await contact.getByText('Server suggestions are unavailable.',{exact:false}).waitFor();
  failSuggestions=false;await contact.getByRole('button',{name:'Retry suggestions',exact:true}).click();await contact.locator('[data-registry-server="org.example/contacts"]').waitFor();
  delaySuggestions=true;await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('Delayed license');await contact.getByRole('button',{name:'Find servers',exact:true}).click();
- await page.waitForTimeout(100);await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('employment');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await contact.locator('[data-registry-server="org.example/employment"]').waitFor();
+ await page.waitForTimeout(100);await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('employment');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await contact.locator('[data-registry-server="org.example/employment"], [data-connected-tool=employment_trends]').first().waitFor();
  releaseSuggestions?.();await page.waitForTimeout(100);assert.equal(await contact.locator('[data-registry-server="org.example/licenses"]').count(),0);
  // A response for a departed workspace cannot populate the next workspace.
  await contact.getByLabel('Find servers for Contact Information',{exact:true}).fill('Delayed license');await contact.getByRole('button',{name:'Find servers',exact:true}).click();await page.waitForTimeout(100);

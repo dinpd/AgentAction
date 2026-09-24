@@ -4,6 +4,23 @@
 
 No changes yet.
 
+## 0.39.0-rc.1 - 2026-09-24
+
+### Added
+
+- Guide draft setup through job details, sources, guardrails and checks, and a supervised trial. Show the next missing step prominently, retain editable sections, and tuck alternative entry points and source options away until needed.
+- Distinguish connected server and tool cards with a background, border and text label without changing capability-based ranking. Avoid duplicate representations of the same discovered tools.
+
+### Fixed
+
+- Move AI data-use disclosure from the connection checkbox to drafting, source comparison, suggestions and trials. Connecting still only discovers capabilities; exact endpoint, OAuth, draft and per-action approvals remain unchanged. Defer automatic source comparison until the sources step is opened.
+- Repair old, uncreated drafts that mistakenly require an unbound generic analysis/summarization tool. Preserve external requirement IDs, mappings, inputs and outcome rubrics, and require fresh review after normalization. Preserve concrete tool matches, field checks, custom evidence checks, templates and existing agents.
+
+### Compatibility and migration
+
+- Existing agents, connections and schedules retain their behavior. Legacy draft cleanup runs idempotently when the workspace runtime starts; ambiguous or specialized requirements are retained. No new autonomous execution or report-delivery authority is introduced.
+- Install Python artifacts from the GitHub v0.39.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.38.1-rc.1 - 2026-09-24
 
 ### Fixed

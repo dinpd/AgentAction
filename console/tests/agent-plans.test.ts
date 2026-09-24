@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AgentRuntime, type RuntimeStorage, type Run, type Agent } from '../src/agent-runtime.ts';
-import { proposedPlan, type AgentPlan } from '../src/agent-plans.ts';
+import { proposedPlan, normalizeLegacyPlan, type AgentPlan } from '../src/agent-plans.ts';
 import { evaluateHostedRun } from '../src/recipe-evaluation.ts';
 class Storage implements RuntimeStorage {
  data=new Map<string,any>();
@@ -13,6 +13,32 @@ class Storage implements RuntimeStorage {
 }
 const draft={title:'Compare reports',goal:'Compare supplied reports',instructions:'Read both reports.',success:'A sourced comparison',requirements:[{label:'Read first report',matches:[]},{label:'Read second report',matches:[]}],questions:[],boundaries:'Read supplied reports only; never modify them.',evaluation:{version:1,checks:[],rubrics:[{id:'comparison',label:'Sourced comparison',criterion:'Compare both supplied reports using their retrieved evidence.',measurement:{method:'Count sourced claims / all claims; require 100%. No retained search evidence is inconclusive.',evidence:'Final answer claims and retained source results.'}}]}};
 const schema={name:'read',description:'Read a report',inputSchema:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false}};
+
+test('legacy draft normalization preserves source IDs and user content, and invalidates only changed draft reviews',async()=>{
+ const plan:AgentPlan={id:'legacy',...proposedPlan(draft,[]),setup:'User query and timeframe',createdAt:'before',updatedAt:'before',requiresReview:true,review:{digest:'old',actor:'owner',at:'before'}};
+ plan.requirements.push({id:'step_legacy',label:'Text analysis and summarization capability',matches:[]});
+ plan.definition.tools.push('step_legacy');plan.definition.toolLabels!['step_legacy']='Text analysis and summarization capability';
+ plan.bindings.step_1={connectionId:'connected',tool:'read'};
+ const normalized=normalizeLegacyPlan(plan);
+ assert.deepEqual(normalized.requirements.map(r=>r.id),['step_1','step_2']);
+ assert.deepEqual(normalized.definition.tools,['step_1','step_2']);
+ assert.equal(normalized.review,undefined);assert.equal(plan.review?.digest,'old');
+ assert.deepEqual(normalized.bindings,plan.bindings);assert.equal(normalized.setup,plan.setup);
+ assert.deepEqual(normalized.definition.evaluation,plan.definition.evaluation);assert.deepEqual(normalized.questions,plan.questions);
+ assert.equal(normalizeLegacyPlan(normalized),normalized);
+ for(const protectedPlan of [
+  {...plan,agentId:'agent'}, {...plan,workspaceRecipe:{id:'template',version:1}},
+  {...plan,bindings:{...plan.bindings,step_legacy:{connectionId:'specialized',tool:'summarize'}}},
+  {...plan,fieldChecks:{step_1:{bindings:[{input:'/id',from_step:'step_legacy',output:'/id'}]}}},
+  {...plan,definition:{...plan.definition,evaluation:{version:1 as const,checks:[{id:'check',label:'Check',kind:'result_field' as const,tool:'step_legacy',path:'/count',operator:'gte' as const,value:1}]}}},
+  {...plan,requirements:plan.requirements.map(r=>r.id==='step_legacy'?{...r,label:'Legal document analysis'}:r)},
+ ]) assert.equal(normalizeLegacyPlan(protectedPlan as AgentPlan),protectedPlan);
+ const storage=new Storage();await storage.put('draft:legacy',plan);
+ const runtime=new AgentRuntime(storage,{});await runtime.recover();
+ const saved=await storage.get<AgentPlan>('draft:legacy');assert.equal(saved?.review,undefined);assert.deepEqual(saved?.definition.tools,['step_1','step_2']);
+ await storage.put('draft:legacy',plan);await storage.put('agent:legacy',{id:'legacy'});
+ await runtime.recover();assert.equal((await storage.get<AgentPlan>('draft:legacy'))?.review?.digest,'old');
+});
 function harness(outputs:any[]=[draft]) {
  const storage=new Storage(),calls:any[]=[],prompts:string[]=[];
  const env={AGENT_MCP_ENDPOINTS:'https://one.example/mcp,https://two.example/mcp',AGENT_AI:{async run(_:string,input:any){prompts.push(JSON.stringify(input));if(input.messages[0].content.startsWith('Assess each frozen')) return {response:{criteria:[{id:'outcome_1',status:'pass',reason:'Both reports were retrieved and compared.',observed:'1 / 1 claims supported (100%).',calls:[0]}]}};assert.ok(outputs.length);return {response:outputs.shift()};}}};

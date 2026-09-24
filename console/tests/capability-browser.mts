@@ -104,7 +104,7 @@ try {
  await page.locator('#configure').screenshot({path:'/tmp/aa-241-fields-desktop.png'});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('#configure').screenshot({path:'/tmp/aa-241-fields-mobile.png'});await page.setViewportSize({width:1440,height:1050});
- await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  const plan=(await latest()).drafts[0];assert.equal(plan.fieldChecks.step_2.bindings[0].output,'/tickets/*/id');
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'partial');
@@ -113,17 +113,23 @@ try {
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  missingId=false;
+ if(await page.locator('#setup-sources').getAttribute('open')===null)await page.locator('#setup-sources > summary').click();
+ if(await page.locator('#agent-tools > details').getAttribute('open')===null)await page.locator('#agent-tools > details > summary').click();
  await page.locator('#plan-custom').click();await page.locator('#connections .capability-details > summary').click();
  await page.getByRole('button',{name:'Refresh capabilities',exact:true}).click();await page.getByText('Capability catalog refreshed.',{exact:false}).waitFor();
  await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'covered');
  optionalId=true;
+ if(await page.locator('#setup-sources').getAttribute('open')===null)await page.locator('#setup-sources > summary').click();
+ if(await page.locator('#agent-tools > details').getAttribute('open')===null)await page.locator('#agent-tools > details > summary').click();
  await page.locator('#plan-custom').click();await page.locator('#connections .capability-details > summary').click();
  await page.getByRole('button',{name:'Refresh capabilities',exact:true}).click();await page.getByText('Capability catalog refreshed.',{exact:false}).waitFor();
  await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  // Removed mapped tools are stale and blocked after refresh.
  connection.tools.pop();
+ if(await page.locator('#setup-sources').getAttribute('open')===null)await page.locator('#setup-sources > summary').click();
+ if(await page.locator('#agent-tools > details').getAttribute('open')===null)await page.locator('#agent-tools > details > summary').click();
  await page.locator('#plan-custom').click();await page.locator('#connections .capability-details > summary').click();
  await page.getByRole('button',{name:'Refresh capabilities',exact:true}).click();await page.getByText('Capability catalog refreshed.',{exact:false}).waitFor();
  await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();

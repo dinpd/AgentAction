@@ -10,7 +10,7 @@ import type { PrecheckReport } from "./mcp-precheck.ts";
 import { mcpMatching, MATCHING_FACTORY_JS } from './mcp-matching.ts';
 import type { CatalogResult, CatalogServer } from "./mcp-registry.ts";
 import { capabilityEngine, CAPABILITY_FACTORY_JS, type FieldChecks, type CoverageStep } from './mcp-capabilities.ts';
-const CAPABILITY_CSS = `.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.outcome-rubric{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin:16px 0;padding:16px;border:1px solid #cbd0c4;background:#fff}.outcome-rubric textarea{width:100%}#draft-policy,#draft-approval{margin:28px 0;padding-top:20px;border-top:1px solid #cbd0c4}@media(max-width:850px){.outcome-rubric{grid-template-columns:1fr}}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
+const CAPABILITY_CSS = `.is-configuring main{padding-top:24px}.is-configuring #stage-title{font-size:36px;margin-bottom:12px}.draft-next{margin:20px 0;padding:20px;border-left:4px solid #1b5948;background:#edf5ef}.draft-next h3{margin-top:0}.setup-step{border:1px solid #cbd0c4;margin:12px 0;padding:16px}.setup-step>summary{font-size:18px;font-weight:700;cursor:pointer}.setup-step[data-next=true]{border-color:#1b5948}.setup-step[open]>summary{margin-bottom:20px}.server-choice[data-connection-status=connected],.card[data-connection-status=connected],.connection[data-connection-status=connected]{background:#edf5ef;border-color:#46775a;border-left:4px solid #46775a}[data-connection-status=connected]>.pill{background:#d3e8d8;color:#173c28}.setup-step #draft-policy,.setup-step #draft-approval{margin:16px 0;border-top:0;padding-top:0}.capability-details,.capability-step{min-width:0;overflow-wrap:anywhere}.connection>div:first-child{min-width:0;flex:1}.server-suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.server-suggestions>.catalog-sources{grid-column:1/-1}.catalog-sources{font-size:14px;margin:10px 0}.server-suggestions>.note{grid-column:1/-1}.server-choice{padding:16px;border:1px solid #cbd0c4;background:#fff;margin:10px 0;min-width:0}.server-choice .pill{background:#eef0ea;display:inline-block;margin-left:10px}.server-choice button{margin:8px 8px 0 0}.outcome-rubric{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin:16px 0;padding:16px;border:1px solid #cbd0c4;background:#fff}.outcome-rubric textarea{width:100%}#draft-policy,#draft-approval{margin:28px 0;padding-top:20px;border-top:1px solid #cbd0c4}@media(max-width:850px){.outcome-rubric{grid-template-columns:1fr}}.capability-step h4{font-size:18px;margin:0 0 8px}.capability-step h5{font-size:15px;margin:20px 0 8px}.capability-search{display:flex;gap:12px;align-items:end;margin-top:12px}.capability-search label{flex:1;margin:0;min-width:0}.capability-search input{width:100%}.capability-choices{margin:12px 0}.other-tools{margin:14px 0}.other-tools label{margin-top:12px}.selected-tool{font-weight:600}.capability-step{padding:18px 0;border-top:1px solid #cbd0c4}.capability-report{margin-top:12px;padding:12px 16px;background:#fff2d6;border-left:4px solid #9a6511}.capability-report[data-coverage-status=covered]{background:#eaf1d9;border-color:#789832}.capability-report[data-coverage-status=partial],.capability-report[data-coverage-status=not_exposed]{background:#f7e9e6;border-color:#ad4135}.capability-report p{margin:8px 0}.field-check-editor{padding:14px;border:1px solid #cbd0c4;background:#fff}.field-source-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;margin:16px 0;align-items:end}.field-source-row label{min-width:0}.field-check-editor>.fields{margin-top:16px}@media(max-width:850px){.server-suggestions{grid-template-columns:1fr}.capability-search{align-items:stretch;flex-direction:column}.server-choice .pill{margin:8px 0;display:block}.field-source-row{grid-template-columns:1fr}.field-check-editor{padding:12px}.capability-step{padding:14px 0}}`;
 
 export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentAction — Create your agent</title><link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/assets/agents.css"><script src="/assets/journey.js" defer></script><script src="/assets/agents.js" defer></script></head><body>
 <header><a class="brand" href="/#overview">AgentAction</a><section class="account" aria-label="Signed-in account"><p class="note">Signed in as <strong id="account-identity">Checking session…</strong></p><p class="note">Workspace role: <strong id="account-role">Checking…</strong></p><div class="actions"><a id="account-logout" href="/cdn-cgi/access/logout" hidden>Log out</a><a id="account-login" href="/agents">Sign in</a><a href="/#setup" data-workspace-link>Workspace settings</a></div><p id="account-help" class="note">To switch accounts, log out and return to this page to sign in. Your role is assigned by a workspace owner.</p></section></header>
@@ -30,10 +30,10 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
 <p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Shared OAuth is available for configured providers. Local stdio is not supported.</p>
 <label><span id="token-label">Bearer token</span><input name="token" type="password" autocomplete="off" maxlength="4096" aria-describedby="token-help"></label><p id="token-help" class="note">Optional for public servers. Paste only the token, without the Bearer prefix.</p><p id="token-setup" class="note" hidden><a href="https://console.apify.com/account" target="_blank" rel="noopener noreferrer">Get your Apify API token ↗</a> · Open Integrations in Apify Console. Enter the token here, never in job instructions. Connecting discovers tools; it does not start a paid Actor run.</p>
-<label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
-<div id="oauth-options"></div><p id="oauth-feedback" tabindex="-1" class="action-feedback" role="status" aria-live="polite" hidden></p><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
+<p class="note">Connecting discovers the server’s tools. It does not use AI or run tools. Credentials stay server-side.</p>
+<div id="oauth-options"></div><p id="oauth-feedback" tabindex="-1" class="action-feedback" role="status" aria-live="polite" hidden></p><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p class="note" data-ai-disclosure>“Suggest agents” shares tool descriptions with the configured AI model. Credentials are excluded.</p><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
 <section class="panel" data-builder-stage="create" hidden id="guided-create">
-<form id="draft-request"><label for="job-description">What would you like your agent to do?<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><p class="note">Describe the outcome and any details you already know. You can connect tools later.</p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button></div><p class="note">AI creates an editable draft. Nothing runs until you approve an action.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
+<form id="draft-request"><label for="job-description">What would you like your agent to do?<textarea id="job-description" maxlength="2500" rows="3" required placeholder="Summarize pricing from acme.com/pricing, with source links."></textarea></label><p class="note">Describe the outcome and any details you already know. You can connect tools later.</p><div class="actions"><button id="generate-draft" type="submit">Draft my agent</button></div><p class="note" data-ai-disclosure>AI uses your job description to propose a draft. When you request suggestions, tool descriptions are sent to the configured AI model; trials also share job inputs and tool results. Credentials are excluded. Nothing runs until you approve an action.</p><p id="draft-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></form>
 <details id="agent-profiler"><summary>Help me choose an agent</summary>
 <p class="note">Choose a function or area. Get a few useful starting points, then make one your own.</p>
 <form id="profile-request"><div class="fields"><label for="profile-area">Function or area<input id="profile-area" list="profile-areas" maxlength="100" required placeholder="Choose or type an area" autocomplete="off"><datalist id="profile-areas"><option value="Customer support"><option value="Sales"><option value="Marketing"><option value="Engineering"><option value="Product"><option value="Operations"><option value="Finance"><option value="Research"><option value="People and HR"></datalist></label><label for="profile-context">What would you like to improve? <span class="note">Optional</span><input id="profile-context" maxlength="1000" placeholder="e.g. preparing for customer calls" autocomplete="off"></label></div>
@@ -43,7 +43,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <details id="manual-options"><summary>Set up manually</summary><button id="start-scratch" type="button" class="secondary">Start from scratch</button></details>
 <section id="continue-agents" hidden><h2>Continue an agent</h2><div id="agent-drafts" class="grid"></div></section>
 </section>
-<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><div id="draft-preview" class="card" aria-live="polite"></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><section id="draft-policy"><h3>Guardrails &amp; success checks</h3><p class="note">Review and edit these proposals before approving your draft.</p><label>Proposed guardrails<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope, prohibited actions and when the agent should stop."></textarea></label><p class="note">Agent instructions: these guide the model. Runtime-enforced controls remain selected tools only, approval before every exact action, and four calls per trial.</p><h4>Measurable success checks</h4><p class="note">AI proposes the pass thresholds, measurement procedures and evidence below. Edit them before approval. After a trial, an AI assessor reports the observed measurement against each threshold using retained evidence; unavailable evidence is inconclusive. These are AI assessments, not deterministic calculations.</p><div id="outcome-rubrics"></div><button id="add-outcome-rubric" type="button" class="secondary">Add outcome check</button></section><section id="agent-tools" hidden><h3>Find the best tools for this job</h3><p class="note">Candidates are ranked by capability fit across the catalog and your connections. Connection status affects setup, not ranking. Provider declarations need verification.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></section><details id="draft-customize"><summary>Advanced instructions &amp; evidence checks</summary>
+<section id="configure" class="panel" data-builder-stage="create" hidden><h2>Review your draft</h2><p id="editor-source" class="note"></p><form id="create"><details id="draft-overview" open><summary>Draft overview</summary><div id="draft-preview" class="card" aria-live="polite"></div></details><div id="draft-next" class="draft-next" hidden><p class="eyebrow">Next step</p><h3 id="draft-next-title"></h3><p id="draft-next-detail" role="status" aria-live="polite"></p><div class="actions"><button id="draft-next-action" type="button">Continue setup</button><button id="draft-save-shortcut" type="button" class="secondary">Save draft</button></div></div><section id="draft-questions" hidden><h3>A few missing details</h3><p class="note">Answer only what is missing. These answers apply only to this agent.</p><div id="draft-question-fields"></div></section><section id="draft-policy"><h3>Guardrails &amp; success checks</h3><p class="note">Review and edit these proposals before approving your draft.</p><label>Proposed guardrails<textarea name="boundaries" maxlength="1500" rows="4" placeholder="Scope, prohibited actions and when the agent should stop."></textarea></label><p class="note">Agent instructions: these guide the model. Runtime-enforced controls remain selected tools only, approval before every exact action, and four calls per trial.</p><h4>Measurable success checks</h4><p class="note">AI proposes the pass thresholds, measurement procedures and evidence below. Edit them before approval. After a trial, an AI assessor reports the observed measurement against each threshold using retained evidence; unavailable evidence is inconclusive. These are AI assessments, not deterministic calculations.</p><div id="outcome-rubrics"></div><button id="add-outcome-rubric" type="button" class="secondary">Add outcome check</button></section><section id="agent-tools" hidden><h3>Find the best tools for this job</h3><p class="note">Analysis and summarization are built in. Choose tools only for external data or actions. AI compares candidate descriptions against your job; credentials are excluded.</p><p class="note">Candidates are ranked by capability fit across the catalog and your connections. Connection status affects setup, not ranking. Provider declarations need verification.</p><div id="tool-mappings"></div><p id="mapping-status" class="note"></p><details><summary>More source options</summary><div class="actions"><button type="button" id="plan-browse" class="secondary">Browse available MCP servers</button><button type="button" id="plan-custom" class="secondary">Add your own MCP server</button></div></details></section><details id="draft-customize"><summary>Advanced instructions &amp; evidence checks</summary>
 <div class="fields"><label>Agent name<input name="title" maxlength="120" required></label><label>Connected server<select id="editor-connection" required></select></label></div>
 <label>What should it do?<textarea name="goal" maxlength="2000" rows="3" required></textarea></label>
 <label>Inputs this agent needs<textarea name="inputGuide" maxlength="1000" rows="2" placeholder="Describe the inputs to supply each time, such as a target URL and reporting period."></textarea></label>
@@ -54,7 +54,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <label class="consent"><input id="eval-enabled" type="checkbox"><span>Bind a contract and measurable checks to each run</span></label>
 <fieldset id="eval-editor"><legend>Additional checks on recorded fields</legend><p class="note">Every bound run checks completion, at least one successful call, selected-tool scope, recorded approval and the four-call limit. All checks must pass. Written boundaries remain instructions to the agent.</p><div id="eval-checks"></div><button type="button" id="add-eval-check" class="secondary">Add a check</button><p class="note">Result fields come from the latest call to the named tool, under MCP structuredContent. Missing, truncated or plain-text evidence is inconclusive. Provider-reported fields are not independently verified.</p></fieldset>
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save as a template</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new template</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
-</details><section id="draft-approval" hidden><h3>Approve your draft</h3><p id="draft-review-status" role="status" class="note"></p><button id="approve-draft" type="button" class="secondary">Approve guardrails and success checks</button><p class="note">Approval covers this draft and tool selections. Each actual tool call still needs separate approval.</p></section><div class="instance-inputs"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></div></form></section>
+</details><section id="draft-approval" hidden><h3>Approve your draft</h3><p id="draft-review-status" role="status" class="note"></p><button id="approve-draft" type="button" class="secondary">Approve guardrails and success checks</button><p class="note">Approval covers this draft and tool selections. Each actual tool call still needs separate approval.</p></section><div class="instance-inputs"><section id="job-details"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p></section><section id="trial-controls"><p class="note" data-ai-disclosure>AI uses the selected tool descriptions, job inputs and tool results to plan and assess this trial. Credentials are excluded. You approve each exact tool call before execution.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></section></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Execution evidence and AI assessments shown separately</span></div><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Showing the latest 40 retained runs across agents, plus pending approvals. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p><div id="runs"></div></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
@@ -78,15 +78,21 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       run: ['02 / Run', 'Put your agent to work.', 'Review recent runs and upcoming checks. Open a recurring agent to manage its schedule and findings.'],
     };
     ['stage-label', 'stage-title', 'stage-description'].forEach((id, i) => { get(id).textContent = copy[builderStage][i]; });
+    const configuring=builderStage==='create' && Boolean(chosen);
+    doc.body.classList.toggle('is-configuring',configuring);get('stage-description').hidden=configuring;
+    if(configuring)get('stage-title').textContent='Set up your agent.';
     doc.querySelectorAll<HTMLElement>('[data-builder-stage]').forEach(el => { el.hidden = el.dataset.builderStage !== builderStage || (el.id === 'configure' && !chosen); });
     const next = get<HTMLAnchorElement>('stage-next');
     next.href = builderStage === 'connect' ? '#create' : builderStage === 'create' ? '#run' : `/?workspace=${encodeURIComponent(tenant)}#activity`;
     next.textContent = builderStage === 'connect' ? 'Next: create an agent →' : builderStage === 'create' ? 'Next: run a trial →' : 'Next: monitor activity →';
+    next.hidden=builderStage==='create' && Boolean(currentPlan);
     get('continue-agents').hidden = Boolean(chosen) || !(state.drafts || []).length;
+    if(chosen)get('configure').after(get('guided-create'));else get('configure').before(get('guided-create'));
     if(value === 'recipe-browser' || value === 'create-connections') get<HTMLDetailsElement>('example-library').open = true;
     runtime.agentActionJourney?.setView(builderStage);
     get('recipe-return').hidden = (!selectedRecipe && !currentPlan) || builderStage !== 'connect';
     if (builderStage !== 'connect') cancelScheduledPrecheck();
+    if(currentPlan)updateGuide();
   }
   runtime.addEventListener('hashchange', () => showStage(runtime.location.hash.slice(1)));
   let chosen: { connectionId: string; suggestion: any } | undefined;
@@ -97,6 +103,64 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let draftQuestions: string[] = [];
   let currentPlan: AgentPlan | undefined;
   let creating = false;
+  let sourceLoaders:Array<()=>void>=[];
+  const guideGroups = [
+    {id:'details',title:'1. Job details',sections:['job-details','draft-questions']},
+    {id:'sources',title:'2. Sources',sections:['agent-tools']},
+    {id:'review',title:'3. Guardrails & checks',sections:['draft-policy','draft-customize','draft-approval']},
+    {id:'trial',title:'4. Trial',sections:['trial-controls']},
+  ];
+  function guideSections() {
+    if(get('setup-details'))return;
+    get('draft-overview').before(get('draft-next'));
+    get('draft-overview').querySelector('summary')!.after(get('editor-source'));
+    let anchor:HTMLElement=get('draft-overview');
+    for(const group of guideGroups) {
+      const panel=node('details','','setup-step') as HTMLDetailsElement;panel.id='setup-'+group.id;
+      panel.append(node('summary',group.title));
+      for(const id of group.sections)panel.append(get(id));
+      anchor.after(panel);anchor=panel;
+      panel.addEventListener('toggle',()=>{if(currentPlan)updateGuide();});
+    }
+    const entry=get('guided-create'),other=node('details') as HTMLDetailsElement;other.id='other-agent-options';
+    other.append(node('summary','Start another agent or use a template'),...Array.from(entry.children));entry.append(other);
+  }
+  function guideMode(enabled:boolean) {
+    guideSections();get('draft-next').hidden=!enabled;get<HTMLDetailsElement>('draft-overview').open=!enabled;
+    for(const group of guideGroups) {const panel=get<HTMLDetailsElement>('setup-'+group.id);panel.open=!enabled;panel.hidden=group.id==='sources'&&!enabled;}
+    get('create-agent').hidden=enabled;
+    get<HTMLButtonElement>('approve-draft').classList.toggle('secondary',!enabled);
+    get<HTMLDetailsElement>('other-agent-options').open=false;
+  }
+  function openGuide(id:string) {
+    for(const group of guideGroups)get<HTMLDetailsElement>('setup-'+group.id).open=group.id===id;
+    updateGuide();
+  }
+  function missingJobDetails():HTMLInputElement[] {
+    return [...doc.querySelectorAll<HTMLInputElement>('#job-details input,#job-details textarea,#draft-question-fields input:not([type=checkbox])')].filter(el=>!el.disabled && el.required && !el.value.trim());
+  }
+  function nextGuideStep():string {
+    if(missingJobDetails().length)return 'details';
+    const bindings=selectedBindings();
+    if(currentPlan!.requirements.some(r=>!bindings[r.id]))return 'sources';
+    return currentPlan!.requiresReview && !currentPlan!.review ? 'review':'trial';
+  }
+  function updateGuide() {
+    if(!currentPlan || !get('setup-details'))return;
+    get('draft-overview').querySelector('summary')!.textContent='Your agent: '+editorField('title').value;
+    const step=nextGuideStep(),bindings=selectedBindings(),missing=currentPlan.requirements.filter(r=>!bindings[r.id]);
+    const copy:Record<string,string[]>={
+      details:['Complete the job details','Answer the missing questions so the agent searches the right sources and timeframe.','Complete job details'],
+      sources:['Choose your sources',`Still needs a tool: ${missing.map(r=>r.label).join(', ')}. Connecting a server makes its tools available; select a tool to use it.`,missing.length?`Choose ${missing[0].label}`:'Choose sources'],
+      review:['Review the guardrails and checks','Sources are selected. Review what the agent may do and how its results will be measured, then approve this draft.','Review guardrails & checks'],
+      trial:['Review the first action','The draft is ready for a supervised trial. Review the proposed action before any tool runs. Scheduling comes after a successful trial.','Continue to trial'],
+    };
+    get('draft-next-title').textContent=copy[step][0];get('draft-next-detail').textContent=copy[step][1];
+    const action=get<HTMLButtonElement>('draft-next-action');action.textContent=copy[step][2];action.disabled=role==='viewer'||creating;
+    action.hidden=(step==='review'||step==='trial')&&get<HTMLDetailsElement>('setup-'+step).open;
+    for(const group of guideGroups)get('setup-'+group.id).dataset.next=String(group.id===step);
+    if(builderStage==='create' && get<HTMLDetailsElement>('setup-sources').open)for(const load of sourceLoaders)load();
+  }
   function resetDraft() {
     draftGeneration++; draftQuestions = []; currentPlan = undefined;
     profileGeneration++;capabilitySetup=undefined;serverQueries.clear();serverSuggestions.clear();toolRankings.clear();
@@ -107,6 +171,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get<HTMLFormElement>('draft-request').reset();
     get('draft-question-fields').replaceChildren(); get('draft-questions').hidden = true;
     get('draft-preview').replaceChildren(); get('tool-mappings').replaceChildren(); get('agent-drafts').replaceChildren(); feedback('draft-feedback', '');
+    if(get('other-agent-options'))get<HTMLDetailsElement>('other-agent-options').open=true;
   }
   function renderDraftConnections() {
     get<HTMLTextAreaElement>('job-description').disabled = role === 'viewer';
@@ -247,7 +312,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       // Render into one ordered list; connection status is never a ranking input.
       const cards=new Map<string,HTMLElement>();
       for(const candidate of candidates) if('connection' in candidate) {
-        const c=candidate.connection as any,t=candidate.tool as any,card=node('article','','server-choice');card.dataset.connectedTool=t.name;
+        const c=candidate.connection as any,t=candidate.tool as any,card=node('article','','server-choice');card.dataset.connectedTool=t.name;card.dataset.connectionStatus='connected';
         card.append(node('strong',`${c.label} · ${t.name}`),node('span','Connected','pill'),node('p',candidate.fitReason,'note'),node('p','Pricing: not available in this catalog. Connected does not mean free. Check your provider account.','note'));
         const detail=node('details');detail.append(node('summary','Tool details'),node('p',t.description || 'No description supplied.','note'));card.append(detail,button('Use this tool',async()=>chooseTool(requirement.id,{connectionId:c.id,tool:t.name})));cards.set(candidate.id,card);
       }
@@ -255,11 +320,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       for(const server of servers) {
         const card=node('article','','server-choice');card.dataset.registryServer=server.name;
         const connected=state.connections.filter((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
+        card.dataset.connectionStatus=connected.length?'connected':'not-connected';
         card.append(node('strong',server.title),node('span',connected.length?'Connected server':'Not connected','pill'),node('p',candidates.find(c=>c.id===server.name)!.fitReason,'note'));
         const terms=server.matchTerms || matcher.match(query,server.title,listingText(server)).terms;
-        card.append(node('p',`Listing or tool metadata mentions: ${terms.join(', ')}.`,'note'));
-        card.append(node('p',`${server.publisher} · ${server.hosting}`,'note'),node('p','Pricing: not available in this catalog. Check provider pricing and usage charges before connecting.','note'));
-        const details=node('details');details.append(node('summary','Provider details & limitations'));catalogEvidence(details,server,query);card.append(details);
+        card.append(node('p','Pricing: not available in this catalog. Check provider pricing and usage charges before connecting.','note'));
+        const details=node('details');details.append(node('summary','Provider details & limitations'),node('p',`Listing or tool metadata mentions: ${terms.join(', ')}.`,'note'),node('p',`${server.publisher} · ${server.hosting}`,'note'));catalogEvidence(details,server,query);card.append(details);
         if(server.website) {try {const url=new URL(server.website);if(url.protocol==='https:'&&!url.username&&!url.password) {const link=node('a','Check provider pricing & setup ↗') as HTMLAnchorElement;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
         if(connected.length) {
           card.append(node('p','Choose an actual tool from this connected server.','note'));
@@ -274,7 +339,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         } else card.append(node('p','No supported endpoint is listed. Check whether the provider offers an HTTPS MCP endpoint; local-only servers cannot connect here.','note'),button('Select server & review setup',async()=>setupProvider(requirement.id,server,'')));
         cards.set(server.name,card);
       }
-      for(const candidate of candidates) {const card=cards.get(candidate.id);if(card)host.append(card);}
+      const shown=new Set<string>();
+      for(const candidate of candidates) {
+        const sources='connection' in candidate ? [`${(candidate.connection as any).id}:${(candidate.tool as any).name}`] : state.connections.filter((c:any)=>c.status==='connected' && (candidate as any).server?.endpoints.includes(c.endpoint)).flatMap((c:any)=>c.tools.filter((t:any)=>matcher.match(query,t.name,t.description || '').score>0).slice(0,3).map((t:any)=>`${c.id}:${t.name}`));
+        if(sources.length && sources.every((source:string)=>shown.has(source)))continue;
+        const card=cards.get(candidate.id);if(card){host.append(card);for(const source of sources)shown.add(source);}
+      }
       if(data.servers.length>3 || data.nextOffset!==null && data.nextOffset!==undefined) host.append(button('Browse more matches',async()=>{
         const selectedTenant=tenant,editor=editorGeneration;await savePlan();if(tenant!==selectedTenant || editor!==editorGeneration)return;
         capabilitySetup={tenant,planId,stepId:requirement.id};runtime.location.hash='connect';showStage('connect');showMcpView(false);
@@ -294,6 +364,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function renderMappings() {
     if(!currentPlan) return;
+    sourceLoaders=[];
     const host=get('tool-mappings');host.replaceChildren();
     for(const requirement of currentPlan.requirements) {
       const card=node('section','','capability-step');card.dataset.capabilityStep=requirement.id;card.tabIndex=-1;
@@ -321,8 +392,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const search=async()=>{const q=input.value.trim();serverQueries.set(key,q);serverSuggestions.delete(key+':'+q);suggestionCards(requirement,suggestions,q);};
       input.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();void search();}};
       input.oninput=()=>{suggestions.dataset.generation=String(Number(suggestions.dataset.generation || 0)+1);serverQueries.set(key,input.value.trim());suggestions.replaceChildren(node('p','Select Find servers to update the suggestions.','note'));};
-      searchRow.append(searchLabel,button('Find servers',search),button('Connect your own MCP server',async()=>setupCapability(requirement.id)));choices.append(searchRow,suggestions,other);
-      suggestionCards(requirement,suggestions,query);
+      searchRow.append(searchLabel,button('Find servers',search),button('Connect your own MCP server',async()=>setupCapability(requirement.id)));const searchOptions=node('details','','capability-search-options');searchOptions.append(node('summary','Refine search or connect another server'),searchRow);choices.append(suggestions,searchOptions,other);
+      const load=()=>{if(builderStage!=='create' || !get<HTMLDetailsElement>('setup-sources').open || !choices.open || suggestions.dataset.loaded)return;suggestions.dataset.loaded='true';suggestionCards(requirement,suggestions,query);};
+      sourceLoaders.push(load);choices.addEventListener('toggle',load);
       const report=node('div','','capability-report');report.dataset.coverageReport=requirement.id;report.setAttribute('aria-live','polite');report.hidden=!binding;card.append(report);
       fieldCheckEditor(requirement.id,card);(card.querySelector('.field-check-editor') as HTMLElement).hidden=!binding;
     }
@@ -418,13 +490,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const status=get('mapping-status');status.replaceChildren(node('span',missing ? 'Still needs a tool: ' : 'Sources selected · capability support still needs a trial. Review and approve the draft before the first action.'));
     for(const requirement of unmapped) status.append(button(requirement.label,async()=>{
       const target=[...doc.querySelectorAll<HTMLElement>('[data-capability-step]')].find(el=>el.dataset.capabilityStep===requirement.id);
-      if(target){target.scrollIntoView({block:'start'});target.focus();const choices=target.querySelector('details');if(choices)choices.open=true;}
+      if(target){openGuide('sources');target.scrollIntoView({block:'start'});target.focus();const choices=target.querySelector('details');if(choices)choices.open=true;}
     }));
     if(missing)status.append(node('span',' Select a provider, connect your account, then choose a discovered tool. You can save this draft now.'));
     const needsReview=currentPlan.requiresReview && !currentPlan.review;
     get('draft-review-status').textContent=needsReview?'Review the current guardrails and success checks. Edits to the draft or tools require a new approval.':'Draft approved. Any edit will require review again.';
-    get<HTMLButtonElement>('approve-draft').disabled=role==='viewer' || Boolean(currentPlan.review);
-    get<HTMLButtonElement>('review-first-action').disabled=role==='viewer' || missing>0 || creating || Boolean(needsReview);
+    get<HTMLButtonElement>('approve-draft').disabled=role==='viewer' || missing>0 || missingJobDetails().length>0 || Boolean(currentPlan.review);
+    get<HTMLButtonElement>('review-first-action').disabled=role==='viewer' || missing>0 || missingJobDetails().length>0 || creating || Boolean(needsReview);
+    updateGuide();
   }
   function showQuestions(questions:string[]) {
     get('draft-question-fields').replaceChildren();
@@ -447,13 +520,13 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get<HTMLDetailsElement>('draft-customize').open=false;
     get('draft-approval').hidden=!plan.requiresReview;
     get('editor-source').textContent='Untested agent draft. Tools and written instructions are suggestions; the runtime enforces approvals, mapped tool scope and four total calls.';
-    editorTools(plan.definition.tools); updateEvalTools(); renderMappings(); updateDraftPreview();
+    guideMode(true);editorTools(plan.definition.tools); updateEvalTools(); renderMappings(); updateDraftPreview();openGuide(nextGuideStep());showStage(builderStage);
   }
   async function savePlan(reviewed=false): Promise<AgentPlan> {
     const plan=currentPlan!, selectedTenant=tenant, editor=editorGeneration, revision=draftGeneration;
     const unanswered=draftQuestions.filter((_,i)=>{const input=get<HTMLInputElement>(`draft-answer-${i}`);return !input.disabled && !input.value.trim();});
     const saved=await mutate('save-draft',{id:plan.id,definition:definitionFromEditor(),setup:jobInputs(),bindings:selectedBindings(),fieldChecks:plan.fieldChecks || {},...(reviewed?{reviewed:true}:{})});
-    if(selectedTenant===tenant && editor===editorGeneration && revision===draftGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; showQuestions(unanswered); state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();}
+    if(selectedTenant===tenant && editor===editorGeneration && revision===draftGeneration) {currentPlan=saved; editorField('setup').value=saved.setup; showQuestions(unanswered); state.drafts=[...(state.drafts || []).filter((p:AgentPlan)=>p.id!==saved.id),saved];renderDraftConnections();updateMappingStatus();}
     return saved;
   }
   function updateDraftPreview() {
@@ -576,7 +649,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     updateDraftPreview();
     get<HTMLDetailsElement>('example-library').open = false; get<HTMLDetailsElement>('manual-options').open = false;
     profileGeneration++; get<HTMLDetailsElement>('agent-profiler').open = false; get('agent-ideas').replaceChildren(); feedback('profile-feedback','');
-    showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    guideMode(false);showStage('create'); get('configure').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function invalidateReview() { draftGeneration++;if(currentPlan) {delete currentPlan.review;updateMappingStatus();} }
   function addOutcomeRubric(rubric?:OutcomeRubric) {
@@ -735,7 +808,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     renderOAuth();
     submit.textContent = connecting ? "Connecting…" : "Connect server";
     get("connect-readiness").dataset.state = connecting ? "busy" : role === "viewer" || (endpoint && !enabled) ? "blocked" : "ready";
-    get("connect-readiness").textContent = connecting ? "Connecting to the server and inspecting its tools. Please wait." : role === "viewer" ? "You have view-only access. Ask a workspace owner or operator to connect this server." : !endpoint ? "Enter an MCP endpoint above to check access." : !enabled ? role === "owner" ? "Connection blocked: this endpoint is not approved. Review its exact URL and select “Approve endpoint for workspace” above." : "Connection blocked: this endpoint is not approved. Ask a workspace owner to approve its exact URL." : "Endpoint access is enabled. Complete the connection details and AI consent above, then select Connect server.";
+    get("connect-readiness").textContent = connecting ? "Connecting to the server and inspecting its tools. Please wait." : role === "viewer" ? "You have view-only access. Ask a workspace owner or operator to connect this server." : !endpoint ? "Enter an MCP endpoint above to check access." : !enabled ? role === "owner" ? "Connection blocked: this endpoint is not approved. Review its exact URL and select “Approve endpoint for workspace” above." : "Connection blocked: this endpoint is not approved. Ask a workspace owner to approve its exact URL." : "Endpoint access is enabled. Enter the required connection details, then select Connect server.";
     doc.querySelectorAll<HTMLButtonElement>("[data-owner-only]").forEach(el => el.disabled = role !== "owner" || el.getAttribute("aria-busy") === "true");
     doc.querySelectorAll<HTMLOptionElement>("#catalog-results option").forEach(el => { el.textContent = `${el.value} — ${endpointEnabled(el.value) ? "enabled" : "owner approval required"}`; });
     doc.querySelectorAll<HTMLElement>("[data-endpoint-access]").forEach(el => { el.textContent = endpointEnabled(el.dataset.endpointAccess || "") ? "Enabled for this workspace" : "Owner approval required"; });
@@ -887,6 +960,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(!append) sourceStatus(get("catalog-results"),data);
       for (const server of data.servers) {
         const card = node("article", "", "card");
+        const connected=state.connections.some((c:any)=>c.status==='connected' && server.endpoints.includes(c.endpoint));
+        card.dataset.connectionStatus=connected?'connected':'not-connected';
+        if(connected)card.append(node('span','Connected server','pill'));
         card.append(node("span", "Advertised · tools unverified", "pill"), node("h3", server.title), node("p", server.description), node("p", `Publisher namespace: ${server.publisher} · ${server.hosting}`, "note"), node("p", `${server.name} · version ${server.version}`, "note"));
         card.append(node('p','Pricing: not available in this catalog. Check provider pricing and usage charges.','note'));
         catalogEvidence(card,server,catalogQuery);
@@ -1006,7 +1082,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const connections = get("connections"), suggestions = get("suggestions"), agents = get("agents"), runs = get("runs");
     connections.replaceChildren(); suggestions.replaceChildren(); agents.replaceChildren(); runs.replaceChildren();
     for (const c of state.connections) {
-      const row = node("div", "", "connection"), detail = node("div");
+      const row = node("div", "", "connection"), detail = node("div");row.dataset.connectionStatus=c.status;
       detail.append(
         node("strong", c.label),
         node("p", `Server: ${c.endpoint}`, "note"),
@@ -1226,9 +1302,21 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   get<HTMLFormElement>('create').addEventListener('input', () => { draftGeneration++; invalidateReview();updateDraftPreview(); });
   get<HTMLFormElement>('create').addEventListener('change', () => { draftGeneration++; invalidateReview();updateDraftPreview(); });
   get<HTMLFormElement>('create').addEventListener('invalid', event => {
+    const step=(event.target as HTMLElement).closest<HTMLDetailsElement>('.setup-step');if(step)step.open=true;
     const fieldEditor=(event.target as HTMLElement).closest<HTMLDetailsElement>('.field-check-editor');if(fieldEditor) fieldEditor.open=true;
     if ((event.target as HTMLElement).closest('#draft-customize')) get<HTMLDetailsElement>('draft-customize').open = true;
   }, true);
+  get('draft-next-action').addEventListener('click',()=>{
+    if(!currentPlan)return;
+    const step=nextGuideStep();openGuide(step);
+    const panel=get('setup-'+step);panel.scrollIntoView({block:'start',behavior:'smooth'});
+    const target=step==='details'?missingJobDetails()[0]:step==='sources'?panel.querySelector<HTMLElement>('[data-capability-step]'):panel.querySelector<HTMLElement>('summary');
+    target?.focus();
+  });
+  get('draft-save-shortcut').addEventListener('click',event=>{
+    if(!currentPlan||role==='viewer'||creating)return;
+    void perform(event.currentTarget as HTMLButtonElement,async()=>{await savePlan();message('Agent draft saved. Continue setup whenever you are ready.');});
+  });
   get<HTMLFormElement>("create").addEventListener("submit", event => {
     event.preventDefault(); if (!chosen || role === 'viewer' || creating) return;
     const startTrial = (event as SubmitEvent).submitter?.id === 'review-first-action';
