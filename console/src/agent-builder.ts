@@ -29,7 +29,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <p id="endpoint-status" class="note" role="status" aria-live="polite">Enter an endpoint to check workspace access.</p>
 <div id="endpoint-review" hidden><p class="note">Approve this exact destination for this workspace. Connecting later can send your supplied credentials, job inputs and tool arguments to this server.</p><p id="endpoint-review-url" class="note"></p><label class="consent"><input id="endpoint-reviewed" type="checkbox"> I reviewed this URL and approve it as a destination for this workspace.</label><button id="approve-endpoint" type="button" class="secondary" disabled>Approve endpoint for workspace</button></div><p id="approval-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p>
 <p class="note">Public HTTPS endpoints require workspace-owner approval or deployment-managed access. Shared OAuth is available for configured providers. Local stdio is not supported.</p>
-<label>Bearer token <span id="token-help" class="muted">optional for public servers</span><input name="token" type="password" autocomplete="off" maxlength="4096"></label>
+<label><span id="token-label">Bearer token</span><input name="token" type="password" autocomplete="off" maxlength="4096" aria-describedby="token-help"></label><p id="token-help" class="note">Optional for public servers. Paste only the token, without the Bearer prefix.</p><p id="token-setup" class="note" hidden><a href="https://console.apify.com/account" target="_blank" rel="noopener noreferrer">Get your Apify API token ↗</a> · Open Integrations in Apify Console. Enter the token here, never in job instructions. Connecting discovers tools; it does not start a paid Actor run.</p>
 <label class="consent"><input type="checkbox" name="consent" required> Use AI to suggest and run agents. Tool descriptions, job inputs and tool results are sent to the configured AI model. The bearer token stays server-side and is excluded from model prompts.</label>
 <div id="oauth-options"></div><p id="oauth-feedback" tabindex="-1" class="action-feedback" role="status" aria-live="polite" hidden></p><p id="connect-readiness" class="note" role="status">Enter an MCP endpoint above to check access.</p><button type="submit" aria-describedby="connect-readiness">Connect server</button><p id="connect-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p></div></div></form><details><summary>Workspace endpoint approvals</summary><p class="note">Owners can remove workspace approvals. Removing access disconnects affected accounts and pauses their agents unless the endpoint is also enabled by the deployment.</p><div id="endpoint-approvals"></div></details></div><h3>Connected MCP servers</h3><p id="connections-feedback" class="action-feedback" role="status" aria-live="polite" hidden></p><div id="connections" class="connections"></div></div></section>
 <section class="panel" data-builder-stage="create" hidden id="guided-create">
@@ -669,6 +669,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   const capabilityLabels = new Map<string, string>();
   const authLabels = new Map<string, string>();
   let inspectionGeneration = 0, inspecting = false, precheckTouched = false;
+  let credentialEndpoint = '';
   let precheckTimer: number | undefined;
   let precheckError: { endpoint: string; protocol: string; detail: string } | undefined;
   const pendingInspections = new Map<string, Promise<PrecheckReport>>();
@@ -774,7 +775,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const endpoint = canonicalEndpoint(field.value.trim());
     let apifyActor: string | undefined;
     try { apifyActor = endpointConfigFactory().apifyActor(new URL(endpoint)); } catch {}
-    get('token-help').textContent = apifyActor ? 'Apify API token required for this Actor; pre-check uses no token.' : 'optional for public servers';
+    const credential = get<HTMLFormElement>('connect').elements.namedItem('token') as HTMLInputElement;
+    if (credentialEndpoint !== endpoint) { credential.value = ''; credentialEndpoint = endpoint; }
+    credential.required = Boolean(apifyActor);
+    get('token-label').textContent = apifyActor ? 'Apify API token (required)' : 'Bearer token';
+    get('token-help').textContent = apifyActor ? 'Required to connect this Actor, including on the free plan. Paste only the token, without the Bearer prefix. The anonymous pre-check does not use it.' : 'Optional for public servers. Paste only the token, without the Bearer prefix.';
+    get('token-setup').hidden = !apifyActor;
     const matching = state.connections.filter((c: any) => c.endpoint === endpoint);
     const connected = matching.find((c: any) => c.status === 'connected');
     const cached = connected || matching.sort((a: any, b: any) => (b.catalog?.capturedAt || b.createdAt || '').localeCompare(a.catalog?.capturedAt || a.createdAt || ''))[0];
@@ -1030,10 +1036,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           reconnect.disabled = role !== 'owner'; detail.append(reconnect);
         }
       } else {
-      const credentialLabel = node("label", "Replace credential / reconnect");
-      const credential = doc.createElement("input"); credential.type = "password"; credential.autocomplete = "off"; credential.maxLength = 4096; credential.placeholder = "New bearer token (blank for public access)"; credential.disabled = role === "viewer";
+      const apifyActor = endpointConfigFactory().apifyActor(new URL(c.endpoint));
+      const credentialLabel = node("label", apifyActor ? "Apify API token (required to reconnect)" : "Replace credential / reconnect");
+      const credential = doc.createElement("input"); credential.type = "password"; credential.autocomplete = "off"; credential.maxLength = 4096; credential.required = Boolean(apifyActor); credential.placeholder = apifyActor ? "Paste your Apify API token without Bearer" : "New bearer token (blank for public access)"; credential.disabled = role === "viewer";
       credentialLabel.append(credential);
       const replace = button("Reconnect server", async () => {
+        if (!credential.reportValidity()) return;
         const token = credential.value; credential.value = "";
         feedback("connections-feedback", "Checking the replacement MCP server…");
         await mutate("connect", { connectionId: c.id, token }); await refresh(); feedback("connections-feedback", "Server reconnected. Its agents are paused; run a new trial before reactivation.");
