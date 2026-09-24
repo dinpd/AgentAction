@@ -16,6 +16,19 @@ No changes yet.
 - Significant additive read-only public surface, released as a minor prerelease. No tenant permissions, private evidence exposure, storage migrations or new credentials. Registry reads are bounded and cached for five minutes; the preview covers official-registry listings only.
 - Install Python artifacts from the GitHub v0.41.0-rc.1 prerelease. Hosted pages deploy from the merge commit; no package registry publication is implied.
 
+## 0.40.2-rc.1 - 2026-09-24
+
+### Fixed
+
+- Put current runs and pending approvals above agent cards and group completed history by agent. Retain each agent’s latest result alongside recent history so frequent health checks cannot hide it. Show the proposed action before technical evidence.
+- Show approval progress, failures and recovery beside the run. Disable competing actions during execution, preserve feedback through refresh, and keep the updated result visible. Changed tools offer capability refresh with explicit cancellation and pause consequences before a new trial.
+- Compare tool definitions independently of JSON object property order while continuing to block real schema, description or other definition changes before execution.
+
+### Compatibility
+
+- Backward-compatible patch; exact-action approval, credentials, execution limits and persisted schemas remain unchanged. No migration required. Capability refresh uses the existing server-side flow and never executes a tool.
+- Install Python artifacts from the GitHub v0.40.2-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.40.1-rc.1 - 2026-09-24
 
 ### Fixed

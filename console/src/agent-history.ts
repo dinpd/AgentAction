@@ -93,6 +93,9 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     for (const run of data.runs) {
       const agent = (recurring ? data.jobs : data.agents).find((a: any) => a.id === (recurring ? run.jobId : run.agentId));
       const card = node("article", "", "card run history-card"); card.dataset.runAt = String(new Date(run.startedAt).getTime());
+      card.dataset.runAgent = `${recurring?'recurring':'supervised'}:${recurring?run.jobId:run.agentId}`;
+      card.dataset.runTitle = agent?.title || 'Agent run';
+      card.dataset.runStatus = run.status.replaceAll('_',' ');
       card.append(node("h3", agent?.title || "Agent run"), node("span", `${recurring ? "Recurring check" : "Supervised run"} · ${run.status.replaceAll("_", " ")}`, "pill"), node("p", `${when(run.startedAt)} · ${run.kind}${recurring ? ` · ${run.findings} findings` : ""}`, "note"), node("p", run.summary || "Result not yet available."));
       if (recurring && run.status !== "completed") card.append(node("p", "Check coverage is unknown; this run does not establish that the target is healthy.", "note"));
       if (!recurring) appendEvaluation(card, run);
@@ -104,7 +107,24 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
   function sortRuns(parent: HTMLElement, limit = 40) {
     const cards = Array.from(parent.children).filter(el => (el as HTMLElement).dataset.runAt !== undefined) as HTMLElement[];
     cards.sort((a, b) => Number(b.dataset.runAt) - Number(a.dataset.runAt));
-    cards.forEach((card, i) => { if (i < limit || card.dataset.pendingApproval === "true") parent.append(card); else card.remove(); });
+    const priority=cards.filter(card=>card.dataset.pendingApproval==='true'||card.dataset.activeRun==='true');
+    const historical=cards.filter(card=>!priority.includes(card)),seen=new Set<string>();
+    const retained=historical.filter((card,index)=>{const key=card.dataset.runAgent || 'unknown',latest=!seen.has(key);seen.add(key);return index<limit||latest;});
+    for(const card of cards)card.remove();
+    if(priority.length) {
+      const attention=node('section');attention.dataset.runAttention='';
+      attention.append(node('h3','Current runs & approvals'),...priority.sort((a,b)=>Number(b.dataset.pendingApproval==='true')-Number(a.dataset.pendingApproval==='true')));
+      parent.append(attention);
+    }
+    if(retained.length)parent.append(node('h3','Run history'));
+    const groups=new Map<string,HTMLElement[]>();
+    for(const card of retained){const key=card.dataset.runAgent || 'unknown';groups.set(key,[...(groups.get(key)||[]),card]);}
+    for(const [key,rows] of groups) {
+      const group=node('details','','run-history-group');group.dataset.runGroup=key;
+      const latest=rows[0];
+      group.append(node('summary',`${latest.dataset.runTitle || 'Agent runs'} · ${rows.length} run${rows.length===1?'':'s'} · Latest: ${latest.dataset.runStatus || 'unknown'} · ${when(Number(latest.dataset.runAt))}`),...rows);
+      parent.append(group);
+    }
   }
   const panels = {
     activity: doc.querySelector<HTMLElement>("[data-hosted-history]"),

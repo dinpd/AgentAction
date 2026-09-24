@@ -1,7 +1,7 @@
 import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
 import { proposedPlan, planBindings, normalizeLegacyPlan, draftJobDetails, PLAN_PROMPT, PLAN_SCHEMA, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
-import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation, type RubricAssessment, rubricEvidence, hasRubricEvidence, rubricAssessment, evidenceDigest } from "./recipe-evaluation.ts";
+import { canonical, bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation, type RubricAssessment, rubricEvidence, hasRubricEvidence, rubricAssessment, evidenceDigest } from "./recipe-evaluation.ts";
 import { agentDraft, DRAFT_PROMPT } from './agent-draft.ts';
 import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, type WorkspaceRecipe } from "./workspace-recipes.ts";
 import { recipeById, type Recipe } from "../../recipes/registry.ts";
@@ -592,7 +592,7 @@ export class AgentRuntime {
         const tools = await client.discover();
         const tool = tools.find(t => t.name === target.tool);
         const saved = target.connection.tools.find(t => t.name === target.tool);
-        if (!tool || !saved || JSON.stringify(tool) !== JSON.stringify(saved)) throw new RuntimeError("The tool definition changed. Reconnect and create a new agent before approving a call.", 409);
+        if (!tool || !saved || canonical(tool) !== canonical(saved)) throw new RuntimeError("No tool call was sent. The tool definition changed. Open MCP servers and refresh this server’s capabilities, then review a new trial. Refreshing pauses affected agents and cancels their pending approvals.", 409);
         validateArguments(tool, pending.arguments);
         run.events.push({ ...(agent.toolBindings ? {source:{connectionId:target.connection.id,tool:target.tool}} : {}), tool: pending.tool, arguments: pending.arguments, status: "executing", approval: { id: pending.id, actor, at: now() } });
         run.status = "executing"; delete run.pending;

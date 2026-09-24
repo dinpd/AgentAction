@@ -46,11 +46,14 @@ try {
  assert.equal(await page.locator('#agents article').count(),2);
  assert.match(await page.locator('#agents [data-recurring-agent]').innerText(),/Last check.*Next check/);
  assert.equal(await page.locator('#agents img').count(),0,'Untrusted titles must stay text');
- assert.equal(await page.locator('#runs [data-run-at]').count(),40);
- assert.match(await page.locator('#runs article').first().innerText(),/Check 44/);
+ assert.equal(await page.locator('#runs [data-run-at]').count(),41,'Recent checks also retain the latest result for every agent');
+ assert.equal(await page.locator('#runs [data-run-group][open]').count(),0);
+ assert.match(await page.locator('#runs article').first().textContent(),/Check 44/);
  await page.screenshot({path:'/tmp/agentaction-217-run.png',fullPage:false});
  mode='pending';await page.reload();await page.getByRole('button',{name:'Approve and execute',exact:true}).waitFor();
  assert.equal(await page.locator('#runs [data-run-at]').count(),41,'Keep an older pending approval beyond recent checks');
+ assert.equal(await page.locator('#runs article').first().getAttribute('data-pending-approval'),'true');
+ assert.equal(await page.locator('#runs [data-run-attention] button').filter({hasText:'Approve and execute'}).isVisible(),true);
  delayed=true;await page.locator('#refresh').click();await page.locator('#workspace').selectOption('beta');
  await page.getByText('Choose an agent template or an AI suggestion in Create to build your first agent.',{exact:true}).waitFor();
  await page.waitForTimeout(650);assert.equal(await page.locator('#agents [data-recurring-agent]').count(),0);

@@ -84,6 +84,19 @@ test("rejects hallucinated tool names and malformed arguments; unavailable AI ne
   assert.equal((await runtime.handle(new Request("https://runtime.test/suggest", { method: "POST", body: JSON.stringify({ connectionId }) }))).status, 503);
 });
 
+test('approval ignores object key order but blocks changed input schemas',async()=>{
+ const h=harness();const {agentId,connectionId}=await h.prepare();const run=await h.trial(agentId);
+ const saved=(await h.storage.get<Connection>(`connection:${connectionId}`))!;
+ saved.tools[0].inputSchema={additionalProperties:false,required:['url'],properties:{url:{format:'uri',type:'string'}},type:'object'};
+ await h.storage.put(`connection:${connectionId}`,saved);
+ assert.equal((await h.approve(run)).status,200);assert.equal(h.calls.filter(c=>c==='tools/call').length,1);
+ const g=harness();const other=await g.prepare();const pending=await g.trial(other.agentId);
+ const changed=(await g.storage.get<Connection>(`connection:${other.connectionId}`))!;
+ changed.tools[0].inputSchema={type:'object'};await g.storage.put(`connection:${other.connectionId}`,changed);
+ const rejected=await g.approve(pending);assert.equal(rejected.status,409);assert.match(rejected.body.error,/No tool call was sent.*refresh.*capabilities/);
+ assert.ok(!g.calls.includes('tools/call'));
+});
+
 test("changed catalogs invalidate approvals; uncertain effects are recorded without replay", async () => {
   const h = harness(); const a = await h.prepare(); const r = await h.trial(a.agentId); h.change(); assert.equal((await h.approve(r)).status, 409); assert.ok(!h.calls.includes("tools/call"));
   const g = harness(); const b = await g.prepare(); const s = await g.trial(b.agentId); g.fail(); assert.equal((await g.approve(s)).status, 502);
