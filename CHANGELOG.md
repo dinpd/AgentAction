@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.41.1-rc.1 - 2026-09-24
+
+### Fixed
+
+- Compare freshly discovered tool definitions in the same credential-scrubbed representation used by saved catalogs. Continue to block genuine definition changes, validate against the live input schema, and identify changed definition sections without exposing provider values.
+- Let the planner supply optional inputs needed for a useful query or bounded trial instead of forcing an empty call for all-optional schemas. Keep argument validation and explicit execution approval.
+- Move canceled refresh attempts back into grouped history when starting a new trial and retain actionable definition-change details beside approval.
+
+### Compatibility
+
+- Backward-compatible patch; no migration or change to endpoint authorization, credential storage, execution limits or approval requirements. Definition changes still require a refreshed catalog and new trial.
+- Install Python artifacts from the GitHub v0.41.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.41.0-rc.1 - 2026-09-24
 
 ### Added

@@ -19,7 +19,7 @@ class Storage implements RuntimeStorage {
 const suggestion = { suggestions: [{ title: "Monitor pricing", goal: "Read the target pricing page", setup: "A target URL", success: "A sourced price summary", tools: ["scrape"] }] };
 const call = { type: "call", tool: "scrape", arguments: { url: "https://example.com/pricing" } };
 const finish = { type: "finish", summary: "The observed price is $20.", outcome: "met", reason: "The tool returned a pricing page containing $20." };
-function harness(outputs: unknown[] = [suggestion, call, finish]) {
+function harness(outputs: unknown[] = [suggestion, call, finish], catalogTool: McpTool = tool) {
   const storage = new Storage(), calls: string[] = [], prompts: string[] = [];
   let failCall = false, changed = false;
   let toolResult: unknown = { content: [{ type: "text", text: "Price $20; SECRET-TOKEN" }] };
@@ -29,7 +29,7 @@ function harness(outputs: unknown[] = [suggestion, call, finish]) {
     const message = JSON.parse(init.body); calls.push(message.method);
     if (message.method === "notifications/initialized") return new Response(null, { status: 202 });
     if (message.method === "tools/call" && failCall) throw new Error("timeout with SECRET-TOKEN");
-    const result = message.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: { tools: {} } } : message.method === "tools/list" ? { tools: [{ ...tool, description: changed ? "Changed tool definition" : tool.description }] } : toolResult;
+    const result = message.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: { tools: {} } } : message.method === "tools/list" ? { tools: [{ ...catalogTool, description: changed ? "Changed tool definition" : catalogTool.description }] } : toolResult;
     return Response.json({ jsonrpc: "2.0", id: message.id, result }, { headers: { "Mcp-Session-Id": "session-123" } });
   };
   const env = { AGENT_AI: { async run(_model: string, input: any) { prompts.push(JSON.stringify(input)); assert.ok(outputs.length); return { response: outputs.shift(), usage: { total_tokens: 42 } }; } } };
@@ -93,8 +93,43 @@ test('approval ignores object key order but blocks changed input schemas',async(
  const g=harness();const other=await g.prepare();const pending=await g.trial(other.agentId);
  const changed=(await g.storage.get<Connection>(`connection:${other.connectionId}`))!;
  changed.tools[0].inputSchema={type:'object'};await g.storage.put(`connection:${other.connectionId}`,changed);
- const rejected=await g.approve(pending);assert.equal(rejected.status,409);assert.match(rejected.body.error,/No tool call was sent.*refresh.*capabilities/);
+ const rejected=await g.approve(pending);assert.equal(rejected.status,409);assert.match(rejected.body.error,/No tool call was sent.*refresh.*capabilities/i);
  assert.ok(!g.calls.includes('tools/call'));
+});
+
+test('unchanged scrubbed catalog survives refresh and approval without exposing credentials', async()=>{
+ const documented={...tool,description:'Uses Bearer example and SECRET-TOKEN',inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties as Record<string,unknown>,mcpServerToken:{type:'string',description:'Bearer token for the dev MCP server URL above.'}}},outputSchema:{type:'object',description:'Bearer example'},annotations:{title:'SECRET-TOKEN'}};
+ const h=harness([suggestion,call,call,finish],documented);const {agentId,connectionId}=await h.prepare();
+ const old=await h.trial(agentId);assert.equal((await h.request('refresh-capabilities',{connectionId})).status,200);
+ assert.equal((await h.approve(old)).status,409);
+ const fresh=await h.trial(agentId);assert.equal((await h.approve(fresh)).status,200);
+ assert.equal(h.calls.filter(c=>c==='tools/call').length,1);
+ assert.ok(!JSON.stringify(await h.runtime.snapshot()).includes('SECRET-TOKEN'));
+ assert.ok(h.prompts.every(p=>!p.includes('SECRET-TOKEN')));
+});
+
+test('genuine changes identify sections and remain blocked after normalized comparison',async()=>{
+ for(const key of ['description','inputSchema','outputSchema','annotations'] as const){
+  const h=harness();const {agentId,connectionId}=await h.prepare();const pending=await h.trial(agentId);
+  const stored=(await h.storage.get<Connection>(`connection:${connectionId}`))!;
+  if(key==='description')stored.tools[0].description='Different instructions';
+  else stored.tools[0][key]={type:'object',description:'private metadata should not appear'};
+  await h.storage.put(`connection:${connectionId}`,stored);
+  const rejected=await h.approve(pending);assert.equal(rejected.status,409);assert.ok(rejected.body.error.includes(key));
+  assert.ok(!rejected.body.error.includes('private metadata'));assert.ok(!h.calls.includes('tools/call'));
+ }
+});
+
+test('all-optional search schemas allow a targeted bounded proposal and validate provider constraints',async()=>{
+ const search={...tool,inputSchema:{type:'object',properties:{searchTerms:{type:'array',items:{type:'string'},minItems:1},maxPostsCount:{type:'integer',minimum:1,maximum:10}},additionalProperties:false}};
+ const proposed={...call,arguments:{searchTerms:['retirement planning'],maxPostsCount:1}};
+ const h=harness([suggestion,proposed,finish],search);const {agentId}=await h.prepare();const pending=await h.trial(agentId);
+ const inference=JSON.parse(h.prompts.at(-1)!);
+ const grammar=JSON.stringify(inference.response_format);
+ assert.match(grammar,/searchTerms/);assert.match(grammar,/maxPostsCount/);
+ assert.deepEqual(pending.pending!.arguments,proposed.arguments);assert.ok(!h.calls.includes('tools/call'));
+ assert.equal((await h.request('revise',{runId:pending.id,approvalId:pending.pending!.id,arguments:{searchTerms:['x'],maxPostsCount:50}})).status,400);
+ assert.equal((await h.approve(pending)).status,200);assert.equal(h.calls.filter(c=>c==='tools/call').length,1);
 });
 
 test("changed catalogs invalidate approvals; uncertain effects are recorded without replay", async () => {

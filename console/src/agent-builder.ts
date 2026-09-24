@@ -1108,7 +1108,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const status=runFeedback.get(runKey(card.dataset.supervisedRun!));
       const changedTool=Boolean(status?.error&&status.text.includes('tool definition changed'));
       const output=card.querySelector<HTMLElement>('[data-run-feedback]')!;
-      output.textContent=changedTool?'Tool definition changed. This call was not executed. Refresh the server capabilities, then review a new trial.':status?.text || '';output.hidden=!status;output.dataset.error=String(Boolean(status?.error));
+      output.textContent=status?.text || '';output.hidden=!status;output.dataset.error=String(Boolean(status?.error));
       for(const control of card.querySelectorAll<HTMLButtonElement>('[data-run-action]')) {
         const blocked=changedTool&&control.dataset.runAction==='approve';
         control.disabled=role==='viewer'||Boolean(status?.busy)||blocked;
@@ -1249,7 +1249,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     for (const a of state.agents) {
       const card = node("article", "", "card"), actions = node("div", "", "actions");
       card.append(node("span", a.status, "pill"), node("h3", a.title), node("p", a.goal), node("p", `Success: ${a.success}`, "note"));
-      actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
+      actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); for(const previous of state.runs.filter((r:any)=>r.agentId===a.id))runFeedback.delete(runKey(previous.id)); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
@@ -1293,7 +1293,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           },action!=='approve');
           control.dataset.runAction=action;control.dataset.runLabel=label;return control;
         };
-        const advanced = node("details"); advanced.append(node("summary", "Adjust tool arguments"), node("p", "AI proposals use required inputs and provider defaults. Add optional settings here when needed, then save and review the revised call before approving.", "note"), edit, runButton('Save revised call','revise',()=>({runId:r.id,approvalId:r.pending.id,arguments:JSON.parse(edit.value)}),'Saving revised arguments…','Proposal revised. Review the saved arguments before approving execution.')); approval.append(advanced);
+        const advanced = node("details"); advanced.append(node("summary", "Adjust tool arguments"), node("p", "Review the query, target and result limits. AI proposals can use relevant optional inputs. Save any changes and review the revised call before approving.", "note"), edit, runButton('Save revised call','revise',()=>({runId:r.id,approvalId:r.pending.id,arguments:JSON.parse(edit.value)}),'Saving revised arguments…','Proposal revised. Review the saved arguments before approving execution.')); approval.append(advanced);
         actions.append(runButton('Approve and execute','approve',()=>({runId:r.id,approvalId:r.pending.id}),'Executing the approved call and assessing the next step…','Action processed. Review the updated run status, result and any next approval below.'),runButton('Cancel run','cancel',()=>({runId:r.id}),'Cancelling this run…','Run cancelled.'));
         approval.append(actions);
         if(runFeedback.get(runKey(r.id))?.error && runFeedback.get(runKey(r.id))!.text.includes('tool definition changed')) {
