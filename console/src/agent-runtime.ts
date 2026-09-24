@@ -1,6 +1,6 @@
 import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
-import { proposedPlan, planBindings, PLAN_PROMPT, PLAN_SCHEMA, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
+import { proposedPlan, planBindings, normalizeLegacyPlan, PLAN_PROMPT, PLAN_SCHEMA, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation, type RubricAssessment, rubricEvidence, hasRubricEvidence, rubricAssessment, evidenceDigest } from "./recipe-evaluation.ts";
 import { agentDraft, DRAFT_PROMPT } from './agent-draft.ts';
 import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, type WorkspaceRecipe } from "./workspace-recipes.ts";
@@ -57,6 +57,11 @@ export class AgentRuntime {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(storage: RuntimeStorage, env: RuntimeEnv, fetcher: typeof fetch = (input, init) => fetch(input, init)) { this.storage = storage; this.env = env; this.fetcher = fetcher; }
   async recover(): Promise<void> {
+    for(const plan of (await this.storage.list<AgentPlan>({prefix:'draft:'})).values()) {
+      if(await this.storage.get(`agent:${plan.id}`))continue;
+      const normalized=normalizeLegacyPlan(plan);
+      if(normalized!==plan) await this.saveDraft({...normalized,updatedAt:now()});
+    }
     for (const run of (await this.storage.list<Run>({ prefix: "run:" })).values()) {
       if (run.status === "executing" || run.status === "planning") {
         run.status = "interrupted"; run.finishedAt = now();

@@ -89,41 +89,42 @@ try {
  assert.equal(await page.locator('.workspace-nav [data-stage=connect]').innerText().then(t=>t.includes('MCP servers')),true);
  await page.locator('#job-description').fill('Summarize https://example.com/pricing in USD with sources');
  await page.getByRole('button',{name:'Draft my agent',exact:true}).click();
- await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ await page.locator('#draft-feedback').filter({hasText:'Draft generated.'}).waitFor({state:'attached'});await page.locator('#configure').waitFor();
  assert.equal(await field('title').inputValue(),'Pricing brief');
  assert.equal(await field('setup').inputValue(),'Summarize https://example.com/pricing in USD with sources');
  assert.equal(await page.locator('#draft-customize').getAttribute('open'),null);
  assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  assert.equal((await latest()).agents.length,0);assert.equal((await latest()).drafts.length,1);
- await page.locator('#draft-customize > summary').click();await field('instructions').fill('Read the page and cite billing intervals.');
+ await page.locator('#setup-review > summary').click();await page.locator('#draft-customize > summary').click();await field('instructions').fill('Read the page and cite billing intervals.');
  await page.locator('#draft-customize > summary').click();
- await page.getByRole('button',{name:'Save draft only',exact:true}).click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  await page.reload();await page.getByRole('heading',{name:'Continue an agent',exact:true}).waitFor();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
- await page.locator('#example-library > summary').click();
+ await page.locator('#other-agent-options > summary').click();await page.locator('#example-library > summary').click();
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
  await page.locator('#example-library > summary').click();
  assert.equal(await page.locator('#continue-agents').isHidden(),true);
  // Browsing and custom setup persist edits, including inputs, and never execute a provider call.
- await field('setup').fill('Read https://example.com/pricing for the annual report');
+ await page.locator('#setup-details > summary').click();await field('setup').fill('Read https://example.com/pricing for the annual report');
+ await page.locator('#agent-tools > details > summary').click();
  await page.getByRole('button',{name:'Browse available MCP servers',exact:true}).click();
  await page.locator('#catalog-view').waitFor();await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();
  assert.equal(await field('setup').inputValue(),'Read https://example.com/pricing for the annual report');
  await page.locator('#plan-custom').click();await page.locator('#setup-view').waitFor();
  await page.locator('#connect [name=label]').fill('Research account');
  await page.locator('#connect [name=endpoint]').fill(connection.endpoint);
- await page.locator('#connect [name=consent]').check();
+
  await page.getByRole('button',{name:'Connect server',exact:true}).click();
  await page.getByText('Server connected. Review the tool mappings', {exact:false}).waitFor();
  assert.equal(await field('instructions').inputValue(),'Read the page and cite billing intervals.');
  const serverId=(await latest()).connections[0].id;
  await page.locator('.other-tools > summary').click();await page.locator('[data-tool-mapping]').selectOption(JSON.stringify({connectionId:serverId,tool:'firecrawl_scrape'}));
- await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
+ await page.locator('#draft-next-action').click();await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-mobile.png'});
  await page.setViewportSize({width:1440,height:1050});await page.locator('#configure').screenshot({path:'/tmp/aa-227-agent-desktop.png'});
- await page.getByRole('button',{name:'Review first action',exact:true}).click();
+ await page.locator('#draft-next-action').click();await page.getByRole('button',{name:'Review first action',exact:true}).click();
  await page.getByRole('button',{name:'Approve and execute',exact:true}).waitFor();
  assert.ok((await page.locator('.approval').innerText()).includes('Research account'));
  assert.ok((await page.locator('.approval').innerText()).includes('firecrawl_scrape'));
@@ -132,17 +133,17 @@ try {
  await page.waitForFunction(()=>document.querySelector('#runs')?.textContent?.includes('The price is 20.'));
  assert.equal((await latest()).runs[0].evaluation.status,'pass');
  // Inventory never preselects a source, even when only one account exists.
- await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.locator('#draft-feedback').filter({hasText:'Draft generated.'}).waitFor({state:'attached'});await page.locator('#configure').waitFor();
  assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');
  await storage.put('connection:other',{...connection,id:'other',label:'Second account'});
- await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ await page.goto(base+'/agents');await page.locator('#job-description').fill('Read https://example.com/pricing');await page.locator('#generate-draft').click();await page.locator('#draft-feedback').filter({hasText:'Draft generated.'}).waitFor({state:'attached'});await page.locator('#configure').waitFor();
  assert.equal(await page.locator('[data-tool-mapping]').inputValue(),'');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
- await page.locator('#create-agent').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  // Switching workspaces clears private editing state; empty workspace can still draft.
  await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  assert.equal(await page.locator('#continue-agents').isHidden(),true);assert.equal(await page.locator('#saved-examples').isHidden(),true);
  assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await page.locator('#job-description').inputValue(),'');assert.equal(await page.locator('#generate-draft').isEnabled(),true);
- await page.locator('#job-description').fill('Read https://example.com');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ await page.locator('#job-description').fill('Read https://example.com');await page.locator('#generate-draft').click();await page.locator('#draft-feedback').filter({hasText:'Draft generated.'}).waitFor({state:'attached'});await page.locator('#configure').waitFor();
  assert.equal(await page.locator('[data-tool-mapping] option').count(),1);
  // Viewer cannot generate or edit drafts.
  viewer=true;await page.goto(base+'/agents?workspace=beta');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();assert.equal(await page.locator('#generate-draft').isDisabled(),true);

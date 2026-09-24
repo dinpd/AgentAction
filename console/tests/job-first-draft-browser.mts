@@ -71,22 +71,30 @@ try {
  page.setDefaultTimeout(10000);
  await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  await page.locator('#job-description').fill('social media post scanner for example.com');await page.locator('#generate-draft').click();
- await page.locator('[data-rubric-id=outcome_1]').waitFor();
+ await page.locator('#draft-next').waitFor();
+ assert.match(await page.locator('#draft-next-title').innerText(),/Complete the job details/);
+ assert.equal(await page.locator('#draft-policy').isVisible(),false);
+ assert.equal(posts.some(p=>p.action==='rank-tools'),false); // comparison waits for the sources step
+ assert.equal(await page.locator('#other-agent-options').getAttribute('open'),null);
+ assert.equal(await page.locator('#stage-next').isVisible(),false);
+ if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
  assert.equal(await field('boundaries').isVisible(),true);assert.equal(await page.locator('[data-rubric-criterion]').count(),2);
  assert.equal(await page.locator('[data-connected-tool="notion-search"]').count(),0);
+ await page.locator('#setup-sources > summary').click();
  await page.locator('[data-registry-server="research/social"]').waitFor();
  assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
- assert.ok(await page.locator('#draft-policy').evaluate(el=>el.compareDocumentPosition(document.querySelector('#agent-tools')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+ assert.ok(await page.locator('#draft-policy').evaluate(el=>el.compareDocumentPosition(document.querySelector('#agent-tools')!) & Node.DOCUMENT_POSITION_PRECEDING));
  await page.locator('[data-registry-server="research/social"]').getByRole('button',{name:'Select server & review setup',exact:true}).click();
  await page.getByRole('heading',{name:'Connect a server for Search public social media posts',exact:true}).waitFor();
  await page.locator('#recipe-return a').click();await page.locator('#draft-answer-0').waitFor();
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'');
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
+ if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').fill('Count findings supported by sources divided by all findings. Pass at 100%; no search evidence is inconclusive.');
- await page.locator('#create-agent').click();await page.getByText('Agent draft saved. Continue setup whenever you are ready.',{exact:true}).waitFor();
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved. Continue setup whenever you are ready.',{exact:true}).waitFor();
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
  assert.match(await field('boundaries').inputValue(),/No posts/);assert.match(await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').inputValue(),/directly concern/);
  assert.match(await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').inputValue(),/divided by all findings/);
@@ -106,7 +114,7 @@ try {
  assert.equal(await page.locator('#precheck-endpoint').inputValue(),'');
  assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
  assert.equal((await latest()).drafts[0].review,undefined);
- await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor();
+ await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor({state:'attached'});
  await page.locator('[data-registry-server="io.github.harshmaur/reddit-scraper"]').getByRole('button',{name:'Select server & connect',exact:true}).click();
  await page.getByText('Review: Tool catalog requires authentication',{exact:true}).waitFor();
  assert.equal(await page.locator('#precheck-endpoint').inputValue(),'https://mcp.apify.com/?tools=harshmaur/reddit-scraper');
@@ -133,7 +141,7 @@ try {
  assert.equal(await page.locator('#token-setup').isVisible(),false);
  assert.equal((await latest()).drafts[0].bindings.step_1,undefined);
  assert.match((await latest()).drafts[0].setup,/Reddit, last seven days/);
- await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor();
+ await page.locator('#recipe-return a').click();await page.locator('#draft-policy').waitFor({state:'attached'});
 
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'/tmp/aa267-mobile.png',fullPage:true});
@@ -141,13 +149,18 @@ try {
  // Connecting a research source does not rewrite the job or approve a tool call.
  await storage.put('connection:research',{...connection,id:'research',label:'Research source',endpoint:'https://mcp.firecrawl.dev/v2/mcp',tools:[researchTool]});
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
+ assert.equal(await page.locator('[data-connected-tool=social_search]').getAttribute('data-connection-status'),'connected');
+ assert.notEqual(await page.locator('[data-connected-tool=social_search]').evaluate(el=>getComputedStyle(el).backgroundColor),await page.locator('[data-registry-server="research/social"]').evaluate(el=>getComputedStyle(el).backgroundColor));
  await page.locator('[data-connected-tool=social_search]').getByRole('button',{name:'Use this tool',exact:true}).click();
+ if(!await page.locator('#draft-policy').isVisible())await page.locator('#draft-next-action').click();
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-evidence]').fill('Final findings and original social post results.');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  await field('boundaries').fill('Public posts only; never write or buy data.');assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
+ await page.locator('#draft-next-action').click();
+ assert.equal(await page.locator('#trial-controls [data-ai-disclosure]').isVisible(),true);
  await page.locator('#review-first-action').click();await page.getByText('First trial planned. Review its proposed action or result below.',{exact:true}).waitFor();
  const trial=(await latest()).runs[0];assert.equal(trial.status,'awaiting_approval');assert.equal(trial.events.length,0);
  const approved=await runtimes.acme.handle(new Request('https://runtime.test/approve',{method:'POST',headers:{'x-runtime-role':'owner'},body:JSON.stringify({runId:trial.id,approvalId:trial.pending.id})}));assert.equal(approved.status,200);
