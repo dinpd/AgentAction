@@ -71,6 +71,15 @@ const base = `http://127.0.0.1:${(server.address() as any).port}`;
 const field = (name:string) => page.locator(`#create [name=${name}]`);
 const latest = async () => (await runtimes.acme.snapshot() as any);
 const saveStatus=()=>page.locator('[data-draft-save-status=top]');
+const assertSaveButtons=async(label:string,disabled:boolean,busy=false)=>{
+ const buttons=page.locator('[data-section-save],#draft-save-shortcut');
+ assert.equal(await buttons.count(),5);
+ for(const button of await buttons.all()) {
+  assert.equal(await button.textContent(),label);
+  assert.equal(await button.isDisabled(),disabled);
+  assert.equal(await button.getAttribute('aria-busy'),busy?'true':null);
+ }
+};
 const open=async(id:string)=>{if(await page.locator('#setup-'+id).getAttribute('open')===null)await page.locator('#setup-'+id+' > summary').click();};
 const save=async(id:string)=>{await open(id);await page.locator('[data-section-save='+id+']').click();await page.locator('[data-draft-save-status=top]').filter({hasText:'All changes saved'}).waitFor();};
 const reopen=async()=>{await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();};
@@ -80,13 +89,16 @@ try {
  await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  await page.locator('#job-description').fill('Research example.com');await page.locator('#generate-draft').click();await page.locator('#draft-next').waitFor();
  assert.equal(await page.locator('[data-section-save]').count(),4);
+ await assertSaveButtons('Saved',true);
  assert.match(await page.locator('#setup-details > summary').innerText(),/1 required answer missing/);
  assert.match(await page.locator('#setup-sources > summary').innerText(),/2. Tools.*No tools selected/s);
  await page.locator('#draft-answer-0').fill('X and Reddit, previous 24 hours');
  assert.equal(await saveStatus().innerText(),'Unsaved changes');
+ await assertSaveButtons('Save changes',false);
  assert.match(await page.locator('#setup-details > summary').innerText(),/Complete/);
  assert.equal(posts.filter(p=>p.action==='save-draft').length,0); // explicit saving only
  await save('details');await reopen();await open('details');
+ await assertSaveButtons('Saved',true);
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'X and Reddit, previous 24 hours');
  assert.equal(await field('setup').inputValue(),'Research example.com');
  await page.locator('#draft-answer-0').fill('');
@@ -108,22 +120,29 @@ try {
  await save('review');await reopen();await open('review');
  assert.match(await field('boundaries').inputValue(),/no purchases/);
  assert.match(await page.locator('[data-rubric-method]').first().inputValue(),/Count supported findings/);
- await save('trial');assert.equal((await latest()).agents.length,0);assert.equal((await latest()).runs.length,0);
+ await field('boundaries').fill('Read public posts only; no purchases, publishing or replies.');
+ await save('trial');await assertSaveButtons('Saved',true);
+ assert.equal((await latest()).agents.length,0);assert.equal((await latest()).runs.length,0);
  // Failure retains input and offers the same explicit save as retry.
  await open('details');await page.locator('#draft-answer-0').fill('Latest saved scope');failSave=true;
  await page.locator('[data-section-save=details]').click();await saveStatus().filter({hasText:'Not saved.'}).waitFor();
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'Latest saved scope');
  assert.equal(await page.locator('[data-section-save=details]').isEnabled(),true);
+ await assertSaveButtons('Retry save',false);
  await save('details');
+ await assertSaveButtons('Saved',true);
  // A late save response must not overwrite edits made while the request was pending.
  await page.locator('#draft-answer-0').fill('Older submitted scope');holdSave=true;const received=new Promise<void>(resolve=>{onSaveReceived=resolve;});
  await page.locator('[data-section-save=details]').click();await saveStatus().filter({hasText:'Saving draft'}).waitFor();
  assert.equal(await page.locator('#workspace').isDisabled(),true);
  assert.equal(await page.locator('[data-section-save=review]').isDisabled(),true);
+ await assertSaveButtons('Saving…',true,true);
  await page.locator('#draft-answer-0').fill('Newer unsaved scope');
+ await assertSaveButtons('Saving…',true,true);
  await received;
  assert.ok(releaseSave);releaseSave!();releaseSave=undefined;
  await saveStatus().filter({hasText:'Unsaved changes'}).waitFor();
+ await assertSaveButtons('Save changes',false);
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'Newer unsaved scope');
  assert.match((await latest()).drafts[0].setup,/Older submitted scope/);
  await save('details');await reopen();await open('details');

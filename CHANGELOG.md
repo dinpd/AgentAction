@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.40.1-rc.1 - 2026-09-24
+
+### Fixed
+
+- Show Save changes, Saving…, Saved and Retry save directly on every guided draft save button. Disable already-saved and pending buttons, expose pending saves to assistive technology, and keep all section buttons synchronized when edits arrive during a save.
+
+### Compatibility
+
+- Presentation-only patch; manual saving, persisted drafts, approval and execution behavior are unchanged. No migration required.
+- Install Python artifacts from the GitHub v0.40.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.40.0-rc.1 - 2026-09-24
 
 ### Added

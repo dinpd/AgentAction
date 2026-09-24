@@ -110,7 +110,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   function updateSaveState() {
     const copy=saveState==='saving'?'Saving draft…':saveState==='error'?'Not saved. '+saveError: draftDirty?'Unsaved changes':'All changes saved';
     for(const status of doc.querySelectorAll<HTMLElement>('[data-draft-save-status]')) {status.textContent=copy;status.dataset.state=saveState;}
-    for(const button of doc.querySelectorAll<HTMLButtonElement>('[data-section-save],#draft-save-shortcut')) button.disabled=role==='viewer'||creating||Boolean(saveInFlight);
+    const saving=Boolean(saveInFlight),retry=saveState==='error';
+    for(const button of doc.querySelectorAll<HTMLButtonElement>('[data-section-save],#draft-save-shortcut')) {
+      button.textContent=saving?'Saving…':retry?'Retry save':draftDirty?'Save changes':'Saved';
+      button.disabled=role==='viewer'||creating||saving||(!draftDirty&&!retry);
+      if(saving)button.setAttribute('aria-busy','true');else button.removeAttribute('aria-busy');
+    }
   }
   async function saveFromSection() {
     if(!currentPlan||role==='viewer'||creating||saveInFlight)return;
