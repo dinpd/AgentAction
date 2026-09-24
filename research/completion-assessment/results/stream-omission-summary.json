@@ -1,0 +1,309 @@
+[
+  {
+    "mask": 0,
+    "streams": [],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 60,
+        "abstained": 0,
+        "decisive": 120,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": 1
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 60,
+        "abstained": 0,
+        "decisive": 120,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": 1
+      }
+    }
+  },
+  {
+    "mask": 1,
+    "streams": [
+      "decision_events"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      }
+    }
+  },
+  {
+    "mask": 2,
+    "streams": [
+      "execution_receipts"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 60,
+        "false_failure": 0,
+        "admitted_positive": 60,
+        "abstained": 0,
+        "decisive": 120,
+        "false_success_rate": 1,
+        "false_failure_rate": 0,
+        "coverage": 1,
+        "selective_error": 0.5,
+        "positive_admission": 1
+      }
+    }
+  },
+  {
+    "mask": 3,
+    "streams": [
+      "decision_events",
+      "execution_receipts"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      }
+    }
+  },
+  {
+    "mask": 4,
+    "streams": [
+      "observations"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      }
+    }
+  },
+  {
+    "mask": 5,
+    "streams": [
+      "decision_events",
+      "observations"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 60,
+        "decisive": 60,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0.5,
+        "selective_error": 0,
+        "positive_admission": 0
+      }
+    }
+  },
+  {
+    "mask": 6,
+    "streams": [
+      "execution_receipts",
+      "observations"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      }
+    }
+  },
+  {
+    "mask": 7,
+    "streams": [
+      "decision_events",
+      "execution_receipts",
+      "observations"
+    ],
+    "representations": {
+      "absent": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      },
+      "empty": {
+        "total": 120,
+        "positive": 60,
+        "negative": 60,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 120,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0
+      }
+    }
+  }
+]

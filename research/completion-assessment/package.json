@@ -1,0 +1,12 @@
+{
+  "name": "agentaction-completion-assessment-research",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.mts",
+    "experiment": "node --experimental-strip-types src/run.mts",
+    "check": "node --experimental-strip-types src/run.mts --check",
+    "timing": "node --experimental-strip-types src/timing.mts"
+  },
+  "engines": { "node": ">=22.14" }
+}
