@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.41.0-rc.1 - 2026-09-24
+
+### Added
+
+- Public official-registry MCP directory and stable server profiles at mcpcheck.agentaction.dev/servers, linked from the website and checker. Search, review setup declarations, inspect existing public observations, and suggest corrections without a workspace login.
+- Separate publisher declarations, inferred categories, stale or missing public reports and untested execution. Endpoint links prefill the checker without running or publishing a check.
+
+### Compatibility
+
+- Significant additive read-only public surface, released as a minor prerelease. No tenant permissions, private evidence exposure, storage migrations or new credentials. Registry reads are bounded and cached for five minutes; the preview covers official-registry listings only.
+- Install Python artifacts from the GitHub v0.41.0-rc.1 prerelease. Hosted pages deploy from the merge commit; no package registry publication is implied.
+
 ## 0.40.1-rc.1 - 2026-09-24
 
 ### Fixed

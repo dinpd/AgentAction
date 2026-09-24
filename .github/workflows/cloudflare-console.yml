@@ -66,6 +66,11 @@ jobs:
       - name: Verify readiness Worker and persistence
         run: npm run dry-run:readiness && npm run test:readiness-worker
 
+      - name: Verify anonymous public server and checker browser journey
+        run: npm run test:readiness-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify public demo Worker bundle
         run: npm run dry-run:demo
 
