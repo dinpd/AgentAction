@@ -85,7 +85,25 @@ try {
  for(const [index,name] of ['tickets.search','tickets.update'].entries()) {await page.locator('.other-tools > summary').nth(index).click();await page.locator('[data-tool-mapping]').nth(index).selectOption(JSON.stringify({connectionId,tool:name}));}
  const first=page.locator('[data-capability-step=step_1]'), second=page.locator('[data-capability-step=step_2]');
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Tool selected · trial needed/);
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/No technical field setup is required/);
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Next: Review and approve/);
+ assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-readiness'),'trial');
+ assert.equal(await first.locator('[data-coverage-report] details').getAttribute('open'),null);
+ await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ const originalConnection=await storage.get<any>('connection:'+connectionId);
+ const unknownSchema=structuredClone(originalConnection);unknownSchema.tools[0].inputSchema={};await storage.put('connection:'+connectionId,unknownSchema);
+ await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();await page.locator('#setup-sources > summary').click();
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Tool selected · trial needed/);
+ await first.getByText('Technical assessment details',{exact:true}).click();
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Input contract is absent or complex/);
+ await storage.put('connection:'+connectionId,originalConnection);
+ await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();await page.locator('#setup-sources > summary').click();
  for(const card of [first,second]) await card.locator('.field-check-editor > summary').click();
+ await first.getByLabel('Required result fields',{exact:true}).fill('/tickets/*/title');
+ await first.getByLabel('Required result fields',{exact:true}).fill('');
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Tool selected · trial needed/); // empty optional settings
+ assert.doesNotMatch(await first.locator('[data-coverage-report]').innerText(),/Mapped tool and example inputs are covered/);
  await first.getByLabel('Required result fields',{exact:true}).fill('/tickets/*/title');
  await first.getByRole('button',{name:'Add example input',exact:true}).click();
  await first.getByLabel('Input field',{exact:true}).fill('query');await first.getByLabel('Example value',{exact:true}).fill('broken widget');
@@ -93,6 +111,7 @@ try {
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  await first.getByRole('button',{name:'Remove example',exact:true}).nth(1).click();
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'covered');
+ assert.match(await first.locator('[data-coverage-report]').innerText(),/Field checks match · trial needed/);
  await second.getByRole('button',{name:'Add example input',exact:true}).click();
  await second.getByLabel('Input field',{exact:true}).fill('status');await second.getByLabel('Example value',{exact:true}).fill('closed');
  await second.getByRole('button',{name:'Connect an input to a result',exact:true}).click();
@@ -100,6 +119,8 @@ try {
  await second.getByLabel('From earlier step',{exact:true}).selectOption('step_1');await second.getByLabel('Result field',{exact:true}).fill('/tickets/*/id');
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'covered');
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'partial');
+ assert.match(await second.locator('[data-coverage-report]').innerText(),/Field checks need attention/);
+ assert.match(await second.locator('[data-coverage-report]').innerText(),/edit Advanced: optional field checks or choose another tool/);
  assert.match(await second.locator('[data-coverage-report]').innerText(),/Closed schema does not expose/);
  await page.locator('#configure').screenshot({path:'/tmp/aa-241-fields-desktop.png'});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -112,6 +133,7 @@ try {
  await page.reload();await page.getByRole('button',{name:'Continue setup',exact:true}).click();
  assert.equal(await first.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'unknown');
+ assert.match(await second.locator('[data-coverage-report]').textContent(),/Refresh tool details/);
  missingId=false;
  if(await page.locator('#setup-sources').getAttribute('open')===null)await page.locator('#setup-sources > summary').click();
  if(await page.locator('#agent-tools > details').getAttribute('open')===null)await page.locator('#agent-tools > details > summary').click();
@@ -134,6 +156,7 @@ try {
  await page.getByRole('button',{name:'Refresh capabilities',exact:true}).click();await page.getByText('Capability catalog refreshed.',{exact:false}).waitFor();
  await page.getByRole('link',{name:'← Continue agent setup',exact:true}).click();
  assert.equal(await second.locator('[data-coverage-report]').getAttribute('data-coverage-status'),'not_exposed');
+ assert.match(await second.locator('[data-coverage-report]').textContent(),/Choose a replacement tool/);
  assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  // Existing viewer policy prevents opening draft editors or refreshing catalogs.
  viewer=true;await page.reload();assert.equal(await page.getByRole('button',{name:'Continue setup',exact:true}).isDisabled(),true);

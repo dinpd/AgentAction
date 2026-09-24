@@ -79,6 +79,10 @@ try {
  assert.equal(await page.locator('#stage-next').isVisible(),false);
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
  assert.equal(await field('boundaries').isVisible(),true);assert.equal(await page.locator('[data-rubric-criterion]').count(),2);
+ assert.equal(await page.locator('#approve-draft').isDisabled(),true);
+ assert.match(await page.locator('#draft-review-status').innerText(),/In 1. Job details, complete: Which platforms and time window/);
+ assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Sources, choose a tool for: Search public social media posts/);
+ assert.equal(await page.locator('#approve-draft').getAttribute('aria-describedby'),'draft-review-status');
  assert.equal(await page.locator('[data-connected-tool="notion-search"]').count(),0);
  await page.locator('#setup-sources > summary').click();
  await page.locator('[data-registry-server="research/social"]').waitFor();
@@ -91,6 +95,8 @@ try {
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'');
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
+ assert.doesNotMatch(await page.locator('#draft-review-status').innerText(),/In 1. Job details/);
+ assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Sources/);
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').fill('Count findings supported by sources divided by all findings. Pass at 100%; no search evidence is inconclusive.');
@@ -153,6 +159,7 @@ try {
  assert.notEqual(await page.locator('[data-connected-tool=social_search]').evaluate(el=>getComputedStyle(el).backgroundColor),await page.locator('[data-registry-server="research/social"]').evaluate(el=>getComputedStyle(el).backgroundColor));
  await page.locator('[data-connected-tool=social_search]').getByRole('button',{name:'Use this tool',exact:true}).click();
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#draft-next-action').click();
+ assert.match(await page.locator('#draft-review-status').innerText(),/Ready to approve/);
  await page.locator('#approve-draft').click();await page.getByText('Draft approved. Any edit will require review again.',{exact:true}).waitFor();
  assert.equal(await page.locator('#review-first-action').isEnabled(),true);
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-evidence]').fill('Final findings and original social post results.');assert.equal(await page.locator('#review-first-action').isDisabled(),true);

@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.39.1-rc.1 - 2026-09-24
+
+### Fixed
+
+- Explain selected tools as needing a supervised trial instead of showing an unexplained Unknown warning for optional field checks. Keep technical findings expandable and distinguish unavailable tools and field conflicts from unverified behavior.
+- Explain disabled guardrail approval beside the button, naming unanswered job questions and missing source selections. Update the explanation as setup changes and expose it to assistive technology.
+
+### Compatibility
+
+- Presentation-only patch; stored plans, coverage evidence, credentials, runtime approvals and tool execution are unchanged. No migration required.
+- Install Python artifacts from the GitHub v0.39.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.39.0-rc.1 - 2026-09-24
 
 ### Added
