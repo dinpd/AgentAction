@@ -121,6 +121,7 @@ test("makes the MCP checker discoverable while retaining recipe access", async (
     const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
     assert.match(nav, /href="https:\/\/mcpcheck\.agentaction\.dev">MCP Checker<\/a>/);
+    assert.match(nav, /href="https:\/\/mcpcheck\.agentaction\.dev\/servers">MCP Servers<\/a>/);
     assert.doesNotMatch(nav, /href="\/recipes"/);
     if (path === "/") {
       assert.match(html, /Building an MCP server\?/);

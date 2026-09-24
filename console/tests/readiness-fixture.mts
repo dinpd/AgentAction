@@ -20,6 +20,11 @@ export async function readinessFixture() {
     outboundService:async request=>{
       const url=new URL(request.url);calls.push(request.url);
       assert.equal(request.headers.has('authorization'),false);assert.equal(request.headers.has('cookie'),false);
+      if(url.hostname==='registry.modelcontextprotocol.io') {
+        const entry={server:{name:'io.github.vendor/server',title:'Vendor <script>test</script>',description:'Search public documents',version:'1.2.3',remotes:[{type:'streamable-http',url:'https://mcp.vendor.com/mcp'}]},_meta:{'io.modelcontextprotocol.registry/official':{status:'active',isLatest:true,updatedAt:'2026-09-24T00:00:00Z'}}};
+        if(url.pathname.endsWith('/versions/latest'))return url.pathname.includes('missing')?new Response(null,{status:404}):Response.json(entry);
+        return Response.json({servers:[entry],metadata:{}});
+      }
       if(url.hostname==='cloudflare-dns.com')return Response.json({Status:0,Answer:url.searchParams.get('type')==='A'?[{type:1,data:url.searchParams.get('name')==='private.vendor.com'?'127.0.0.1':'93.184.216.34'}]:[]});
       if(request.method==='DELETE')return new Response(null,{status:204});
       if(request.method==='POST') {

@@ -98,6 +98,7 @@ export default function GatewayPage() {
           <span className="nav-divider" aria-hidden="true" />
           <Link className="nav-page" href="/">Project</Link>
           <Link className="nav-page" href="/landscape">Landscape</Link>
+          <a className="nav-page nav-mcp-servers" href="https://mcpcheck.agentaction.dev/servers">MCP Servers</a>
           <a className="nav-page nav-mcp-checker" href="https://mcpcheck.agentaction.dev">MCP Checker</a>
           <a className="nav-cta" href={github}>
             GitHub <span aria-hidden="true">↗</span>

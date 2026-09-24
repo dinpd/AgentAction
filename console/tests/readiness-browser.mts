@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readinessFixture } from './readiness-fixture.mts';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const {mf}=await readinessFixture();
+const {mf,calls}=await readinessFixture();
 let count=1;
 const server=createServer(async(req,res)=>{
   const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(chunk);
@@ -32,5 +32,16 @@ try {
  await page.locator('#endpoint').fill('https://127.0.0.1/mcp');await page.locator('#run').click();await page.locator('#status[data-error=true]').waitFor();assert.equal(await page.locator('#report').isVisible(),false);assert.equal(await page.locator('#run').isEnabled(),true);
  await page.locator('#endpoint').fill('https://auth.vendor.com/mcp');await page.locator('#run').click();await page.locator('#status').filter({hasText:'Check complete'}).waitFor();assert.match(await page.locator('#coverage').innerText(),/Discovery incomplete/);
  await page.goto(origin+'/reports/'+'a'.repeat(64));await page.locator('#status[data-error=true]').waitFor();assert.match(await page.locator('#status').innerText(),/not found/);assert.equal(await page.locator('#run').isEnabled(),true);
+ const beforePages=calls.length;
+ await page.goto(origin+'/servers');await page.getByRole('heading',{name:'Find a server. Know what is declared.'}).waitFor();
+ await page.getByLabel('Find an MCP server').fill('vendor');await page.getByRole('button',{name:'Search servers'}).click();
+ await page.getByRole('link',{name:'Review server profile'}).click();await page.getByRole('heading',{name:'What the registry declares'}).waitFor();
+ assert.match(await page.title(),/Vendor <script>test<\/script>/);assert.equal(await page.locator('script').count(),0);
+ assert.match(await page.getByRole('link',{name:'Suggest a correction'}).first().getAttribute('href'),/^https:\/\/github.com\/dinpd\/AgentAction\/issues\/new/);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.screenshot({path:'/tmp/agentaction-public-profile-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'/tmp/agentaction-public-profile-desktop.png',fullPage:true});
+ await page.getByRole('link',{name:'Check this endpoint'}).click();assert.equal(await page.locator('#endpoint').inputValue(),'https://mcp.vendor.com/mcp');assert.equal(await page.locator('#publish').isChecked(),false);assert.equal(await page.locator('#report').isVisible(),false);
+ assert.ok(calls.slice(beforePages).every(u=>new URL(u).hostname==='registry.modelcontextprotocol.io'));
  assert.deepEqual(errors,[]);console.log('PASS public checker browser: real Worker, opt-in publication/share/reload, JSON export, failure recovery, XSS inertness, desktop/mobile and no page errors.');
 } finally {await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await mf.dispose();}

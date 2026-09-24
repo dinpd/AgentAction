@@ -992,3 +992,33 @@ inferred. Every provider card offers setup, including listings without a usable
 endpoint. Selecting a listing saves the draft and opens contextual setup; only
 choosing an account-discovered tool resolves a missing capability. Local-only
 servers remain unsupported and require choosing another provider.
+
+## Public MCP directory and server profiles
+
+[Browse MCP servers](https://mcpcheck.agentaction.dev/servers) without a workspace
+login. `/servers?q=name` searches the official registry's active latest listings;
+pagination uses its opaque cursor. `/servers/<URL-encoded registry name>` is a
+stable public profile. The existing checker now links here instead of the
+protected console. This preview covers the official registry, not every directory.
+
+Profiles distinguish publisher declarations and description-derived categories
+from opt-in public readiness reports. Reports match exact displayed endpoints;
+stale, absent and unavailable evidence are labeled separately. Pages never probe
+a provider, execute tools or access workspace bindings. Endpoint links only prefill
+the checker: running and publishing still require explicit user action.
+
+Only HTTPS Streamable HTTP endpoints without parameters can be checked, with up
+to three shown per listing; consult the linked registry source for full setup.
+Local or authenticated servers remain listed without implying a failure.
+Registry reads have a fixed upstream, a 10-second timeout, a 1 MiB response cap,
+manual redirects, no forwarded credentials and a five-minute cache of normalized
+public fields. Errors never display upstream response bodies.
+
+“Suggest a correction” opens a draft issue in AgentAction with the server identity
+and source links; it does not submit anything or verify maintainer ownership.
+These pages do not claim endorsement, safety certification or tested execution.
+
+Validation: `npm test`, `npm run test:readiness-worker`, and
+`npm run test:readiness-browser` exercise escaping, exact identity/evidence matching,
+cache/error boundaries and the anonymous search/profile/correction/checker journey.
+No new bindings, credentials, storage migrations or tenant permissions are needed.
