@@ -1,0 +1,47 @@
+name: Completion Assessment Research
+
+on:
+  pull_request:
+    paths:
+      - "research/completion-assessment/**"
+      - "packages/guard/src/intent.ts"
+      - "cloudflare/src/intent-observation.ts"
+      - ".github/workflows/research-completion.yml"
+  push:
+    branches: [main]
+    paths:
+      - "research/completion-assessment/**"
+      - "packages/guard/src/intent.ts"
+      - "cloudflare/src/intent-observation.ts"
+      - ".github/workflows/research-completion.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  research-reproducibility:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: research/completion-assessment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test research controls
+        run: npm test
+      - name: Recompute all non-timing results
+        run: npm run check
+      - name: Independently recount saved results
+        run: python verify_results.py
+      - name: Install manuscript dependencies
+        run: python -m pip install -r paper/requirements.txt
+      - name: Build and verify manuscript
+        run: |
+          python paper/build.py
+          python verify_results.py --pdf
+          git diff --exit-code -- paper/manuscript.md paper/manuscript.tex paper/references.bib paper/generated-values.json
