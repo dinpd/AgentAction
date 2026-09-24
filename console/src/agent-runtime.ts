@@ -1,6 +1,6 @@
 import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
-import { proposedPlan, planBindings, normalizeLegacyPlan, PLAN_PROMPT, PLAN_SCHEMA, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
+import { proposedPlan, planBindings, normalizeLegacyPlan, draftJobDetails, PLAN_PROMPT, PLAN_SCHEMA, type AgentPlan, type ToolSource, type ToolBindings } from './agent-plans.ts';
 import { bindRecipeEval, issueHostedContract, evaluateHostedRun, type RecipeEvalBinding, type HostedContract, type HostedEvaluation, type RubricAssessment, rubricEvidence, hasRubricEvidence, rubricAssessment, evidenceDigest } from "./recipe-evaluation.ts";
 import { agentDraft, DRAFT_PROMPT } from './agent-draft.ts';
 import { recipeDefinition, MAX_RECIPES, MAX_REVISIONS, type RecipeDefinition, type WorkspaceRecipe } from "./workspace-recipes.ts";
@@ -418,7 +418,7 @@ export class AgentRuntime {
     }
     if (path === '/save-draft' || path === '/create-bound') {
       if (!['owner','operator'].includes(role)) throw new RuntimeError('An owner or operator must edit agents.',403);
-      if (Object.keys(body).some(k=>!['id','definition','setup','bindings','fieldChecks','reviewed'].includes(k))) throw new RuntimeError('Unsupported agent draft settings.');
+      if (Object.keys(body).some(k=>!['id','definition','setup','bindings','fieldChecks','reviewed','jobDetails'].includes(k))) throw new RuntimeError('Unsupported agent draft settings.');
       if(body.reviewed!==undefined && (path!=='/save-draft'||typeof body.reviewed!=='boolean')) throw new RuntimeError('Review the draft before creating an agent.');
       const plan = await this.required<AgentPlan>('draft',body.id);
       if (plan.agentId) {
@@ -435,7 +435,13 @@ export class AgentRuntime {
         await this.noCredentials(fieldChecks);
       }
       const setup = body.setup === '' ? '' : textField(body.setup,'job inputs',4000);
-      await this.noCredentials({definition,setup,bindings});
+      let jobDetails=plan.setup===setup ? plan.jobDetails : undefined;
+      if(body.jobDetails!==undefined) {
+        const parsed=draftJobDetails(body.jobDetails,plan.questions);
+        if(parsed.setup!==setup) throw new RuntimeError('Job details and composed job inputs must match.');
+        jobDetails=parsed.details;
+      }
+      await this.noCredentials({definition,setup,bindings,jobDetails});
       for(const binding of Object.values(bindings)) {
         const c=await this.required<Connection>('connection',binding.connectionId);
         if(c.status!=='connected' || !c.tools.some(t=>t.name===binding.tool)) throw new RuntimeError('Choose an available tool from a connected MCP server.',409);
@@ -448,6 +454,7 @@ export class AgentRuntime {
         plan.review={digest,actor,at:now()};
       }
       Object.assign(plan,{definition,setup,bindings,...(fieldChecks ? {fieldChecks} : {}),updatedAt:now()});
+      if(jobDetails)plan.jobDetails=jobDetails;else delete plan.jobDetails;
       if(path==='/create-bound') {
         const existing=await this.storage.get<Agent>(`agent:${plan.id}`);
         if(existing) {plan.agentId=existing.id;await this.saveDraft(plan);return {agentId:existing.id};}

@@ -55,6 +55,26 @@ function harness(outputs:any[]=[draft]) {
  const save=async(plan:AgentPlan,bindings={},path='save-draft')=>{const body={id:plan.id,definition:plan.definition,setup:plan.setup,bindings};if(path==='create-bound')await request('save-draft',{...body,reviewed:true});return request(path,body);};
  return {storage,runtime,request,connect,save,calls,prompts,outputs,env,fetcher};
 }
+test('structured job details preserve editable answers, validate composed inputs and exclude credentials',async()=>{
+ const h=harness([{...draft,questions:['Which reports?','Which period?']}]);await h.connect(1);
+ const plan=(await h.request('draft',{description:'Compare reports'})).body;
+ const details={text:'Comparison job',answers:[{value:'  Annual reports  ',covered:false},{value:'Saved answer while covered',covered:true}]};
+ const body={id:plan.id,definition:plan.definition,bindings:{},setup:'Comparison job\n\nWhich reports?\nAnnual reports',jobDetails:details};
+ const saved=await h.request('save-draft',body);assert.equal(saved.status,200);assert.deepEqual(saved.body.jobDetails,details);
+ assert.deepEqual((await h.runtime.snapshot() as any).drafts[0].jobDetails,details);
+ assert.equal((await h.request('save-draft',{...body,setup:'Mismatched inputs'})).status,400);
+ for(const bad of [{...details,extra:true},{...details,answers:[]},{...details,answers:[{value:'x',covered:'false'},details.answers[1]]},{...details,answers:[{value:'x'.repeat(401),covered:false},details.answers[1]]}]) assert.equal((await h.request('save-draft',{...body,jobDetails:bad})).status,400);
+ const secret={...details,answers:[details.answers[0],{value:'FIRST-SECRET',covered:true}]};
+ assert.equal((await h.request('save-draft',{...body,jobDetails:secret})).status,400); // even unused answers are protected
+ assert.equal((await h.request('save-draft',body,'viewer')).status,403);
+ assert.equal((await harness().request('save-draft',body)).status,404);
+ const {jobDetails,...legacy}=body;
+ const oldClient=await h.request('save-draft',legacy);assert.deepEqual(oldClient.body.jobDetails,details);
+ const changed=await h.request('save-draft',{...legacy,setup:'Legacy client changed job'});assert.equal(changed.body.jobDetails,undefined);
+ const approved=await h.request('save-draft',{...body,reviewed:true});assert.ok(approved.body.review);
+ const edited=await h.request('save-draft',{...body,setup:'Changed job\n\nWhich reports?\nAnnual reports',jobDetails:{...details,text:'Changed job'}});assert.equal(edited.body.review,undefined);
+ assert.equal(h.calls.length,0);
+});
 test('field checks persist with draft edits, reject invalid sources and protect workspace credentials',async()=>{
  const h=harness();await h.connect(1);
  const plan=(await h.request('draft',{description:'Compare supplied reports'})).body;

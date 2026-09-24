@@ -81,7 +81,7 @@ try {
  assert.equal(await field('boundaries').isVisible(),true);assert.equal(await page.locator('[data-rubric-criterion]').count(),2);
  assert.equal(await page.locator('#approve-draft').isDisabled(),true);
  assert.match(await page.locator('#draft-review-status').innerText(),/In 1. Job details, complete: Which platforms and time window/);
- assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Sources, choose a tool for: Search public social media posts/);
+ assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Tools, choose a tool for: Search public social media posts/);
  assert.equal(await page.locator('#approve-draft').getAttribute('aria-describedby'),'draft-review-status');
  assert.equal(await page.locator('[data-connected-tool="notion-search"]').count(),0);
  await page.locator('#setup-sources > summary').click();
@@ -96,7 +96,7 @@ try {
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
  assert.doesNotMatch(await page.locator('#draft-review-status').innerText(),/In 1. Job details/);
- assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Sources/);
+ assert.match(await page.locator('#draft-review-status').innerText(),/In 2. Tools/);
  await field('boundaries').fill('Read public posts only. No posts, replies, messages or paid data.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-criterion]').fill('Every finding must directly concern the supplied company and cite its source.');
  await page.locator('[data-rubric-id=outcome_1] [data-rubric-method]').fill('Count findings supported by sources divided by all findings. Pass at 100%; no search evidence is inconclusive.');
