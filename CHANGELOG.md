@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.41.2-rc.1 - 2026-09-24
+
+### Fixed
+
+- Read streamed MCP responses incrementally and stop at the matching JSON-RPC response instead of waiting for the connection to close. Handle fragmented events, UTF-8, progress notifications and batched SSE responses while retaining the response-size limit.
+- Allow tool calls a bounded 60-second response window so a normal 30-second provider wait is not aborted after 20 seconds. Discovery retains its shorter deadline. Calls with uncertain outcomes are never automatically replayed.
+
+### Compatibility
+
+- Backward-compatible transport patch; no migration, permission expansion or change to per-call approval. Uncertain historical calls remain uncertain until their provider status is checked.
+- Install Python artifacts from the GitHub v0.41.2-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.41.1-rc.1 - 2026-09-24
 
 ### Fixed
