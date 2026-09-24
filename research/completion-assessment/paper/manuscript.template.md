@@ -194,7 +194,7 @@ The experiments identify distinct limits of evidence-based completion assessment
 
 The artifact is in the AgentAction repository under `research/completion-assessment` [@artifact]. The evaluated production base is recorded in the result manifest, with hashes for the exact evaluator and observation-verifier files. The protocol, generators, oracle, tests, normalized case records, row-level decisions, summaries, timing samples, and manuscript builder are included. The correctness experiment requires Node.js with TypeScript stripping support; it uses no third-party runtime package and makes no external calls. The manuscript and plots use pinned Python dependencies.
 
-The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this draft. It is not listed as an author. This draft has not undergone independent peer review; the human author must review and take responsibility for the final submitted content. All evaluated records are synthetic and no customer data or production credentials are included.
+The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this draft. It is not listed as an author. This draft has not undergone independent peer review. All evaluated records are synthetic and no customer data or production credentials are included.
 
 ## References
 
