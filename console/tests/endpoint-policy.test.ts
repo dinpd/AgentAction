@@ -139,3 +139,34 @@ test('only documented single-Actor Apify configuration passes and approvals stay
  assert.equal((await post('connect',{endpoint:endpoint.replace('reddit-scraper','other-actor'),label:'Other'})).status,403);
  assert.equal(requests.length,2); // DNS only: no automatic MCP connection.
 });
+
+test('Apify Actor connections require a token before quota or discovery, and keep it server-side',async()=>{
+ const endpoint='https://mcp.apify.com/?tools=harshmaur/reddit-scraper';
+ const storage=new Storage(), methods:string[]=[];
+ const runtime=new AgentRuntime(storage,{AGENT_MCP_ENDPOINTS:endpoint},async(input,init)=>{
+  if(new URL(String(input)).hostname==='cloudflare-dns.com') return Response.json({Status:0,Answer:[{type:1,data:'1.1.1.1'}]});
+  assert.equal(String(input),endpoint);
+  assert.equal(new Headers(init?.headers).get('authorization'),'Bearer TEST-APIFY-TOKEN');
+  if(init?.method==='DELETE') return new Response(null,{status:204});
+  const body=JSON.parse(String(init?.body));methods.push(body.method);
+  if(body.method==='notifications/initialized') return new Response(null,{status:202});
+  const result=body.method==='initialize'?{protocolVersion:'2025-03-26',capabilities:{tools:{}}}:{tools:[{...tool,description:'Provider echoes TEST-APIFY-TOKEN'}]};
+  return Response.json({jsonrpc:'2.0',id:body.id,result});
+ });
+ const post=async(body:unknown)=>{
+  const response=await runtime.handle(new Request('https://runtime.test/connect',{method:'POST',body:JSON.stringify(body)}));
+  return {status:response.status,body:await response.json() as any};
+ };
+ for(const token of [undefined,'']) {
+  const rejected=await post({endpoint,token});
+  assert.equal(rejected.status,400);assert.match(rejected.body.error,/Enter your Apify API token/);
+ }
+ assert.equal(methods.length,0);assert.equal(storage.data.size,0);
+ const connected=await post({endpoint,token:'TEST-APIFY-TOKEN'});
+ assert.equal(connected.status,200);assert.ok(methods.includes('tools/list'));assert.ok(!methods.includes('tools/call'));
+ assert.equal(JSON.stringify(await runtime.snapshot()).includes('TEST-APIFY-TOKEN'),false);
+ const before=methods.length;
+ assert.equal((await post({connectionId:connected.body.connectionId,token:''})).status,400);
+ assert.equal(methods.length,before);
+ assert.equal((await storage.get<Connection>(`connection:${connected.body.connectionId}`))!.token,'TEST-APIFY-TOKEN');
+});

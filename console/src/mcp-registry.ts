@@ -75,7 +75,7 @@ export function withProviderSetup(server: CatalogServer): CatalogServer {
   // Do not silently replace another deployment explicitly offered by a listing.
   if (server.endpoints.length && !server.endpoints.includes(endpoint)) return server;
   return { ...server, endpoints: [endpoint], inspectableEndpoints: [endpoint],
-    providerSetup: { source: `https://apify.com/${actor}/api/mcp`, actor, authentication: 'Apify API token required. Get it from your Apify account, then enter it in the Bearer token field. Never put a token in the endpoint URL.' },
+    providerSetup: { source: `https://apify.com/${actor}/api/mcp`, actor, authentication: 'Apify API token required. Copy it from Integrations in Apify Console, then enter it in the Apify API token field without the Bearer prefix. Never put a token in the endpoint URL.' },
     setup: `Apify hosted MCP, scoped to ${actor}. The endpoint is supplied from Apify’s documented setup. Pre-check runs without credentials; tool discovery requires your Apify API token. Workspace access approval is separate.` };
 }
 

@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.38.1-rc.1 - 2026-09-24
+
+### Fixed
+
+- Label Apify Actor credentials as a required API token, link to Apify Console, and explain where to find the token and how to enter it. Anonymous endpoint pre-checks remain available without credentials.
+- Reject empty Apify Actor credentials before discovery or connection quota is consumed. Clear an entered credential when switching endpoint destinations, and require a replacement token when reconnecting an Apify Actor.
+
+### Compatibility and migration
+
+- Backward-compatible connection setup fix. Existing server-side credential storage, public-server connections, shared OAuth and exact endpoint approvals are unchanged. No migration required.
+- Install Python artifacts from the GitHub v0.38.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.38.0-rc.1 - 2026-09-23
 
 ### Added

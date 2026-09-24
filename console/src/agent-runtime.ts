@@ -9,6 +9,7 @@ import { inspectEndpoint, type PrecheckReport } from "./mcp-precheck.ts";
 import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type EndpointAccess } from "./endpoint-policy.ts";
 import { mcpFailureReason, McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
+import { mcpEndpointConfig } from './mcp-endpoint-config.ts';
 
 export type RuntimeStorage = {
   get<T>(key: string): Promise<T | undefined>;
@@ -324,6 +325,7 @@ export class AgentRuntime {
       const endpoint = await this.allowedEndpoint(previous?.endpoint || body.endpoint);
       if(refreshing && previous?.status!=='connected') throw new RuntimeError('Reconnect this server before refreshing its capabilities.',409);
       const token = refreshing ? previous!.token : body.token === undefined || body.token === "" ? undefined : textField(body.token, "bearer credential", 4096);
+      if (mcpEndpointConfig().apifyActor(new URL(endpoint)) && !token && !previous?.oauth) throw new RuntimeError('Enter your Apify API token to connect this Actor. Copy it from Integrations in Apify Console and paste only the token, without the Bearer prefix. Anonymous pre-checks do not need a token.');
       if (token && !/^[\x21-\x7e]+$/.test(token)) throw new RuntimeError("The bearer credential must contain printable ASCII characters without spaces.");
       const protocol = (previous?.protocol || body.protocol) === "2026-07-28" ? "2026-07-28" : "2025-03-26";
       await this.charge("connect", 30);
