@@ -1190,6 +1190,49 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       get("catalog-status").textContent = error instanceof Error ? error.message : "Registry discovery is unavailable. Add your own MCP server.";
     }
   }
+  function researchEditor(agent:any, card:HTMLElement) {
+    const section=node('details');section.dataset.researchEditor='';
+    section.append(node('summary',agent.research?'Daily research · saved · edit scope and delivery':'Set up daily X + Reddit research'));
+    const form=doc.createElement('form'), status=node('p','','action-feedback');status.setAttribute('role','status');
+    const field=(label:string,value:string,multiline=false)=>{const row=node('label',label);const control=doc.createElement(multiline?'textarea':'input') as HTMLInputElement|HTMLTextAreaElement;control.value=value;control.required=true;control.disabled=role!=='owner';row.append(control);form.append(row);return control;};
+    const config=agent.research?.config;
+    if(agent.research?.pricing)for(const platform of ['reddit','x'])form.append(node('p',`${platform.toUpperCase()} · verified Free-plan event prices at save: ${agent.research.pricing[platform]}. Prices are checked again before each start.`,'note'));
+    const topics=field('Relevance scope and exclusions',config?.topics||agent.goal,true);
+    const reddit=field('Reddit search phrases · one per line',config?.queries.reddit.join('\n')||'',true);
+    const x=field('X search phrases · one per line',config?.queries.x.join('\n')||'',true);
+    const recipient=field('Email report to',config?.recipient||recurring?.notifications?.recipients?.[0]||'');
+    const time=field('Morning scan time',config?.time||'08:00');time.setAttribute('type','time');
+    const timezone=field('Timezone',config?.timezone||'America/Los_Angeles');
+    const maxItems=field('Maximum dataset rows per platform',String(config?.maxItems||20));maxItems.setAttribute('type','number');
+    const cap=field('Maximum Actor charge per platform (USD)',String(config?.actorCapUsd||0.05));cap.setAttribute('type','number');cap.setAttribute('step','0.01');
+    const rolling=field('Maximum reserved over rolling 31 days (USD)',String(config?.rollingCapUsd||4));rolling.setAttribute('type','number');rolling.setAttribute('step','0.01');
+    const connections=state.connections.filter((c:any)=>c.status==='connected'&&new URL(c.endpoint).origin==='https://mcp.apify.com');
+    const select=doc.createElement('select');select.setAttribute('aria-label','Apify research account');
+    for(const c of connections){const option=doc.createElement('option');option.value=c.id;option.textContent=c.label;select.append(option);}if(config)select.value=config.connectionId;
+    const account=node('label','Apify account');account.append(select);form.append(account);
+    const free=node('label','','consent'), checkbox=doc.createElement('input');checkbox.type='checkbox';checkbox.checked=Boolean(config?.freePlan);checkbox.required=true;free.append(checkbox,doc.createTextNode('Keep the existing Apify Free plan. Shared allowance applies; no upgrade or paid overage.'));form.append(free);
+    form.append(node('p','Review: two Actor starts, up to 18 status/dataset reads, a 24-hour window, platform URL/timestamp validation and deduplication. The selected Actors use event billing; each start passes the charge limit. Provider infrastructure usage also consumes the shared free allowance. A capped sample cannot prove complete platform coverage. Reports are sent after the morning scan finishes.','note'));
+    const prices=node('p');for(const [label,url] of [['Reddit Actor pricing','https://apify.com/harshmaur/reddit-scraper/pricing'],['X Actor pricing','https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest/pricing']]){const link=node('a',label);link.setAttribute('href',url);link.setAttribute('target','_blank');link.setAttribute('rel','noopener noreferrer');prices.append(link,doc.createTextNode(' · '));}form.append(prices);
+    const generate=button('Suggest phrases from saved brief',async()=>{status.textContent='Preparing phrases from the saved company brief…';const draft=await mutate('research-draft',{agentId:agent.id});topics.value=String(draft.topics||'');reddit.value=(draft.queries?.reddit||[]).join('\n');x.value=(draft.queries?.x||[]).join('\n');dirty();status.textContent='Review the suggested scope and phrases, then save.';});form.prepend(generate);
+    const save=button('Save research settings',async()=>{
+      if(!form.reportValidity())return;
+      status.textContent='Saving and checking discovered tool inputs…';
+      try{
+        let connection=state.connections.find((c:any)=>c.id===select.value);
+        if(!connection)throw new Error('Connect an Apify account in MCP servers first.');
+        if(!connection.endpoint.includes('?tools=call-actor,')){
+          if(!runtime.confirm('Connect the X and Reddit research tools at https://mcp.apify.com using this existing server-side Apify credential? This discovers tools only; it does not start Actors.'))return;
+          const connected=await mutate('research-connect',{connectionId:connection.id,reviewed:true});connection={id:connected.connectionId};
+        }
+        await mutate('research-save',{agentId:agent.id,config:{connectionId:connection.id,topics:topics.value,queries:{reddit:reddit.value.split('\n').map(s=>s.trim()).filter(Boolean),x:x.value.split('\n').map(s=>s.trim()).filter(Boolean)},recipient:recipient.value,time:time.value,timezone:timezone.value,maxItems:Number(maxItems.value),actorCapUsd:Number(cap.value),rollingCapUsd:Number(rolling.value),freePlan:checkbox.checked}});
+        await refresh();message('Research settings saved. Next: Run a trial, then approve the displayed scope in Approvals.');
+      }catch(error){status.textContent=error instanceof Error?error.message:'Settings could not be saved.';throw error;}
+    },false);
+    save.disabled=role!=='owner'||Boolean(config);if(config)save.textContent='Saved';
+    const dirty=()=>{save.disabled=role!=='owner';save.textContent='Save research settings';section.querySelector('summary')!.textContent='Daily research · unsaved changes';};form.addEventListener('input',dirty);
+    form.addEventListener('submit',event=>event.preventDefault());form.append(save,status);section.append(form);card.append(section);
+  }
+
   function message(value: string, error = false) { get("status").textContent = value; get("status").dataset.error = String(error); }
   function node(tag: string, value = "", cls = "") { const el = doc.createElement(tag); el.textContent = value; if (cls) el.className = cls; return el; }
   function button(label: string, action: () => Promise<void>, secondary = true) {
@@ -1382,10 +1425,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('suggested-examples').hidden = !suggestions.children.length || Boolean(selectedRecipe);
     for (const a of state.agents) {
       const card = node("article", "", "card"), actions = node("div", "", "actions");
-      card.append(node("span", a.status, "pill"), node("h3", a.title), node("p", a.goal), node("p", `Success: ${a.success}`, "note"));
+      card.append(node("span", a.status, "pill"), node("h3", a.title), node("p", a.goal), node("p", `Success: ${a.research?"Both platform datasets retrieved, relevance assessed against the saved scope, and the report accepted by the email provider.":a.success}`, "note"));
+      if(a.research || /social|reddit|twitter|posts/i.test(a.goal+' '+a.title))researchEditor(a,card);
       actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); for(const previous of state.runs.filter((r:any)=>r.agentId===a.id))runFeedback.delete(runKey(previous.id)); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
-      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm("I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message("Daily supervised schedule activated."); }));
+      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm(a.research ? `Activate the reviewed X and Reddit scan daily at ${a.research.config.time} ${a.research.config.timezone}, emailing ${a.research.config.recipient}? This authorizes only the saved bounded workflow without per-call prompts. Pause revokes it; edits require a fresh trial.` : "I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message(a.research?"Daily research activated within the reviewed bounds.":"Daily supervised schedule activated."); }));
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
       if (a.definition) {
         const detail = node('details'); detail.append(node('summary', 'Agent definition'), node('p', a.workspaceRecipe ? `Agent template · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
@@ -1408,17 +1452,24 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(['planning','executing'].includes(r.status)||runFeedback.has(runKey(r.id)))card.dataset.activeRun='true';
       if (actionable(r)) card.dataset.pendingApproval = "true";
       heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.status.replaceAll("_", " "), "pill"));
-      card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/4 tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
+      card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/${r.research?20:4} tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
       const runStatus=node('p','','action-feedback');runStatus.dataset.runFeedback='';runStatus.setAttribute('role','status');runStatus.setAttribute('aria-live','polite');card.append(runStatus);
       if (r.summary) card.append(node("p", r.summary));
+      if(r.research){
+        const progress=r.research.sources.map((s:any)=>`${s.platform.toUpperCase()}: ${s.stage}${s.gap?' — '+s.gap:''}`).join(' · ');card.append(node('p',progress,'note'));
+        if(r.research.due && !['completed','failed','cancelled'].includes(r.status))card.append(node('p','The workflow continues in the background. Refresh to see new evidence and delivery status.','note'));
+        if(r.research.checks)for(const check of r.research.checks){const detail=node('details');detail.append(node('summary',`${check.status.toUpperCase()} · ${check.label} · ${check.observed}`),node('p',`Measured by: ${check.method}`));card.append(detail);}
+        if(r.research.report){const detail=node('details');detail.append(node('summary',`Research report · email ${r.research.delivery?.status||'not yet queued'}`),node('pre',r.research.report));card.append(detail);}
+        const contract=node('details');contract.append(node('summary','Reviewed research scope'),node('pre',JSON.stringify(r.research.definition.config,null,2)));card.append(contract);
+      }
       history.appendEvaluation(card, r);
-      if (r.outcome) card.append(node("p", `AI-assessed outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
+      if (r.outcome) card.append(node("p", `Outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
       for (const event of r.events) {
         const detail = node("details"); detail.append(node("summary", `${event.source?.tool || event.tool}${event.source ? " · " + (state.connections.find((c:any)=>c.id===event.source.connectionId)?.label || event.source.connectionId) : ""} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ source: event.source, arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
       }
       if (actionable(r)) {
         const approval = node("div", "", "approval"), actions = node("div", "", "actions");
-        approval.append(node("strong", `Approve tool call: ${a?.toolBindings?.[r.pending.tool]?.tool || r.pending.tool}`), node("p", `MCP server: ${state.connections.find((c:any)=>c.id===(a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId))?.label || "unavailable"}. Review the exact arguments before approval.`, "note"), node("pre", JSON.stringify(r.pending.arguments, null, 2)));
+        approval.append(node("strong", r.research?'Approve research trial and email report':`Approve tool call: ${a?.toolBindings?.[r.pending.tool]?.tool || r.pending.tool}`), node("p", `MCP server: ${state.connections.find((c:any)=>c.id===(r.research?.definition.config.connectionId || a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId))?.label || "unavailable"}. Review the exact arguments before approval.`, "note"), node("pre", JSON.stringify(r.pending.arguments, null, 2)));
         const edit = doc.createElement("textarea"); edit.rows = 5; edit.value = JSON.stringify(r.pending.arguments, null, 2); edit.setAttribute("aria-label", "Revised tool arguments"); edit.disabled = role === "viewer";
         const runButton=(label:string,action:string,body:()=>any,progress:string,success:string)=>{
           const control=button(label,async()=>{
@@ -1427,11 +1478,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           },action!=='approve');
           control.dataset.runAction=action;control.dataset.runLabel=label;return control;
         };
-        const advanced = node("details"); advanced.append(node("summary", "Adjust tool arguments"), node("p", "Review the query, target and result limits. AI proposals can use relevant optional inputs. Save any changes and review the revised call before approving.", "note"), edit, runButton('Save revised call','revise',()=>({runId:r.id,approvalId:r.pending.id,arguments:JSON.parse(edit.value)}),'Saving revised arguments…','Proposal revised. Review the saved arguments before approving execution.')); approval.append(advanced);
+        const advanced = node("details"); advanced.append(node("summary", "Adjust tool arguments"), node("p", "Review the query, target and result limits. AI proposals can use relevant optional inputs. Save any changes and review the revised call before approving.", "note"), edit, runButton('Save revised call','revise',()=>({runId:r.id,approvalId:r.pending.id,arguments:JSON.parse(edit.value)}),'Saving revised arguments…','Proposal revised. Review the saved arguments before approving execution.')); if(!r.research)approval.append(advanced);else approval.append(node('p','To change this scope, edit and save Daily research under My agents, then start a fresh trial.','note'));
         actions.append(runButton('Approve and execute','approve',()=>({runId:r.id,approvalId:r.pending.id}),'Executing the approved call and assessing the next step…','Action processed. Review the updated run status, result and any next approval below.'),runButton('Cancel run','cancel',()=>({runId:r.id}),'Cancelling this run…','Run cancelled.'));
         approval.append(actions);
         if(runFeedback.get(runKey(r.id))?.error && runFeedback.get(runKey(r.id))!.text.includes('tool definition changed')) {
-          approval.append(node('p','Refreshing pauses agents using this server and cancels their pending approvals. It does not execute tools.','note'),runButton('Refresh server capabilities','refresh-capabilities',()=>({connectionId:a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId}),'Refreshing server capabilities…','Server capabilities refreshed. Affected agents are paused and pending approvals cancelled. Choose Run a trial under My agents to review a fresh proposal.'));
+          approval.append(node('p','Refreshing pauses agents using this server and cancels their pending approvals. It does not execute tools.','note'),runButton('Refresh server capabilities','refresh-capabilities',()=>({connectionId:r.research?.definition.config.connectionId || a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId}),'Refreshing server capabilities…','Server capabilities refreshed. Affected agents are paused and pending approvals cancelled. Choose Run a trial under My agents to review a fresh proposal.'));
         }
         const recovery=node('a','Manage MCP server'),recoveryRow=node('p');recovery.setAttribute('href','#connect');recoveryRow.append(recovery);approval.append(recoveryRow);
         runStatus.after(approval);

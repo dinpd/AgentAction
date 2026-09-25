@@ -162,3 +162,21 @@ test("console enforces tenant, origin and role; public demo exposes no recurring
   assert.equal(calls.length, 1);
   for (const path of ["/automations", "/assets/recurring.js", "/api/automations/acme/state"]) assert.equal((await demo.fetch(new Request("https://demo.example.com" + path), {})).status, 404);
 });
+
+test('research reports use the existing outbox with exact recipient, immediate delivery, retained receipts and no ambiguous retry',async()=>{
+ const h=harness();await h.settings({recipients:['alerts@example.com','other@example.com'],minimumSeverity:'critical',warnings:'digest',quietStartUtc:10,quietEndUtc:16});
+ const input={id:'research:trial-one',jobId:'agent-one',title:'Daily research digest',detail:'X: retrieved\nReddit: unavailable\nhttps://x.com/alice/status/123\nWhy relevant: retirement planning.',recipient:'alerts@example.com'};
+ await h.runtime().reportReady(input.recipient);
+ await assert.rejects(()=>h.runtime().report({...input,id:'research:foreign',recipient:'foreign@example.com'}),/recipient/);
+ const first=await h.runtime().report(input), repeated=await h.runtime().report(input);assert.equal(first.id,repeated.id);assert.equal(h.state().deliveries.length,1);assert.equal(h.state().deliveries[0].due,h.now());
+ await h.alarm();assert.equal(h.sent.length,1);assert.equal(h.sent[0].to,input.recipient);assert.match(h.sent[0].text,/Why relevant/);assert.equal((await h.runtime().report(input)).status,'accepted');
+ // Receipt survives eviction of detailed delivery history; repeated publisher handoff cannot enqueue it again.
+ h.state().deliveries=[];await h.runtime().report(input);await h.alarm();assert.equal(h.sent.length,1);
+ h.failEmail(true);const uncertain={...input,id:'research:uncertain'};await h.runtime().report(uncertain);await h.alarm();assert.equal((await h.runtime().report(uncertain)).status,'uncertain');await h.reload();h.advance(86400000);await h.alarm();assert.equal(h.sent.length,2);
+});
+test('report recipient removal cancels queued delivery and makes readiness fail',async()=>{
+ const h=harness();await h.settings();const input={id:'research:removed',jobId:'agent',title:'Report',detail:'Evidence',recipient:'alerts@example.com'};await h.runtime().report(input);await h.settings({recipients:[]});await h.alarm();assert.equal(h.sent.length,0);assert.equal((await h.runtime().report(input)).status,'cancelled');await assert.rejects(()=>h.runtime().reportReady(input.recipient));
+});
+test('cancelling a queued report prevents delivery and preserves its deduplication receipt',async()=>{
+ const h=harness();await h.settings();const input={id:'research:cancelled',jobId:'agent',title:'Report',detail:'Observed public posts',recipient:'alerts@example.com'};await h.runtime().report(input);await h.runtime().cancelReport(input.id);await h.alarm();assert.equal(h.sent.length,0);assert.equal((await h.runtime().report(input)).status,'cancelled');
+});

@@ -26,19 +26,19 @@ export function afterQuietHours(time: number, settings: NotificationSettings): n
 }
 export function enqueue(state: RecurringState, event: Notice, selected: string[] | null = null): string[] {
   const settings = state.notifications;
-  if (!["test", "summary", "recovery"].includes(event.kind) && severityRank[event.severity] < severityRank[settings.minimumSeverity]) return [];
+  if (!["test", "summary", "recovery", "report"].includes(event.kind) && severityRank[event.severity] < severityRank[settings.minimumSeverity]) return [];
   const targets = (selected ?? settings.recipients).filter(r => settings.recipients.includes(r));
   let due = event.at;
-  if (event.kind !== "test" && event.kind !== "recovery" && event.severity !== "critical" && settings.warnings === "digest") {
+  if (event.kind !== "test" && event.kind !== "report" && event.kind !== "recovery" && event.severity !== "critical" && settings.warnings === "digest") {
     const date = new Date(due); date.setUTCHours(settings.digestHourUtc, 0, 0, 0);
     if (date.getTime() <= due) date.setUTCDate(date.getUTCDate() + 1);
     due = date.getTime();
   }
-  if (event.kind !== "test") due = afterQuietHours(due, settings);
+  if (event.kind !== "test" && event.kind !== "report") due = afterQuietHours(due, settings);
   const queued: string[] = [];
   for (const recipient of targets) {
     if (state.deliveries.some(d => d.recipient === recipient && d.events.some(e => e.id === event.id))) continue;
-    const digest = due > event.at && event.kind !== "test" && state.deliveries.find(d => d.recipient === recipient && d.due === due && d.status === "pending" && d.attempts === 0 && d.events.length < 12);
+    const digest = due > event.at && event.kind !== "test" && event.kind !== "report" && state.deliveries.find(d => d.recipient === recipient && d.due === due && d.status === "pending" && d.attempts === 0 && d.events.length < 12);
     if (digest) { digest.events.push(event); queued.push(recipient); continue; }
     if (state.deliveries.filter(d => ["pending", "sending"].includes(d.status)).length >= 60) { state.droppedNotifications++; continue; }
     state.deliveries.push({ id: crypto.randomUUID(), recipient, events: [event], due, attempts: 0, status: "pending" }); queued.push(recipient);

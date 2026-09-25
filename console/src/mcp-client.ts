@@ -38,13 +38,13 @@ export function parseEndpointURL(value: unknown): string {
   if (typeof value !== "string" || value.length > 2048) throw new RuntimeError("Enter an approved MCP HTTPS endpoint.");
   let url: URL;
   try { url = new URL(value); } catch { throw new RuntimeError("Enter a valid MCP HTTPS endpoint."); }
-  if (url.protocol !== "https:" || url.username || url.password || !mcpEndpointConfig().supportedQuery(url) || url.hash || (url.port && url.port !== "443")) throw new RuntimeError("Use an HTTPS endpoint without credentials or fragments. Only documented Apify single-Actor query configuration is supported.");
+  if (url.protocol !== "https:" || url.username || url.password || !mcpEndpointConfig().supportedQuery(url) || url.hash || (url.port && url.port !== "443")) throw new RuntimeError("Use an HTTPS endpoint without credentials or fragments. Only documented Apify Actor or research-tool query configuration is supported.");
   return url.href;
 }
 
-export function endpointURL(value: unknown, allowed = DEFAULT_ENDPOINTS): string {
+export function endpointURL(value: unknown, allowed: string | string[] = DEFAULT_ENDPOINTS): string {
   const endpoint = parseEndpointURL(value);
-  if (!allowed.split(",").map(v => v.trim()).includes(endpoint)) throw new RuntimeError("This endpoint needs workspace owner approval. Review it in Connection details before connecting.", 403);
+  if (!(Array.isArray(allowed)?allowed:allowed.split(",")).map(v => v.trim()).includes(endpoint)) throw new RuntimeError("This endpoint needs workspace owner approval. Review it in Connection details before connecting.", 403);
   return endpoint;
 }
 

@@ -12,5 +12,8 @@ export class RecurringWorkspace extends DurableObject<Cloudflare.Env> {
   }
   async request(request: Request): Promise<Response> { return this.runtime.handle(request); }
   async notify(event: Notice): Promise<void> { return this.runtime.notify(event); }
+  async cancelReport(id:string){return this.runtime.cancelReport(id);}
+  async reportReady(recipient:string):Promise<void>{return this.runtime.reportReady(recipient);}
+  async report(input:Parameters<RecurringRuntime['report']>[0]){return this.runtime.report(input);}
   async alarm(): Promise<void> { return this.runtime.alarm(); }
 }

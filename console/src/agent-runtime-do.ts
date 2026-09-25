@@ -5,7 +5,16 @@ export class AgentWorkspace extends DurableObject<RuntimeEnv & Cloudflare.Env> {
   private runtime: AgentRuntime;
   constructor(ctx: DurableObjectState, env: RuntimeEnv & Cloudflare.Env) {
     super(ctx, env);
-    this.runtime = new AgentRuntime(ctx.storage, env);
+    const receiver=async()=>{
+      const workspace=await ctx.storage.get<string>('oauth-workspace');
+      if(!workspace||!env.RECURRING_WORKSPACES)throw new Error('Report service unavailable');
+      return env.RECURRING_WORKSPACES.getByName(`workspace:${workspace}`);
+    };
+    this.runtime = new AgentRuntime(ctx.storage, env, (input,init)=>fetch(input,init), {
+      cancel:async id=>(await receiver()).cancelReport(id),
+      ready:async recipient=>(await receiver()).reportReady(recipient),
+      report:async input=>(await receiver()).report(input),
+    });
     ctx.blockConcurrencyWhile(() => this.runtime.recover());
   }
   async request(request: Request): Promise<Response> {

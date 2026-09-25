@@ -4,6 +4,22 @@
 
 No changes yet.
 
+## 0.44.0-rc.1 - 2026-09-25
+
+### Added
+
+- A reviewed X and Reddit daily research workflow in My agents. Saved company briefs produce editable search phrases; explicit section saves preserve the relevance scope, recipient, local scan time and provider limits.
+- Bounded Apify Actor starts, durable status polling and dataset retrieval. Retained reports contain post URLs, timestamps, relevance reasons, duplicate/window exclusions and measured platform coverage. Missing or failed sources remain explicit gaps.
+- Daily wall-clock scheduling across daylight-saving transitions, enabled only after a successful two-platform trial and email provider acceptance. Scope edits and connection changes invalidate approval; pause revokes recurring execution.
+- Actual research report delivery through the existing workspace outbox, restricted to the selected configured recipient. Stable report receipts deduplicate handoffs; ambiguous email sends require operator review instead of automatic replay.
+
+### Boundaries and compatibility
+
+- Initial research adapters support the reviewed Apify Reddit and X Actors. Owner-approved credential reuse stays at the existing Apify MCP origin. The runtime requires current pay-per-event billing, passes a maximum Actor charge, reserves the full cap locally over 31 days, and never upgrades the provider plan. Shared free allowance and infrastructure usage still apply.
+- Existing generic agents retain their supervised per-call approval and evaluation contracts. Research workflows freeze a separate bounded scope and show their evidence checks in the same run/approval UI; existing drafts, schedules and notification preferences are preserved.
+- A bounded sample and AI relevance assessment do not establish exhaustive coverage or human-validated precision. Email acceptance does not prove inbox delivery. Scan time is the local start time; delivery follows completion.
+- Install Python artifacts from the GitHub v0.44.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.43.0-rc.1 - 2026-09-25
 
 ### Added
