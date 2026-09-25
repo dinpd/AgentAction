@@ -23,3 +23,16 @@ test('nonterminal and incomplete executions retain unknown duration and explicit
  assert.equal(rows.find(r=>r.status==='executing')?.attention,false);
  assert.equal(rows[0].agent,'Unknown agent');assert.deepEqual(executionRecords(null,null),[]);
 });
+
+test('only live exact proposals are actionable; cancelled evaluation failures stay historical', () => {
+ const source = {agents:[],runs:[
+  {id:'pending',status:'awaiting_approval',pending:{id:'p',tool:'search'}},
+  {id:'incomplete',status:'awaiting_approval'},
+  {id:'cancelled',status:'cancelled',pending:{id:'old',tool:'search'},outcome:'not_met',evaluation:{status:'fail'}},
+  {id:'insufficient',status:'completed',evaluation:{status:'insufficient_evidence'}},
+ ].map(r=>({...r,agentId:'a',startedAt:start,kind:'trial'}))};
+ const rows=executionRecords(source,null);
+ assert.deepEqual(rows.filter(r=>r.approvalPending).map(r=>r.runId),['pending']);
+ assert.equal(rows.find(r=>r.runId==='cancelled')?.attention,false);
+ assert.equal(rows.find(r=>r.runId==='insufficient')?.attention,true);
+});

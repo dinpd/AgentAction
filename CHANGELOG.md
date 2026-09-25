@@ -4,6 +4,23 @@
 
 No changes yet.
 
+## 0.43.0-rc.1 - 2026-09-25
+
+### Added
+
+- A dedicated Approvals menu with a workspace-scoped pending count. The queue contains actionable proposed calls with the existing exact-argument review, revision, approval and cancellation controls.
+- Monitor links directly to the relevant request; completed or unavailable requests explain their status instead of substituting another approval. Exact run links open the matching history entry.
+
+### Fixed
+
+- Distinguish awaiting approval, executing, cancelled, failed checks and insufficient evidence. Cancelled attempts no longer need attention solely because completion checks failed.
+- Keep queue and counts current after actions, preserve unknown counts on read failure, and isolate late responses when changing workspaces.
+
+### Compatibility
+
+- Presentation-only changes using existing workspace state and authorization. No data migration, automatic tool execution, permission changes or new approval grants. Existing Run links still work. Asynchronous provider completion and daily email orchestration remain separate work.
+- Install Python artifacts from the GitHub v0.43.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.42.0-rc.1 - 2026-09-25
 
 ### Added

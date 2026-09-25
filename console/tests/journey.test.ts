@@ -16,8 +16,8 @@ test('journey distinguishes onboarding, connected account, draft and successful 
  assert.equal(success.next,3);assert.match(success.detail,/not independent verification/);
 });
 test('pending approval and interrupted runs take priority over onboarding',()=>{
- const pending=journeyProgress('a',setup,{...state,runs:[{status:'awaiting_approval'}]});
- assert.equal(pending.attention,true);assert.equal(pending.href,'/agents#run');
+ const pending=journeyProgress('a',setup,{...state,runs:[{status:'awaiting_approval',pending:{id:'p',tool:'search'}}]});
+ assert.equal(pending.attention,true);assert.equal(pending.href,'/agents#approvals');
  assert.equal(journeyProgress('a',setup,{...state,runs:[{status:'interrupted'}]}).attention,true);
 });
 test('external activity does not assert a successful run and disabled sources do not count',()=>{

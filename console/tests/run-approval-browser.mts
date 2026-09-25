@@ -33,7 +33,7 @@ const server=createServer(async(req,res)=>{
  res.setHeader('content-type','application/json');res.end(JSON.stringify(value));
 });
 await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
 const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
 const base=`http://127.0.0.1:${(server.address() as any).port}`;
 const card=()=>page.locator('[data-supervised-run=run]');
