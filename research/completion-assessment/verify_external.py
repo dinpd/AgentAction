@@ -25,6 +25,8 @@ def verify_external():
     assert len(cases) == len(case_lookup) == len(tasks) * 8 == summary["design"]["cases"]
     assert len(rows) == len(cases) * 3 == summary["design"]["assessments"]
     assert len({(r["id"], r["method"]) for r in rows}) == len(rows)
+    patterns = {tuple(sorted((r["scenario"], r["method"], r["label"]) for r in rows if r["task_id"] == task_id)) for task_id in lookup}
+    assert len(patterns) == 1, "Manuscript's repeated intervention-pattern claim must match data"
     canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     digest = lambda value: hashlib.sha256(canonical(value).encode()).hexdigest()
     for task in tasks:

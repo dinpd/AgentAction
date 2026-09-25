@@ -1,0 +1,26 @@
+{
+  "protocol_version": 1,
+  "data_sha256": {
+    "cases.jsonl": "bb32e310ef747f581bc03c49b2922a3707503663aa3108ca19521478d6f29b0a",
+    "assessments.jsonl": "ec95f73e8bf8d3fa63d5d1cae6c25e2cdba5820062f79806d65b9444f3f77ec5",
+    "summary.json": "31b5f9eb8c9bd3bf58c0837dadc76723eb1e8e7e4ffa7ed287a99178a4a34c91"
+  },
+  "sources": {
+    "src/evidence_requests.mts": "8fdce18a809d37a47f10b7b055d8b76dbe6161f25a3bc4fd5422c38a9b5e02ab",
+    "src/run_requests.mts": "668a97ecbfb09d384006010869ec77d3a4441f4d54b4af0ab642db3d94753103",
+    "src/score_assessments.mts": "f38a940120ba789f996c934d03df2f807cdfcee33b89086a8ac758812c62d50d",
+    "src/metrics.mts": "48d157e7fe366a75b052b0188219e80cc414f9d5d99bad5c685f5db0858a2936",
+    "src/service.mts": "aad01e4e15503695e81c066b381e2a53c08d14b513b4633ee46eb9df61adfb90",
+    "src/service_cases.mts": "855ac2a9316756ab391b8a993135fb7e093989566ee20adb648057c9f0f57c76",
+    "src/persistent_provider.py": "2f6c74835f45c0d5e4c6d523717ec361f7a77f172284432c99c80734037d547f",
+    "src/audit_provider.py": "3848e348f44327f997b9b0969b0926d0f8d6ba6dd7954823e2cee6d1c3cdb744",
+    "src/remedy.mts": "702e86898b7dbadf1561b81d2de5ea0f8097791d65016ee98621ce9cbe49862c",
+    "src/methods.mts": "113c2cc81217ee133db33999e751bf5932b7a7e8902165fd8da7c56adf3d85cc",
+    "src/cases.mts": "001a1acb55e48f0ed7072c057eb327346c5adcd9181b9e696412c62a106259be",
+    "src/world.mts": "b647f09e295ca0ea23055d565e017f21808bc83b78e47546fb42d84be7df7e9b",
+    "EVIDENCE_REQUEST_PROTOCOL.md": "1b93957d4aab8b894ded5b3d5b95264aab11a19783ca320e4af629b4b81cf54b",
+    "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6",
+    "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"
+  },
+  "boundary": "Only snapshot/head GETs in the requester; controlled external writer is separate harness code; no network beyond loopback and local JWKS fixture."
+}

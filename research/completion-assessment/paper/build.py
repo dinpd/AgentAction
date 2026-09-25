@@ -25,11 +25,13 @@ ROOT = HERE.parent
 RESULTS = ROOT / "results"
 OUT = ROOT / "output" / "pdf"
 FIGURES = HERE / "figures"
-TITLE = "Can We Trust 'Done'? Evaluating Agent Task Completion Under Incomplete and Changing Evidence"
+TITLE = "Can We Trust 'Done'? Evaluating Agent Completion and Requests for Additional Evidence"
 METHOD_NAMES = {"tool": "Tool", "trace": "Trace", "content_any": "Content-any", "local_any": "Local-any",
                 "ingress_any": "Ingress-any", "ingress_all": "Ingress-all", "ingress_latest": "Ingress-latest"}
 SERVICE_NAMES = {"ingress_any": "Ingress-any", "ingress_latest": "Ingress-latest",
                  "closure_only": "Closure", "revision_only": "Revision", "closure_revision": "Closure + revision"}
+REQUEST_NAMES = {"latest_static": "Latest static", "gate_static": "Gate static", "latest_refresh": "Latest refresh",
+                 "gate_full": "Gate full", "gate_targeted": "Gate targeted"}
 
 
 def read(name):
@@ -245,6 +247,33 @@ def blocks(text):
     return [b.strip() for b in text.split("\n\n") if b.strip()]
 
 
+def request_substitutions(requests):
+    values = {"request_cases": requests["design"]["cases"], "request_assessments": requests["design"]["assessments"]}
+    recovered = requests["by_condition"]["recovered"]
+    for prefix, result in [("request_recovered", recovered["overall"]["gate_targeted"]),
+                           ("request_targeted", requests["overall"]["gate_targeted"]),
+                           ("request_refresh", requests["overall"]["latest_refresh"])]:
+        for metric in ("precision", "recall", "f1"):
+            values[f"{prefix}_{metric}"] = percentage(result[f"completion_{metric}"])
+        values[prefix + "_coverage"] = percentage(result["coverage"])
+    for method in ("gate_full", "gate_targeted", "latest_refresh"):
+        for key, value in recovered["costs"][method].items(): values[f"request_recovered_{method}_{key}"] = value
+    full, targeted = recovered["costs"]["gate_full"], recovered["costs"]["gate_targeted"]
+    values["request_evidence_saving"] = percentage(1 - targeted["evidence_bytes"] / full["evidence_bytes"])
+    values["table_requests"] = table(["Policy", "Precision", "Recall", "F1", "Coverage", "Reads"], [
+        [REQUEST_NAMES[m]] + [percentage(v[k]) for k in ("completion_precision", "completion_recall", "completion_f1", "coverage")]
+        + [requests["costs"][m]["provider_reads"]] for m, v in requests["overall"].items()])
+    names = {"recovered": "Recovered", "unavailable": "Unavailable", "persistent_omission": "Persistent omission", "revision_race": "Revision race"}
+    values["table_request_conditions"] = table(["Collection", "Latest refresh", "Gate full", "Gate targeted", "Targeted FS"], [
+        [names[condition]] + [f'{group["overall"][m]["admitted_positive"]}/{group["overall"][m]["positive"]}' for m in ("latest_refresh", "gate_full", "gate_targeted")]
+        + [f'{group["overall"]["gate_targeted"]["false_success"]}/{group["overall"]["gate_targeted"]["negative"]}']
+        for condition, group in requests["by_condition"].items()])
+    values["table_request_costs"] = table(["Policy", "Requests", "Reads", "Provider JSON bytes", "Evidence JSON bytes"], [
+        [REQUEST_NAMES[m]] + [c[k] for k in ("requests", "provider_reads", "provider_bytes", "evidence_bytes")]
+        for m, c in recovered["costs"].items() if m in ("latest_refresh", "gate_full", "gate_targeted")])
+    return values
+
+
 def inline(s):
     s = html.escape(s)
     s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<link href="\2" color="#244f70">\1</link>', s)
@@ -350,7 +379,7 @@ def render_tex(text, refs):
              r"\usepackage[T1]{fontenc}", r"\usepackage{mathptmx,graphicx,booktabs,tabularx,array,hyperref}",
              r"\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue}", r"\setlength{\parskip}{0.45em}",
              r"\setlength{\parindent}{0pt}", r"\title{" + tex_escape(TITLE) + "}",
-             r"\author{Dan Itkis\\AgentAction.dev}", r"\date{Research draft -- September 24, 2026}",
+             r"\author{Dan Itkis\\AgentAction.dev}", r"\date{Research draft -- September 25, 2026}",
              r"\begin{document}", r"\maketitle"]
     for i, b in enumerate(blocks(text)):
         if i <= 3:
@@ -395,6 +424,7 @@ def main():
     values = substitutions(summary, loss, omission, timing, refs)
     values.update(service_substitutions(read("service/summary.json"), read("service/timing.json")))
     values.update(framework_substitutions(read("service/summary.json"), read("external/summary.json")))
+    values.update(request_substitutions(read("requests/summary.json")))
     text = (HERE / "manuscript.template.md").read_text()
     for key, value in values.items():
         text = text.replace("{{" + key + "}}", str(value))

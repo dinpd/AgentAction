@@ -54,6 +54,8 @@ def verify():
     verify_service()
     from verify_external import verify_external
     verify_external()
+    from verify_requests import verify_requests
+    verify_requests()
     cases, assessments = rows("cases.jsonl"), rows("assessments.jsonl")
     summary = json.loads((R / "summary.json").read_text())
     manifest = json.loads((R / "manifest.json").read_text())
@@ -136,6 +138,34 @@ def verify():
     external = json.loads((R / "external/summary.json").read_text())
     assert generated["external_tasks"] == external["design"]["selected_tasks"]
     assert generated["external_cases"] == external["design"]["cases"]
+    requests = json.loads((R / "requests/summary.json").read_text())
+    assert generated["request_cases"] == requests["design"]["cases"] == 620
+    assert generated["request_assessments"] == requests["design"]["assessments"] == 3100
+    recovered = requests["by_condition"]["recovered"]
+    for prefix, result in [("request_recovered", recovered["overall"]["gate_targeted"]),
+                           ("request_targeted", requests["overall"]["gate_targeted"]),
+                           ("request_refresh", requests["overall"]["latest_refresh"])]:
+        for metric in ("precision", "recall", "f1"):
+            assert generated[f"{prefix}_{metric}"] == f'{100 * result[f"completion_{metric}"]:.1f}%'
+    for method in ("gate_full", "gate_targeted", "latest_refresh"):
+        for key, value in recovered["costs"][method].items():
+            assert generated[f"request_recovered_{method}_{key}"] == value
+    saving = 1 - recovered["costs"]["gate_targeted"]["evidence_bytes"] / recovered["costs"]["gate_full"]["evidence_bytes"]
+    assert generated["request_evidence_saving"] == f'{100 * saving:.1f}%'
+    for method, result in requests["overall"].items():
+        for metric in ("completion_precision", "completion_recall", "completion_f1", "coverage"):
+            assert f'{100 * result[metric]:.1f}%' in manuscript
+        assert str(requests["costs"][method]["provider_reads"]) in manuscript
+    for group in requests["by_condition"].values():
+        for method in ("latest_refresh", "gate_full", "gate_targeted"):
+            result = group["overall"][method]
+            assert f'{result["admitted_positive"]}/{result["positive"]}' in manuscript
+    target, refresh = requests["overall"]["gate_targeted"], requests["overall"]["latest_refresh"]
+    assert (target["false_success"], target["missed_success"], requests["costs"]["gate_targeted"]["provider_reads"]) == (40, 105, 480)
+    assert (refresh["false_success"], refresh["missed_success"], requests["costs"]["latest_refresh"]["provider_reads"]) == (60, 75, 1085)
+    assert "20a + 605c > 30b" in manuscript
+    assert requests["within_assumptions"]["gate_targeted"]["coverage"] == 370 / 580
+    assert "63.8% coverage" in manuscript and "same scenario-by-method verdict pattern" in manuscript
     for prefix, result in [("service_latest", service["overall"]["ingress_latest"]),
                            ("service_all", service["overall"]["closure_revision"]),
                            ("service_in", service["within_assumptions"]["closure_revision"]),

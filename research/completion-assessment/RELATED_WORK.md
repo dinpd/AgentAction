@@ -78,3 +78,23 @@ authorship.
 - The framing emphasizes reusable tests and balanced reporting. It does not claim
   that evidence-based assessment, state oracles, reject-option classification,
   history commitments or revision freshness originated here.
+
+## Evidence-request revision (issue #302)
+
+| Primary source | Material inspected | Relationship |
+| --- | --- | --- |
+| [Agentic Benchmark Checklist](https://arxiv.org/html/2507.02825v5) | Introduction, taxonomy, outcome-validity checks | Evaluator auditing and task/outcome validity are established; our scope is controlled evidence corruption and collection |
+| [BenchJack](https://arxiv.org/html/2605.12673v1) | Abstract, Section 4 taxonomy and audit/patch loop | Adversarial evaluator auditing already tests trust boundaries; our fixed evidence interventions are not a general exploit-discovery system |
+| [Tool-calling validity audit](https://arxiv.org/html/2607.02577v1) | Abstract, human-adjudication and false-positive/negative formulation | Directly relevant meta-evaluation work; our oracle is a fixed state criterion rather than expert business-meaning adjudication |
+| [EDDI](https://arxiv.org/abs/1809.11142v4) | Primary abstract and publication metadata | Cost-aware acquisition is established; our deterministic diagnostic scopes neither learn nor optimize expected information gain |
+| [Test-oracle survey](https://philmcminn.com/publications/barr2015.pdf) | Abstract, introduction and oracle definitions | Separating evidence from state truth connects to specifications, partial oracles and related test executions |
+
+EvidenceNet also recollects observations after one repair round. The new study
+is deliberately narrower: read-only additional-evidence requests with fixed
+task effects, explicit budgets, equally available collection, and persistent
+failure controls. It is not the first information-acquisition or repair method.
+
+External task verdicts share one common eight-condition pattern across all 91
+tasks. This is implementation portability, not 728 independent fault mechanisms.
+The request experiment likewise reports 124 family/condition strata; its five
+parameter variants are repeated conformance checks.

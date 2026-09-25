@@ -153,3 +153,69 @@ before submission. No arXiv submission or claim of peer review is made.
   socket blocking, absent credentials, truth isolation, strict replay, complete
   selection accounting, and unchanged production code. Pinning is not a general
   security guarantee. Release impact remains no release (research-only).
+
+## Evidence-request extension and review fixes (issue #302)
+
+- The scorer now requires an explicit method roster, unique method/case rows,
+  equal case coverage and consistent truth, scenario and trust metadata. Tests
+  reject dropped difficult cases, a missing whole method, duplicate rows and
+  conflicting metadata while accepting explicit U. All 12 research tests pass.
+  The two-case example in SCORING_GUIDE.md reproduces its stated metrics.
+- EVIDENCE_REQUEST_PROTOCOL.md was fixed locally before the first new experiment,
+  after inspecting the existing service and literature. This is not external
+  preregistration. All 31 service families and five variants remain present in
+  each of four collection conditions: 620 cases and 3,100 final judgments.
+- Separate databases provide matched initial states and evidence for all five
+  policies. The auditor confirms unchanged effects, histories and task truth.
+  Only the declared external writer advances revision. Acquisition is one round
+  of at most two snapshot/head GETs; failed collection does not retry. Tests
+  check binding rejection before reads, exhausted round budgets, effect
+  preservation, missing-evidence recovery and retained trust failures.
+- The independent Python audit checks every initial/final reference label,
+  request trigger and scope, provider response, delivered history, before/after
+  state, read count, JSON byte count, metric group and source/data hash. Fresh
+  signing-key/challenge replays reproduce the non-timing artifacts exactly.
+  Signatures themselves are reverified during execution, not from saved files.
+- Recovered collection restores all 75 positive admissions for each acquiring
+  policy. Targeted requests use 135 reads versus 150 for full recollection and
+  26.6% fewer delivered evidence bytes. Under persistent omission, head-only
+  requests preserve valid history and recognize 15 more successes than full
+  recollection. Across all conditions, Latest refresh retains higher F1 (76.9%
+  versus 72.9%); the paper reports that counter-result and an explicit cost
+  boundary. All 40 violated-trust cases remain false successes for the gates.
+- The original emulator and service data and production sources are unchanged.
+  Their replays pass. External replay reproduces all 91 selected tasks, eight
+  interventions and 2,184 judgments from the pinned upstream environment. Its
+  data are unchanged; its manifest records the scorer-envelope adaptation.
+  A new audit verifies the disclosed identical verdict pattern across all tasks.
+- All 37 guard tests and its configured TypeScript build pass. The standalone
+  strict research check reports only the two previously documented Cloudflare
+  type incompatibilities; the extension introduces no additional type errors.
+- The 21-page review PDF passes text, numeric, reference and page-bound checks.
+  Every page was rendered and visually inspected; all ten tables and four
+  figures are legible. LaTeX compiles without warnings or unresolved references.
+  Access dates and the removed author-responsibility sentence remain absent.
+- Five primary-source references strengthen evaluator-audit, active information
+  acquisition and test-oracle positioning. The paper claims neither a new
+  general theory nor an optimal acquisition policy. AgentAction provides one
+  implementation of the generic decision/request boundary; this is not a new
+  public SDK or production endpoint.
+- Scoped secret/private-path scanning found no credentials or private paths.
+  Manual review covered task/resource binding, fixed read scopes, trusted budget
+  ownership, truth isolation, unchanged effects, bounded local responses and
+  process cleanup. No production code, dependency, credential or permission
+  change is included. Release impact remains no release (research-only).
+
+During development, an initial logical timestamp exceeded the fixture's fixed
+assessment time; correcting the acquisition timestamps restored the intended
+freshness checks before the first full corpus run. Type checking also caught an
+optional contract digest and mutation through a readonly receipt type; explicit
+digest validation and a copied receipt slice resolved those issues. Neither
+change relaxes an evaluator check or removes a failing case.
+
+The request corpus measures controlled collection schedules on known service
+families, not held-out generalization or operational prevalence. JSON payload
+counts exclude signatures, headers and transport overhead. The state-preserving
+race intentionally measures conservative invalidation without new task failure.
+False S judgments do not trigger on-unknown requests. Independently trusted
+collection and complete mediation remain deployment assumptions.
