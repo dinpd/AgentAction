@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.44.1-rc.1 - 2026-09-25
+
+### Fixed
+
+- Research setup now reviews existing Apify credential reuse directly in the page, avoiding native confirmation dialogs that can stall embedded browsers. Changing the selected account clears the review.
+- Daily research activation displays its delivery time, recipient and saved limits with explicit confirm and cancel controls inside the agent card.
+
+### Compatibility
+
+- Backward-compatible UI fix; no migration, API, credential destination or execution-authority changes. Existing trial and owner checks remain enforced.
+- Install Python artifacts from the GitHub v0.44.1-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.44.0-rc.1 - 2026-09-25
 
 ### Added
