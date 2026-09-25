@@ -5,10 +5,10 @@
     "src/world.mts": "b647f09e295ca0ea23055d565e017f21808bc83b78e47546fb42d84be7df7e9b",
     "src/cases.mts": "001a1acb55e48f0ed7072c057eb327346c5adcd9181b9e696412c62a106259be",
     "src/methods.mts": "113c2cc81217ee133db33999e751bf5932b7a7e8902165fd8da7c56adf3d85cc",
-    "src/metrics.mts": "b464232da087d6f7a0134091d0f38820d64c4aecd28b74b662de84a381e0ca63",
+    "src/metrics.mts": "abb3eb410e630272fc2ee30fd8ff114e592e7b9c61ceaed50d477deedb01af80",
     "src/run.mts": "05341f8e6ca36c490691645bed6f9bb5ac6b4538e3ff0c54df8fe5beb9d9f797",
     "PROTOCOL.md": "42347775dd04070ea67036c326dc5a72fff498d9b018b5a4ce8224b06b10f742",
-    "package.json": "e105ecf2aa1795995c23f33393b7ffe8f6627e05539871b10b18d7ce864592d8",
+    "package.json": "1b0415d2a89da3720203080877f6dd62a819e862a43d71e22f69508fc444d766",
     "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6",
     "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"
   },

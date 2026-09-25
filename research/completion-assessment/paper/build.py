@@ -18,7 +18,7 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether, PageBreak
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -28,6 +28,8 @@ FIGURES = HERE / "figures"
 TITLE = "When Is an Agent Task Complete? A Fault-Injection Study of Evidence-Based Assessment"
 METHOD_NAMES = {"tool": "Tool", "trace": "Trace", "content_any": "Content-any", "local_any": "Local-any",
                 "ingress_any": "Ingress-any", "ingress_all": "Ingress-all", "ingress_latest": "Ingress-latest"}
+SERVICE_NAMES = {"ingress_any": "Ingress-any", "ingress_latest": "Ingress-latest",
+                 "closure_only": "Closure", "revision_only": "Revision", "closure_revision": "Closure + revision"}
 
 
 def read(name):
@@ -137,6 +139,63 @@ def substitutions(summary, loss, omission, timing, refs):
     return tokens
 
 
+def service_substitutions(service, timing):
+    methods = service["within_assumptions"]
+    combined = methods["closure_revision"]
+    total = service["overall"]["closure_revision"]
+    values = {
+        "service_scenarios": len(service["design"]["scenarios"]), "service_cases": service["design"]["cases"],
+        "service_assessments": service["design"]["assessments"], "service_in_cases": combined["total"],
+        "service_positive": combined["positive"], "service_negative": combined["negative"],
+        "service_latest_fs": methods["ingress_latest"]["false_success"],
+        "service_latest_ff": methods["ingress_latest"]["false_failure"],
+        "service_combined_fs": combined["false_success"], "service_combined_ff": combined["false_failure"],
+        "service_coverage": percentage(combined["coverage"]), "service_unknown": combined["abstained"],
+        "service_admitted": combined["admitted_positive"], "service_decisive": combined["decisive"],
+        "service_all_fs": total["false_success"], "service_all_negative": total["negative"],
+        "service_all_coverage": percentage(total["coverage"]),
+        "service_out_cases": service["outside_assumptions"]["closure_revision"]["total"],
+        "service_timing_n": timing["results"]["local_gate"]["closure_revision"]["n"],
+        "service_python": timing["python"], "service_sqlite": timing["sqlite"],
+    }
+    values["table_service"] = table(["Method", "FS/N-", "FF/N+", "Coverage", "Unknown/N", "Positive admit"], [
+        [SERVICE_NAMES[m], f'{v["false_success"]}/{v["negative"]}', f'{v["false_failure"]}/{v["positive"]}',
+         percentage(v["coverage"]), f'{v["abstained"]}/{v["total"]}', f'{v["admitted_positive"]}/{v["positive"]}']
+        for m, v in methods.items()])
+    values["table_service_timing"] = table(["Method", "Gate p50 (ms)", "Gate p95 (ms)", "HTTP p50 (ms)", "HTTP p95 (ms)"], [
+        [SERVICE_NAMES[m]] + [f'{timing["results"][scope][m][p]:.4f}'
+                              for scope in ("local_gate", "integrated_http") for p in ("p50", "p95")]
+        for m in SERVICE_NAMES])
+    fig, ax = plt.subplots(figsize=(7.2, 3.1), layout="constrained")
+    parts = [
+        ("Correct S", "#a4c8b4", lambda v: v["admitted_positive"]),
+        ("Correct F", "#afc8db", lambda v: v["decisive"] - v["false_success"] - v["false_failure"] - v["admitted_positive"]),
+        ("Unknown", "#e6e9ed", lambda v: v["abstained"]),
+        ("False S", "#c86761", lambda v: v["false_success"]),
+        ("False F", "#e8bf77", lambda v: v["false_failure"]),
+    ]
+    left = np.zeros(len(methods))
+    for label, color, select in parts:
+        widths = np.array([select(v) for v in methods.values()])
+        ax.barh(list(SERVICE_NAMES.values()), widths, left=left, color=color, label=label, height=.62)
+        for i, width in enumerate(widths):
+            if width:
+                ax.text(left[i] + width / 2, i, str(width), ha="center", va="center", fontsize=8)
+        left += widths
+    ax.invert_yaxis()
+    ax.set_xlabel("Cases within the service trust assumptions")
+    ax.set_xlim(0, combined["total"])
+    ax.set_xticks(np.arange(0, combined["total"] + 1, 20))
+    ax.tick_params(axis="y", length=0)
+    ax.legend(loc="lower center", bbox_to_anchor=(.5, 1.01), ncol=5, frameon=False, fontsize=8)
+    for suffix in ("png", "pdf"):
+        fig.savefig(FIGURES / f"service-outcomes.{suffix}", dpi=220,
+                    metadata={"CreationDate": None} if suffix == "pdf" else None)
+    plt.close(fig)
+    values["figure_service"] = "![Service decision outcomes by safeguard](figures/service-outcomes.png)"
+    return values
+
+
 def blocks(text):
     return [b.strip() for b in text.split("\n\n") if b.strip()]
 
@@ -177,6 +236,8 @@ def render_pdf(text):
                 story.append(Spacer(1, 10))
         elif block.startswith("## "):
             in_refs = block == "## References"
+            if in_refs:
+                story.append(PageBreak())
             story.append(Paragraph(inline(block[3:]), styles["H1Paper"]))
         elif block.startswith("### "):
             story.append(Paragraph(inline(block[4:]), styles["H2Paper"]))
@@ -201,7 +262,10 @@ def render_pdf(text):
         elif block.startswith("**Table ") or block.startswith("**Figure "):
             caption = Paragraph(inline(block), styles["CaptionPaper"])
             assert pending is not None
-            story.append(KeepTogether([Spacer(1, 6), pending, Spacer(1, 6), caption]))
+            prefix = []
+            if story and isinstance(story[-1], Paragraph) and story[-1].style.name in ("H1Paper", "H2Paper"):
+                prefix.append(story.pop())
+            story.append(KeepTogether(prefix + [Spacer(1, 6), pending, Spacer(1, 6), caption]))
             pending = None
         else:
             story.append(Paragraph(inline(block), styles["ReferencePaper"] if in_refs else styles["BodyPaper"]))
@@ -269,7 +333,7 @@ def render_tex(text, refs):
             lines.append(r"\begin{center}\includegraphics[width=\linewidth]{" + path + r"}\end{center}")
         else:
             lines.append(tex_inline(b, refs) + "\n")
-    lines.append(r"\begin{thebibliography}{99}\raggedright")
+    lines.append(r"\clearpage\begin{thebibliography}{99}\raggedright")
     for r in refs:
         lines.append(r"\bibitem{" + r["id"] + "} " + tex_escape(f'{r["authors"]}. {r["title"]}. {r["venue"]}, {r["year"]}. ') + r"\url{" + r["url"] + "}")
     lines.extend([r"\end{thebibliography}", r"\end{document}"])
@@ -284,6 +348,7 @@ def main():
     refs = json.loads((HERE / "references.json").read_text())
     make_figures(summary, loss)
     values = substitutions(summary, loss, omission, timing, refs)
+    values.update(service_substitutions(read("service/summary.json"), read("service/timing.json")))
     text = (HERE / "manuscript.template.md").read_text()
     for key, value in values.items():
         text = text.replace("{{" + key + "}}", str(value))

@@ -44,6 +44,8 @@ def oracle(case):
 
 
 def verify():
+    from verify_service import verify_service
+    verify_service()
     cases, assessments = rows("cases.jsonl"), rows("assessments.jsonl")
     summary = json.loads((R / "summary.json").read_text())
     manifest = json.loads((R / "manifest.json").read_text())
@@ -101,6 +103,21 @@ def verify():
     assert generated["case_count"] == len(cases)
     assert generated["assessment_count"] == len(assessments)
     assert generated["omission_count"] == len(omissions)
+    service = json.loads((R / "service/summary.json").read_text())
+    service_timing = json.loads((R / "service/timing.json").read_text())
+    assert generated["service_cases"] == service["design"]["cases"]
+    assert generated["service_assessments"] == service["design"]["assessments"]
+    combined = service["within_assumptions"]["closure_revision"]
+    assert generated["service_unknown"] == combined["abstained"]
+    assert generated["service_coverage"] == f'{100 * combined["coverage"]:.1f}%'
+    for result in service["within_assumptions"].values():
+        assert f'{result["false_success"]}/{result["negative"]}' in manuscript
+        assert f'{result["false_failure"]}/{result["positive"]}' in manuscript
+        assert f'{result["abstained"]}/{result["total"]}' in manuscript
+    for category in service_timing["results"].values():
+        for result in category.values():
+            assert f'{result["p50"]:.4f}' in manuscript
+            assert f'{result["p95"]:.4f}' in manuscript
     for result in summary["overall"].values():
         assert f'{result["false_success"]}/{result["negative"]}' in manuscript
         assert f'{result["false_failure"]}/{result["positive"]}' in manuscript
@@ -113,10 +130,12 @@ def verify():
         from pypdf import PdfReader
         path = ROOT / "output/pdf/agent-task-completion.pdf"
         reader = PdfReader(path)
-        assert 8 <= len(reader.pages) <= 16
+        assert 8 <= len(reader.pages) <= 22
         text = " ".join(p.extract_text() or "" for p in reader.pages)
         assert "Dan Itkis" in text and "References" in text
         assert "1200" in text and "8400" in text
+        assert str(service["design"]["cases"]) in text and "Closure + revision" in text
+        assert "the human author must review and take responsibility" not in " ".join(text.split())
         assert "\ufffd" not in text and "\u25a0" not in text
         with pdfplumber.open(path) as document:
             for i, page in enumerate(document.pages, 1):

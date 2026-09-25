@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
       - name: Test research controls
         run: npm test
-      - name: Recompute all non-timing results
+      - name: Recompute emulator and HTTP/SQLite non-timing results
         run: npm run check
       - name: Independently recount saved results
         run: python verify_results.py
