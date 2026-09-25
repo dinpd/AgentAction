@@ -102,5 +102,45 @@
     "year": "2026",
     "venue": "Package 1.0.1; source revision b7ea9074c1cba482b30687fecdb5c8425fd6f619",
     "url": "https://github.com/sierra-research/tau2-bench/tree/b7ea9074c1cba482b30687fecdb5c8425fd6f619"
+  },
+  {
+    "id": "abc",
+    "authors": "Yuxuan Zhu et al.",
+    "title": "Establishing Best Practices for Building Rigorous Agentic Benchmarks",
+    "year": "2025",
+    "venue": "arXiv:2507.02825v5",
+    "url": "https://arxiv.org/abs/2507.02825v5"
+  },
+  {
+    "id": "benchjack",
+    "authors": "Hao Wang, Hanchen Li, Qiuyang Mang, Alvin Cheung, Koushik Sen, and Dawn Song",
+    "title": "Do Androids Dream of Breaking the Game? Systematically Auditing AI Agent Benchmarks with BenchJack",
+    "year": "2026",
+    "venue": "arXiv:2605.12673v1",
+    "url": "https://arxiv.org/abs/2605.12673v1"
+  },
+  {
+    "id": "validity",
+    "authors": "Vishvesh Bhat, Jay Vaghasiya, Muhammad Ahmed Mohsin, and Asad Aali",
+    "title": "Benchmarking the Benchmarks: A Validity Audit of Tool-Calling Evaluation",
+    "year": "2026",
+    "venue": "arXiv:2607.02577v1",
+    "url": "https://arxiv.org/abs/2607.02577v1"
+  },
+  {
+    "id": "eddi",
+    "authors": "Chao Ma, Sebastian Tschiatschek, Konstantina Palla, Jose Miguel Hernandez-Lobato, Sebastian Nowozin, and Cheng Zhang",
+    "title": "EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE",
+    "year": "2019",
+    "venue": "ICML 2019; arXiv:1809.11142v4",
+    "url": "https://arxiv.org/abs/1809.11142v4"
+  },
+  {
+    "id": "oracle",
+    "authors": "Earl T. Barr, Mark Harman, Phil McMinn, Muzammil Shahbaz, and Shin Yoo",
+    "title": "The Oracle Problem in Software Testing: A Survey",
+    "year": "2015",
+    "venue": "IEEE Transactions on Software Engineering 41(5), pp. 507-525",
+    "url": "https://philmcminn.com/publications/barr2015.pdf"
   }
 ]

@@ -5,7 +5,9 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.mts",
     "experiment": "node --experimental-strip-types src/run.mts",
-    "check": "node --experimental-strip-types src/run.mts --check && node --experimental-strip-types src/run_service.mts --check",
+    "check": "node --experimental-strip-types src/run.mts --check && node --experimental-strip-types src/run_service.mts --check && node --experimental-strip-types src/run_requests.mts --check",
+    "requests:experiment": "node --experimental-strip-types src/run_requests.mts",
+    "requests:check": "node --experimental-strip-types src/run_requests.mts --check",
     "timing": "node --experimental-strip-types src/timing.mts",
     "service:experiment": "node --experimental-strip-types src/run_service.mts",
     "service:check": "node --experimental-strip-types src/run_service.mts --check",

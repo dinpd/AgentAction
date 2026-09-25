@@ -173,7 +173,7 @@ def main():
     # external dataset; the standard-library verifier recounts separately.
     score_script = ROOT / "src/score_assessments.mts"
     summary = json.loads(subprocess.check_output(["node", "--experimental-strip-types", str(score_script)],
-                        input=json.dumps(assessments), text=True))
+                        input=json.dumps({"schema_version": 1, "methods": METHODS, "rows": assessments}), text=True))
     summary["design"] = {"upstream_revision": REVISION, "base_tasks": len(tasks),
                          "selected_tasks": len(artifacts), "excluded_tasks": len(exclusions),
                          "scenarios": list(SCENARIOS), "methods": list(METHODS),

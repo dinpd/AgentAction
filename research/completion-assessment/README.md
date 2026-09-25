@@ -1,7 +1,7 @@
 # Completion-assessment research artifact
 
-**Paper:** *Can We Trust 'Done'? Evaluating Agent Task Completion Under
-Incomplete and Changing Evidence* - Dan Itkis, AgentAction.dev.
+**Paper:** *Can We Trust 'Done'? Evaluating Agent Completion and Requests for
+Additional Evidence* - Dan Itkis, AgentAction.dev.
 
 This research draft presents a completion-assessor evaluation framework with
 an emulator suite, a local persistent HTTP service, and an external retail
@@ -12,6 +12,9 @@ impact: **no release**. Production evaluator and gateway code are unchanged.
 - [Review PDF](output/pdf/agent-task-completion.pdf)
 - [Editable LaTeX](paper/manuscript.tex)
 - [Framework, metrics, and external protocol](FRAMEWORK_PROTOCOL.md)
+- [Bounded evidence-request experiment](EVIDENCE_REQUEST_PROTOCOL.md)
+- [Reuse guide and scoring example](SCORING_GUIDE.md)
+- [Evidence-request results](results/requests/summary.json)
 - [External task results](results/external/summary.json)
 - [External selection and exclusions](results/external/selection.json)
 - [Original evaluation protocol](PROTOCOL.md)
@@ -21,6 +24,7 @@ impact: **no release**. Production evaluator and gateway code are unchanged.
 - [Service results and ablations](results/service/summary.json)
 - [Original source/data hashes](results/manifest.json)
 - [Service source/data hashes](results/service/manifest.json)
+- [Evidence-request source/data hashes](results/requests/manifest.json)
 
 ## Reproduce correctness
 
@@ -33,15 +37,16 @@ npm run check
 python3 verify_results.py
 ```
 
-No npm installation is needed. `check` regenerates both suites with fresh
+No npm installation is needed. `check` regenerates all three local suites with fresh
 signing keys and compares non-timing artifacts byte-for-byte. The service suite
 also generates fresh challenges, normalized in saved data. `experiment`
 overwrites the original results; `service:experiment` overwrites the service
 results. Use those commands only when updating the artifact. `service:check`
-checks just the service suite. The independent Python verifiers use the
+checks just the service suite; `requests:experiment` and `requests:check` do the
+same for evidence requests. The independent Python verifiers use the
 standard library unless `--pdf` is supplied.
 
-Both experiments invoke the existing TypeScript evaluator and JWS observation
+All three local experiments invoke the existing TypeScript evaluator and JWS observation
 verifier. A fetch substitute serves only a public ephemeral JWKS at an exact
 `.invalid` URL; every other fetch request throws. The service driver uses
 Node's HTTP client strictly against 127.0.0.1, separately from the JWKS fixture.
@@ -65,12 +70,15 @@ prototype is not a production endpoint.
 
 ## Reuse the scorecard
 
-An adapter emits rows with `truth` (boolean), `label` (`S`, `F`, or `U`), `method`,
-`scenario`, and `assumptions_hold` (boolean). IDs and domain metadata may also be
-retained. Score any compatible adapter's JSON array through standard input:
+An adapter emits an envelope with `schema_version: 1`, an explicit `methods`
+roster, and `rows`. Each row requires `id`, `truth` (boolean), `label` (`S`, `F`,
+or `U`), `method`, `scenario`, and `assumptions_hold` (boolean). The scorer rejects
+missing method/case results, duplicates and inconsistent truth/scenario/trust
+metadata. This replaces the earlier research raw-array interface. See
+SCORING_GUIDE.md for a complete runnable example. Score through standard input:
 
 ```sh
-node --experimental-strip-types src/score_assessments.mts < adapter-rows.json
+node --experimental-strip-types src/score_assessments.mts < adapter-batch.json
 ```
 
 The output includes full-corpus, trust-stratum and per-scenario summaries. Never
@@ -112,6 +120,33 @@ The service remedy raises full-corpus precision from 65.0% to 77.8%, but lowers
 recall from 86.7% to 46.7% and F1 from 74.3% to 58.3%. A zero-error, always-unknown
 method has no useful coverage. Standard scores and discrete risk/coverage points
 expose these costs; neither corpus represents production failure prevalence.
+
+## Reproduce bounded evidence requests
+
+```sh
+npm run requests:check
+python3 verify_requests.py
+```
+
+The study crosses the existing 31 service families and five variants with four
+collection conditions (620 cases; 3,100 decisions across five policies). Conditions
+are recovered collection, unavailable service, persistent receipt omission and a
+state-preserving revision race. The requester may make one round and at most two
+snapshot/head GETs. Independent audits confirm fixed truth and unchanged effects
+and histories; only the separately scheduled writer can advance the revision.
+
+With recovered collection, full and targeted requests both recognize 75/75 true
+successes; targeted requests use 135 provider reads versus 150 and deliver 26.6%
+fewer evidence JSON bytes. Across all conditions, targeted precision/recall/F1 are
+83.0%/65.0%/72.9%, versus 78.9%/75.0%/76.9% for unconditional latest refresh.
+All trust-violation false successes remain. These are constructed mixtures, not
+deployment estimates. Provider and broker-to-assessor payloads are measured
+separately; headers, signatures, transport overhead and latency are excluded.
+
+`requests:experiment` overwrites request-study results; use it only to intentionally
+update the artifact. A second fresh-key replay must then match. `verify_requests.py`
+independently checks reference labels, input pairing, request scopes, before/after
+state, all read/payload costs, metrics and hashes with Python's standard library.
 
 ## Rebuild the paper and plots
 
