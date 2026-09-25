@@ -1460,9 +1460,9 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         if(r.research.due && !['completed','failed','cancelled'].includes(r.status))card.append(node('p','The workflow continues in the background. Refresh to see new evidence and delivery status.','note'));
         if(r.research.checks)for(const check of r.research.checks){const detail=node('details');detail.append(node('summary',`${check.status.toUpperCase()} · ${check.label} · ${check.observed}`),node('p',`Measured by: ${check.method}`));card.append(detail);}
         if(r.research.report){const detail=node('details');detail.append(node('summary',`Research report · email ${r.research.delivery?.status||'not yet queued'}`),node('pre',r.research.report));card.append(detail);}
-        const contract=node('details');contract.append(node('summary','Reviewed research scope'),node('pre',JSON.stringify(r.research.definition.config,null,2)));card.append(contract);
+        const contract=node('details');contract.append(node('summary','Reviewed research scope'),node('p',`Frozen scope digest: ${r.research.definition.digest}`,'note'),node('pre',JSON.stringify(r.research.definition.config,null,2)));card.append(contract);
       }
-      history.appendEvaluation(card, r);
+      if(!r.research)history.appendEvaluation(card, r);
       if (r.outcome) card.append(node("p", `Outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
       for (const event of r.events) {
         const detail = node("details"); detail.append(node("summary", `${event.source?.tool || event.tool}${event.source ? " · " + (state.connections.find((c:any)=>c.id===event.source.connectionId)?.label || event.source.connectionId) : ""} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ source: event.source, arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);

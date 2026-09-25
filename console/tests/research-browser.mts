@@ -45,7 +45,7 @@ try{
  await page.goto(base+'/agents?workspace=acme#approvals');await page.getByText('Approve research trial and email report',{exact:true}).waitFor();
  assert.equal(await page.getByText('Adjust tool arguments',{exact:true}).count(),0);assert.match(await page.locator('#runs').innerText(),/reports@example.com/);
  await page.getByRole('button',{name:'Approve and execute',exact:true}).click();await page.getByRole('link',{name:'View updated run →',exact:true}).click();
- await page.getByText('Research report · email accepted',{exact:true}).click();assert.match(await page.locator('#runs').innerText(),/Actual sourced report/);
+ await page.getByText('Research report · email accepted',{exact:true}).click();assert.match(await page.locator('#runs').innerText(),/Actual sourced report/);assert.ok(!(await page.locator('#runs').innerText()).includes('No bound evaluation'));
  await page.getByText('PASS · Both platforms retrieved · 2/2 platforms',{exact:true}).click();assert.match(await page.locator('#runs').innerText(),/Measured by: Check completed/);
  await page.getByRole('button',{name:'Activate daily',exact:true}).click();await page.getByText('Daily research activated within the reviewed bounds.',{exact:true}).waitFor();assert.equal(agent.status,'active');
  await page.getByRole('button',{name:'Pause',exact:true}).click();await page.getByText('Agent paused. Pending calls were cancelled.',{exact:true}).waitFor();assert.equal(agent.status,'paused');
