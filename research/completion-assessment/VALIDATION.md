@@ -228,6 +228,9 @@ collection and complete mediation remain deployment assumptions.
   all experimental code/data, result values and four figures are unchanged.
 - The experimental artifact citation pins the verified research revision
   59f324a33fe2fd04ae167e5bbd4cac0330c65c9e rather than a moving main branch.
+  Both AgentAction references link directly to that completion-assessment research
+  folder, labeled "Completion-assessment research folder" in both PDF renderings.
+  The tested production-code revision remains explicit in the reference details.
 - The deterministic ZIP contains exactly main.tex and four referenced PDF
   figures. All 18 bibliography entries are embedded. Package validation checks
   exact membership, source hashes, safe relative names, absence of hidden or
@@ -244,6 +247,11 @@ collection and complete mediation remain deployment assumptions.
   claims pass automated checks. The compilation record binds the source ZIP and
   preview hashes. The PDF check verifies that record and its page count; it does
   not itself rerun TeX. CI also checks the deterministic package and saved preview.
+  The first CI run exposed a byte mismatch when packaging after Linux figure
+  regeneration. CI now validates the frozen upload files before rebuilding plots;
+  regenerated manuscript text and numbers are checked separately. Archive
+  reproducibility applies to its exact committed source/figure inputs, not to
+  cross-platform binary equivalence of newly rendered figure PDFs.
 - All four independent saved-result audits pass. Whitespace/patch checks and
   Python compilation pass. No new experiment measurements, production changes
   or dependency changes are introduced. Release impact: no release.

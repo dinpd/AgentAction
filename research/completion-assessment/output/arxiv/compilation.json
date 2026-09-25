@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "archive_sha256": "934ac8542caecac58154f60f080ff360b27720f7a6424c39b0604b6038c49d90",
-  "pdf_sha256": "3dc1910a1516408a43c69e43431a88338963533625fcd2033196b3b1b247d40e",
+  "archive_sha256": "d3884a3e4fb7bc7696dba42b5a0e4709599d9e883f210ac518d5b41af0150d66",
+  "pdf_sha256": "a731936890628735b945718dbb6fe1006680926cb67480df5df88222e35ebac5",
   "pages": 22,
   "compiler": "Tectonic 0.17.0",
   "engine": "XeTeX",

@@ -137,7 +137,7 @@ def substitutions(summary, loss, omission, timing, refs):
         [METHOD_NAMES[m], f'{v["p50"]:.4f}', f'{v["p95"]:.4f}'] for m, v in timing["results"].items()])
     tokens["figure_matrix"] = "![Scenario assessment matrix](figures/scenario-matrix.png)"
     tokens["figure_loss"] = "![Observation loss and assessment coverage](figures/observation-loss.png)"
-    tokens["references"] = "\n\n".join(f'[{i}] {r["authors"]}. **{r["title"]}.** {r["venue"]}, {r["year"]}. [Source]({r["url"]})' for i, r in enumerate(refs, 1))
+    tokens["references"] = "\n\n".join(f'[{i}] {r["authors"]}. **{r["title"]}.** {r["venue"]}, {r["year"]}. [{r.get("link_label", "Source")}]({r["url"]})' for i, r in enumerate(refs, 1))
     return tokens
 
 
@@ -408,7 +408,9 @@ def render_tex(text, refs):
             lines.append(tex_inline(b, refs) + "\n")
     lines.append(r"\clearpage\begin{thebibliography}{99}\raggedright")
     for r in refs:
-        lines.append(r"\bibitem{" + r["id"] + "} " + tex_escape(f'{r["authors"]}. {r["title"]}. {r["venue"]}, {r["year"]}. ') + r"\url{" + r["url"] + "}")
+        link = (r"\href{" + r["url"] + "}{" + tex_escape(r["link_label"]) + "}" if "link_label" in r
+                else r"\url{" + r["url"] + "}")
+        lines.append(r"\bibitem{" + r["id"] + "} " + tex_escape(f'{r["authors"]}. {r["title"]}. {r["venue"]}, {r["year"]}. ') + link)
     lines.extend([r"\end{thebibliography}", r"\end{document}"])
     (HERE / "manuscript.tex").write_text("\n".join(lines) + "\n")
     (HERE / "references.bib").write_text("\n\n".join("@misc{" + r["id"] + ",\n" +

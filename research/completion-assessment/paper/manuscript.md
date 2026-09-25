@@ -426,9 +426,9 @@ The author is affiliated with AgentAction.dev and has a direct interest in the e
 
 [8] Henk Birkholz, Dave Thaler, Michael Richardson, Ned Smith, and Wei Pan. **Remote ATtestation procedureS (RATS) Architecture.** RFC 9334, 2023. [Source](https://www.rfc-editor.org/rfc/rfc9334.html)
 
-[9] AgentAction contributors. **AgentAction: intent evaluator and observation verifier.** Source revision 856c3739f18a7d6cda775ab187f865278dc6e759, 2026. [Source](https://github.com/dinpd/AgentAction/tree/856c3739f18a7d6cda775ab187f865278dc6e759)
+[9] AgentAction contributors. **AgentAction: intent evaluator and observation verifier.** Evaluated code revision 856c3739f18a7d6cda775ab187f865278dc6e759; research artifact revision 59f324a, 2026. [Completion-assessment research folder](https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment)
 
-[10] Dan Itkis. **Completion-assessment research artifact.** AgentAction, revision 59f324a; emulator, persistent-service, external-replay and evidence-request protocols with source and data hashes, 2026. [Source](https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment)
+[10] Dan Itkis. **Completion-assessment research artifact.** AgentAction, revision 59f324a; emulator, persistent-service, external-replay and evidence-request protocols with source and data hashes, 2026. [Completion-assessment research folder](https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment)
 
 [11] SQLite project. **Isolation In SQLite.** Official documentation, updated April 18, 2022, 2022. [Source](https://sqlite.org/isolation.html)
 

@@ -68,8 +68,9 @@
     "authors": "AgentAction contributors",
     "title": "AgentAction: intent evaluator and observation verifier",
     "year": "2026",
-    "venue": "Source revision 856c3739f18a7d6cda775ab187f865278dc6e759",
-    "url": "https://github.com/dinpd/AgentAction/tree/856c3739f18a7d6cda775ab187f865278dc6e759"
+    "venue": "Evaluated code revision 856c3739f18a7d6cda775ab187f865278dc6e759; research artifact revision 59f324a",
+    "url": "https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment",
+    "link_label": "Completion-assessment research folder"
   },
   {
     "id": "artifact",
@@ -77,7 +78,8 @@
     "title": "Completion-assessment research artifact",
     "year": "2026",
     "venue": "AgentAction, revision 59f324a; emulator, persistent-service, external-replay and evidence-request protocols with source and data hashes",
-    "url": "https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment"
+    "url": "https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment",
+    "link_label": "Completion-assessment research folder"
   },
   {
     "id": "sqlite",

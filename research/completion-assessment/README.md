@@ -210,7 +210,10 @@ own generated PDF during the actual submission. Recompile and reinspect the
 preview if the manuscript or figure sources change, and update the compilation
 record's archive/PDF hashes and page count. The `--pdf` check binds the saved
 preview to that record and checks text, metadata, tables, figures and page bounds;
-it does not invoke a TeX compiler. Research CI runs both package and preview checks.
+it does not invoke a TeX compiler. Research CI checks the frozen package and preview
+before independently rebuilding the manuscript and plots. Plot PDF bytes can
+depend on the rendering platform; the uploaded ZIP uses the inspected, committed
+figure files. The ZIP is deterministic for those exact source files.
 
 ## Measurements and interpretation
 

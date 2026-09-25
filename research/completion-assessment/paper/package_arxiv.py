@@ -70,6 +70,10 @@ def outputs():
         assert check.testzip() is None and set(check.namelist()) == set(files)
         assert all(check.read(name) == data for name, data in files.items())
     refs_json = json.loads((HERE / "references.json").read_text())
+    for ref in refs_json:
+        if ref["id"] in ("agentaction", "artifact"):
+            assert ref["url"].endswith("/research/completion-assessment")
+            assert ref["link_label"] == "Completion-assessment research folder"
     artifact = next(r["url"] for r in refs_json if r["id"] == "artifact")
     assert re.search(r"/tree/[0-9a-f]{40}/research/completion-assessment$", artifact)
     metadata = {

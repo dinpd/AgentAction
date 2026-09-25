@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "archive": "agent-task-completion-arxiv-source.zip",
-  "archive_sha256": "934ac8542caecac58154f60f080ff360b27720f7a6424c39b0604b6038c49d90",
-  "archive_bytes": 132407,
+  "archive_sha256": "d3884a3e4fb7bc7696dba42b5a0e4709599d9e883f210ac518d5b41af0150d66",
+  "archive_bytes": 132562,
   "files": {
     "figures/observation-loss.pdf": {
       "bytes": 13208,
@@ -21,8 +21,8 @@
       "sha256": "11a2e13b649ce7a7d7518e66ae0cc66dc95169092327f4a60930c41e8f814d2e"
     },
     "main.tex": {
-      "bytes": 76104,
-      "sha256": "b14c2d0bd4a782c8345f52160502ff6789e555e25a149506d7c0fba83b633a0b"
+      "bytes": 76259,
+      "sha256": "6badeac5532a54284198aa7546746433562787fa5446f86592f44a00f404f9e5"
     }
   },
   "metadata_sha256": "032b48682e18a9cade03d96d7cdde6952ab57146c8b7a145570914cc3d0ddeee",
