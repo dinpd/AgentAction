@@ -1,0 +1,1073 @@
+{
+  "overall": {
+    "upstream_replay": {
+      "total": 728,
+      "positive": 273,
+      "negative": 455,
+      "false_success": 182,
+      "false_failure": 91,
+      "admitted_positive": 91,
+      "abstained": 182,
+      "decisive": 546,
+      "false_success_rate": 0.4,
+      "false_failure_rate": 0.3333333333333333,
+      "coverage": 0.75,
+      "selective_error": 0.5,
+      "positive_admission": 0.3333333333333333,
+      "confusion": {
+        "positive": {
+          "S": 91,
+          "F": 91,
+          "U": 91
+        },
+        "negative": {
+          "S": 182,
+          "F": 182,
+          "U": 91
+        }
+      },
+      "missed_success": 182,
+      "completion_precision": 0.3333333333333333,
+      "completion_recall": 0.3333333333333333,
+      "completion_f1": 0.3333333333333333
+    },
+    "closure_replay": {
+      "total": 728,
+      "positive": 273,
+      "negative": 455,
+      "false_success": 91,
+      "false_failure": 0,
+      "admitted_positive": 91,
+      "abstained": 364,
+      "decisive": 364,
+      "false_success_rate": 0.2,
+      "false_failure_rate": 0,
+      "coverage": 0.5,
+      "selective_error": 0.25,
+      "positive_admission": 0.3333333333333333,
+      "confusion": {
+        "positive": {
+          "S": 91,
+          "F": 0,
+          "U": 182
+        },
+        "negative": {
+          "S": 91,
+          "F": 182,
+          "U": 182
+        }
+      },
+      "missed_success": 182,
+      "completion_precision": 0.5,
+      "completion_recall": 0.3333333333333333,
+      "completion_f1": 0.4
+    },
+    "always_unknown": {
+      "total": 728,
+      "positive": 273,
+      "negative": 455,
+      "false_success": 0,
+      "false_failure": 0,
+      "admitted_positive": 0,
+      "abstained": 728,
+      "decisive": 0,
+      "false_success_rate": 0,
+      "false_failure_rate": 0,
+      "coverage": 0,
+      "selective_error": null,
+      "positive_admission": 0,
+      "confusion": {
+        "positive": {
+          "S": 0,
+          "F": 0,
+          "U": 273
+        },
+        "negative": {
+          "S": 0,
+          "F": 0,
+          "U": 455
+        }
+      },
+      "missed_success": 273,
+      "completion_precision": null,
+      "completion_recall": 0,
+      "completion_f1": 0
+    }
+  },
+  "within_assumptions": {
+    "upstream_replay": {
+      "total": 637,
+      "positive": 273,
+      "negative": 364,
+      "false_success": 91,
+      "false_failure": 91,
+      "admitted_positive": 91,
+      "abstained": 182,
+      "decisive": 455,
+      "false_success_rate": 0.25,
+      "false_failure_rate": 0.3333333333333333,
+      "coverage": 0.7142857142857143,
+      "selective_error": 0.4,
+      "positive_admission": 0.3333333333333333,
+      "confusion": {
+        "positive": {
+          "S": 91,
+          "F": 91,
+          "U": 91
+        },
+        "negative": {
+          "S": 91,
+          "F": 182,
+          "U": 91
+        }
+      },
+      "missed_success": 182,
+      "completion_precision": 0.5,
+      "completion_recall": 0.3333333333333333,
+      "completion_f1": 0.4
+    },
+    "closure_replay": {
+      "total": 637,
+      "positive": 273,
+      "negative": 364,
+      "false_success": 0,
+      "false_failure": 0,
+      "admitted_positive": 91,
+      "abstained": 364,
+      "decisive": 273,
+      "false_success_rate": 0,
+      "false_failure_rate": 0,
+      "coverage": 0.42857142857142855,
+      "selective_error": 0,
+      "positive_admission": 0.3333333333333333,
+      "confusion": {
+        "positive": {
+          "S": 91,
+          "F": 0,
+          "U": 182
+        },
+        "negative": {
+          "S": 0,
+          "F": 182,
+          "U": 182
+        }
+      },
+      "missed_success": 182,
+      "completion_precision": 1,
+      "completion_recall": 0.3333333333333333,
+      "completion_f1": 0.5
+    },
+    "always_unknown": {
+      "total": 637,
+      "positive": 273,
+      "negative": 364,
+      "false_success": 0,
+      "false_failure": 0,
+      "admitted_positive": 0,
+      "abstained": 637,
+      "decisive": 0,
+      "false_success_rate": 0,
+      "false_failure_rate": 0,
+      "coverage": 0,
+      "selective_error": null,
+      "positive_admission": 0,
+      "confusion": {
+        "positive": {
+          "S": 0,
+          "F": 0,
+          "U": 273
+        },
+        "negative": {
+          "S": 0,
+          "F": 0,
+          "U": 364
+        }
+      },
+      "missed_success": 273,
+      "completion_precision": null,
+      "completion_recall": 0,
+      "completion_f1": 0
+    }
+  },
+  "outside_assumptions": {
+    "upstream_replay": {
+      "total": 91,
+      "positive": 0,
+      "negative": 91,
+      "false_success": 91,
+      "false_failure": 0,
+      "admitted_positive": 0,
+      "abstained": 0,
+      "decisive": 91,
+      "false_success_rate": 1,
+      "false_failure_rate": null,
+      "coverage": 1,
+      "selective_error": 1,
+      "positive_admission": null,
+      "confusion": {
+        "positive": {
+          "S": 0,
+          "F": 0,
+          "U": 0
+        },
+        "negative": {
+          "S": 91,
+          "F": 0,
+          "U": 0
+        }
+      },
+      "missed_success": 0,
+      "completion_precision": 0,
+      "completion_recall": null,
+      "completion_f1": 0
+    },
+    "closure_replay": {
+      "total": 91,
+      "positive": 0,
+      "negative": 91,
+      "false_success": 91,
+      "false_failure": 0,
+      "admitted_positive": 0,
+      "abstained": 0,
+      "decisive": 91,
+      "false_success_rate": 1,
+      "false_failure_rate": null,
+      "coverage": 1,
+      "selective_error": 1,
+      "positive_admission": null,
+      "confusion": {
+        "positive": {
+          "S": 0,
+          "F": 0,
+          "U": 0
+        },
+        "negative": {
+          "S": 91,
+          "F": 0,
+          "U": 0
+        }
+      },
+      "missed_success": 0,
+      "completion_precision": 0,
+      "completion_recall": null,
+      "completion_f1": 0
+    },
+    "always_unknown": {
+      "total": 91,
+      "positive": 0,
+      "negative": 91,
+      "false_success": 0,
+      "false_failure": 0,
+      "admitted_positive": 0,
+      "abstained": 91,
+      "decisive": 0,
+      "false_success_rate": 0,
+      "false_failure_rate": null,
+      "coverage": 0,
+      "selective_error": null,
+      "positive_admission": null,
+      "confusion": {
+        "positive": {
+          "S": 0,
+          "F": 0,
+          "U": 0
+        },
+        "negative": {
+          "S": 0,
+          "F": 0,
+          "U": 91
+        }
+      },
+      "missed_success": 0,
+      "completion_precision": null,
+      "completion_recall": null,
+      "completion_f1": null
+    }
+  },
+  "by_scenario": {
+    "complete": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 91,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": 1,
+        "confusion": {
+          "positive": {
+            "S": 91,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": 1,
+        "completion_recall": 1,
+        "completion_f1": 1
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 91,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": 1,
+        "confusion": {
+          "positive": {
+            "S": 91,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": 1,
+        "completion_recall": 1,
+        "completion_f1": 1
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      }
+    },
+    "incomplete": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 91,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 91,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      }
+    },
+    "visible_extra": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 91,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 0,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 91,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      }
+    },
+    "hidden_extra": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 91,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 1,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 1,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 91,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": 0,
+        "completion_recall": null,
+        "completion_f1": 0
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      }
+    },
+    "truncated_success": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 91,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": null,
+        "false_failure_rate": 1,
+        "coverage": 1,
+        "selective_error": 1,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 91,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      }
+    },
+    "unavailable_success": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 91,
+        "negative": 0,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": null,
+        "false_failure_rate": 0,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": 0,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 91,
+        "completion_precision": null,
+        "completion_recall": 0,
+        "completion_f1": 0
+      }
+    },
+    "unavailable_incomplete": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      }
+    },
+    "unmediated_extra": {
+      "upstream_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 91,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 1,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 1,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 91,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": 0,
+        "completion_recall": null,
+        "completion_f1": 0
+      },
+      "closure_replay": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 91,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 0,
+        "decisive": 91,
+        "false_success_rate": 1,
+        "false_failure_rate": null,
+        "coverage": 1,
+        "selective_error": 1,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 91,
+            "F": 0,
+            "U": 0
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": 0,
+        "completion_recall": null,
+        "completion_f1": 0
+      },
+      "always_unknown": {
+        "total": 91,
+        "positive": 0,
+        "negative": 91,
+        "false_success": 0,
+        "false_failure": 0,
+        "admitted_positive": 0,
+        "abstained": 91,
+        "decisive": 0,
+        "false_success_rate": 0,
+        "false_failure_rate": null,
+        "coverage": 0,
+        "selective_error": null,
+        "positive_admission": null,
+        "confusion": {
+          "positive": {
+            "S": 0,
+            "F": 0,
+            "U": 0
+          },
+          "negative": {
+            "S": 0,
+            "F": 0,
+            "U": 91
+          }
+        },
+        "missed_success": 0,
+        "completion_precision": null,
+        "completion_recall": null,
+        "completion_f1": null
+      }
+    }
+  },
+  "design": {
+    "upstream_revision": "b7ea9074c1cba482b30687fecdb5c8425fd6f619",
+    "base_tasks": 114,
+    "selected_tasks": 91,
+    "excluded_tasks": 23,
+    "scenarios": [
+      "complete",
+      "incomplete",
+      "visible_extra",
+      "hidden_extra",
+      "truncated_success",
+      "unavailable_success",
+      "unavailable_incomplete",
+      "unmediated_extra"
+    ],
+    "methods": [
+      "upstream_replay",
+      "closure_replay",
+      "always_unknown"
+    ],
+    "cases": 728,
+    "assessments": 2184,
+    "scope": "Retail DB component; scripted annotated actions; no model/dialogue or full benchmark score."
+  }
+}

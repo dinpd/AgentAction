@@ -1,0 +1,24 @@
+{
+  "python": "3.13.2",
+  "packages": [
+    "PyYAML==6.0.3",
+    "addict==2.4.0",
+    "annotated-types==0.8.0",
+    "cachebox==5.2.3",
+    "deepdiff==9.1.0",
+    "docstring_parser==0.18.0",
+    "loguru==0.7.3",
+    "numpy==2.5.3",
+    "orderly-set==5.5.0",
+    "packaging==26.3",
+    "pandas==3.0.6",
+    "pydantic==2.13.5",
+    "pydantic_core==2.46.5",
+    "python-dateutil==2.9.0.post0",
+    "python-dotenv==1.2.3",
+    "six==1.17.0",
+    "toml==0.10.2",
+    "typing-inspection==0.4.4",
+    "typing_extensions==4.16.0"
+  ]
+}

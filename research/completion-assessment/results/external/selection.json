@@ -1,0 +1,202 @@
+{
+  "selected": [
+    "0",
+    "1",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "11",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "36",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "48",
+    "49",
+    "51",
+    "52",
+    "53",
+    "56",
+    "58",
+    "59",
+    "60",
+    "61",
+    "63",
+    "66",
+    "69",
+    "70",
+    "71",
+    "72",
+    "73",
+    "74",
+    "75",
+    "76",
+    "77",
+    "78",
+    "79",
+    "80",
+    "81",
+    "82",
+    "83",
+    "84",
+    "85",
+    "86",
+    "87",
+    "88",
+    "89",
+    "90",
+    "91",
+    "92",
+    "93",
+    "94",
+    "95",
+    "96",
+    "97",
+    "98",
+    "99",
+    "100",
+    "101",
+    "102",
+    "103",
+    "104",
+    "106",
+    "107",
+    "108",
+    "109",
+    "110",
+    "111",
+    "112",
+    "113"
+  ],
+  "excluded": [
+    {
+      "task_id": "2",
+      "reason": "action_replay_error",
+      "detail": "get_product_details: Error: Product not found"
+    },
+    {
+      "task_id": "3",
+      "reason": "action_replay_error",
+      "detail": "get_product_details: Error: Product not found"
+    },
+    {
+      "task_id": "4",
+      "reason": "action_replay_error",
+      "detail": "get_product_details: Error: Product not found"
+    },
+    {
+      "task_id": "10",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "12",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "24",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "25",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "35",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_email: Error: User not found"
+    },
+    {
+      "task_id": "37",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_email: Error: User not found"
+    },
+    {
+      "task_id": "38",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_email: Error: User not found"
+    },
+    {
+      "task_id": "39",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_name_zip: Error: User not found"
+    },
+    {
+      "task_id": "46",
+      "reason": "action_replay_error",
+      "detail": "get_order_details: Error: Order not found"
+    },
+    {
+      "task_id": "47",
+      "reason": "action_replay_error",
+      "detail": "get_order_details: Error: Order not found"
+    },
+    {
+      "task_id": "50",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "54",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_email: Error: User not found"
+    },
+    {
+      "task_id": "55",
+      "reason": "action_replay_error",
+      "detail": "find_user_id_by_email: Error: User not found"
+    },
+    {
+      "task_id": "57",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "62",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "64",
+      "reason": "action_replay_error",
+      "detail": "exchange_delivered_order_items: Error: Non-delivered order cannot be exchanged"
+    },
+    {
+      "task_id": "65",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "67",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "68",
+      "reason": "no_mutating_action"
+    },
+    {
+      "task_id": "105",
+      "reason": "action_replay_error",
+      "detail": "exchange_delivered_order_items: Error: Insufficient gift card balance to pay for the price difference"
+    }
+  ]
+}

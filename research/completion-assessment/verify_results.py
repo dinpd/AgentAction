@@ -28,7 +28,13 @@ def recount(records):
                 abstained=abstained, decisive=decisive,
                 false_success_rate=rate(fs, negative), false_failure_rate=rate(ff, positive),
                 coverage=rate(decisive, len(records)), selective_error=rate(fs + ff, decisive),
-                positive_admission=rate(c[True, "S"], positive))
+                positive_admission=rate(c[True, "S"], positive),
+                confusion={"positive": {k: c[True, k] for k in "SFU"},
+                           "negative": {k: c[False, k] for k in "SFU"}},
+                missed_success=positive - c[True, "S"],
+                completion_precision=rate(c[True, "S"], c[True, "S"] + fs),
+                completion_recall=rate(c[True, "S"], positive),
+                completion_f1=rate(2 * c[True, "S"], 2 * c[True, "S"] + fs + positive - c[True, "S"]))
 
 
 def oracle(case):
@@ -46,6 +52,8 @@ def oracle(case):
 def verify():
     from verify_service import verify_service
     verify_service()
+    from verify_external import verify_external
+    verify_external()
     cases, assessments = rows("cases.jsonl"), rows("assessments.jsonl")
     summary = json.loads((R / "summary.json").read_text())
     manifest = json.loads((R / "manifest.json").read_text())
@@ -125,6 +133,20 @@ def verify():
     for result in timing["results"].values():
         assert f'{result["p50"]:.4f}' in manuscript
         assert f'{result["p95"]:.4f}' in manuscript
+    external = json.loads((R / "external/summary.json").read_text())
+    assert generated["external_tasks"] == external["design"]["selected_tasks"]
+    assert generated["external_cases"] == external["design"]["cases"]
+    for prefix, result in [("service_latest", service["overall"]["ingress_latest"]),
+                           ("service_all", service["overall"]["closure_revision"]),
+                           ("service_in", service["within_assumptions"]["closure_revision"]),
+                           ("external_replay", external["overall"]["upstream_replay"]),
+                           ("external_closure", external["overall"]["closure_replay"])]:
+        for metric in ("precision", "recall", "f1"):
+            assert generated[f"{prefix}_{metric}"] == f'{100 * result[f"completion_{metric}"]:.1f}%'
+    assert "positive/F + positive/U" in manuscript
+    assert "not official tau-bench scores" in manuscript
+    assert "accessed on" not in manuscript.lower()
+    assert service["overall"]["closure_revision"]["completion_f1"] < service["overall"]["ingress_latest"]["completion_f1"]
     if "--pdf" in sys.argv:
         import pdfplumber
         from pypdf import PdfReader

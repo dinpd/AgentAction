@@ -10,7 +10,7 @@
     "src/methods.mts": "113c2cc81217ee133db33999e751bf5932b7a7e8902165fd8da7c56adf3d85cc",
     "src/cases.mts": "001a1acb55e48f0ed7072c057eb327346c5adcd9181b9e696412c62a106259be",
     "src/world.mts": "b647f09e295ca0ea23055d565e017f21808bc83b78e47546fb42d84be7df7e9b",
-    "src/metrics.mts": "abb3eb410e630272fc2ee30fd8ff114e592e7b9c61ceaed50d477deedb01af80",
+    "src/metrics.mts": "48d157e7fe366a75b052b0188219e80cc414f9d5d99bad5c685f5db0858a2936",
     "REMEDY_PROTOCOL.md": "3715970dd9cb70118b73acec76133300c4cdec4fbef07c1373d88c61b170926a",
     "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6",
     "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"

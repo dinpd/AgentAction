@@ -12,7 +12,7 @@ aggregators are not used to support scientific claims.
 | [EvidenceNet v2](https://arxiv.org/html/2609.10181v2) | Sections III, IV, V, including contracts, epoch freshness, admission matrix, and interventions | Completion contracts require source-bound, current post-change evidence in network operations | Closest prior work; it already separates admission from external truth and uses content-only ablations. We do not claim that distinction as new. Our contribution is a reusable case study of a different existing implementation, unknown versus empty streams, conflicting temporal records, and retained semantic counterexamples |
 | [Proof of Execution v1](https://arxiv.org/html/2607.05397v1) | Abstract, empirical evaluation, limitations, witness discussion | Execution attestation binds contract authority, recorded effects, history and replay under explicit deployment assumptions | Receipts, immutability, and contract binding are not novel contributions here; we do not implement or benchmark PoE |
 | [CONTINUITY v1](https://arxiv.org/html/2609.05269v1) | Sections 7 and 8, abstract and complete-mediation discussion | Authenticated context connects security controls; deterministic fault injection includes explicit mediation assumptions | Independent sound controls need not compose; our simulated parameterizations are likewise finite conformance cases, not independent attack samples |
-| [tau-bench v1](https://arxiv.org/abs/2406.12045v1) | Primary abstract; full-text located | Tool-agent-user evaluation compares final database state with an annotated goal | Task-state evaluation is established. We evaluate the observer/assessor rather than model task-solving ability. No tau-bench tasks or results are reused |
+| [tau-bench v1](https://arxiv.org/abs/2406.12045v1) | Primary abstract; full-text located | Tool-agent-user evaluation compares final database state with an annotated goal | Task-state evaluation is established. We evaluate the observer/assessor rather than model task-solving ability. The extension uses the updated retail task set below; it does not reuse published model scores |
 | [Geifman and El-Yaniv](https://arxiv.org/abs/1705.08500v2) | Primary abstract | Reject-option evaluation trades risk and coverage | Borrow the evaluation perspective, not their learning method or statistical guarantee |
 | [in-toto](https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias) | Publisher abstract and bibliography | Signed supply-chain provenance permits integrity verification | Precedent for separating authenticated provenance from application semantics; no agent-completion claims attributed to it |
 | [RATS](https://www.rfc-editor.org/rfc/rfc9334.html) | Sections 4, 8, 10 and freshness discussion | Evidence, appraisal policy, and results have distinct roles; timestamps/nonces/epochs support freshness | Our application-level evaluator is not a RATS attestation implementation |
@@ -23,8 +23,9 @@ aggregators are not used to support scientific claims.
 
 - First completion contract, first agent runtime gate, first verifiable receipt,
   novel signature scheme, or universally sound success detector.
-- Measured superiority to any named prior system; their implementations were not
-  executed in this study.
+- Universal superiority to named prior systems. An upstream tau-bench DB grader
+  is executed; corrupted traces test its integration premise, not its correctness
+  under the expected complete-input contract.
 - Production attack prevalence, real customer outcomes, LLM benchmark scores,
   causal attribution, calibrated probabilities, or end-to-end gateway latency.
 - That operator-produced logs are inherently untrustworthy, or that ordinary
@@ -55,6 +56,25 @@ closure and temporal validity, including transactional schedules, coverage loss,
 and deliberately retained violations of mediation/honesty assumptions. The
 service is authored here and is not external benchmark validation.
 
-An independent technical review and an evaluation on externally authored tasks
-would materially strengthen a later venue submission. This artifact does not
-claim either has happened.
+The framework extension executes externally authored retail tasks and an
+unchanged upstream grader. Independent technical review and external reproduction
+remain outstanding; external code provenance is not independent experiment
+authorship.
+
+## Framework extension (issue #300)
+
+- Standard [precision, recall and F-measures](https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures)
+  define success-admission quality. They are not proposed as new metrics. Unknown
+  positives remain in the recall/F1 denominator.
+- The [maintained tau-bench source](https://github.com/sierra-research/tau2-bench/tree/b7ea9074c1cba482b30687fecdb5c8425fd6f619)
+  supplies the retail base tasks, state model, tools and EnvironmentEvaluator.
+  Inspected the task split, task reward definitions, DB hashing, strict trace
+  replay, action mutation annotations and upstream MIT license. The actual
+  evaluator replays supplied tool calls into a separate predicted environment;
+  this motivates testing its completeness premise at an integration boundary.
+- External task selection, exclusions, traces, state deltas and per-case verdicts
+  are in `results/external/`. The study measures DB outcomes only. It runs no
+  model, user simulator, natural-language assertion judge or official full score.
+- The framing emphasizes reusable tests and balanced reporting. It does not claim
+  that evidence-based assessment, state oracles, reject-option classification,
+  history commitments or revision freshness originated here.
