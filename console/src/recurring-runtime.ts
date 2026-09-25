@@ -1,5 +1,5 @@
 import { boundedText, object, RuntimeError, textField } from "./mcp-client.ts";
-import { afterQuietHours, defaultNotifications, deliveryText, enqueue, notificationSettings, recipients } from "./notifications.ts";
+import { emailAddress, afterQuietHours, defaultNotifications, deliveryText, enqueue, notificationSettings, recipients } from "./notifications.ts";
 import type { CheckResult, CheckRun, EmailTransport, Handler, Notice, RecurringJob, RecurringState } from "./recurring-types.ts";
 
 export type Store = { get<T>(key: string): Promise<T | undefined>; put<T>(key: string, value: T): Promise<void>; setAlarm(time: number): Promise<void>; deleteAlarm(): Promise<void> };
@@ -25,6 +25,7 @@ export class RecurringRuntime {
     return state;
   }
   private async save(state: RecurringState): Promise<void> {
+    for(const d of state.deliveries)for(const e of d.events)if(e.kind==='report'&&state.reportReceipts?.[e.id])state.reportReceipts[e.id]={at:state.reportReceipts[e.id].at,id:d.id,status:d.status,...(d.error?{error:d.error}:{})};
     state.runs = state.runs.slice(-80);
     const completed = state.deliveries.filter(d => !pending(d.status)).slice(-30);
     state.deliveries = [...completed, ...state.deliveries.filter(d => pending(d.status))];
@@ -47,7 +48,7 @@ export class RecurringRuntime {
       if (job) this.failure(state, job, run.summary);
     }
     for (const delivery of state.deliveries.filter(d => d.status === "sending")) {
-      delivery.status = delivery.attempts >= 5 ? "failed" : "pending";
+      delivery.status = delivery.events.some(e=>e.kind==='report') ? "uncertain" : delivery.attempts >= 5 ? "failed" : "pending";
       delivery.error = "Delivery interrupted; provider acceptance unknown. A retry may duplicate this email.";
       delivery.due = this.clock() + 60000;
     }
@@ -190,6 +191,32 @@ export class RecurringRuntime {
       state.externalEvents.push(event.id); enqueue(state, { ...event, at: this.clock() }); await this.save(state);
     });
   }
+  /** Trusted workspace-to-workspace RPC. Report destinations must already be configured by an owner. */
+  async cancelReport(id:string):Promise<void>{
+    return this.serial(async()=>{const state=await this.load();for(const d of state.deliveries)if(d.status==='pending'&&d.events.some(e=>e.kind==='report'&&e.id===id))d.status='cancelled';await this.save(state);});
+  }
+  async reportReady(recipient:string):Promise<void> {
+    return this.serial(async()=>{
+      const state=await this.load();
+      if(!this.env.NOTIFICATION_EMAIL||!this.env.NOTIFICATION_FROM_EMAIL)throw new RuntimeError('Workspace email delivery is not configured.',409);
+      if(!state.notifications.recipients.includes(emailAddress(recipient)))throw new RuntimeError('Add this recipient in workspace notification settings before reviewing the research workflow.',409);
+    });
+  }
+  async report(input:{id:string;jobId:string;title:string;detail:string;recipient:string}):Promise<{status:string;id?:string;error?:string}>{
+    return this.serial(async()=>{
+      const state=await this.load();const recipient=emailAddress(input.recipient);
+      if(!/^research:[a-zA-Z0-9-]{1,80}$/.test(input.id)||input.detail.length>16000||input.title.length>180)throw new RuntimeError('Invalid research report.');
+      const previous=state.reportReceipts?.[input.id];if(previous)return {status:previous.status,id:previous.id,error:previous.error};
+      if(!this.env.NOTIFICATION_EMAIL||!this.env.NOTIFICATION_FROM_EMAIL||!state.notifications.recipients.includes(recipient))throw new RuntimeError('The reviewed report recipient or email service is unavailable.',409);
+      state.reportReceipts=Object.fromEntries(Object.entries(state.reportReceipts||{}).filter(([,r])=>r.at>this.clock()-32*day));
+      if(Object.keys(state.reportReceipts).length>=640)throw new RuntimeError('Research report receipt limit reached.',429);
+      const targets=enqueue(state,{id:input.id,jobId:input.jobId,title:input.title,detail:input.detail,kind:'report',severity:'info',at:this.clock()},[recipient]);
+      if(!targets.length)throw new RuntimeError('Email outbox is full. Report was not enqueued.',429);
+      const delivery=state.deliveries.find(d=>d.recipient===recipient&&d.events.some(e=>e.id===input.id))!;
+      state.reportReceipts[input.id]={at:this.clock(),id:delivery.id,status:delivery.status};await this.save(state);
+      return {status:delivery.status,id:delivery.id};
+    });
+  }
   async alarm(): Promise<void> {
     return this.serial(async () => {
       const state = await this.load();
@@ -213,7 +240,7 @@ export class RecurringRuntime {
           const result = await withDeadline(this.env.NOTIFICATION_EMAIL.send({ from: this.env.NOTIFICATION_FROM_EMAIL, to: delivery.recipient, subject: delivery.events.length > 1 ? `AgentAction: ${delivery.events.length} updates` : delivery.events[0].title.replace(/[\r\n]/g, " "), text: deliveryText(delivery), headers: { "X-AgentAction-Delivery-ID": delivery.id } }));
           delivery.status = "accepted"; delivery.acceptedAt = this.clock(); delivery.messageId = result.messageId?.slice(0, 200); delete delivery.error;
         } catch {
-          delivery.status = delivery.attempts >= 5 ? "failed" : "pending";
+          delivery.status = delivery.events.some(e=>e.kind==='report') ? "uncertain" : delivery.attempts >= 5 ? "failed" : "pending";
           delivery.error = this.env.NOTIFICATION_EMAIL ? "Email was not confirmed by the provider. Check sender/recipient configuration; retries may duplicate delivery." : "Email service is not configured.";
           delivery.due = this.clock() + Math.min(day, 60000 * 5 ** delivery.attempts);
         }

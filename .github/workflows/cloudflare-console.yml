@@ -70,6 +70,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify daily social research configuration and approval
+        run: node --experimental-strip-types tests/research-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify Monitor status and exact approval links
         run: node --experimental-strip-types tests/agent-history-browser.mts
         env:
