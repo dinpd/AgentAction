@@ -25,7 +25,7 @@ ROOT = HERE.parent
 RESULTS = ROOT / "results"
 OUT = ROOT / "output" / "pdf"
 FIGURES = HERE / "figures"
-TITLE = "When Is an Agent Task Complete? A Fault-Injection Study of Evidence-Based Assessment"
+TITLE = "Can We Trust 'Done'? Evaluating Agent Task Completion Under Incomplete and Changing Evidence"
 METHOD_NAMES = {"tool": "Tool", "trace": "Trace", "content_any": "Content-any", "local_any": "Local-any",
                 "ingress_any": "Ingress-any", "ingress_all": "Ingress-all", "ingress_latest": "Ingress-latest"}
 SERVICE_NAMES = {"ingress_any": "Ingress-any", "ingress_latest": "Ingress-latest",
@@ -196,6 +196,51 @@ def service_substitutions(service, timing):
     return values
 
 
+def framework_substitutions(service, external):
+    values = {}
+    for prefix, result in [("service_latest", service["overall"]["ingress_latest"]),
+                           ("service_all", service["overall"]["closure_revision"]),
+                           ("service_in", service["within_assumptions"]["closure_revision"]),
+                           ("external_replay", external["overall"]["upstream_replay"]),
+                           ("external_closure", external["overall"]["closure_replay"])]:
+        for metric in ("precision", "recall", "f1"):
+            values[f"{prefix}_{metric}"] = percentage(result[f"completion_{metric}"])
+    values["service_all_missed"] = service["overall"]["closure_revision"]["missed_success"]
+    for token, key in [("external_tasks", "selected_tasks"), ("external_base_tasks", "base_tasks"),
+                       ("external_excluded", "excluded_tasks"), ("external_cases", "cases"),
+                       ("external_assessments", "assessments")]:
+        values[token] = external["design"][key]
+    values["external_in_coverage"] = percentage(external["within_assumptions"]["closure_replay"]["coverage"])
+    def scorecard(methods, names):
+        return table(["Method", "Precision", "Recall", "F1", "Coverage", "Sel. error"], [
+            [names[m]] + [percentage(v[k]) for k in ("completion_precision", "completion_recall", "completion_f1", "coverage", "selective_error")]
+            for m, v in methods.items()])
+    values["table_service_scorecard"] = scorecard(service["overall"], SERVICE_NAMES)
+    values["table_external"] = scorecard(external["overall"], {
+        "upstream_replay": "Upstream replay", "closure_replay": "Replay + closure", "always_unknown": "Always unknown"})
+    fig, ax = plt.subplots(figsize=(7.2, 2.9), layout="constrained")
+    offsets = {"ingress_any": (-8, 4), "ingress_latest": (-8, -13), "closure_only": (7, -14),
+               "revision_only": (-7, 8), "closure_revision": (7, 4)}
+    palette = ["#a9473e", "#244f70", "#86723b", "#65608b", "#2c7658"]
+    for (method, result), color in zip(service["overall"].items(), palette):
+        x, y = 100 * result["coverage"], 100 * result["selective_error"]
+        ax.scatter([x], [y], color=color, s=40)
+        dx, dy = offsets[method]
+        ax.annotate(SERVICE_NAMES[method], (x, y), xytext=(dx, dy), textcoords="offset points",
+                    ha="left" if dx > 0 else "right", fontsize=9, color=color)
+    ax.set_xlim(0, 104)
+    ax.set_ylim(0, 40)
+    ax.set_xlabel("Decisive coverage (%)")
+    ax.set_ylabel("Selective error (%)")
+    ax.grid(alpha=.15)
+    for suffix in ("png", "pdf"):
+        fig.savefig(FIGURES / f"risk-coverage.{suffix}", dpi=220,
+                    metadata={"CreationDate": None} if suffix == "pdf" else None)
+    plt.close(fig)
+    values["figure_risk"] = "![Discrete service risk and coverage](figures/risk-coverage.png)"
+    return values
+
+
 def blocks(text):
     return [b.strip() for b in text.split("\n\n") if b.strip()]
 
@@ -278,7 +323,7 @@ def render_pdf(text):
         c.setFont("Times-Roman", 8)
         c.setFillColor(colors.HexColor("#666666"))
         if d.page > 1:
-            c.drawString(60, 765, "When Is an Agent Task Complete?")
+            c.drawString(60, 765, "Can We Trust Done?")
             c.drawRightString(552, 765, "Research draft")
         c.drawString(60, 27, "Dan Itkis | AgentAction.dev")
         c.drawRightString(552, 27, str(d.page))
@@ -349,6 +394,7 @@ def main():
     make_figures(summary, loss)
     values = substitutions(summary, loss, omission, timing, refs)
     values.update(service_substitutions(read("service/summary.json"), read("service/timing.json")))
+    values.update(framework_substitutions(read("service/summary.json"), read("external/summary.json")))
     text = (HERE / "manuscript.template.md").read_text()
     for key, value in values.items():
         text = text.replace("{{" + key + "}}", str(value))

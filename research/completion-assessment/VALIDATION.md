@@ -1,6 +1,6 @@
 # Validation record
 
-Research artifact for issues #289 and #298. Release classification: no release.
+Research artifact for issues #289, #298 and #300. Release classification: no release.
 
 ## Original artifact checks (issue #289)
 
@@ -109,6 +109,47 @@ large histories, contention, external provider latency, TLS, or remote JWKS.
 ## Scientific scope
 
 These are synthetic finite-corpus measurements, not field deployment results,
-independent task samples, or a reproduction of named competing systems. A
+independent deployment samples, or official agent-benchmark scores. The framework
+extension executes an upstream DB grader under controlled evidence interventions. A
 separate author review and independent technical review are still appropriate
 before submission. No arXiv submission or claim of peer review is made.
+
+## Evaluator framework extension (issue #300)
+
+- Ten Node tests pass, including full truth/verdict cells, positive abstention in
+  recall/F1, undefined denominators, and an adapter scorecard integration test
+  with separate trust strata and invalid-input rejection.
+- Original emulator and service verdict files remain byte-identical to #298.
+  Expanded summaries/manifests reproduce with fresh keys/challenges. A separate
+  Python recount checks every added metric. The combined gate improves precision
+  (65.0% to 77.8%) but lowers recall (86.7% to 46.7%) and F1 (74.3% to 58.3%).
+- External validation pins sierra-research/tau2-bench at
+  b7ea9074c1cba482b30687fecdb5c8425fd6f619 and invokes unchanged retail tools,
+  environment and EnvironmentEvaluator.calculate_reward. It measures DB match,
+  without dialogue generation, model calls or a full official benchmark score.
+- Of 114 base tasks, the declared rule retains 91 and excludes 23: ten lack
+  mutating actions, thirteen return a tool error in scripted replay. Every ID
+  and error is released. Selection never depends on assessor accuracy. Eight
+  conditions yield 728 cases and 2,184 assessments.
+- A clean environment with 19 pinned offline dependencies reproduces selection,
+  upstream source/data hashes, raw traces/state changes, verdicts and summaries
+  byte-for-byte. The independent standard-library verifier audits traces,
+  state-delta truth, wrapper decisions, metrics and hashes. Saved-data audit and
+  full upstream replay are distinct checks, and CI runs both.
+- Upstream convenience initializers eagerly import optional voice runners. The
+  adapter supplies search paths for two packages, while substantive modules run
+  unchanged. This is disclosed. An initial Python 3.10 dependency install failed
+  the upstream version constraint; final runs use Python 3.13. Final replay needs
+  no model/voice packages. Socket connections and dotenv loading are disabled.
+- All 37 existing guard tests and its configured TypeScript build pass.
+- The 18-page review PDF passes numeric, text, reference and page-bound checks.
+  Every page was rendered and inspected. Tables and four figures are legible;
+  LaTeX compiles without warnings or unresolved references. No source access
+  dates or removed responsibility sentence are restored. Risk/coverage points
+  are discrete policies, not a threshold curve.
+- pip-audit of all 19 pinned replay dependencies reports no known vulnerabilities.
+  Secret/private-path scanning reports no findings. Manual review covers source
+  pinning, public synthetic-data provenance, MIT attribution, direct imports,
+  socket blocking, absent credentials, truth isolation, strict replay, complete
+  selection accounting, and unchanged production code. Pinning is not a general
+  security guarantee. Release impact remains no release (research-only).

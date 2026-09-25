@@ -1,15 +1,19 @@
 # Completion-assessment research artifact
 
-**Paper:** *When Is an Agent Task Complete? A Fault-Injection Study of
-Evidence-Based Assessment* - Dan Itkis, AgentAction.dev.
+**Paper:** *Can We Trust 'Done'? Evaluating Agent Task Completion Under
+Incomplete and Changing Evidence* - Dan Itkis, AgentAction.dev.
 
-This research draft includes an offline emulator suite and a local persistent
-HTTP service. It is not an arXiv submission or a production feature. Release
+This research draft presents a completion-assessor evaluation framework with
+an emulator suite, a local persistent HTTP service, and an external retail
+database-outcome replay adapter. It is not an arXiv submission or a production feature. Release
 impact: **no release**. Production evaluator and gateway code are unchanged.
 
 - [Read the manuscript](paper/manuscript.md)
 - [Review PDF](output/pdf/agent-task-completion.pdf)
 - [Editable LaTeX](paper/manuscript.tex)
+- [Framework, metrics, and external protocol](FRAMEWORK_PROTOCOL.md)
+- [External task results](results/external/summary.json)
+- [External selection and exclusions](results/external/selection.json)
 - [Original evaluation protocol](PROTOCOL.md)
 - [Remedy and persistent-service protocol](REMEDY_PROTOCOL.md)
 - [Related-work and claim audit](RELATED_WORK.md)
@@ -59,6 +63,56 @@ an untrusted evidence submitter. The claim is as of the final head read, not
 permanent validity or atomic authorization of a subsequent action. The
 prototype is not a production endpoint.
 
+## Reuse the scorecard
+
+An adapter emits rows with `truth` (boolean), `label` (`S`, `F`, or `U`), `method`,
+`scenario`, and `assumptions_hold` (boolean). IDs and domain metadata may also be
+retained. Score any compatible adapter's JSON array through standard input:
+
+```sh
+node --experimental-strip-types src/score_assessments.mts < adapter-rows.json
+```
+
+The output includes full-corpus, trust-stratum and per-scenario summaries. Never
+send truth or fault names to the assessor itself; attach them only afterward for
+scoring. Positive unknowns count as successes not admitted for recall/F1 while
+remaining separate from explicit false failures. See FRAMEWORK_PROTOCOL.md for
+formulas, undefined denominators and interpretation limits.
+
+## Reproduce external retail replay
+
+The adapter uses 91 of 114 externally authored retail tasks and eight declared
+conditions per task (728 cases, 2,184 assessments). Ten tasks have no mutating
+action; thirteen return tool errors in the scripted replay. Every exclusion is
+recorded. The unmodified upstream environment and database-state evaluator run
+locally; no LLM or dialogue is generated. This measures the DB component, not
+the official full tau-bench score. An additional closure wrapper is our code.
+
+Use Python 3.13 and a separate temporary checkout/environment:
+
+```sh
+git clone https://github.com/sierra-research/tau2-bench.git /tmp/completion-tau
+git -C /tmp/completion-tau checkout b7ea9074c1cba482b30687fecdb5c8425fd6f619
+python3.13 -m venv /tmp/completion-external-venv
+/tmp/completion-external-venv/bin/python -m pip install -r external-requirements.txt
+/tmp/completion-external-venv/bin/python src/run_external.py --upstream /tmp/completion-tau --check
+```
+
+The adapter imports unchanged substantive modules directly from that checkout.
+It bypasses two convenience initializers that eagerly import optional voice
+runners. It disables dotenv loading and socket connections before upstream
+imports. No upstream editable install, API key or production record is needed.
+`--check` compares selection, raw traces/state changes, verdicts, summaries and
+manifests byte-for-byte; omit it only to intentionally update results. CI runs
+this external replay separately. `verify_external.py` independently audits saved
+traces, state-delta comparisons, closure handling, metrics and hashes using the
+standard library; it cannot replace executing upstream code.
+
+The service remedy raises full-corpus precision from 65.0% to 77.8%, but lowers
+recall from 86.7% to 46.7% and F1 from 74.3% to 58.3%. A zero-error, always-unknown
+method has no useful coverage. Standard scores and discrete risk/coverage points
+expose these costs; neither corpus represents production failure prevalence.
+
 ## Rebuild the paper and plots
 
 Python 3.12 is used in CI. Create an isolated environment:
@@ -89,7 +143,8 @@ chosen rendering and its compiled PDF.
 The original suite has 20 scenarios x 3 domains x 20 parameterizations = 1,200
 cases and 8,400 primary assessments. These are 60 related strata, not 1,200
 independent tasks. The loss sweep has 4,200 assessments and the omission sweep
-1,920. These original results are unchanged by the service extension.
+1,920. Case-level labels remain unchanged; the framework extension adds a six-cell
+confusion matrix, completion precision, recall and F1 to every summary.
 
 The service suite has 31 scenarios x 5 parameterizations = 155 cases and 775
 assessments. It uses actual HTTP, transactional state/history updates,
@@ -116,13 +171,17 @@ papers' end-to-end results.
 
 The corpus deliberately includes violated trust assumptions and retains false
 successes. Controls are not implementations of named competing systems.
-Independent technical review, externally authored tasks, and commercial
+Independent technical review, natural agent trajectories, and commercial
 provider sandbox experiments remain valuable extensions.
 
 ## File map
 
 | File | Purpose |
 | --- | --- |
+| `src/score_assessments.mts` | Reusable JSON-row scorecard for compatible adapters |
+| `src/run_external.py` | Pinned upstream retail execution and replay grader |
+| `verify_external.py` | Independent saved external-data audit |
+| `results/external/` | Task selection, raw traces/state changes, scores, hashes, license |
 | `src/world.mts` | Emulator state transitions and oracle |
 | `src/cases.mts` | Frozen profiles and emulator evidence interventions |
 | `src/methods.mts` | Mechanism controls and actual JWS ingress |

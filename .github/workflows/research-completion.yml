@@ -45,3 +45,24 @@ jobs:
           python paper/build.py
           python verify_results.py --pdf
           git diff --exit-code -- paper/manuscript.md paper/manuscript.tex paper/references.bib paper/generated-values.json
+
+  external-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: sierra-research/tau2-bench
+          ref: b7ea9074c1cba482b30687fecdb5c8425fd6f619
+          path: .research-upstream/tau
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install pinned offline replay dependencies
+        run: python -m pip install -r research/completion-assessment/external-requirements.txt
+      - name: Reproduce external task selection, tool execution and grading
+        run: python research/completion-assessment/src/run_external.py --upstream .research-upstream/tau --check
