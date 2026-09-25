@@ -17,6 +17,7 @@ aggregators are not used to support scientific claims.
 | [in-toto](https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias) | Publisher abstract and bibliography | Signed supply-chain provenance permits integrity verification | Precedent for separating authenticated provenance from application semantics; no agent-completion claims attributed to it |
 | [RATS](https://www.rfc-editor.org/rfc/rfc9334.html) | Sections 4, 8, 10 and freshness discussion | Evidence, appraisal policy, and results have distinct roles; timestamps/nonces/epochs support freshness | Our application-level evaluator is not a RATS attestation implementation |
 | AgentAction | Pinned production source, intent-assurance documentation, guard tests and selected gateway lifecycle tests | Local evaluator assumes verified provenance; hosted JWS ingress verifies authenticity, lifetime and binding; snapshots freeze evidence | No production source is modified by the research artifact |
+| [SQLite isolation](https://sqlite.org/isolation.html) | Official isolation and WAL concurrency documentation | Separate connections observe committed snapshots; WAL permits simultaneous readers and a writer | Supports the service schedule design, not a new database-isolation contribution |
 
 ## Claims deliberately excluded
 
@@ -41,6 +42,18 @@ aggregators are not used to support scientific claims.
 | Observation loss affects coverage | `results/observation-loss.jsonl`, paired deterministic masks |
 | Local latency and payload size | Raw `results/timing.json` samples and recorded environment; no remote timings |
 | Existing snapshot/profile behavior | Targeted existing `cloudflare/tests/worker.test.ts` tests; architectural context only |
+| Complementary closure and revision safeguards | `src/remedy.mts`, five matched configurations in `results/service/assessments.jsonl` |
+| Persistent retries, overlapping requests, and crash rollback | Actual loopback HTTP, pre-commit/arrival barriers, direct read-only SQLite audit, saved schedules and table exports |
+| Conditional accuracy and lost coverage | Separate within/outside-assumption summaries; unknowns and positive admission retained; all trust-violation false successes included |
+| Service cost | Prepared-envelope and integrated local HTTP timings; rotated method order; raw samples and source hashes |
+
+The remedy uses conventional authenticated commitments and optimistic revision
+validation. EvidenceNet already invalidates evidence through epochs; RATS
+already discusses nonce-based freshness. The extension does not claim either
+idea as new. Its contribution is the ablated interaction between exact history
+closure and temporal validity, including transactional schedules, coverage loss,
+and deliberately retained violations of mediation/honesty assumptions. The
+service is authored here and is not external benchmark validation.
 
 An independent technical review and an evaluation on externally authored tasks
 would materially strengthen a later venue submission. This artifact does not

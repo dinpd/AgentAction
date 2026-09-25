@@ -5,8 +5,11 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.mts",
     "experiment": "node --experimental-strip-types src/run.mts",
-    "check": "node --experimental-strip-types src/run.mts --check",
-    "timing": "node --experimental-strip-types src/timing.mts"
+    "check": "node --experimental-strip-types src/run.mts --check && node --experimental-strip-types src/run_service.mts --check",
+    "timing": "node --experimental-strip-types src/timing.mts",
+    "service:experiment": "node --experimental-strip-types src/run_service.mts",
+    "service:check": "node --experimental-strip-types src/run_service.mts --check",
+    "service:timing": "node --experimental-strip-types src/service_timing.mts"
   },
   "engines": { "node": ">=22.14" }
 }

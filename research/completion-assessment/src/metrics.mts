@@ -2,7 +2,7 @@ import type { Assessment, Method } from "./methods.mts";
 export type Row = Assessment & {
   id: string; domain: string; scenario: string; variant: number; truth: boolean; method: Method;
 };
-export function summarize(rows: Row[]) {
+export function summarize(rows: ReadonlyArray<Pick<Row, "truth" | "label">>) {
   const positive = rows.filter(r => r.truth).length;
   const negative = rows.length - positive;
   const falseSuccess = rows.filter(r => !r.truth && r.label === "S").length;

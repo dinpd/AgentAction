@@ -1,0 +1,22 @@
+{
+  "protocol_version": 1,
+  "sources": {
+    "src/persistent_provider.py": "2f6c74835f45c0d5e4c6d523717ec361f7a77f172284432c99c80734037d547f",
+    "src/audit_provider.py": "3848e348f44327f997b9b0969b0926d0f8d6ba6dd7954823e2cee6d1c3cdb744",
+    "src/service.mts": "aad01e4e15503695e81c066b381e2a53c08d14b513b4633ee46eb9df61adfb90",
+    "src/service_cases.mts": "855ac2a9316756ab391b8a993135fb7e093989566ee20adb648057c9f0f57c76",
+    "src/remedy.mts": "702e86898b7dbadf1561b81d2de5ea0f8097791d65016ee98621ce9cbe49862c",
+    "src/run_service.mts": "3067ee3e45c258f84feca64d2e7acc5a5d597fa94de16bde602e34ba7a2b81cb",
+    "src/methods.mts": "113c2cc81217ee133db33999e751bf5932b7a7e8902165fd8da7c56adf3d85cc",
+    "src/cases.mts": "001a1acb55e48f0ed7072c057eb327346c5adcd9181b9e696412c62a106259be",
+    "src/world.mts": "b647f09e295ca0ea23055d565e017f21808bc83b78e47546fb42d84be7df7e9b",
+    "src/metrics.mts": "abb3eb410e630272fc2ee30fd8ff114e592e7b9c61ceaed50d477deedb01af80",
+    "REMEDY_PROTOCOL.md": "3715970dd9cb70118b73acec76133300c4cdec4fbef07c1373d88c61b170926a",
+    "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6",
+    "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"
+  },
+  "cases_sha256": "93e3a26b9c8221ac322e5d8d803657947a5dfa243b773fb255d19334850d0773",
+  "assessments_sha256": "550bcf70d7f143d4eee89ceb7d52e9b31d6cb552aab148325dfe701d162ded3c",
+  "boundary": "Loopback HTTP and temporary SQLite WAL database; trusted broker signs actual reads; no external provider or LLM.",
+  "normalization": "Fresh random challenges are replaced by case-specific markers and the saved head digest is recomputed. Fresh keys/JWS are not saved."
+}
