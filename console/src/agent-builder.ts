@@ -1210,6 +1210,12 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const select=doc.createElement('select');select.setAttribute('aria-label','Apify research account');
     for(const c of connections){const option=doc.createElement('option');option.value=c.id;option.textContent=c.label;select.append(option);}if(config)select.value=config.connectionId;
     const account=node('label','Apify account');account.append(select);form.append(account);
+    select.disabled=role!=='owner';
+    const reuse=node('label','','consent'), reuseConsent=doc.createElement('input');reuseConsent.type='checkbox';reuseConsent.disabled=role!=='owner';
+    reuse.append(reuseConsent,doc.createTextNode('Use this account’s existing server-side credential at https://mcp.apify.com to discover X and Reddit research tools. Saving does not start Actors.'));form.append(reuse);
+    const needsResearchConnection=()=>{const c=state.connections.find((c:any)=>c.id===select.value);return Boolean(c&&!c.endpoint.includes('?tools=call-actor,'));};
+    const updateReuse=()=>{reuseConsent.checked=false;reuse.hidden=!needsResearchConnection();reuseConsent.required=!reuse.hidden;};
+    updateReuse();select.addEventListener('change',updateReuse);
     const free=node('label','','consent'), checkbox=doc.createElement('input');checkbox.type='checkbox';checkbox.checked=Boolean(config?.freePlan);checkbox.required=true;free.append(checkbox,doc.createTextNode('Keep the existing Apify Free plan. Shared allowance applies; no upgrade or paid overage.'));form.append(free);
     form.append(node('p','Review: two Actor starts, up to 18 status/dataset reads, a 24-hour window, platform URL/timestamp validation and deduplication. The selected Actors use event billing; each start passes the charge limit. Provider infrastructure usage also consumes the shared free allowance. A capped sample cannot prove complete platform coverage. Reports are sent after the morning scan finishes.','note'));
     const prices=node('p');for(const [label,url] of [['Reddit Actor pricing','https://apify.com/harshmaur/reddit-scraper/pricing'],['X Actor pricing','https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest/pricing']]){const link=node('a',label);link.setAttribute('href',url);link.setAttribute('target','_blank');link.setAttribute('rel','noopener noreferrer');prices.append(link,doc.createTextNode(' · '));}form.append(prices);
@@ -1221,7 +1227,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         let connection=state.connections.find((c:any)=>c.id===select.value);
         if(!connection)throw new Error('Connect an Apify account in MCP servers first.');
         if(!connection.endpoint.includes('?tools=call-actor,')){
-          if(!runtime.confirm('Connect the X and Reddit research tools at https://mcp.apify.com using this existing server-side Apify credential? This discovers tools only; it does not start Actors.'))return;
+          if(!reuseConsent.checked)throw new Error('Review and approve reuse of the selected Apify account before saving.');
           const connected=await mutate('research-connect',{connectionId:connection.id,reviewed:true});connection={id:connected.connectionId};
         }
         await mutate('research-save',{agentId:agent.id,config:{connectionId:connection.id,topics:topics.value,queries:{reddit:reddit.value.split('\n').map(s=>s.trim()).filter(Boolean),x:x.value.split('\n').map(s=>s.trim()).filter(Boolean)},recipient:recipient.value,time:time.value,timezone:timezone.value,maxItems:Number(maxItems.value),actorCapUsd:Number(cap.value),rollingCapUsd:Number(rolling.value),freePlan:checkbox.checked}});
@@ -1429,7 +1435,15 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(a.research || /social|reddit|twitter|posts/i.test(a.goal+' '+a.title))researchEditor(a,card);
       actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); for(const previous of state.runs.filter((r:any)=>r.agentId===a.id))runFeedback.delete(runKey(previous.id)); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
-      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) actions.append(button("Activate daily", async () => { if (!runtime.confirm(a.research ? `Activate the reviewed X and Reddit scan daily at ${a.research.config.time} ${a.research.config.timezone}, emailing ${a.research.config.recipient}? This authorizes only the saved bounded workflow without per-call prompts. Pause revokes it; edits require a fresh trial.` : "I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.")) return; await mutate("activate", { agentId: a.id, reviewed: true }); await refresh(); message(a.research?"Daily research activated within the reviewed bounds.":"Daily supervised schedule activated."); }));
+      if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) {
+        if(a.research){
+          const review=node('section','','card'), config=a.research.config;review.hidden=true;review.setAttribute('aria-label','Review daily research activation');
+          review.append(node('h4','Review daily research activation'),node('p',`Scan X and Reddit daily at ${config.time} ${config.timezone}; email ${config.recipient} when the scan finishes.`),node('p',`Saved limits: ${config.maxItems} rows per platform, $${config.actorCapUsd.toFixed(2)} per Actor and $${config.rollingCapUsd.toFixed(2)} reserved over 31 days. Existing Apify Free plan only.`),node('p','This authorizes only the saved bounded workflow without per-call prompts. Pause revokes it; edits require a fresh trial.','note'));
+          const activate=button('Activate daily',async()=>{review.hidden=false;activate.hidden=true;});
+          review.append(button('Confirm daily research',async()=>{await mutate('activate',{agentId:a.id,reviewed:true});await refresh();message('Daily research activated within the reviewed bounds.');},false),button('Cancel activation',async()=>{review.hidden=true;activate.hidden=false;}));
+          actions.append(activate,review);
+        }else actions.append(button('Activate daily',async()=>{if(!runtime.confirm('I reviewed the trial result. Start a daily supervised run? Each tool call will still wait for approval.'))return;await mutate('activate',{agentId:a.id,reviewed:true});await refresh();message('Daily supervised schedule activated.');}));
+      }
       if (a.status !== "paused") actions.append(button("Pause", async () => { await mutate("pause", { agentId: a.id }); await refresh(); message("Agent paused. Pending calls were cancelled."); }));
       if (a.definition) {
         const detail = node('details'); detail.append(node('summary', 'Agent definition'), node('p', a.workspaceRecipe ? `Agent template · v${a.workspaceRecipe.version}` : 'Custom definition · pinned to this agent', 'note'));
