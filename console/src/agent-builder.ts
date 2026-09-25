@@ -57,7 +57,7 @@ export const AGENT_HTML = `<!doctype html><html lang="en"><head><meta charset="u
 <div class="actions"><button id="save-recipe" type="button" class="secondary">Save as a template</button><button id="duplicate-recipe" type="button" class="secondary" hidden>Save as new template</button></div><p id="recipe-save-status" class="note" role="status" aria-live="polite"></p>
 </details><section id="draft-approval" hidden><h3>Approve your draft</h3><div id="draft-review-status" role="status" class="note"></div><button id="approve-draft" type="button" class="secondary">Approve guardrails and success checks</button><p class="note">Approval covers this draft and tool selections. Each actual tool call still needs separate approval.</p></section><div class="instance-inputs"><section id="job-details"><h3>Job details</h3><label>Your job inputs<textarea name="setup" maxlength="4000" rows="4" required placeholder="Add target URLs, resources, scope and any other inputs the agent needs."></textarea></label><p id="setup-hint" class="note">These inputs are saved only with this agent, never automatically copied to the reusable agent template.</p></section><section id="trial-controls"><p class="note" data-ai-disclosure>AI uses the selected tool descriptions, job inputs and tool results to plan and assess this trial. Credentials are excluded. You approve each exact tool call before execution.</p><p class="note">Review first action prepares a trial for your approval. Save draft only keeps it for later. Up to four total calls per run across mapped MCP servers.</p><div class="actions"><button id="review-first-action" type="submit">Review first action</button><button id="create-agent" class="secondary" type="submit" formnovalidate>Save draft only</button></div></section></div></form></section>
 <section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>My agents</h2><button id="refresh" class="secondary" type="button">Refresh</button></div><div id="agents" class="grid"></div></section>
-<section class="panel" data-builder-stage="run" hidden><div class="section-heading"><h2>Runs &amp; approvals</h2><span>Pending actions first. Past runs grouped by agent.</span></div><div id="runs"></div><details><summary>About run history and evidence</summary><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Recent history is grouped by agent: the latest 40 runs plus each agent’s latest result. Pending approvals and active runs stay at the top. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p></details></section>
+<section class="panel" id="runs-panel" data-builder-stage="run" hidden><div class="section-heading"><h2 id="runs-heading">Runs &amp; approvals</h2><span id="runs-description">Pending actions first. Past runs grouped by agent.</span></div><div id="queue-status" role="status" aria-live="polite" hidden></div><div id="runs"></div><details id="run-history-help"><summary>About run history and evidence</summary><p class="note">Runs stay in this workspace. Tool results may contain account data and are visible to workspace members. Recent history is grouped by agent: the latest 40 runs plus each agent’s latest result. Pending approvals and active runs stay at the top. Recurring checks report monitoring observations, not signed Jobs. Supervised history retains trials needed by active instances. Token totals are reported when the model supplies usage; provider charges are not estimated.</p></details></section>
 </div><a class="stage-continue" id="stage-next" href="#create">Next: create an agent →</a></main></div></body></html>`;
 export const AGENT_CSS = HISTORY_CSS + EXECUTION_CSS + CAPABILITY_CSS + `:root{font-family:Arial,Helvetica,sans-serif;color:#171b15;background:#f5f5ee;line-height:1.5}*{box-sizing:border-box}body{margin:0}header{padding:22px 4vw;border-bottom:1px solid #cbd0c4;display:flex;justify-content:space-between;gap:24px;align-items:center}a{color:inherit}.account{max-width:360px;min-width:0;overflow-wrap:anywhere}.account p{margin:0 0 6px}.account .actions{margin:8px 0}.account .actions a{font-size:14px;font-weight:600}.account strong{color:#171b15}nav{display:flex;gap:24px;flex-wrap:wrap;font-size:14px}.brand{font-size:24px;font-weight:800;text-decoration:none}.brand span{font-size:16px;font-weight:400}main{max-width:1280px;margin:auto;padding:48px 4vw}h1{font-size:clamp(32px,4.5vw,56px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:12px 0 20px}h2{font-size:24px;letter-spacing:-.5px;margin:0 0 12px}h3{font-size:20px;line-height:1.25;margin:12px 0}.eyebrow{font-family:monospace;text-transform:uppercase;font-size:13px;letter-spacing:1px}.heading,.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:start}.lede{max-width:730px;font-size:18px;color:#596150}.workspace{min-width:200px}label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;margin-bottom:18px}input,textarea,select{font:inherit;font-weight:400;border:1px solid #a6b09c;background:#fff;padding:12px;max-width:100%;border-radius:0;color:#171b15}textarea{width:100%;resize:vertical}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #7b9c2a;outline-offset:3px}button{font:600 14px Arial;padding:12px 18px;border:1px solid #171b15;background:#171b15;color:#d5ff5d;cursor:pointer}button.secondary{color:#171b15;background:transparent}button:disabled{opacity:.45;cursor:not-allowed}button[aria-busy=true]{cursor:wait}.panel{border-top:1px solid #bac3af;padding:30px 0;margin-top:22px}.section-heading span,.note,.muted{font-size:14px;color:#596150;font-weight:400}.fields,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}.mcp-navigation{margin-bottom:24px}.setup-columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}.setup-fields{grid-template-columns:1fr 2fr 1fr}.connection-access{min-width:0}.precheck-panel{border:2px solid #789832;background:#f6fbe9;padding:20px;margin:0;overflow-wrap:anywhere}.precheck-panel h4{margin:14px 0 6px}.precheck-finding{border-left:4px solid #9a6511;padding:8px 12px;background:#fff2d6;margin:10px 0}.precheck-finding[data-level=blocked]{border-color:#ad4135;background:#f7e9e6}.precheck-finding[data-level=info]{border-color:#789832;background:#eaf1d9}.consent{display:flex;flex-direction:row;align-items:start;font-weight:400;max-width:850px}.consent input{margin-top:5px}.card{padding:22px;background:#fff;border:1px solid #cbd0c4;min-width:0;overflow-wrap:anywhere}.card p{font-size:16px}.card .note{font-size:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pill{display:inline-block;background:#e4eccf;padding:4px 8px;font:12px monospace;text-transform:uppercase}.empty{color:#596150}.connection{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #d6dccf;padding:18px 0;margin-top:18px;align-items:center}.run{margin-top:18px}.run-heading{display:flex;justify-content:space-between;gap:20px}.approval{border:2px solid #789832;padding:20px;background:#f6fbe9;margin-top:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;font:13px/1.5 monospace;background:#eef1e8;padding:15px}.eval-check{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}.eval-check label{min-width:0}.eval-check button{align-self:end}#eval-editor{min-width:0;margin:20px 0;padding:18px;border:1px solid #cbd0c4}@media(max-width:700px){.eval-check{grid-template-columns:1fr}}#agent-profiler{margin-top:26px}#agent-ideas:not(:empty){margin-top:20px}#profile-request .fields label{justify-content:end}#agent-ideas .actions{margin-top:auto}#agent-ideas .card{display:flex;flex-direction:column}#example-library[open]{margin-top:24px}#example-library>summary{margin-bottom:18px}#manual-options{font-size:14px;color:#596150}#continue-agents{margin-top:32px}#continue-agents h2{font-size:20px}.instance-inputs{margin-top:28px;padding-top:24px;border-top:1px solid #bac3af}#editor-tools{border:1px solid #cbd0c4;margin:0 0 20px;padding:18px;min-width:0}#editor-tools legend{font-size:14px;font-weight:600}#tool-options .consent{overflow-wrap:anywhere;margin-bottom:8px}#workspace-recipes{margin:16px 0 28px}#connect-readiness[data-state=blocked]{padding:12px 16px;border-left:4px solid #9a6511;background:#fff2d6;color:#4b350f;font-weight:600}#endpoint-review-url,#endpoint-approvals .note{overflow-wrap:anywhere;min-width:0}details{margin-top:16px}summary{cursor:pointer;font-weight:600}.action-feedback{padding:12px 16px;border-left:4px solid #8bad34;background:#eaf1d9;overflow-wrap:anywhere}.action-feedback[data-error=true],#precheck-status[data-error=true]{border-left:4px solid #ad4135;background:#f7e9e6;color:#782e25;padding:12px}#status{padding:14px 18px;border-left:4px solid #8bad34;background:#eaf1d9}#status[data-error=true]{border-color:#ad4135;background:#f7e9e6}#inspection-target,#connection-target{font-weight:700;color:#171b15;overflow-wrap:anywhere}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.heading,header{flex-direction:column}.workspace{width:100%}.fields,.catalog-filters,.setup-columns{grid-template-columns:1fr}.section-heading,.connection,.run-heading{flex-direction:column;gap:8px}main{padding-top:25px}}`;
 
@@ -72,17 +72,18 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   let state: any = { connections: [], agents: [], runs: [] };
   let builderStage = 'create';
   function showStage(value: string) {
-    builderStage = ['connect', 'create', 'run'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'create';
+    builderStage = ['connect', 'create', 'run', 'approvals'].includes(value) ? value : ['recipe-browser', 'create-connections'].includes(value) ? 'create' : 'create';
     const copy: Record<string, string[]> = {
       connect: ['MCP servers', 'Connect your tools.', 'Find a server, review its capabilities, and connect the server your agent will use. Add account credentials only when required.'],
       create: ['01 / Create', 'Give your agent a job.', 'Describe the job. Review an editable draft, then approve its first action.'],
+      approvals: ['Approvals', 'Review proposed actions.', 'Review the exact tool and arguments, then approve, revise or cancel. Each approval applies to one proposed call.'],
       run: ['02 / Run', 'Put your agent to work.', 'Review recent runs and upcoming checks. Open a recurring agent to manage its schedule and findings.'],
     };
     ['stage-label', 'stage-title', 'stage-description'].forEach((id, i) => { get(id).textContent = copy[builderStage][i]; });
     const configuring=builderStage==='create' && Boolean(chosen);
     doc.body.classList.toggle('is-configuring',configuring);get('stage-description').hidden=configuring;
     if(configuring)get('stage-title').textContent='Set up your agent.';
-    doc.querySelectorAll<HTMLElement>('[data-builder-stage]').forEach(el => { el.hidden = el.dataset.builderStage !== builderStage || (el.id === 'configure' && !chosen); });
+    doc.querySelectorAll<HTMLElement>('[data-builder-stage]').forEach(el => { el.hidden = (el.dataset.builderStage !== builderStage && !(el.id === 'runs-panel' && builderStage === 'approvals')) || (el.id === 'configure' && !chosen); });
     const next = get<HTMLAnchorElement>('stage-next');
     next.href = builderStage === 'connect' ? '#create' : builderStage === 'create' ? '#run' : `/?workspace=${encodeURIComponent(tenant)}#activity`;
     next.textContent = builderStage === 'connect' ? 'Next: create an agent →' : builderStage === 'create' ? 'Next: run a trial →' : 'Next: monitor activity →';
@@ -94,8 +95,36 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     get('recipe-return').hidden = (!selectedRecipe && !currentPlan) || builderStage !== 'connect';
     if (builderStage !== 'connect') cancelScheduledPrecheck();
     if(currentPlan)updateGuide();
+    syncRunView();
   }
-  runtime.addEventListener('hashchange', () => showStage(runtime.location.hash.slice(1)));
+  runtime.addEventListener('hashchange', () => { showStage(runtime.location.hash.slice(1)); if (builderStage === 'approvals') void refresh().catch(e => message(e.message, true)); });
+  const actionable = (run: any) => run?.status === 'awaiting_approval' && Boolean(run.pending?.id && run.pending?.tool);
+  function runHref(runId: string) { return `/agents?workspace=${encodeURIComponent(tenant)}&run=${encodeURIComponent(runId)}#run`; }
+  function syncRunView() {
+    const queue = builderStage === 'approvals', runs = get('runs');
+    const pending = state.runs.filter(actionable);
+    get('runs-heading').textContent = queue ? 'Pending approvals' : 'Runs & approvals';
+    get('runs-description').textContent = queue ? `${pending.length} proposed action${pending.length === 1 ? '' : 's'} awaiting review. ${role === 'viewer' ? 'Your role can inspect requests; an operator or owner must approve.' : ''}` : 'Pending actions first. Past runs grouped by agent.';
+    get('run-history-help').hidden = queue;
+    for (const el of runs.querySelectorAll<HTMLElement>('[data-run-group], :scope > h3, :scope > p, [data-run-attention] > h3')) el.hidden = queue;
+    for (const card of runs.querySelectorAll<HTMLElement>('[data-run-at]')) card.hidden = queue && card.dataset.pendingApproval !== 'true';
+    const attention = runs.querySelector<HTMLElement>('[data-run-attention]'); if (attention) attention.hidden = queue && !pending.length;
+    const status = get('queue-status'); status.replaceChildren(); status.hidden = true;
+    const query = new URLSearchParams(runtime.location.search), target = query.get(queue ? 'approval' : 'run');
+    const selected = state.runs.find((r: any) => r.id === target);
+    const card = [...runs.querySelectorAll<HTMLElement>('[data-supervised-run]')].find(el => el.dataset.supervisedRun === target);
+    if (target && (queue || builderStage === 'run')) {
+      if (card && (!queue || actionable(selected))) {
+        const group = card.closest<HTMLDetailsElement>('[data-run-group]'); if (group) group.open = true;
+        card.tabIndex = -1; card.focus({preventScroll:true}); card.scrollIntoView({block:'nearest'});
+      } else {
+        status.hidden = false;
+        status.append(node('span', selected ? `This request is no longer awaiting approval (${selected.status.replaceAll('_', ' ')}). ` : 'This request is unavailable in this workspace’s retained history. '));
+        if (queue && selected) { const link = node('a', 'View this run →'); link.setAttribute('href', runHref(target)); status.append(link); }
+      }
+    }
+    if (queue && !pending.length) { status.hidden = false; status.append(node('p', 'No pending approvals. New proposed actions will appear here.')); }
+  }
   let chosen: { connectionId: string; suggestion: any } | undefined;
   let memberships: any[] = [];
   let selectedRecipe: Recipe | undefined;
@@ -1219,6 +1248,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     }
     if(tenant===selectedTenant) {
       updateRunFeedback();
+      if (builderStage === 'approvals') {
+        const status = get('queue-status'), result = runFeedback.get(key)!;
+        status.hidden = false; status.prepend(node('p', result.text));
+        const link = node('a', 'View updated run →'); link.setAttribute('href', runHref(runId)); status.append(link);
+      }
       const card=[...doc.querySelectorAll<HTMLElement>('[data-supervised-run]')].find(el=>el.dataset.supervisedRun===runId);
       card?.querySelector<HTMLElement>('[data-run-feedback]')?.scrollIntoView({block:'nearest'});
     }
@@ -1232,9 +1266,25 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   async function refresh() {
     const current = ++generation;
     if (!tenant) { get("builder").hidden = true; message("Create or join a workspace in Workspace settings to build an agent."); return; }
-    const [data, checks] = await Promise.all([request(`/api/agents/${encodeURIComponent(tenant)}/state`), history.read(tenant, "automations")]);
+    if (builderStage === 'approvals') { get('queue-status').hidden = false; get('queue-status').textContent = 'Refreshing approvals…'; }
+    let data: any, checks: any;
+    try { [data, checks] = await Promise.all([request(`/api/agents/${encodeURIComponent(tenant)}/state`), history.read(tenant, "automations")]); }
+    catch (error) {
+      if (current !== generation) return;
+      runtime.agentActionJourney?.setApprovalCount(tenant, null);
+      if (builderStage === 'approvals') {
+        get('builder').hidden = false;
+        get('runs-panel').querySelector('.section-heading')!.append(get('refresh'));
+        get('runs').replaceChildren();
+        get('queue-status').hidden = false;
+        get('queue-status').textContent = 'Approvals could not be loaded. Refresh to retry; the queue may contain pending actions.';
+        get('runs-description').textContent = 'Queue unavailable';
+      }
+      throw error;
+    }
     if (current !== generation) return;
     state = data; recurring = checks; get("builder").hidden = false; render();
+    runtime.agentActionJourney?.setApprovalCount(tenant, state.runs.filter(actionable).length);
   }
   function connectionTarget() {
     const form = get<HTMLFormElement>('connect');
@@ -1356,7 +1406,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       card.dataset.runAt = String(new Date(r.startedAt).getTime());
       card.dataset.supervisedRun=r.id;card.dataset.runAgent='supervised:'+r.agentId;card.dataset.runTitle=a?.title || 'Agent run';card.dataset.runStatus=r.status.replaceAll('_',' ');
       if(['planning','executing'].includes(r.status)||runFeedback.has(runKey(r.id)))card.dataset.activeRun='true';
-      if (r.pending) card.dataset.pendingApproval = "true";
+      if (actionable(r)) card.dataset.pendingApproval = "true";
       heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.status.replaceAll("_", " "), "pill"));
       card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/4 tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
       const runStatus=node('p','','action-feedback');runStatus.dataset.runFeedback='';runStatus.setAttribute('role','status');runStatus.setAttribute('aria-live','polite');card.append(runStatus);
@@ -1366,7 +1416,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       for (const event of r.events) {
         const detail = node("details"); detail.append(node("summary", `${event.source?.tool || event.tool}${event.source ? " · " + (state.connections.find((c:any)=>c.id===event.source.connectionId)?.label || event.source.connectionId) : ""} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ source: event.source, arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
       }
-      if (r.pending) {
+      if (actionable(r)) {
         const approval = node("div", "", "approval"), actions = node("div", "", "actions");
         approval.append(node("strong", `Approve tool call: ${a?.toolBindings?.[r.pending.tool]?.tool || r.pending.tool}`), node("p", `MCP server: ${state.connections.find((c:any)=>c.id===(a?.toolBindings?.[r.pending.tool]?.connectionId || a?.connectionId))?.label || "unavailable"}. Review the exact arguments before approval.`, "note"), node("pre", JSON.stringify(r.pending.arguments, null, 2)));
         const edit = doc.createElement("textarea"); edit.rows = 5; edit.value = JSON.stringify(r.pending.arguments, null, 2); edit.setAttribute("aria-label", "Revised tool arguments"); edit.disabled = role === "viewer";
@@ -1388,15 +1438,16 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       }
       runs.append(card);
     }
-    history.appendRuns(runs, recurring, tenant); history.sortRuns(runs);
+    history.appendRuns(runs, recurring, tenant); history.sortRuns(runs, 40, new URLSearchParams(runtime.location.search).get('run') || '');
     updateRunFeedback();
     const agentPanel=get('agents').closest('section')!,runPanel=runs.closest('section')!;
     if(runPanel.nextElementSibling!==agentPanel)agentPanel.before(runPanel);
     const runHeading=runPanel.querySelector('.section-heading')!;
     if(get('refresh').parentElement!==runHeading)runHeading.append(get('refresh'));
-    if (!runs.children.length) runs.append(node("p", "Trial and scheduled runs will appear here with their execution history.", "empty"));
+    if (!runs.children.length && builderStage !== 'approvals') runs.append(node("p", "Trial and scheduled runs will appear here with their execution history.", "empty"));
     get<HTMLFormElement>("connect").querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input,button,select").forEach(el => el.disabled = role === "viewer" && !el.closest("#precheck-history"));
     updateEndpointAccess();
+    syncRunView();
   }
   runtime.addEventListener('beforeunload',event=>{if(draftDirty||preparationDirty){event.preventDefault();event.returnValue='';}});
   get('account-login').addEventListener('click', event => { event.preventDefault(); runtime.location.reload(); });
@@ -1568,7 +1619,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     selectedRecipe = query.getAll('recipe').length === 1 && query.getAll('recipe_version').length === 1 ? recipeCatalog.find(recipe => recipe.id === query.get('recipe') && recipe.version === query.get('recipe_version')) : undefined;
     if (!selectedRecipe) { get<HTMLDetailsElement>('example-library').open = true; get('recipe-error').hidden = false; get('recipe-error').textContent = 'This agent template version is unavailable. Choose a current template below; no draft has been created.'; }
   }
-  showStage(query.has('recipe') && !['connect','run'].includes(runtime.location.hash.slice(1)) ? 'create' : runtime.location.hash.slice(1));
+  showStage(query.has('recipe') && !['connect','run','approvals'].includes(runtime.location.hash.slice(1)) ? 'create' : runtime.location.hash.slice(1));
   void (async () => {
     try {
       const session = await request("/api/console/session"); memberships = session.memberships || [];

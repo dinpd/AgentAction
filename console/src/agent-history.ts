@@ -3,7 +3,7 @@ export type HostedExecution = {
   contract?: HostedContract; evaluation?: HostedEvaluation;
   id: string; runId: string; agentKey: string; agent: string; source: "recurring" | "supervised";
   status: string; kind: string; startedAt: number; finishedAt?: number; durationMs?: number;
-  summary: string; findings?: number; outcome?: string; reason?: string; attention: boolean;
+  summary: string; findings?: number; outcome?: string; reason?: string; attention: boolean; approvalPending?: boolean;
   evidence: string; evidenceDigest?: string; observations?: unknown; toolCalls?: number;
 };
 /** A projection of existing runs, never a second execution or a fabricated receipt. */
@@ -23,7 +23,8 @@ export function executionRecords(supervised: any, recurring: any): HostedExecuti
         ...(Number.isFinite(finishedAt) && finishedAt >= startedAt ? { durationMs: finishedAt - startedAt } : {}),
         summary: run.summary || "Result not yet available.", findings, outcome: source === "supervised" ? run.outcome : undefined,
         reason: source === "supervised" ? run.reason : undefined,
-        attention: ["awaiting_approval", "failed", "partial", "interrupted"].includes(run.status) || (findings || 0) > 0 || ["not_met", "uncertain"].includes(run.outcome) || Boolean(run.evaluation && run.evaluation.status !== "pass"),
+        approvalPending: source === "supervised" && run.status === "awaiting_approval" && Boolean(run.pending?.id && run.pending?.tool),
+        attention: run.status !== "cancelled" && (["awaiting_approval", "failed", "partial", "interrupted"].includes(run.status) || (findings || 0) > 0 || ["not_met", "uncertain"].includes(run.outcome) || Boolean(run.evaluation && run.evaluation.status !== "pass")),
         ...(source === "supervised" ? { contract: run.contract, evaluation: run.evaluation } : {}),
         evidence: source === "recurring" ? "Recorded check" : "Recorded tool execution",
         ...(source === "recurring" ? { evidenceDigest: run.evidenceDigest, observations: run.observations } : { toolCalls: run.events?.length || 0 }),
@@ -34,7 +35,7 @@ export function executionRecords(supervised: any, recurring: any): HostedExecuti
 }
 
 /** Read-only presentation shared by Run and Monitor. Never merges operational checks into signed Jobs. */
-export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { location?: Pick<Location, "pathname" | "search" | "hash">; history?: Pick<History, "replaceState"> }, project = executionRecords) {
+export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { location?: Pick<Location, "pathname" | "search" | "hash">; history?: Pick<History, "replaceState">; agentActionJourney?: Window["agentActionJourney"] }, project = executionRecords) {
   const doc = runtime.document;
   const node = (tag: string, text = "", css = "") => { const el = doc.createElement(tag); el.textContent = text; if (css) el.className = css; return el; };
   const when = (v: string | number | undefined) => v ? new Date(v).toLocaleString() : "Not yet";
@@ -104,12 +105,12 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       parent.append(card);
     }
   }
-  function sortRuns(parent: HTMLElement, limit = 40) {
+  function sortRuns(parent: HTMLElement, limit = 40, selected = "") {
     const cards = Array.from(parent.children).filter(el => (el as HTMLElement).dataset.runAt !== undefined) as HTMLElement[];
     cards.sort((a, b) => Number(b.dataset.runAt) - Number(a.dataset.runAt));
     const priority=cards.filter(card=>card.dataset.pendingApproval==='true'||card.dataset.activeRun==='true');
     const historical=cards.filter(card=>!priority.includes(card)),seen=new Set<string>();
-    const retained=historical.filter((card,index)=>{const key=card.dataset.runAgent || 'unknown',latest=!seen.has(key);seen.add(key);return index<limit||latest;});
+    const retained=historical.filter((card,index)=>{const key=card.dataset.runAgent || 'unknown',latest=!seen.has(key);seen.add(key);return index<limit||latest||card.dataset.supervisedRun===selected;});
     for(const card of cards)card.remove();
     if(priority.length) {
       const attention=node('section');attention.dataset.runAttention='';
@@ -144,7 +145,24 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     b.type = "button"; b.onclick = action; return b;
   }
   const duration = (ms?: number) => ms === undefined ? "—" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
-  const status = (row: HostedExecution) => row.status.replaceAll("_", " ") + (row.findings ? ` · ${row.findings} findings` : "");
+  const status = (row: HostedExecution) => {
+    if (row.status === 'cancelled') return 'Cancelled';
+    if (row.approvalPending) return 'Awaiting your approval';
+    if (row.status === 'awaiting_approval') return 'Proposal unavailable';
+    if (row.status === 'planning') return 'Preparing next action';
+    if (row.status === 'executing') return 'Executing approved action';
+    if (row.status === 'failed') return 'Execution failed';
+    if (row.evaluation?.status === 'insufficient_evidence') return 'Insufficient evidence';
+    if (row.evaluation?.status === 'fail') return 'Checks failed';
+    if (row.outcome === 'not_met') return 'Outcome not met';
+    if (row.outcome === 'uncertain') return 'Outcome uncertain';
+    return row.status.replaceAll('_', ' ') + (row.findings ? ` · ${row.findings} findings` : '');
+  };
+  function runLink(row: HostedExecution, tenant: string) {
+    const a = node('a', row.approvalPending ? 'Review action →' : 'View run →') as HTMLAnchorElement;
+    a.href = `/agents?workspace=${encodeURIComponent(tenant)}&${row.approvalPending ? 'approval' : 'run'}=${encodeURIComponent(row.runId)}#${row.approvalPending ? 'approvals' : 'run'}`;
+    return a;
+  }
   function jobLink(row: HostedExecution, tenant: string) {
     const a = node("a", "View job →") as HTMLAnchorElement;
     a.href = `/?workspace=${encodeURIComponent(tenant)}&execution=${encodeURIComponent(row.id)}#jobs`; return a;
@@ -165,6 +183,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
         const tr = node("tr"); tr.dataset.executionId = row.id; tr.dataset.attention = String(row.attention);
         const identity = node("td"); identity.append(node("strong", row.agent), node("span", when(row.startedAt), "execution-meta"), node("span", `${row.source} · ${row.kind}`, "execution-meta"));
         const result = node("td"); result.append(node("span", status(row), "execution-status"));
+        if (row.approvalPending) result.append(runLink(row, tenant));
         if (row.contract) result.append(node("span", `Measured checks: ${row.evaluation?.status.replaceAll("_", " ") || "pending"}`, "execution-meta"));
         if (row.outcome) result.append(node("span", `AI assessment: ${row.outcome.replaceAll("_", " ")}`, "execution-meta"));
         const summary = node("td", row.summary, "execution-summary");
@@ -179,7 +198,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
           if (row.toolCalls !== undefined) disclosure.append(node("p", `${row.toolCalls} recorded tool calls`));
           if (row.reason) disclosure.append(node("p", `AI assessment reason: ${row.reason}`));
           if (row.source === "recurring" && row.status !== "completed") disclosure.append(node("p", "Coverage is unknown; this execution does not establish that the target is healthy."));
-          disclosure.append(link(row.source === "recurring" ? "Schedule and findings →" : "Review run and approvals →", tenant, row.source === "recurring" ? "/automations" : "/agents", row.source === "recurring" ? "findings" : "run"));
+          disclosure.append(row.source === "recurring" ? link("Schedule and findings →", tenant, "/automations", "findings") : runLink(row, tenant));
           detail.append(node("span", row.evidence, "execution-meta"), disclosure);
         } else detail.append(jobLink(row, tenant));
         tr.append(identity, result, node("td", duration(row.durationMs)), summary, detail); body.append(tr);
@@ -208,6 +227,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     if (!recurring) failures.push("Recurring execution history is unavailable.");
     if (failures.length) { const error = node("p", failures.join(" ") + " Refresh to retry; coverage is incomplete.", "history-error"); error.setAttribute("role", "status"); panel.append(error); }
     const rows = project(supervised, recurring);
+    runtime.agentActionJourney?.setApprovalCount(tenant, supervised ? rows.filter(r => r.approvalPending).length : null);
     const agents = [
       ...(supervised?.agents || []).map((a: any) => ({ ...a, key: `supervised:${a.id}`, source: "supervised" })),
       ...(recurring?.jobs || []).map((a: any) => ({ ...a, key: `recurring:${a.id}`, source: "recurring" })),
@@ -237,7 +257,7 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       if (!visible.length) { content.append(node("p", "No agents match these filters.", "empty")); return; }
       const groups = visible.map(a => {
         const history = rows.filter(r => r.agentKey === a.key), latest = history[0];
-        const pending = history.some(r => r.status === "awaiting_approval");
+        const pending = history.find(r => r.approvalPending);
         return { a, latest, pending, attention: Boolean(pending || a.stale || a.health === "findings" || latest?.attention || (a.status === "active" && a.health === "unknown")) };
       }).sort((a, b) => Number(b.attention) - Number(a.attention) || a.a.title.localeCompare(b.a.title));
       const header = node("div", "", "agent-group-columns"); header.setAttribute("aria-hidden", "true");
@@ -246,14 +266,14 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
         const group = node("details", "", "agent-group") as HTMLDetailsElement; group.dataset.agentKey = a.key; group.dataset.attention = String(attention);
         const summary = node("summary", "", "agent-group-columns");
         const title = node("span"); title.append(node("strong", a.title), node("small", `${a.source} · ${a.status}`, "execution-meta"));
-        const health = pending ? "Awaiting approval" : a.stale || a.health === "unknown" ? "Coverage unknown" : attention ? "Needs attention" : latest ? latest.status.replaceAll("_", " ") : "Not run yet";
+        const health = pending ? "Awaiting your approval" : a.stale || a.health === "unknown" ? "Coverage unknown" : latest ? status(latest) : attention ? "Needs attention" : "Not run yet";
         for (const [label, value] of [["Agent", title], ["Status", health], ["Last execution", when(latest?.startedAt)], ["Next execution", a.status === "active" ? when(a.nextRun) : "Not scheduled"], ["Findings", latest?.findings === undefined ? "—" : String(latest.findings)]] as const) {
-          const cell = node("span"); cell.dataset.label = label; typeof value === "string" ? cell.append(node("span", value)) : cell.append(value); summary.append(cell);
+          const cell = node("span"); cell.dataset.label = label; typeof value === "string" ? cell.append(node("span", value)) : cell.append(value); if (label === "Status" && pending) cell.append(runLink(pending, tenant)); summary.append(cell);
         }
         group.append(summary);
         const inner = node("div", "", "agent-group-history");
         if (a.stale) inner.append(node("p", "The latest check is stale; current coverage is unknown.", "history-error"));
-        if (pending) inner.append(link("Review pending approvals →", tenant, "/agents", "run"));
+        if (pending) inner.append(runLink(pending, tenant));
         runTable(filtered.filter(r => r.agentKey === a.key), inner, tenant, false);
         group.append(inner); content.append(group);
       }

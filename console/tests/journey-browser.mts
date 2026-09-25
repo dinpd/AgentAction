@@ -36,7 +36,7 @@ const base=`http://127.0.0.1:${(server.address() as any).port}`;
 try {
  for(const [variant,title] of [['new','Start with your workspace'],['empty','Give your agent a job'],['connected','Give your agent a job'],['draft','Try your first run'],['pending','A run needs your review'],['success','Make the next run better'],['error','Check your workspace connection']]) {
   mode=variant;await page.goto(base+'/?case='+variant+'#overview');await page.getByRole('heading',{name:title,exact:true}).waitFor();assert.equal(await page.locator('.journey-track li').count(),4);assert.equal(await page.locator('[data-console-view=overview]').isHidden(),true);
-  assert.equal(await page.locator('.journey-nav [data-stage]').count(),5);
+  assert.equal(await page.locator('.journey-nav [data-stage]').count(),6);
   assert.equal(await page.locator('.journey-nav [data-utility]').count(),0);
   if(variant==='new') {
    assert.equal(await page.locator('.journey-track li[data-next=true]').count(),0);

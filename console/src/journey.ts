@@ -2,7 +2,8 @@
 export const JOURNEY_NAV = `<div class="console-navigation"><nav class="journey-nav" aria-label="Agent lifecycle">
 <a data-stage="home" href="/#overview"><span aria-hidden="true">⌂</span><strong>Overview</strong><small>Your workspace at a glance</small></a>
 <a data-stage="create" href="/agents#create"><span>01</span><strong>Create</strong><small>Jobs, tools &amp; boundaries</small></a>
-<a data-stage="run" href="/agents#run"><span>02</span><strong>Run</strong><small>Trials, approvals &amp; schedules</small></a>
+<a data-stage="run" href="/agents#run"><span>02</span><strong>Run</strong><small>Trials &amp; schedules</small></a>
+<a data-stage="approvals" href="/agents#approvals"><span>✓</span><strong>Approvals <b data-approval-count aria-label="Approval count loading">…</b></strong><small>Review proposed actions</small></a>
 <a data-stage="monitor" href="/#activity"><span>03</span><strong>Monitor</strong><small>Activity &amp; execution quality</small></a>
 <a data-stage="improve" href="/#evals"><span>04</span><strong>Improve</strong><small>Evals &amp; success criteria</small></a>
 <a data-recurring-link data-workspace-link href="/automations#agents"><span>↻</span><strong>Recurring agents</strong><small>Schedules &amp; findings</small></a>
@@ -17,13 +18,14 @@ export const JOURNEY_HOME = `<section class="journey-home" data-journey-home ari
 <ol class="journey-track" aria-label="Your agent progression"></ol><p class="journey-footnote">Move between stages whenever you need. Progress reflects available workspace data and retained run history.</p>
 </section>`;
 export const JOURNEY_CSS = `
+[data-approval-count]{display:inline-block;min-width:20px;padding:1px 5px;border-radius:10px;text-align:center;background:#d3e8d8;color:#173c2f;font-size:12px}
 .console-navigation{position:sticky;top:0;align-self:start;min-width:0}.journey-nav{display:grid;gap:8px;padding:28px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px}
 :is(.journey-nav,.workspace-nav) a{display:grid;grid-template-columns:24px 1fr;gap:4px 8px;padding:13px 10px;text-decoration:none;color:#65706a;border-left:3px solid transparent;min-width:0}
 :is(.journey-nav,.workspace-nav) a>span{grid-row:span 2;font-size:11px;padding-top:3px}:is(.journey-nav,.workspace-nav) strong{font-size:15px}:is(.journey-nav,.workspace-nav) small{font-size:11px;line-height:1.4;font-weight:400}:is(.journey-nav,.workspace-nav) a[aria-current=page],:is(.journey-nav,.workspace-nav) a:hover{color:#173c2f;background:#dfebe1;border-color:#245a44}:is(.journey-nav,.workspace-nav) a:focus-visible{outline:3px solid #729580;outline-offset:2px}:is(.journey-nav,.workspace-nav) a[hidden]{display:none}
 .workspace-nav{display:grid;margin:8px 16px 24px;padding-top:16px;border-top:1px solid #d4d8cf;font-family:Arial,Helvetica,sans-serif;font-size:14px}.workspace-nav[hidden]{display:none}
 .journey-home{padding:22px 0 36px;min-width:0}.journey-home h2{font-family:Georgia,'Times New Roman',serif;font-size:clamp(34px,4.2vw,58px);font-weight:400;line-height:1.08;letter-spacing:-1.8px;margin:12px 0 20px}.journey-lede{max-width:600px;font-size:17px;color:#65706a;line-height:1.65}.journey-next{display:flex;gap:24px;align-items:center;justify-content:space-between;padding:26px;margin:30px 0;background:#e3ede5;border:1px solid #bdcfc1;border-radius:8px}.journey-next h3{font-family:Georgia,serif;font-size:26px;font-weight:400;margin:5px 0 10px}.journey-next p:last-child{font-size:14px;line-height:1.5;max-width:620px;color:#475b4d}.journey-next a,.stage-continue{display:inline-block;flex-shrink:0;padding:13px 18px;background:#1b4e3b;color:#fff;text-decoration:none;font-size:13px;font-weight:700;border-radius:4px}.journey-track{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0;margin:0;gap:10px}.journey-track li{border:1px solid #d4d8cf;border-radius:6px;background:#fff;padding:18px;min-width:0}.journey-track li[data-next=true]{border:2px solid #245a44;padding:17px}.journey-track a{color:#173c2f;text-decoration:none;display:block}.journey-track span{display:block;font:12px monospace;color:#758177}.journey-track strong{display:block;margin:18px 0 8px;font-size:17px}.journey-track p{font-size:12px;line-height:1.5;color:#65706a;min-height:36px}.journey-track small{font-size:11px;color:#245a44;font-weight:700}.journey-footnote{font-size:12px;color:#65706a;margin-top:18px}.stage-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}.stage-tabs a{padding:9px 13px;border:1px solid #cbd4cb;border-radius:4px;text-decoration:none;color:#43574a;font-size:13px}.stage-tabs a[aria-current=page]{background:#dfebe1;border-color:#245a44}.stage-heading{margin:12px 0 28px}.stage-heading h2{font:400 38px Georgia,serif;margin:8px 0 14px}.stage-heading p{color:#65706a;max-width:680px;line-height:1.6}.stage-continue{margin-top:24px}.builder-layout{display:grid;grid-template-columns:220px minmax(0,1fr);max-width:1440px;margin:auto}.builder-layout main{width:100%;padding:36px 32px;min-width:0}.builder-layout .panel{margin-top:0}.builder-layout .connection>div{min-width:0;overflow-wrap:anywhere}.builder-layout{background:#f2f0ea}.builder-layout button{background:#1b4e3b;color:#fff;border-color:#1b4e3b}.builder-layout button.secondary{background:transparent;color:#1b4e3b}.builder-layout .card{border-radius:6px}.builder-layout .recipe-suggestions-title{margin-top:32px}.builder-layout .card summary{font-size:16px}.builder-layout .card a{font-size:13px;color:#245a44}.builder-layout #recipe-browser{gap:10px;margin-bottom:32px}.builder-layout #recipe-browser .card{padding:15px;margin-top:0}.builder-layout .heading h1{font:400 clamp(32px,4vw,48px) Georgia,serif;letter-spacing:-1px}.builder-layout .heading{margin-bottom:22px}.builder-layout .section-heading h2{font-size:22px}.builder-layout [data-builder-stage][hidden]{display:none!important}
 @media(max-width:1000px){.journey-track{grid-template-columns:repeat(3,minmax(0,1fr))}.journey-next{align-items:start;flex-direction:column}}
-@media(max-width:700px){.console-navigation{position:static}.workspace-nav{margin:0;padding:6px 12px;border-top:0;border-bottom:1px solid #d4d8cf}.workspace-nav a{grid-template-columns:24px 1fr;width:fit-content}.workspace-nav a>span{grid-row:auto}.workspace-nav small{display:none}.layout,.builder-layout{grid-template-columns:1fr}.journey-nav{position:static;grid-template-columns:repeat(6,minmax(106px,1fr));overflow-x:auto;padding:10px 12px;gap:4px;border-bottom:1px solid #d4d8cf}:is(.journey-nav,.workspace-nav) a{padding:10px 7px;grid-template-columns:1fr;gap:3px}:is(.journey-nav,.workspace-nav) small{display:none}:is(.journey-nav,.workspace-nav) a>span{grid-row:auto}:is(.journey-nav,.workspace-nav) strong{font-size:13px}.journey-track{grid-template-columns:1fr}.journey-track li{padding:16px}.journey-track li[data-next=true]{padding:15px}.journey-track strong{margin:8px 0}.journey-track p{min-height:0}.journey-next{padding:20px}.builder-layout main{padding:24px 18px}.journey-home h2{letter-spacing:-1px}.workspace-nav a{grid-template-columns:20px 1fr;align-items:center}}
+@media(max-width:700px){.console-navigation{position:static}.workspace-nav{margin:0;padding:6px 12px;border-top:0;border-bottom:1px solid #d4d8cf}.workspace-nav a{grid-template-columns:24px 1fr;width:fit-content}.workspace-nav a>span{grid-row:auto}.workspace-nav small{display:none}.layout,.builder-layout{grid-template-columns:1fr}.journey-nav{position:static;grid-template-columns:repeat(7,minmax(106px,1fr));overflow-x:auto;padding:10px 12px;gap:4px;border-bottom:1px solid #d4d8cf}:is(.journey-nav,.workspace-nav) a{padding:10px 7px;grid-template-columns:1fr;gap:3px}:is(.journey-nav,.workspace-nav) small{display:none}:is(.journey-nav,.workspace-nav) a>span{grid-row:auto}:is(.journey-nav,.workspace-nav) strong{font-size:13px}.journey-track{grid-template-columns:1fr}.journey-track li{padding:16px}.journey-track li[data-next=true]{padding:15px}.journey-track strong{margin:8px 0}.journey-track p{min-height:0}.journey-next{padding:20px}.builder-layout main{padding:24px 18px}.journey-home h2{letter-spacing:-1px}.workspace-nav a{grid-template-columns:20px 1fr;align-items:center}}
 `;
 
 type Progress = { next: number; title: string; detail: string; href: string; action: string; states: string[]; attention?: boolean };
@@ -44,7 +46,7 @@ export function journeyProgress(tenant: string, setup: any, state: any, recurrin
   states[0] = agents.length ? `${agents.length} agent${agents.length === 1 ? '' : 's'}` : externalAgents.length ? 'External agent connected' : 'No agents yet';
   states[1] = succeeded ? 'Successful run recorded' : observed ? 'External activity received' : 'No successful run yet';
   states[2] = observed ? 'Activity received' : state.runs.length || recurring.runs.length ? 'Run history available' : 'No activity yet';
-  if (state.runs.some((r: any) => r.status === 'awaiting_approval')) return result(1, 'A run needs your review', 'Review the proposed tool call and its arguments before deciding whether to approve it.', '/agents#run', 'Review pending runs', true);
+  if (state.runs.some((r: any) => r.status === 'awaiting_approval' && r.pending?.id && r.pending?.tool)) return result(1, 'A run needs your review', 'Review the proposed tool call and its arguments before deciding whether to approve it.', '/agents#approvals', 'Review pending approvals', true);
   if (state.runs.some((r: any) => ['failed', 'interrupted'].includes(r.status))) return result(2, 'Review runs that need attention', 'Your retained history contains a failed or interrupted run. Inspect what happened before trying again.', '/agents#run', 'Review run history', true);
   if (recurring.jobs.some((j: any) => j.stale || (j.health === 'unknown' && j.status === 'active') || j.health === 'findings')) return result(2, 'Review monitoring coverage and findings', 'A recurring agent has findings or incomplete recent coverage. Review its latest result and schedule.', '/agents#run', 'Review agents', true);
   if (recurring.jobs.length && !state.agents.length && !observed) {
@@ -61,13 +63,36 @@ export function journeyProgress(tenant: string, setup: any, state: any, recurrin
 }
 
 declare global {
-  interface Window { agentActionJourney?: { setWorkspace(tenant: string, demo?: boolean): void; setView(stage: string): void; refresh(): void } }
+  interface Window { agentActionJourney?: { setWorkspace(tenant: string, demo?: boolean): void; setView(stage: string): void; refresh(): void; setApprovalCount(tenant: string, count: number | null): void } }
 }
 export function journeyApp(runtime: Window, progress: typeof journeyProgress): void {
   const doc = runtime.document;
   let tenant = '', demo = false, generation = 0, stage = 'home';
+  let countGeneration = 0;
   const home = doc.querySelector<HTMLElement>('[data-journey-home]');
   const links = () => Array.from(doc.querySelectorAll<HTMLAnchorElement>('[data-stage], [data-workspace-link]'));
+  function setApprovalCount(selected: string, count: number | null) {
+    if (selected !== tenant) return;
+    countGeneration++;
+    for (const badge of doc.querySelectorAll<HTMLElement>('[data-approval-count]')) {
+      badge.textContent = count === null ? '?' : String(count);
+      badge.setAttribute('aria-label', count === null ? 'Approval count unavailable; open Approvals to retry' : `${count} pending approval${count === 1 ? '' : 's'}`);
+    }
+  }
+  async function refreshApprovalCount() {
+    const current = ++countGeneration, selected = tenant;
+    for (const badge of doc.querySelectorAll<HTMLElement>('[data-approval-count]')) {
+      badge.textContent = '…'; badge.setAttribute('aria-label', 'Approval count loading');
+    }
+    if (!selected || demo) return;
+    let count: number | null = null;
+    try {
+      const response = await runtime.fetch(`/api/agents/${encodeURIComponent(selected)}/state`, { cache: 'no-store', credentials: 'same-origin', redirect: 'error' });
+      const data = response.ok ? await response.json() : null;
+      if (Array.isArray(data?.runs)) count = data.runs.filter((r: any) => r?.status === 'awaiting_approval' && r.pending?.id && r.pending?.tool).length;
+    } catch { /* An unavailable count must never look like an empty queue. */ }
+    if (current === countGeneration && selected === tenant) setApprovalCount(selected, count);
+  }
   function scoped(href: string): string {
     const url = new URL(href, runtime.location.origin);
     if (url.origin === runtime.location.origin && tenant && !demo) url.searchParams.set('workspace', tenant);
@@ -119,7 +144,9 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
   }
   runtime.agentActionJourney = {
     setWorkspace(selected, publicDemo = false) {
+      const changed = tenant !== selected || demo !== publicDemo;
       tenant = selected; demo = publicDemo;
+      if (changed) void refreshApprovalCount();
       for (const link of links()) {
         link.setAttribute('href', scoped(link.getAttribute('href')!));
         if (link.hasAttribute("data-recurring-link") || link.hasAttribute("data-notifications-link")) link.hidden = demo;
@@ -130,7 +157,8 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
       void refresh();
     },
     setView(value) { const changed = stage !== value; stage = value; if (changed && stage === 'home') void refresh(); if (home) home.hidden = stage !== 'home'; for (const link of links()) if (link.dataset.stage || link.dataset.utility) link.setAttribute('aria-current', (link.dataset.stage || link.dataset.utility) === stage ? 'page' : 'false'); },
-    refresh() { void refresh(); },
+    refresh() { void refresh(); void refreshApprovalCount(); },
+    setApprovalCount,
   };
 }
 export const JOURNEY_JS = `(${journeyApp.toString()})(window, ${journeyProgress.toString()});`;

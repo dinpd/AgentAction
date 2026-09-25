@@ -10,7 +10,9 @@ const stamp=Date.now();
 const recurring=(tenant:string)=>({jobs:tenant==='beta'||mode==='empty'?[]:[{id:'watch',title:'Website <img src=x onerror=alert(1)>',status:'active',health:mode==='stale'?'unknown':'checks complete',stale:mode==='stale',intervalMinutes:5,lastRun:stamp,nextRun:stamp+300000}],runs:tenant==='beta'||mode==='empty'?[]:Array.from({length:45},(_,i)=>({id:'check-'+i,jobId:'watch',startedAt:stamp+i*1000,finishedAt:stamp+i*1000+250,evidenceDigest:'digest-'+i,observations:[{key:'availability',state:'absent'}],status:i===43?'partial':i===42?'interrupted':'completed',kind:'scheduled',findings:i===41?1:0,summary:'Check '+i+'; HTTP 200'}))});
 const connection={id:'c',status:'connected',label:'Test account',endpoint:'https://example.com/mcp',tools:[],suggestions:[{id:'s',title:'Daily check',goal:'Check a page',success:'Report changes',tools:[],setupHints:[],setup:'Page URL'}]};
 const agent={id:'agent',title:'Daily check',goal:'Check a page',success:'Report changes',status:'draft',connectionId:'c'};
-const state=(tenant:string)=>({connections:tenant==='beta'||mode==='empty'||mode==='recurring'?[]:[{...connection,hasCredential:mode==='success'}],agents:['draft','pending','success'].includes(mode)&&tenant!=='beta'?[agent]:[],runs:tenant==='beta'?[]:mode==='pending'?[{id:'run',agentId:'agent',kind:'trial',status:'awaiting_approval',startedAt:new Date(stamp-100000).toISOString(),events:[],pending:{id:'p',tool:'read',arguments:{}}}]:mode==='success'?[{id:'run',agentId:'agent',kind:'trial',status:'completed',outcome:'met',startedAt:new Date(stamp-100000).toISOString(),events:[]}]:[],endpointAccess:{deployment:[],workspace:[]},inspections:[]});
+const baseState=(tenant:string)=>({connections:tenant==='beta'||mode==='empty'||mode==='recurring'?[]:[{...connection,hasCredential:mode==='success'}],agents:['draft','pending','success'].includes(mode)&&tenant!=='beta'?[agent]:[],runs:tenant==='beta'?[]:mode==='pending'?[{id:'run',agentId:'agent',kind:'trial',status:'awaiting_approval',startedAt:new Date(stamp-100000).toISOString(),events:[],pending:{id:'p',tool:'read',arguments:{}}}]:mode==='success'?[{id:'run',agentId:'agent',kind:'trial',status:'completed',outcome:'met',startedAt:new Date(stamp-100000).toISOString(),events:[]}]:[],endpointAccess:{deployment:[],workspace:[]},inspections:[]});
+let statusRuns:any[]=[];
+const state=(tenant:string)=>{const data=baseState(tenant);if(tenant==='acme')data.runs.push(...statusRuns);return data;};
 const setup=(tenant:string)=>({tenant:{tenant_id:tenant,display_name:tenant},membership:{role},sources:[],members:[],ingestion:{observed:false}});
 const receipt=JSON.parse(await readFile(new URL('../fixtures/support-refund-job-detail.json',import.meta.url),'utf8'));
 const fixture=JSON.parse(await readFile(new URL('../fixtures/support-refund-overview.json',import.meta.url),'utf8'));
@@ -103,8 +105,15 @@ try {
  await page.getByText('No executions recorded yet. Create an agent and run a baseline or trial.',{exact:true}).waitFor();
  await page.waitForTimeout(650);assert.equal(await page.locator('[data-hosted-jobs] tbody tr').count(),0);delayed=false;
  mode='pending';await page.goto(base+'/?workspace=acme#activity');await page.locator('[data-agent-key]').first().waitFor();
+ assert.equal(await page.locator('[data-approval-count]').innerText(),'1');
+ const approvalLink=page.locator('[data-agent-key="supervised:agent"] > summary').getByRole('link',{name:'Review action →',exact:true});
+ assert.equal(await approvalLink.getAttribute('href'),'/agents?workspace=acme&approval=run#approvals');
+ await approvalLink.click();await page.getByRole('button',{name:'Approve and execute',exact:true}).waitFor();
+ assert.equal(new URL(page.url()).hash,'#approvals');
+ assert.equal(await page.locator('#runs article:visible').count(),1);
+ await page.goto(base+'/?workspace=acme#activity');await page.locator('[data-agent-key]').first().waitFor();
  assert.equal(await page.locator('[data-agent-key]').count(),2);
- assert.match(await page.locator('[data-agent-key] > summary').first().innerText(),/Awaiting approval/);
+ assert.match(await page.locator('[data-agent-key] > summary').first().innerText(),/Awaiting your approval/);
  await page.getByLabel('Hosted agent',{exact:true}).selectOption('recurring:watch');assert.equal(await page.locator('[data-agent-key]').count(),1);
  assert.equal(await page.locator('[data-hosted-history] img').count(),0);
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
@@ -132,6 +141,22 @@ try {
  await page.goto(base+'/?workspace=acme#activity');await page.locator('[data-agent-key]').first().waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('[data-hosted-history]').screenshot({path:'/tmp/agentaction-219-activity-mobile.png'});
+ statusRuns=[
+  {id:'cancelled',status:'cancelled',outcome:'not_met',evaluation:{status:'fail'}},
+  {id:'executing',status:'executing'},
+  {id:'planning',status:'planning'},
+  {id:'insufficient',status:'completed',evaluation:{status:'insufficient_evidence'}},
+  {id:'failed-checks',status:'completed',evaluation:{status:'fail'}},
+ ].map((r,i)=>({...r,agentId:'agent',kind:'trial',startedAt:new Date(stamp+i*1000).toISOString(),events:[]}));
+ await page.goto(base+'/?workspace=acme#activity');await page.locator('[data-agent-key]').first().waitFor();
+ await page.getByLabel('Layout',{exact:true}).selectOption('list');
+ await page.getByLabel('Hosted agent',{exact:true}).selectOption('supervised:agent');
+ for(const [id,label] of [['cancelled','Cancelled'],['executing','Executing approved action'],['planning','Preparing next action'],['insufficient','Insufficient evidence'],['failed-checks','Checks failed']]) {
+  assert.equal(await page.locator(`[data-execution-id="supervised:${id}"] .execution-status`).innerText(),label);
+ }
+ assert.equal(await page.locator('[data-execution-id="supervised:cancelled"]').getAttribute('data-attention'),'false');
+ assert.equal(await page.locator('[data-execution-id="supervised:insufficient"]').getAttribute('data-attention'),'true');
+ statusRuns=[];
  role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);assert.equal(await page.locator('#agents [data-recurring-agent]').count(),1);
  isDemo=true;const before=privateReads;await page.goto(base+'/#activity');await page.locator('[data-console-view=activity]').waitFor();
  assert.equal(await page.locator('[data-hosted-history]').isHidden(),true);assert.equal(privateReads,before,'Demo never reads private runtime data');
