@@ -1,0 +1,22 @@
+{
+  "title": "Can We Trust 'Done'? Evaluating Agent Completion and Requests for Additional Evidence",
+  "authors": "Dan Itkis (AgentAction.dev)",
+  "manuscript_byline": "Dan Itkis, MsETM",
+  "affiliation": "AgentAction.dev",
+  "abstract": "A completion evaluator can be wrong because the evidence it receives is incomplete or stale, even when the task's outcome criterion is valid. We present a reproducible stress-testing protocol that separates complete-state truth from exposed evidence and retains success, failure, and unknown judgments. Standard precision, recall, F1, coverage, and selective error describe both incorrect decisions and successes left unrecognized. The artifact covers 20 fault families in three emulators, 31 HTTP/SQLite families with retries and crashes, and eight interventions on 91 externally authored retail tasks. A closure-and-revision gate reduces false admissions but lowers service recall from 86.7% to 46.7%. We then evaluate bounded additional-evidence requests on 620 paired cases spanning four collection conditions. When collection recovers, full and targeted requests both restore recall to 100.0%; targeted requests use 135 additional provider reads versus 150 for full recollection. Across all conditions, targeted requests achieve 83.0% precision and 65.0% recall, while an acquisition-capable baseline achieves 78.9% and 75.0%. Outages, continuing revision changes, and dishonest or incomplete collection retain important failure modes. The contribution is an executable evaluation protocol and a measured decision/request interface, with explicit acquisition costs and trust limits.",
+  "abstract_characters": 1387,
+  "primary_category_recommendation": "cs.AI",
+  "cross_list_recommendation": [
+    "cs.SE"
+  ],
+  "comments": "22 pages, 4 figures, 10 tables. Reproducible code and data: https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment",
+  "journal_reference": "",
+  "doi": "",
+  "report_number": "",
+  "license": null,
+  "license_label": "Pending author selection; choose in the arXiv form before submission.",
+  "main_file": "main.tex",
+  "processor": "xelatex",
+  "tex_live": "2025",
+  "status": "Prepared locally; not uploaded or submitted to arXiv."
+}

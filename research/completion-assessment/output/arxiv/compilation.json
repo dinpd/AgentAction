@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "archive_sha256": "d3884a3e4fb7bc7696dba42b5a0e4709599d9e883f210ac518d5b41af0150d66",
+  "pdf_sha256": "a731936890628735b945718dbb6fe1006680926cb67480df5df88222e35ebac5",
+  "pages": 22,
+  "compiler": "Tectonic 0.17.0",
+  "engine": "XeTeX",
+  "input": "Fresh temporary extraction of the source ZIP; no repository files in the build directory",
+  "mode": "only-cached, untrusted; no shell escape or external resource download",
+  "log": "No LaTeX warnings, overfull boxes, missing characters or unresolved references",
+  "arxiv_server_validated": false
+}

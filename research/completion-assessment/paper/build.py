@@ -137,7 +137,7 @@ def substitutions(summary, loss, omission, timing, refs):
         [METHOD_NAMES[m], f'{v["p50"]:.4f}', f'{v["p95"]:.4f}'] for m, v in timing["results"].items()])
     tokens["figure_matrix"] = "![Scenario assessment matrix](figures/scenario-matrix.png)"
     tokens["figure_loss"] = "![Observation loss and assessment coverage](figures/observation-loss.png)"
-    tokens["references"] = "\n\n".join(f'[{i}] {r["authors"]}. **{r["title"]}.** {r["venue"]}, {r["year"]}. [Source]({r["url"]})' for i, r in enumerate(refs, 1))
+    tokens["references"] = "\n\n".join(f'[{i}] {r["authors"]}. **{r["title"]}.** {r["venue"]}, {r["year"]}. [{r.get("link_label", "Source")}]({r["url"]})' for i, r in enumerate(refs, 1))
     return tokens
 
 
@@ -346,15 +346,14 @@ def render_pdf(text):
     assert pending is None
     doc = SimpleDocTemplate(str(OUT / "agent-task-completion.pdf"), pagesize=(612, 792),
         rightMargin=60, leftMargin=60, topMargin=49, bottomMargin=48, title=TITLE,
-        author="Dan Itkis", subject="Research draft: evidence-based agent task assessment")
+        author="Dan Itkis, MsETM", subject="Evidence-based agent task assessment")
     def page(c, d):
         c.saveState()
         c.setFont("Times-Roman", 8)
         c.setFillColor(colors.HexColor("#666666"))
         if d.page > 1:
             c.drawString(60, 765, "Can We Trust Done?")
-            c.drawRightString(552, 765, "Research draft")
-        c.drawString(60, 27, "Dan Itkis | AgentAction.dev")
+        c.drawString(60, 27, "Dan Itkis, MsETM | AgentAction.dev")
         c.drawRightString(552, 27, str(d.page))
         c.restoreState()
     doc.build(story, onFirstPage=page, onLaterPages=page,
@@ -377,9 +376,9 @@ def tex_inline(s, refs):
 def render_tex(text, refs):
     lines = [r"\documentclass[11pt]{article}", r"\usepackage[margin=0.85in]{geometry}",
              r"\usepackage[T1]{fontenc}", r"\usepackage{mathptmx,graphicx,booktabs,tabularx,array,hyperref}",
-             r"\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue}", r"\setlength{\parskip}{0.45em}",
+             r"\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue,pdfauthor={Dan Itkis, MsETM},pdftitle={" + tex_escape(TITLE) + "}}", r"\setlength{\parskip}{0.45em}",
              r"\setlength{\parindent}{0pt}", r"\title{" + tex_escape(TITLE) + "}",
-             r"\author{Dan Itkis\\AgentAction.dev}", r"\date{Research draft -- September 25, 2026}",
+             r"\author{Dan Itkis, MsETM\\AgentAction.dev}", r"\date{September 25, 2026}",
              r"\begin{document}", r"\maketitle"]
     for i, b in enumerate(blocks(text)):
         if i <= 3:
@@ -409,7 +408,9 @@ def render_tex(text, refs):
             lines.append(tex_inline(b, refs) + "\n")
     lines.append(r"\clearpage\begin{thebibliography}{99}\raggedright")
     for r in refs:
-        lines.append(r"\bibitem{" + r["id"] + "} " + tex_escape(f'{r["authors"]}. {r["title"]}. {r["venue"]}, {r["year"]}. ') + r"\url{" + r["url"] + "}")
+        link = (r"\href{" + r["url"] + "}{" + tex_escape(r["link_label"]) + "}" if "link_label" in r
+                else r"\url{" + r["url"] + "}")
+        lines.append(r"\bibitem{" + r["id"] + "} " + tex_escape(f'{r["authors"]}. {r["title"]}. {r["venue"]}, {r["year"]}. ') + link)
     lines.extend([r"\end{thebibliography}", r"\end{document}"])
     (HERE / "manuscript.tex").write_text("\n".join(lines) + "\n")
     (HERE / "references.bib").write_text("\n\n".join("@misc{" + r["id"] + ",\n" +

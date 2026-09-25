@@ -40,11 +40,14 @@ jobs:
         run: python verify_results.py
       - name: Install manuscript dependencies
         run: python -m pip install -r paper/requirements.txt
+      - name: Verify frozen arXiv source package and compiled preview
+        run: python paper/package_arxiv.py --check --pdf
       - name: Build and verify manuscript
         run: |
           python paper/build.py
           python verify_results.py --pdf
           git diff --exit-code -- paper/manuscript.md paper/manuscript.tex paper/references.bib paper/generated-values.json
+          git diff --stat -- paper/figures
 
   external-replay:
     runs-on: ubuntu-latest

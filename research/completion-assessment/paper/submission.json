@@ -1,0 +1,9 @@
+{
+  "authors": "Dan Itkis (AgentAction.dev)",
+  "primary_category": "cs.AI",
+  "cross_list": ["cs.SE"],
+  "processor": "xelatex",
+  "tex_live": "2025",
+  "pages": 22,
+  "license": null
+}

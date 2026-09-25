@@ -2,12 +2,12 @@
 \usepackage[margin=0.85in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{mathptmx,graphicx,booktabs,tabularx,array,hyperref}
-\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue}
+\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue,pdfauthor={Dan Itkis, MsETM},pdftitle={Can We Trust 'Done'? Evaluating Agent Completion and Requests for Additional Evidence}}
 \setlength{\parskip}{0.45em}
 \setlength{\parindent}{0pt}
 \title{Can We Trust 'Done'? Evaluating Agent Completion and Requests for Additional Evidence}
-\author{Dan Itkis\\AgentAction.dev}
-\date{Research draft -- September 25, 2026}
+\author{Dan Itkis, MsETM\\AgentAction.dev}
+\date{September 25, 2026}
 \begin{document}
 \maketitle
 \section*{Abstract}
@@ -408,7 +408,7 @@ Completion judgments depend on evidence coverage and temporal validity as well a
 \section*{Reproducibility and Disclosure}
 The artifact is in the AgentAction repository under \texttt{research/completion-assessment} \cite{artifact}. The four result manifests hash the evaluated source and data, including the unchanged production evaluator, observation verifier, and pinned upstream retail implementation. The protocols, generators, oracles, tests, normalized case records, service table exports, row-level decisions, summaries, timings, and manuscript builder are included. Correctness requires Node.js with TypeScript stripping support and, for the service extension, Python with standard-library SQLite. The service binds only to loopback and uses temporary databases; no external provider is contacted. Correctness reruns generate fresh signing keys and challenges. Saved challenges use case-specific placeholders with recomputed head digests, enabling byte comparison but not preserving independently verifiable signed attestations. External replay uses a separate Python 3.13 environment with pinned dependencies and an unmodified upstream checkout; the standard-library audit verifies saved external results without that installation. Raw tool traces and database changes against the pinned baseline are included. Request-study records additionally preserve matched initial inputs, requests, final evidence, before/after database audits, provider responses and incremental byte/read counts. Fresh request challenges are normalized to fixed-width values for exact replay and size verification. Manuscript rendering uses pinned Python dependencies.
 
-The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this draft. It is not listed as an author. This draft has not undergone independent peer review. All evaluated records are synthetic and no customer data or production credentials are included.
+The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this manuscript. It is not listed as an author. This work has not undergone independent peer review. All evaluated records are synthetic and no customer data or production credentials are included.
 
 \clearpage\begin{thebibliography}{99}\raggedright
 \bibitem{agentspec} Haoyu Wang, Christopher M. Poskitt, and Jun Sun. AgentSpec: Customizable Runtime Enforcement for Safe and Reliable LLM Agents. arXiv:2503.18666v3; accepted at ICSE 2026, 2025. \url{https://arxiv.org/abs/2503.18666v3}
@@ -419,8 +419,8 @@ The author is affiliated with AgentAction.dev and has a direct interest in the e
 \bibitem{selective} Yonatan Geifman and Ran El-Yaniv. Selective Classification for Deep Neural Networks. arXiv:1705.08500v2, 2017. \url{https://arxiv.org/abs/1705.08500v2}
 \bibitem{intoto} Santiago Torres-Arias, Hammad Afzali, Trishank Karthik Kuppusamy, Reza Curtmola, and Justin Cappos. in-toto: Providing farm-to-table guarantees for bits and bytes. 28th USENIX Security Symposium, pp. 1393-1410, 2019. \url{https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias}
 \bibitem{rats} Henk Birkholz, Dave Thaler, Michael Richardson, Ned Smith, and Wei Pan. Remote ATtestation procedureS (RATS) Architecture. RFC 9334, 2023. \url{https://www.rfc-editor.org/rfc/rfc9334.html}
-\bibitem{agentaction} AgentAction contributors. AgentAction: intent evaluator and observation verifier. Source revision 856c3739f18a7d6cda775ab187f865278dc6e759, 2026. \url{https://github.com/dinpd/AgentAction/tree/856c3739f18a7d6cda775ab187f865278dc6e759}
-\bibitem{artifact} Dan Itkis. Completion-assessment research artifact. AgentAction; emulator, persistent-service and external-replay protocols with source and data hashes in result manifests, 2026. \url{https://github.com/dinpd/AgentAction/tree/main/research/completion-assessment}
+\bibitem{agentaction} AgentAction contributors. AgentAction: intent evaluator and observation verifier. Evaluated code revision 856c3739f18a7d6cda775ab187f865278dc6e759; research artifact revision 59f324a, 2026. \href{https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment}{Completion-assessment research folder}
+\bibitem{artifact} Dan Itkis. Completion-assessment research artifact. AgentAction, revision 59f324a; emulator, persistent-service, external-replay and evidence-request protocols with source and data hashes, 2026. \href{https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment}{Completion-assessment research folder}
 \bibitem{sqlite} SQLite project. Isolation In SQLite. Official documentation, updated April 18, 2022, 2022. \url{https://sqlite.org/isolation.html}
 \bibitem{metrics} scikit-learn developers. Metrics and scoring: precision, recall and F-measures. Official documentation, 2026. \url{https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures}
 \bibitem{taurepo} Sierra Research and tau-bench contributors. tau-bench: retail tasks, environment and database-state evaluator. Package 1.0.1; source revision b7ea9074c1cba482b30687fecdb5c8425fd6f619, 2026. \url{https://github.com/sierra-research/tau2-bench/tree/b7ea9074c1cba482b30687fecdb5c8425fd6f619}

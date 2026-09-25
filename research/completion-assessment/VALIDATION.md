@@ -219,3 +219,56 @@ counts exclude signatures, headers and transport overhead. The state-preserving
 race intentionally measures conservative invalidation without new task failure.
 False S judgments do not trigger on-unknown requests. Independently trusted
 collection and complete mediation remain deployment assumptions.
+
+## arXiv preparation (issue #304)
+
+- The byline and PDF author metadata now read Dan Itkis, MsETM. Research draft
+  labels are removed from the title, headers and metadata; the fixed date is
+  retained. The disclosure now refers to the manuscript/work. Scientific claims,
+  all experimental code/data, result values and four figures are unchanged.
+- The experimental artifact citation pins the verified research revision
+  59f324a33fe2fd04ae167e5bbd4cac0330c65c9e rather than a moving main branch.
+  Both AgentAction references link directly to that completion-assessment research
+  folder, labeled "Completion-assessment research folder" in both PDF renderings.
+  The tested production-code revision remains explicit in the reference details.
+- The deterministic ZIP contains exactly main.tex and four referenced PDF
+  figures. All 18 bibliography entries are embedded. Package validation checks
+  exact membership, source hashes, safe relative names, absence of hidden or
+  auxiliary files, complete citation resolution and matching title/abstract.
+  The abstract is ASCII and contains 1,387 characters (arXiv limit: 1,920).
+- A new empty temporary directory received only the ZIP's five files. Tectonic
+  0.17.0 compiled main.tex with only cached resources and untrusted mode, producing
+  a 22-page PDF without LaTeX warnings, overfull boxes, missing characters or
+  unresolved references. The engine is XeTeX; this is not arXiv-server validation
+  or a reproduction of its exact TeX Live installation. The guide recommends
+  XeLaTeX/TeX Live 2025 and requires inspecting the server-generated preview.
+- All 22 compiled-preview pages and all 21 updated review-PDF pages were rendered
+  and visually inspected. Page bounds, metadata, tables, figures and key numeric
+  claims pass automated checks. The compilation record binds the source ZIP and
+  preview hashes. The PDF check verifies that record and its page count; it does
+  not itself rerun TeX. CI also checks the deterministic package and saved preview.
+  The first CI run exposed a byte mismatch when packaging after Linux figure
+  regeneration. CI now validates the frozen upload files before rebuilding plots;
+  regenerated manuscript text and numbers are checked separately. Archive
+  reproducibility applies to its exact committed source/figure inputs, not to
+  cross-platform binary equivalence of newly rendered figure PDFs.
+- All four independent saved-result audits pass. Whitespace/patch checks and
+  Python compilation pass. No new experiment measurements, production changes
+  or dependency changes are introduced. Release impact: no release.
+- Manual security review covers the explicit source/figure allowlist, relative
+  paths, symlink rejection, fixed ZIP metadata, absent arbitrary input/include
+  files, no subprocess/network calls in the packager, and untrusted cached-only
+  TeX compilation. Scoped secret/private-path scanning found no credentials or
+  private paths in the release artifacts.
+- Submission metadata uses Dan Itkis (AgentAction.dev), respecting arXiv's
+  prohibition on degree suffixes in the searchable Authors field; the manuscript
+  preserves the requested credential. cs.AI with cs.SE cross-list is a category
+  recommendation. License status is explicitly pending author selection. No
+  upload, account/endorsement check, acceptance of terms or arXiv submission has
+  been performed.
+
+Preparation follows the official [TeX-source instructions](https://info.arxiv.org/help/submit_tex.html),
+[metadata rules](https://info.arxiv.org/help/prep.html),
+[processor list](https://info.arxiv.org/help/faq/texlive.html),
+[license choices](https://info.arxiv.org/help/license/index.html), and
+[endorsement guidance](https://info.arxiv.org/help/endorsement.html).
