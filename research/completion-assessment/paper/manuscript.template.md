@@ -1,10 +1,10 @@
 # Can We Trust 'Done'? Evaluating Agent Completion and Requests for Additional Evidence
 
-Dan Itkis
+Dan Itkis, MsETM
 
 AgentAction.dev
 
-Research draft - September 25, 2026
+September 25, 2026
 
 ## Abstract
 
@@ -350,7 +350,7 @@ Completion judgments depend on evidence coverage and temporal validity as well a
 
 The artifact is in the AgentAction repository under `research/completion-assessment` [@artifact]. The four result manifests hash the evaluated source and data, including the unchanged production evaluator, observation verifier, and pinned upstream retail implementation. The protocols, generators, oracles, tests, normalized case records, service table exports, row-level decisions, summaries, timings, and manuscript builder are included. Correctness requires Node.js with TypeScript stripping support and, for the service extension, Python with standard-library SQLite. The service binds only to loopback and uses temporary databases; no external provider is contacted. Correctness reruns generate fresh signing keys and challenges. Saved challenges use case-specific placeholders with recomputed head digests, enabling byte comparison but not preserving independently verifiable signed attestations. External replay uses a separate Python 3.13 environment with pinned dependencies and an unmodified upstream checkout; the standard-library audit verifies saved external results without that installation. Raw tool traces and database changes against the pinned baseline are included. Request-study records additionally preserve matched initial inputs, requests, final evidence, before/after database audits, provider responses and incremental byte/read counts. Fresh request challenges are normalized to fixed-width values for exact replay and size verification. Manuscript rendering uses pinned Python dependencies.
 
-The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this draft. It is not listed as an author. This draft has not undergone independent peer review. All evaluated records are synthetic and no customer data or production credentials are included.
+The author is affiliated with AgentAction.dev and has a direct interest in the evaluated project. AI-assisted tooling was used to inspect code and literature, implement the experimental harness, analyze outputs, and prepare this manuscript. It is not listed as an author. This work has not undergone independent peer review. All evaluated records are synthetic and no customer data or production credentials are included.
 
 ## References
 

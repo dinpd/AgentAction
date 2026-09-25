@@ -44,6 +44,7 @@ jobs:
         run: |
           python paper/build.py
           python verify_results.py --pdf
+          python paper/package_arxiv.py --check --pdf
           git diff --exit-code -- paper/manuscript.md paper/manuscript.tex paper/references.bib paper/generated-values.json
 
   external-replay:

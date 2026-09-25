@@ -1,7 +1,7 @@
 # Completion-assessment research artifact
 
 **Paper:** *Can We Trust 'Done'? Evaluating Agent Completion and Requests for
-Additional Evidence* - Dan Itkis, AgentAction.dev.
+Additional Evidence* - Dan Itkis, MsETM, AgentAction.dev.
 
 This research draft presents a completion-assessor evaluation framework with
 an emulator suite, a local persistent HTTP service, and an external retail
@@ -170,8 +170,47 @@ tectonic manuscript.tex
 ```
 
 The TeX rendering can paginate differently from the review PDF. Both contain
-the same manuscript and tables. An arXiv source bundle should use one consistent
-chosen rendering and its compiled PDF.
+the same manuscript and tables. Use the compiled arXiv preview with the source
+ZIP for submission, as described below.
+
+## Prepared arXiv submission
+
+- [Source upload ZIP](output/arxiv/agent-task-completion-arxiv-source.zip)
+- [PDF compiled from that ZIP](output/pdf/agent-task-completion-arxiv.pdf)
+- [Submission fields and upload steps](output/arxiv/SUBMISSION.md)
+- [Source package hashes](output/arxiv/manifest.json)
+
+The manuscript displays **Dan Itkis, MsETM**, AgentAction.dev, with a fixed date
+and no Research draft label. The arXiv Authors field uses **Dan Itkis
+(AgentAction.dev)** because its metadata format excludes degree suffixes.
+The metadata guide records the license status; no arXiv upload or submission
+has been performed. The experimental artifact citation pins the verified
+revision containing the complete four-study results.
+
+After rebuilding the manuscript, regenerate/check the minimal source package:
+
+```sh
+python3 paper/package_arxiv.py
+python3 paper/package_arxiv.py --check
+.venv/bin/python paper/package_arxiv.py --check --pdf
+```
+
+Only `main.tex` and its four PDF figures enter the ZIP. All 18 references are
+embedded in the source. The packager checks exact source membership, hashes,
+citation closure, ASCII metadata and the abstract-length limit, with stable
+archive ordering and timestamps. It does not require or include experiment data,
+the manuscript builder, a Python environment, compiled manuscript PDF or logs.
+The guide, metadata and manifest are intentionally outside the source upload.
+
+Compile an extraction in an otherwise empty temporary directory with
+`tectonic --only-cached --untrusted --keep-logs main.tex` after installing the
+required TeX bundle, or with XeLaTeX. The released preview was built with
+Tectonic 0.17.0 (XeTeX); this is not arXiv's TeX Live server. Inspect arXiv's
+own generated PDF during the actual submission. Recompile and reinspect the
+preview if the manuscript or figure sources change, and update the compilation
+record's archive/PDF hashes and page count. The `--pdf` check binds the saved
+preview to that record and checks text, metadata, tables, figures and page bounds;
+it does not invoke a TeX compiler. Research CI runs both package and preview checks.
 
 ## Measurements and interpretation
 

@@ -346,15 +346,14 @@ def render_pdf(text):
     assert pending is None
     doc = SimpleDocTemplate(str(OUT / "agent-task-completion.pdf"), pagesize=(612, 792),
         rightMargin=60, leftMargin=60, topMargin=49, bottomMargin=48, title=TITLE,
-        author="Dan Itkis", subject="Research draft: evidence-based agent task assessment")
+        author="Dan Itkis, MsETM", subject="Evidence-based agent task assessment")
     def page(c, d):
         c.saveState()
         c.setFont("Times-Roman", 8)
         c.setFillColor(colors.HexColor("#666666"))
         if d.page > 1:
             c.drawString(60, 765, "Can We Trust Done?")
-            c.drawRightString(552, 765, "Research draft")
-        c.drawString(60, 27, "Dan Itkis | AgentAction.dev")
+        c.drawString(60, 27, "Dan Itkis, MsETM | AgentAction.dev")
         c.drawRightString(552, 27, str(d.page))
         c.restoreState()
     doc.build(story, onFirstPage=page, onLaterPages=page,
@@ -377,9 +376,9 @@ def tex_inline(s, refs):
 def render_tex(text, refs):
     lines = [r"\documentclass[11pt]{article}", r"\usepackage[margin=0.85in]{geometry}",
              r"\usepackage[T1]{fontenc}", r"\usepackage{mathptmx,graphicx,booktabs,tabularx,array,hyperref}",
-             r"\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue}", r"\setlength{\parskip}{0.45em}",
+             r"\hypersetup{colorlinks=true,urlcolor=blue,citecolor=blue,pdfauthor={Dan Itkis, MsETM},pdftitle={" + tex_escape(TITLE) + "}}", r"\setlength{\parskip}{0.45em}",
              r"\setlength{\parindent}{0pt}", r"\title{" + tex_escape(TITLE) + "}",
-             r"\author{Dan Itkis\\AgentAction.dev}", r"\date{Research draft -- September 25, 2026}",
+             r"\author{Dan Itkis, MsETM\\AgentAction.dev}", r"\date{September 25, 2026}",
              r"\begin{document}", r"\maketitle"]
     for i, b in enumerate(blocks(text)):
         if i <= 3:

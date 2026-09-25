@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "archive": "agent-task-completion-arxiv-source.zip",
+  "archive_sha256": "934ac8542caecac58154f60f080ff360b27720f7a6424c39b0604b6038c49d90",
+  "archive_bytes": 132407,
+  "files": {
+    "figures/observation-loss.pdf": {
+      "bytes": 13208,
+      "sha256": "088808ce4f99f44df076223f64ede52552bd5377ad66f4dbd348c699c9cdff58"
+    },
+    "figures/risk-coverage.pdf": {
+      "bytes": 12790,
+      "sha256": "63497661f7af14ef58c9024dbfb05f06233e608a2dc7c23798298981ccab3b0f"
+    },
+    "figures/scenario-matrix.pdf": {
+      "bytes": 16747,
+      "sha256": "24dc02bf72d1023a443c390b86d18423fb28b60002d1bf5d0c9f0004d916ab48"
+    },
+    "figures/service-outcomes.pdf": {
+      "bytes": 12924,
+      "sha256": "11a2e13b649ce7a7d7518e66ae0cc66dc95169092327f4a60930c41e8f814d2e"
+    },
+    "main.tex": {
+      "bytes": 76104,
+      "sha256": "b14c2d0bd4a782c8345f52160502ff6789e555e25a149506d7c0fba83b633a0b"
+    }
+  },
+  "metadata_sha256": "032b48682e18a9cade03d96d7cdde6952ab57146c8b7a145570914cc3d0ddeee",
+  "experiment_artifact": "https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment",
+  "bibliography": "18 entries embedded in main.tex; no external bibliography dependency"
+}
