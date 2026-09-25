@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.42.0-rc.1 - 2026-09-25
+
+### Added
+
+- Definable preparation skills with reusable workspace versions, local customization and explicit version adoption. The company research default reads a public website and drafts product, audience, problems, search phrases, brand queries and exclusions with source references.
+- An editable research brief with explicit save/review, persisted evidence, actionable setup status and invalidation when inputs change. The reviewed brief is frozen into agent inputs for search planning and outcome assessment.
+- A bounded, credential-free public website reader with public DNS validation, same-origin navigation, size/time/page limits and no script execution.
+
+### Compatibility
+
+- Additive draft and workspace skill state; existing agents and templates need no migration. This first release supports one preparation skill per draft, with website input and named text outputs. Shared changes never update existing drafts or agents automatically.
+- Skill checks require human review; field completeness and source IDs are validated automatically. Preparation does not grant MCP permissions or execute social scans. Daily social/email orchestration remains separate work.
+- Install Python artifacts from the GitHub v0.42.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.41.2-rc.1 - 2026-09-24
 
 ### Fixed

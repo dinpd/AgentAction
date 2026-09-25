@@ -1,12 +1,13 @@
 import { object, RuntimeError, textField } from './mcp-client.ts';
 import { recipeDefinition, type RecipeDefinition } from './workspace-recipes.ts';
+import type { Preparation } from './preparation-skills.ts';
 import type { DraftFieldChecks } from './mcp-capabilities.ts';
 
 export type ToolSource = { connectionId: string; tool: string };
 export type ToolBindings = Record<string, ToolSource>;
 export type ToolRequirement = { id: string; label: string; matches: ToolSource[] };
 export type DraftJobDetails = {text:string;answers:Array<{value:string;covered:boolean}>};
-export type AgentPlan = { jobDetails?:DraftJobDetails; requiresReview?:boolean; review?:{digest:string;actor:string;at:string}; fieldChecks?: DraftFieldChecks; workspaceRecipe?: {id:string;version:number}; id: string; definition: RecipeDefinition; requirements: ToolRequirement[]; questions: string[]; setup: string; bindings: ToolBindings; createdAt: string; updatedAt: string; agentId?: string };
+export type AgentPlan = { preparation?: Preparation; jobDetails?:DraftJobDetails; requiresReview?:boolean; review?:{digest:string;actor:string;at:string}; fieldChecks?: DraftFieldChecks; workspaceRecipe?: {id:string;version:number}; id: string; definition: RecipeDefinition; requirements: ToolRequirement[]; questions: string[]; setup: string; bindings: ToolBindings; createdAt: string; updatedAt: string; agentId?: string };
 export type AvailableTool = ToolSource & { id: string; description?: string };
 
 export function draftJobDetails(value:unknown, questions:string[]): {details:DraftJobDetails;setup:string} {

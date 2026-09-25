@@ -781,7 +781,7 @@ test("workspace recipe writes require current membership, same origin and a veri
     AGENT_WORKSPACES: { getByName(name) { assert.equal(name, "workspace:acme"); return { async request(request) { writes++; assert.equal(new URL(request.url).pathname, `/${action}`); assert.equal(request.headers.get("x-runtime-role"), role); assert.equal(request.headers.get("x-runtime-actor"), "operator-123"); return json({}); } }; } },
   };
   const post = (origin = "https://console.test", tenant = "acme") => accessRequest(`/api/agents/${tenant}/${action}`, { method: "POST", headers: { origin, "content-type": "application/json", "x-agentaction-request": "agent-builder", "x-runtime-role": "owner", "x-runtime-actor": "attacker" }, body: "{}" }, { custom: {} });
-  for(action of ["save-recipe","draft","profile-agents","save-draft","template-draft","create-bound","refresh-capabilities"]) {
+  for(action of ["save-skill","configure-preparation","prepare-brief","save-brief","save-recipe","draft","profile-agents","save-draft","template-draft","create-bound","refresh-capabilities"]) {
   role="viewer"; present=true; writes=0;
   assert.equal((await worker.fetch(post(), env)).status, 403); assert.equal(writes, 0);
   for (const allowed of ["owner", "operator"]) { role = allowed; assert.equal((await worker.fetch(post(), env)).status, 200); }
