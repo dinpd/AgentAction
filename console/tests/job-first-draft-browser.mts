@@ -77,6 +77,11 @@ try {
  assert.equal(posts.some(p=>p.action==='rank-tools'),false); // comparison waits for the sources step
  assert.equal(await page.locator('#other-agent-options').getAttribute('open'),null);
  assert.equal(await page.locator('#stage-next').isVisible(),false);
+ // This suite exercises direct tool setup; website preparation has its own acceptance suite.
+ await page.locator('#setup-preparation > summary').click();
+ await page.getByText('Remove preparation',{exact:true}).click();
+ await page.getByRole('button',{name:'Remove skill from this draft',exact:true}).click();
+ await page.locator('#preparation-status').filter({hasText:'Saved. Continue below.'}).waitFor();
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();
  assert.equal(await field('boundaries').isVisible(),true);assert.equal(await page.locator('[data-rubric-criterion]').count(),2);
  assert.equal(await page.locator('#approve-draft').isDisabled(),true);
@@ -91,7 +96,7 @@ try {
  assert.ok(await page.locator('#draft-policy').evaluate(el=>el.compareDocumentPosition(document.querySelector('#agent-tools')!) & Node.DOCUMENT_POSITION_PRECEDING));
  await page.locator('[data-registry-server="research/social"]').getByRole('button',{name:'Select server & review setup',exact:true}).click();
  await page.getByRole('heading',{name:'Connect a server for Search public social media posts',exact:true}).waitFor();
- await page.locator('#recipe-return a').click();await page.locator('#draft-answer-0').waitFor();
+ await page.locator('#recipe-return a').click();if(!await page.locator('#draft-answer-0').isVisible())await page.locator('#setup-details > summary').click();await page.locator('#draft-answer-0').waitFor();
  assert.equal(await page.locator('#draft-answer-0').inputValue(),'');
  await page.locator('#draft-answer-0').fill('Reddit, last seven days');
  if(!await page.locator('#draft-policy').isVisible())await page.locator('#setup-review > summary').click();

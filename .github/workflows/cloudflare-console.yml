@@ -55,6 +55,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify preparation skills, research briefs and version adoption
+        run: node --experimental-strip-types tests/preparation-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify approval feedback and grouped run history
         run: node --experimental-strip-types tests/run-approval-browser.mts
         env:
