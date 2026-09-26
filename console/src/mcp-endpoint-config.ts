@@ -6,6 +6,6 @@ export function mcpEndpointConfig() {
     if (url.origin !== 'https://mcp.apify.com' || url.pathname !== '/' || url.username || url.password || url.hash) return;
     return /^\?tools=([a-zA-Z0-9][a-zA-Z0-9_-]{0,99}\/[a-zA-Z0-9][a-zA-Z0-9_-]{0,99})$/.exec(url.search)?.[1];
   }
-  return { apifyActor, supportedQuery: (url: URL) => !url.search || Boolean(apifyActor(url)) || (url.origin === 'https://mcp.apify.com' && url.pathname === '/' && !url.username && !url.password && !url.hash && /^\?tools=call-actor,harshmaur\/reddit-scraper,kaitoeasyapi\/twitter-x-data-tweet-scraper-pay-per-result-cheapest$/.test(url.search)) };
+  return { apifyActor, supportedQuery: (url: URL) => !url.search || Boolean(apifyActor(url)) || (url.origin === 'https://mcp.apify.com' && url.pathname === '/' && !url.username && !url.password && !url.hash && /^\?tools=call-actor,get-actor-run,get-dataset-items,harshmaur\/reddit-scraper,kaitoeasyapi\/twitter-x-data-tweet-scraper-pay-per-result-cheapest$/.test(url.search)) };
 }
 export const ENDPOINT_CONFIG_FACTORY_JS = mcpEndpointConfig.toString();

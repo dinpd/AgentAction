@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.44.2-rc.1 - 2026-09-25
+
+### Fixed
+
+- Explicitly select Apify’s run-status and dataset-reading helpers alongside the two research Actors. Initial discovery now requests the complete workflow tool set; missing tools are named in the error.
+- Failed research saves retain the operator’s inputs and show the error beside Save, so retrying does not require rebuilding the draft.
+
+### Compatibility
+
+- Backward-compatible provider configuration fix; no migration or broader workflow authority. The endpoint remains restricted to the same Apify origin and reviewed tools. A saved configuration and successful trial are still required before scheduling.
+- Install Python artifacts from the GitHub v0.44.2-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.44.1-rc.1 - 2026-09-25
 
 ### Fixed

@@ -1232,7 +1232,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         }
         await mutate('research-save',{agentId:agent.id,config:{connectionId:connection.id,topics:topics.value,queries:{reddit:reddit.value.split('\n').map(s=>s.trim()).filter(Boolean),x:x.value.split('\n').map(s=>s.trim()).filter(Boolean)},recipient:recipient.value,time:time.value,timezone:timezone.value,maxItems:Number(maxItems.value),actorCapUsd:Number(cap.value),rollingCapUsd:Number(rolling.value),freePlan:checkbox.checked}});
         await refresh();message('Research settings saved. Next: Run a trial, then approve the displayed scope in Approvals.');
-      }catch(error){status.textContent=error instanceof Error?error.message:'Settings could not be saved.';throw error;}
+      }catch(error){status.textContent=error instanceof Error?error.message:'Settings could not be saved. Review the settings and try again.';}
     },false);
     save.disabled=role!=='owner'||Boolean(config);if(config)save.textContent='Saved';
     const dirty=()=>{save.disabled=role!=='owner';save.textContent='Save research settings';section.querySelector('summary')!.textContent='Daily research · unsaved changes';};form.addEventListener('input',dirty);
