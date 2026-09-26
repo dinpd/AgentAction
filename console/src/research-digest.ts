@@ -2,6 +2,24 @@ import { boundedText, object, RuntimeError, textField, type McpTool } from './mc
 import { emailAddress } from './notifications.ts';
 
 export const RESEARCH_ACTORS = { reddit: 'harshmaur/reddit-scraper', x: 'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest' } as const;
+// Apify actor_tool_naming.ts: names over 64 characters use 59 characters + '-' + SHA-256(actor)[0:4].
+// Keep these fixed identities separate from the full Actor IDs used for endpoint selection and execution.
+export const RESEARCH_ACTOR_TOOLS = { reddit: 'harshmaur--reddit-scraper', x: 'kaitoeasyapi--twitter-x-data-tweet-scraper-pay-per-result-c-5507' } as const;
+export function researchToolContract(tool:McpTool):McpTool {
+  const schemaMaps=new Set(['properties','patternProperties','$defs','definitions','dependentSchemas']);
+  const schemaNodes=new Set(['items','prefixItems','additionalItems','additionalProperties','unevaluatedProperties','unevaluatedItems','contains','propertyNames','allOf','anyOf','oneOf','not','if','then','else','contentSchema']);
+  const annotations=new Set(['description','title','default','examples','$comment']);
+  function compact(value:any):any {
+    if(Array.isArray(value))return value.map(compact);
+    if(!value||typeof value!=='object')return value;
+    return Object.fromEntries(Object.entries(value).filter(([key])=>!annotations.has(key)).map(([key,child])=>[key,
+      schemaMaps.has(key)&&child&&typeof child==='object'?Object.fromEntries(Object.entries(child).map(([name,schema])=>[name,compact(schema)])):
+      schemaNodes.has(key)?compact(child):child]));
+  }
+  // A reference could target an annotation; retain reference-bearing schemas in full rather than change its target.
+  const inputSchema=/"\$(?:ref|dynamicRef|recursiveRef)"\s*:/.test(JSON.stringify(tool.inputSchema))?tool.inputSchema:compact(tool.inputSchema);
+  return {name:tool.name,description:'',inputSchema,...(tool.annotations?{annotations:tool.annotations}:{})};
+}
 export const RESEARCH_TOOLS = ['call-actor', 'get-actor-run', 'get-dataset-items'];
 export const RESEARCH_ENDPOINT = `https://mcp.apify.com/?tools=${RESEARCH_TOOLS.join(',')},${RESEARCH_ACTORS.reddit},${RESEARCH_ACTORS.x}`;
 export type Platform = keyof typeof RESEARCH_ACTORS;

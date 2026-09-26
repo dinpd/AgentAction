@@ -1,4 +1,4 @@
-import { RESEARCH_ACTORS, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, researchConfig, nextResearchTime, actorArguments, toolPayload, actorEvidence, sourcePosts, reportChecks, reportText, type ResearchDefinition, type ResearchRun } from './research-digest.ts';
+import { RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, researchConfig, nextResearchTime, actorArguments, toolPayload, actorEvidence, sourcePosts, reportChecks, reportText, type ResearchDefinition, type ResearchRun } from './research-digest.ts';
 import { COMPANY_SKILL, PREPARATION_PROMPT, preparationSchema, preparationDefinition, websiteURL, suggestedWebsite, briefFields, readResearchWebsite, type WorkspaceSkill } from './preparation-skills.ts';
 import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
@@ -771,7 +771,7 @@ export class AgentRuntime {
       await this.reports.ready(config.recipient);
       // Validate both provider input schemas before any execution can be approved.
       const pricing={x:'',reddit:''};
-      for(const platform of ['x','reddit'] as const){pricing[platform]=await this.clean(await researchPricing(platform,config.actorCapUsd,this.fetcher));const args=actorArguments(config,platform,now());validateArguments(tools.find(t=>t.name===RESEARCH_ACTORS[platform].replace('/','--'))!,args.input);validateArguments(tools.find(t=>t.name==='call-actor')!,args);}
+      for(const platform of ['x','reddit'] as const){pricing[platform]=await this.clean(await researchPricing(platform,config.actorCapUsd,this.fetcher));const args=actorArguments(config,platform,now());validateArguments(tools.find(t=>t.name===RESEARCH_ACTOR_TOOLS[platform])!,args.input);validateArguments(tools.find(t=>t.name==='call-actor')!,args);}
       const digest=await evidenceDigest({config,tools});
       agent.research={config,tools,pricing,digest};agent.status='draft';delete agent.nextRun;delete agent.lastTrial;
       await this.cancelPending(agent.id);await this.storage.put(`agent:${agent.id}`,agent);await this.reschedule();return {saved:true};
@@ -780,13 +780,13 @@ export class AgentRuntime {
   }
   private researchTools(connection:Connection):McpTool[]{
     if(connection.status!=='connected'||connection.endpoint!==RESEARCH_ENDPOINT)throw new RuntimeError('Connect the reviewed X and Reddit research tools first.',409);
-    const names=[...RESEARCH_TOOLS,...Object.values(RESEARCH_ACTORS).map(s=>s.replace('/','--'))];
+    const names=[...RESEARCH_TOOLS,...Object.values(RESEARCH_ACTOR_TOOLS)];
     const tools=names.map(name=>connection.tools.find(t=>t.name===name));
     const missing=names.filter((_,i)=>!tools[i]);
     if(missing.length)throw new RuntimeError(`Apify did not expose required research tools: ${missing.join(', ')}. Reconnect the research tool set; no Actor was started.`,409);
     const properties=object(tools.find(t=>t?.name==='call-actor')!.inputSchema.properties||{});
     if(!properties.callOptions)throw new RuntimeError('This Apify MCP version does not expose billing caps. Update the provider before running.',409);
-    const pinned=(tools as McpTool[]).map(t=>({name:t.name,description:'',inputSchema:t.inputSchema,...(t.annotations?{annotations:t.annotations}:{})}));
+    const pinned=(tools as McpTool[]).map(researchToolContract);
     if(new TextEncoder().encode(JSON.stringify(pinned)).length>24000)throw new RuntimeError('Research tool inputs exceed the frozen evidence budget. Use narrower provider schemas.',409);
     return pinned;
   }
@@ -861,14 +861,14 @@ export class AgentRuntime {
       for(const saved of research.definition.tools){
         const current=live.find(t=>t.name===saved.name);
         // Apify derives output schemas from changing datasets. Pin action inputs and authority metadata; validate observed output independently.
-        const contract=(t:McpTool|undefined)=>t&&{name:t.name,inputSchema:t.inputSchema,annotations:t.annotations};
+        const contract=(t:McpTool|undefined)=>t&&researchToolContract(t);
         if(canonical(contract(saved))!==canonical(contract(current)))throw new RuntimeError('Research tool inputs or authority changed. Refresh capabilities and review a new trial.',409);
       }
       const name=source.stage==='ready'?'call-actor':source.stage==='reading'?'get-dataset-items':'get-actor-run';
       if(name==='get-actor-run'&&source.polls>=8)throw new RuntimeError('Provider did not complete within eight status checks.');
       const args=name==='call-actor'?actorArguments(config,source.platform,run.startedAt):name==='get-actor-run'?{runId:source.runId,waitSecs:0}:{datasetId:source.datasetId,limit:config.maxItems,offset:0,clean:true,fields:'id,url,postUrl,permalink,twitterUrl,title,text,body,selftext,createdAt,createdUtc,created_utc,created,timestamp'};
       validateArguments(live.find(t=>t.name===name)!,args);
-      if(name==='call-actor'){await researchPricing(source.platform,config.actorCapUsd,this.fetcher);validateArguments(live.find(t=>t.name===RESEARCH_ACTORS[source.platform].replace('/','--'))!,object((args as Record<string,unknown>).input));source.stage='starting';}
+      if(name==='call-actor'){await researchPricing(source.platform,config.actorCapUsd,this.fetcher);validateArguments(live.find(t=>t.name===RESEARCH_ACTOR_TOOLS[source.platform])!,object((args as Record<string,unknown>).input));source.stage='starting';}
       event={tool:name,source:{connectionId:connection.id,tool:name},arguments:args,status:'executing',approval:research.approval};run.events.push(event);
       // Persist the uncertain boundary before external I/O. Only status/dataset reads are safe to resume after a crash.
       await this.saveRun(run);
