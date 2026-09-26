@@ -1,0 +1,296 @@
+{
+  "title": "Input schema for Reddit Scraper Pro",
+  "description": "Scrape Reddit posts, comments, communities, and user profiles. Use Search Keywords to find content by topic, or provide Direct URLs to scrape specific pages. Both can be used together \u2014 results are combined.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "searchTerms": {
+      "title": "Search Keywords",
+      "description": "Enter one or more keywords to search Reddit (e.g. \"best laptops 2025\", \"AI news\"). Each keyword runs as a separate search. Free Apify plans search the first 40 keywords per run (paid plans are unlimited) \u2014 extra keywords are skipped and noted in the run log. Leave empty if you only want to scrape Direct URLs below.",
+      "type": "array",
+      "default": []
+    },
+    "searchPosts": {
+      "title": "Search for posts",
+      "description": "Include posts in keyword search results.",
+      "type": "boolean",
+      "default": true
+    },
+    "searchComments": {
+      "title": "Search for comments",
+      "description": "Include comments in keyword search results.",
+      "type": "boolean",
+      "default": false
+    },
+    "searchCommunities": {
+      "title": "Search for communities",
+      "description": "Include communities (subreddits) in keyword search results.",
+      "type": "boolean",
+      "default": false
+    },
+    "withinCommunity": {
+      "title": "Limit search to ONE community",
+      "description": "Restrict keyword search to a single subreddit. Accepts a bare name (developers), r/developers, or a full subreddit URL. Leave empty to search all of Reddit. Only applies to Search Keywords.",
+      "type": "string",
+      "default": ""
+    },
+    "searchSort": {
+      "title": "Sort search results by",
+      "description": "Controls how keyword search results are ranked. Only applies to Search Keywords, not Direct URLs.",
+      "type": "string",
+      "enum": [
+        "relevance",
+        "hot",
+        "top",
+        "new",
+        "comments"
+      ],
+      "default": "new",
+      "prefill": "new"
+    },
+    "searchTime": {
+      "title": "Time range",
+      "description": "Limit keyword search results to posts from a specific time window. Only applies to Search Keywords.",
+      "type": "string",
+      "enum": [
+        "all",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "year"
+      ],
+      "default": "all",
+      "prefill": "all"
+    },
+    "startUrls": {
+      "title": "Reddit URLs \u2014 posts, comments, profiles, or search pages",
+      "description": "Add one or more Reddit URLs to scrape directly. Supports post URLs, subreddit URLs, user profile URLs, and search page URLs. The Search Keywords options above (sort, time, community filter) do NOT apply to these URLs.",
+      "type": "array",
+      "default": [],
+      "prefill": [
+        {
+          "url": "https://www.reddit.com/r/generativeAI/comments/1l64st7/have_we_reached_a_point_where_aigenerated_video/"
+        }
+      ]
+    },
+    "fastMode": {
+      "title": "Fast mode for search page URLs (turning off needs 2048 MB)",
+      "description": "Speeds up scraping of search page URLs at the cost of some accuracy \u2014 some posts may be missed. Disable if you need exact results matching what you see on Reddit. Search Keywords always use fast mode automatically.",
+      "type": "boolean",
+      "default": true
+    },
+    "subredditUrls": {
+      "title": "Subreddits \u2014 names or community links only (not post links)",
+      "description": "Subreddits to scrape in full. Enter subreddit names or links \u2014 e.g. `AskReddit`, `r/AskReddit`, or `https://www.reddit.com/r/AskReddit/`. This collects far more posts per subreddit than a standard scrape. It uses more requests, so runs take longer and cost more. Comments are also collected when 'Scrape comments for each post' is enabled \u2014 increase Max posts to allow more results per subreddit.",
+      "type": "array",
+      "default": []
+    },
+    "aiAnalysis": {
+      "title": "AI Analysis \u2014 sentiment, intent, emotion, entities, content category",
+      "description": "Adds AI-judged fields to posts and comments: `sentimentLabel` (positive / negative / neutral / mixed / uncertain), `sentimentScore` (-1 to 1), `intent` (question, seeking_recommendation, complaint, praise, purchase_intent, comparison, announcement, self_promotion, discussion), `emotion` (joy, excitement, anger, frustration, sadness, disappointment, fear, surprise, neutral), `entities` (brands, products and companies mentioned), and \u2014 for keyword-search results \u2014 `relevanceScore` (0 to 1).\n\n[Description truncated]",
+      "type": "boolean",
+      "default": false
+    },
+    "wantsHelp": {
+      "title": "Asking for a tool, recommendation, or someone to help",
+      "description": "Adds `aiFlags.wantsHelp` (true/false) to every analyzed post and comment: true when the author is looking for a product, service, or person to solve their problem \u2014 the classic lead signal. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "isOwner": {
+      "title": "Author owns or runs a business",
+      "description": "Adds `aiFlags.isOwner` (true/false) to every analyzed post and comment: true when the author founded, owns, or operates a business (not a customer or employee). Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "isVendor": {
+      "title": "Author is promoting their own product",
+      "description": "Adds `aiFlags.isVendor` (true/false) to every analyzed post and comment: true when the author is selling, promoting, or recruiting testers for their own product or service. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "hasPain": {
+      "title": "Describes a problem, complaint, or something that failed",
+      "description": "Adds `aiFlags.hasPain` (true/false) to every analyzed post and comment: true when the author describes a problem, a failed tool, or something not working. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "mentionsPrice": {
+      "title": "Mentions price, fees, or money spent",
+      "description": "Adds `aiFlags.mentionsPrice` (true/false) to every analyzed post and comment: true when the text mentions a price, fee, retainer, subscription cost, or money spent. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "featureRequest": {
+      "title": "Wishes for a missing feature or product",
+      "description": "Adds `aiFlags.featureRequest` (true/false) to every analyzed post and comment: true when the author asks for or describes a feature or product that does not exist yet. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "willingToPay": {
+      "title": "Mentions a budget or willingness to pay",
+      "description": "Adds `aiFlags.willingToPay` (true/false) to every analyzed post and comment: true when the author names a budget, asks for a quote, or says they would pay. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "painPoint": {
+      "title": "Extract the specific problem or frustration (short phrase)",
+      "description": "Adds `aiFlags.painPoint` (text) to every analyzed post and comment: the problem or unmet need in under 15 words, or none. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "competitor": {
+      "title": "Extract the competing product or brand named",
+      "description": "Adds `aiFlags.competitor` (text) to every analyzed post and comment: the competing product, brand, or tool mentioned, or none. Billed as one `custom_label` event per result ($0.10 per 1,000).",
+      "type": "boolean",
+      "default": false
+    },
+    "postedAfter": {
+      "title": "Posts created on or after (YYYY-MM-DD)",
+      "description": "Only keep posts created on or after this date (interpreted as 00:00 UTC). When set, results are fetched newest-first (sort=new) and the search Time range is ignored. Reddit caps each listing at ~1,000 posts, so a window behind a very high-volume query may be only partly reachable. Applies to Search Keywords, subreddit URLs, the Full Subreddit Scrape, and user profiles.",
+      "type": "string"
+    },
+    "postedBefore": {
+      "title": "Posts created on or before (YYYY-MM-DD)",
+      "description": "Only keep posts created on or before this date (interpreted as the end of that day, 23:59:59 UTC).",
+      "type": "string"
+    },
+    "commentedAfter": {
+      "title": "Comments created on or after (YYYY-MM-DD)",
+      "description": "Only keep comments created on or after this date (UTC). Applies when comments are collected (comment search, or 'Scrape comments for each post').",
+      "type": "string"
+    },
+    "commentedBefore": {
+      "title": "Comments created on or before (YYYY-MM-DD)",
+      "description": "Only keep comments created on or before this date (UTC).",
+      "type": "string"
+    },
+    "onlyWithFlair": {
+      "title": "Only posts that have a flair",
+      "description": "When enabled, drop posts with no flair and keep only those that have a flair assigned. Applies to Search Keywords, subreddit URLs, the Full Subreddit Scrape, and user profiles.",
+      "type": "boolean",
+      "default": false
+    },
+    "crawlCommentsPerPost": {
+      "title": "Scrape comments for each post (slower, much more data)",
+      "description": "When enabled, comments will be collected for every post found from both Search Keywords and Direct URLs. This significantly increases run time and data output.",
+      "type": "boolean",
+      "default": false
+    },
+    "includeNSFW": {
+      "title": "Include NSFW (18+) content",
+      "description": "Include posts marked as Not Safe For Work in results. Applies to both Search Keywords and Direct URLs.",
+      "type": "boolean",
+      "default": false
+    },
+    "maxPostsCount": {
+      "title": "Max posts (total across all inputs)",
+      "description": "Maximum number of posts to save across all search results, subreddit pages, and user profiles. To pull an entire subreddit, use the Full Subreddit Scrape input and raise this limit. Max: 50000.",
+      "type": "integer",
+      "default": 50,
+      "prefill": 50
+    },
+    "maxCommentsCount": {
+      "title": "Max search comments (keyword search only)",
+      "description": "Maximum comments returned per search keyword (when 'Search for comments' is enabled). Does not affect per-post comment scraping.",
+      "type": "integer",
+      "default": 400,
+      "prefill": 400
+    },
+    "maxCommentsPerPost": {
+      "title": "Max comments per post",
+      "description": "Maximum comments to scrape per individual post (when 'Scrape comments for each post' is enabled).",
+      "type": "integer",
+      "default": 200,
+      "prefill": 200
+    },
+    "maxCommunitiesCount": {
+      "title": "Max communities",
+      "description": "Maximum communities returned from keyword search (when 'Search for communities' is enabled).",
+      "type": "integer",
+      "default": 2,
+      "prefill": 2
+    },
+    "customLabels": {
+      "title": "Custom AI labels \u2014 write your own questions (JSON, up to 5)",
+      "description": "Define your own labels as `{\"label_name\": \"plain-language instruction\"}` and the AI evaluates each one on every analyzed post and comment, returning them under `customLabels` on each result. Example: `{\"mentions_pricing\": \"true if the text complains about pricing or cost\", \"competitor\": \"name the competing product mentioned, or none\"}`. Up to 5 labels; names must be short identifiers (letters, digits, underscore). The AI flag checkboxes above do not count against this cap.\n\n[Description truncated]",
+      "type": "object",
+      "default": {}
+    },
+    "mcpConnector": {
+      "title": "Send results to an app (MCP connector)",
+      "description": "Pick an authorized MCP connector (Slack, Notion, GitHub, Airtable, Supabase, \u2026) to receive the scraped posts. This is the recommended, secure path \u2014 your credentials stay in Apify and are never exposed to this actor (Apify's proxy injects them). Leave empty to scrape only. Create connectors under Settings \u2192 API & Integrations \u2192 MCP connectors, or inline here.",
+      "type": "string"
+    },
+    "mcpMode": {
+      "title": "Delivery mode",
+      "description": "perPost: send one message/record per scraped post. summary: send a single digest of the whole run.",
+      "type": "string",
+      "enum": [
+        "perPost",
+        "summary"
+      ],
+      "default": "perPost",
+      "prefill": "perPost"
+    },
+    "mcpTarget": {
+      "title": "Target page / database / repo",
+      "description": "Where to write \u2014 the destination ID the tool needs: a Notion database/page ID, a Google Sheet ID, a Slack channel, or owner/repo. Leave blank for connectors that post to a default location. Advanced shapes go in Arguments JSON below.",
+      "type": "string"
+    },
+    "mcpComments": {
+      "title": "How to deliver comments",
+      "description": "When 'Scrape comments for each post' is on, choose how comments reach your app. Ignore: send posts only (comments still saved to the dataset). Bundle: attach each post's top comments inside its message. Separate: send each top comment as its own message/record.",
+      "type": "string",
+      "enum": [
+        "ignore",
+        "bundle",
+        "separate"
+      ],
+      "default": "ignore",
+      "prefill": "ignore"
+    },
+    "mcpCommentsPerPost": {
+      "title": "Top comments per post",
+      "description": "How many top comments (by score) to include per post when bundling or sending comments. Requires 'Scrape comments for each post'.",
+      "type": "integer",
+      "default": 5,
+      "prefill": 5
+    },
+    "mcpMessage": {
+      "title": "Message template",
+      "description": "Template for each message. Use {{field}} placeholders from ANY post field \u2014 common ones: {{title}}, {{body}}, {{postUrl}}, {{authorName}}, {{score}}, {{upVotes}}, {{commentsCount}}, {{communityName}}, {{flair}}, {{createdAt}}. Nested/array fields work via dot or [index] paths: {{mediaAssets.0.url}}, {{galleryImages[0]}}, {{media.reddit_video.fallback_url}}. (Full field list in the README.) Missing fields render empty.",
+      "type": "string",
+      "default": "**{{title}}**\n{{postUrl}}",
+      "prefill": "**{{title}}**\n{{postUrl}}"
+    },
+    "mcpTool": {
+      "title": "Tool override (advanced)",
+      "description": "Force a specific tool name on the connector (e.g. send_message, create_page, append_row). Leave empty to auto-detect the connector's write/notify tool.",
+      "type": "string"
+    },
+    "mcpArguments": {
+      "title": "Tool arguments override (advanced)",
+      "description": "Extra/override arguments merged into each tool call as JSON \u2014 e.g. {\"channel\": \"#reddit\"} for Slack. {{field}} placeholders work inside string values too, so you can nest live data into any shape the tool needs \u2014 e.g. Notion: {\"properties\": {\"Title\": {\"title\": [{\"text\": {\"content\": \"{{title}}\"}}]}, \"Link\": {\"url\": \"{{postUrl}}\"}}}. Use it to satisfy required fields or fully control the payload.",
+      "type": "object"
+    },
+    "mcpMaxItems": {
+      "title": "Max posts to send",
+      "description": "Safety cap on how many posts are piped to the connector per run (perPost mode). Protects against flooding the destination.",
+      "type": "integer",
+      "default": 50,
+      "prefill": 50
+    },
+    "mcpServerUrl": {
+      "title": "MCP server URL (dev / diagnostic)",
+      "description": "Advanced/testing only. Connect directly to a raw MCP server URL, bypassing the MCP Connector above. For real use prefer a connector \u2014 with a connector your credentials stay in Apify and are never seen by this actor. When set, this overrides the connector.",
+      "type": "string"
+    },
+    "mcpServerToken": {
+      "title": "MCP server token (dev / diagnostic)",
+      "description": "Bearer token for the dev MCP server URL above. Note: a token entered here IS visible to the actor at runtime \u2014 for production use an MCP Connector instead, so credentials never leave Apify. Ignored unless the URL is set.",
+      "type": "string"
+    }
+  }
+}

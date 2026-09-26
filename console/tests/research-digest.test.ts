@@ -1,8 +1,10 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { AgentRuntime, type RuntimeStorage, type Agent, type Run, type Connection } from '../src/agent-runtime.ts';
-import { researchConfig, nextResearchTime, sourcePosts, RESEARCH_ACTORS, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, actorArguments, type SourceProgress } from '../src/research-digest.ts';
-import { type McpTool, parseEndpointURL } from '../src/mcp-client.ts';
+import { researchConfig, nextResearchTime, sourcePosts, RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, actorArguments, type SourceProgress } from '../src/research-digest.ts';
+import { type McpTool, parseEndpointURL, validateArguments } from '../src/mcp-client.ts';
 const config={connectionId:'apify',topics:'Retirement planning tools and brand mentions; exclude generic promotions.',queries:{x:['Example','retirement planning'],reddit:['Example','retirement planning']},recipient:'reports@example.com',time:'08:00',timezone:'America/Los_Angeles',maxItems:20,actorCapUsd:0.05,rollingCapUsd:4,freePlan:true};
 class Storage implements RuntimeStorage {
  data=new Map<string,unknown>();alarm?:number;
@@ -16,7 +18,7 @@ const schemas:McpTool[]=[
  {name:'call-actor',description:'Start',inputSchema:{type:'object',properties:{actor:{type:'string'},input:{type:'object'},waitSecs:{type:'integer'},callOptions:{type:'object',properties:{maxTotalChargeUsd:{type:'number'}}}},required:['actor','input','callOptions']}},
  {name:'get-actor-run',description:'Status',inputSchema:{type:'object',properties:{runId:{type:'string'},waitSecs:{type:'integer'}},required:['runId']}},
  {name:'get-dataset-items',description:'Rows',inputSchema:{type:'object',properties:{datasetId:{type:'string'},limit:{type:'integer'}},required:['datasetId','limit']}},
- ...Object.values(RESEARCH_ACTORS).map(name=>({name:name.replace('/','--'),description:'Actor',inputSchema:{type:'object'}}))
+ ...(['reddit','x'] as const).map(platform=>({name:RESEARCH_ACTOR_TOOLS[platform],description:'Actor',inputSchema:JSON.parse(readFileSync(new URL('./fixtures/apify-research/'+platform+'-input.json',import.meta.url),'utf8'))}))
 ];
 const pricing={data:{pricingInfos:[{startedAt:'2020-01-01',pricingModel:'PAY_PER_EVENT',pricingPerEvent:{actorChargeEvents:{result:{eventTitle:'Result',eventPriceUsd:0.001}}}}]}};
 async function harness(){
@@ -31,7 +33,7 @@ async function harness(){
   const msg=JSON.parse(init.body);let result:any;
   if(msg.method==='notifications/initialized')return new Response(null,{status:202});
   if(msg.method==='initialize')result={protocolVersion:'2025-03-26',capabilities:{tools:{}}};
-  if(msg.method==='tools/list')result={tools:schemas.filter(t=>t.name!==missingTool&&new URL(String(input)).searchParams.get('tools')!.split(',').some(selector=>selector.replace('/','--')===t.name)).map(t=>({...t,...(outputChanged?{outputSchema:{type:'object',description:'changing sample'}}:{}),...(changed&&t.name==='call-actor'?{inputSchema:{type:'object',required:['another']}}:{})}))};
+  if(msg.method==='tools/list')result={tools:schemas.filter(t=>t.name!==missingTool&&new URL(String(input)).searchParams.get('tools')!.split(',').some(selector=>(selector===RESEARCH_ACTORS.x?RESEARCH_ACTOR_TOOLS.x:selector.replace('/','--'))===t.name)).map(t=>({...t,...(outputChanged?{outputSchema:{type:'object',description:'changing sample'}}:{}),...(changed&&t.name==='call-actor'?{inputSchema:{type:'object',required:['another']}}:{})}))};
   if(msg.method==='tools/call'){
    calls.push(msg.params);const p=msg.params;
    if(networkFailure&&p.name==='call-actor')throw new Error('timeout SECRET-TOKEN');
@@ -121,4 +123,21 @@ test('initial Apify connection selects every helper required for polling and res
  h.omitTool('');const connected=await h.request('research-connect',{connectionId:'apify',reviewed:true});assert.equal(connected.status,200,JSON.stringify(connected.body));
  const saved=await h.request('research-save',{agentId:'agent',config:{...config,connectionId:connected.body.connectionId}});assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(h.calls.length,0);
  assert.throws(()=>parseEndpointURL(RESEARCH_ENDPOINT.replace('get-actor-run,','')));
+});
+
+test('fixed Actor names match Apify normalization and compact real schemas preserve validation',()=>{
+ const full=RESEARCH_ACTORS.x.replace('/','--');assert.ok(full.length>64);
+ assert.equal(RESEARCH_ACTOR_TOOLS.x,full.slice(0,59)+'-'+createHash('sha256').update(RESEARCH_ACTORS.x).digest('hex').slice(0,4));
+ assert.ok(JSON.stringify(schemas.map(researchToolContract)).length<24000);
+ for(const platform of ['x','reddit'] as const){
+  const tool=schemas.find(t=>t.name===RESEARCH_ACTOR_TOOLS[platform])!,compact=researchToolContract(tool),args=actorArguments(researchConfig(config),platform,new Date().toISOString()).input;
+  validateArguments(tool,args);validateArguments(compact,args);
+ }
+ const x=researchToolContract(schemas.find(t=>t.name===RESEARCH_ACTOR_TOOLS.x)!);
+ assert.throws(()=>validateArguments(x,{}));assert.throws(()=>validateArguments(x,{maxItems:20,queryType:'Unknown'}));
+ const unusual:McpTool={name:'test',description:'',inputSchema:{type:'object',description:'Long prose',properties:{description:{type:'string',enum:['allowed'],description:'Help'},payload:{const:{description:'keep',title:'literal'}}},required:['description','payload']}};
+ const compact=researchToolContract(unusual);assert.equal(compact.inputSchema.description,undefined);
+ validateArguments(compact,{description:'allowed',payload:{description:'keep',title:'literal'}});assert.throws(()=>validateArguments(compact,{description:'invalid',payload:{description:'keep',title:'literal'}}));
+ const changed=structuredClone(unusual);changed.inputSchema.description='Updated help';assert.deepEqual(researchToolContract(changed),compact);
+ const referenced:McpTool={name:'ref',description:'',inputSchema:{$ref:'#/$defs/example',$defs:{example:{type:'string',description:'Keep reference document intact'}}}};assert.deepEqual(researchToolContract(referenced).inputSchema,referenced.inputSchema);
 });

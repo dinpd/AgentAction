@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.44.3-rc.1 - 2026-09-25
+
+### Fixed
+
+- Recognize Apify’s exact shortened tool name for the long X research Actor while retaining its full execution identity.
+- Freeze validation rules without descriptive schema annotations for the fixed research workflow, allowing current provider schemas to fit the evidence budget. Required fields, constraints, literal data, authority annotations and the size limit are preserved; reference-bearing schemas remain intact.
+
+### Compatibility
+
+- Backward-compatible provider compatibility fix with no migration or new tool authority. Live execution still validates against current provider input schemas and blocks validation-rule or authority changes.
+- Install Python artifacts from the GitHub v0.44.3-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.44.2-rc.1 - 2026-09-25
 
 ### Fixed
