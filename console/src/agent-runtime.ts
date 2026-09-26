@@ -1,4 +1,4 @@
-import { RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, researchConfig, nextResearchTime, actorArguments, toolPayload, actorEvidence, sourcePosts, reportChecks, reportText, type ResearchDefinition, type ResearchRun } from './research-digest.ts';
+import { RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, researchConfig, actorChargeCap, nextResearchTime, actorArguments, toolPayload, actorEvidence, sourcePosts, reportChecks, reportText, type ResearchDefinition, type ResearchRun } from './research-digest.ts';
 import { COMPANY_SKILL, PREPARATION_PROMPT, preparationSchema, preparationDefinition, websiteURL, suggestedWebsite, briefFields, readResearchWebsite, type WorkspaceSkill } from './preparation-skills.ts';
 import { OAuthFailure, WorkspaceOAuth, oauthProviders, type OAuthEnv, type OAuthConnection } from './mcp-oauth.ts';
 import { agentIdeas, PROFILER_PROMPT } from './agent-profiler.ts';
@@ -771,7 +771,7 @@ export class AgentRuntime {
       await this.reports.ready(config.recipient);
       // Validate both provider input schemas before any execution can be approved.
       const pricing={x:'',reddit:''};
-      for(const platform of ['x','reddit'] as const){pricing[platform]=await this.clean(await researchPricing(platform,config.actorCapUsd,this.fetcher));const args=actorArguments(config,platform,now());validateArguments(tools.find(t=>t.name===RESEARCH_ACTOR_TOOLS[platform])!,args.input);validateArguments(tools.find(t=>t.name==='call-actor')!,args);}
+      for(const platform of ['x','reddit'] as const){pricing[platform]=await this.clean(await researchPricing(platform,actorChargeCap(config,platform),this.fetcher));const args=actorArguments(config,platform,now());validateArguments(tools.find(t=>t.name===RESEARCH_ACTOR_TOOLS[platform])!,args.input);validateArguments(tools.find(t=>t.name==='call-actor')!,args);}
       const digest=await evidenceDigest({config,tools});
       agent.research={config,tools,pricing,digest};agent.status='draft';delete agent.nextRun;delete agent.lastTrial;
       await this.cancelPending(agent.id);await this.storage.put(`agent:${agent.id}`,agent);await this.reschedule();return {saved:true};
@@ -819,9 +819,9 @@ export class AgentRuntime {
     if(agent.research?.digest!==research.definition.digest)throw new RuntimeError('Research configuration changed. Review a fresh trial.',409);
     await this.reports.ready(c.recipient);
     const ledger=(await this.storage.get<Array<{at:number;amount:number}>>('research-budget')||[]).filter(e=>e.at>Date.now()-31*86400000);
-    if(ledger.reduce((sum,e)=>sum+e.amount,0)+2*c.actorCapUsd>c.rollingCapUsd+0.000001)throw new RuntimeError('The rolling 31-day research reservation limit is exhausted. No Actor was started.',429);
+    if(ledger.reduce((sum,e)=>sum+e.amount,0)+(c.actorCapUsd+actorChargeCap(c,'x'))>c.rollingCapUsd+0.000001)throw new RuntimeError('The rolling 31-day research reservation limit is exhausted. No Actor was started.',429);
     // Reserve the full upper bound, including failed/uncertain starts. Never refund on an ambiguous provider response.
-    ledger.push({at:Date.now(),amount:2*c.actorCapUsd});await this.storage.put('research-budget',ledger);
+    ledger.push({at:Date.now(),amount:(c.actorCapUsd+actorChargeCap(c,'x'))});await this.storage.put('research-budget',ledger);
     run.startedAt=now();research.reserved=true;research.approval={id:run.pending!.id,actor,at:now()};research.deadline=Date.now()+900000;research.due=Date.now()+1000;
     delete run.pending;run.status='executing';await this.saveRun(run);await this.reschedule();
   }
@@ -868,7 +868,7 @@ export class AgentRuntime {
       if(name==='get-actor-run'&&source.polls>=8)throw new RuntimeError('Provider did not complete within eight status checks.');
       const args=name==='call-actor'?actorArguments(config,source.platform,run.startedAt):name==='get-actor-run'?{runId:source.runId,waitSecs:0}:{datasetId:source.datasetId,limit:config.maxItems,offset:0,clean:true,fields:'id,url,postUrl,permalink,twitterUrl,title,text,body,selftext,createdAt,createdUtc,created_utc,created,timestamp'};
       validateArguments(live.find(t=>t.name===name)!,args);
-      if(name==='call-actor'){await researchPricing(source.platform,config.actorCapUsd,this.fetcher);validateArguments(live.find(t=>t.name===RESEARCH_ACTOR_TOOLS[source.platform])!,object((args as Record<string,unknown>).input));source.stage='starting';}
+      if(name==='call-actor'){await researchPricing(source.platform,actorChargeCap(config,source.platform),this.fetcher);validateArguments(live.find(t=>t.name===RESEARCH_ACTOR_TOOLS[source.platform])!,object((args as Record<string,unknown>).input));source.stage='starting';}
       event={tool:name,source:{connectionId:connection.id,tool:name},arguments:args,status:'executing',approval:research.approval};run.events.push(event);
       // Persist the uncertain boundary before external I/O. Only status/dataset reads are safe to resume after a crash.
       await this.saveRun(run);
@@ -887,7 +887,7 @@ export class AgentRuntime {
         if(evidence.status==='SUCCEEDED'){
           const usage=object(object(result._meta||{})['com.apify/ActorRun']||{}).usageTotalUsd;
           if(typeof usage==='number'&&Number.isFinite(usage)&&usage>=0)source.usageUsd=usage;
-          if(source.usageUsd!==undefined&&source.usageUsd>config.actorCapUsd+0.000001)throw new RuntimeError('Provider-reported Actor charge exceeded the reviewed cap. Research is paused; inspect Apify billing.',409);
+          if(source.usageUsd!==undefined&&source.usageUsd>actorChargeCap(config,source.platform)+0.000001)throw new RuntimeError('Provider-reported Actor charge exceeded the reviewed cap. Research is paused; inspect Apify billing.',409);
           if(!source.datasetId)throw new RuntimeError('Completed Actor did not expose a dataset.');source.stage='reading';
         }else if(['READY','RUNNING','TIMING-OUT','ABORTING'].includes(evidence.status))source.stage='waiting';
         else throw new RuntimeError(`Actor ended with ${/^[A-Z-]{1,30}$/.test(evidence.status)?evidence.status:'an unrecognized status'}. Search coverage is unavailable.`);

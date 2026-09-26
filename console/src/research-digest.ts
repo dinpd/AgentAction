@@ -23,7 +23,7 @@ export function researchToolContract(tool:McpTool):McpTool {
 export const RESEARCH_TOOLS = ['call-actor', 'get-actor-run', 'get-dataset-items'];
 export const RESEARCH_ENDPOINT = `https://mcp.apify.com/?tools=${RESEARCH_TOOLS.join(',')},${RESEARCH_ACTORS.reddit},${RESEARCH_ACTORS.x}`;
 export type Platform = keyof typeof RESEARCH_ACTORS;
-export type ResearchConfig = { connectionId: string; topics: string; queries: Record<Platform,string[]>; recipient: string; time: string; timezone: string; maxItems: number; actorCapUsd: number; rollingCapUsd: number; freePlan: true };
+export type ResearchConfig = { connectionId: string; topics: string; queries: Record<Platform,string[]>; recipient: string; time: string; secondTime?: string; timezone: string; maxItems: number; actorCapUsd: number; xActorCapUsd?: number; rollingCapUsd: number; freePlan: true };
 export type ResearchDefinition = { config: ResearchConfig; tools: McpTool[]; pricing?: Record<Platform,string>; digest: string; approved?: { actor: string; at: string; digest: string } };
 export type Post = { platform: Platform; url: string; at: string; text: string; reason?: string };
 export type SourceProgress = { platform: Platform; stage: 'ready'|'starting'|'waiting'|'reading'|'done'|'unavailable'; runId?: string; datasetId?: string; usageUsd?: number; polls: number; received: number; invalid: number; outsideWindow: number; duplicates: number; total?: number; gap?: string; posts: Post[] };
@@ -43,21 +43,27 @@ export function researchConfig(raw: unknown): ResearchConfig {
   const timezone=textField(v.timezone,'timezone',80);
   try { new Intl.DateTimeFormat('en-US',{timeZone:timezone}).format(); } catch { throw new RuntimeError('Use an IANA timezone such as America/Los_Angeles.'); }
   if(typeof v.time!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(v.time))throw new RuntimeError('Choose a delivery time in HH:MM format.');
+  const secondTime=v.secondTime===undefined||v.secondTime===''?undefined:v.secondTime;
+  if(secondTime!==undefined&&(typeof secondTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(secondTime)||secondTime===v.time))throw new RuntimeError('Choose a different second scan time in HH:MM format, or leave it blank for once daily.');
   if(!Number.isInteger(v.maxItems)||Number(v.maxItems)<5||Number(v.maxItems)>20)throw new RuntimeError('Retrieve 5–20 posts per platform.');
   if(typeof v.actorCapUsd!=='number'||!Number.isFinite(v.actorCapUsd)||v.actorCapUsd<0.01||v.actorCapUsd>0.05)throw new RuntimeError('The free-plan workflow permits $0.01–$0.05 per Actor start.');
-  if(typeof v.rollingCapUsd!=='number'||!Number.isFinite(v.rollingCapUsd)||v.rollingCapUsd<2*v.actorCapUsd||v.rollingCapUsd>4)throw new RuntimeError('Choose a rolling 31-day reservation limit up to $4.');
+  const xCap=v.xActorCapUsd===undefined?v.actorCapUsd:v.xActorCapUsd;
+  if(typeof xCap!=='number'||!Number.isFinite(xCap)||xCap<0.01||xCap>0.05)throw new RuntimeError('Choose an X Actor cap from $0.01 to $0.05.');
+  if(typeof v.rollingCapUsd!=='number'||!Number.isFinite(v.rollingCapUsd)||v.rollingCapUsd<v.actorCapUsd+xCap||v.rollingCapUsd>4)throw new RuntimeError('Choose a rolling 31-day reservation limit up to $4.');
   if(v.freePlan!==true)throw new RuntimeError('Confirm the Apify account remains on its existing Free plan. No upgrade or overage is authorized.');
-  return {connectionId:textField(v.connectionId,'Apify connection',80),topics:textField(v.topics,'relevance scope',2000),queries:{reddit:lines(queries.reddit),x:lines(queries.x)},recipient:emailAddress(v.recipient),time:v.time,timezone,maxItems:Number(v.maxItems),actorCapUsd:v.actorCapUsd,rollingCapUsd:v.rollingCapUsd,freePlan:true};
+  return {connectionId:textField(v.connectionId,'Apify connection',80),topics:textField(v.topics,'relevance scope',2000),queries:{reddit:lines(queries.reddit),x:lines(queries.x)},recipient:emailAddress(v.recipient),time:v.time,...(typeof secondTime==='string'?{secondTime}:{}),timezone,maxItems:Number(v.maxItems),actorCapUsd:v.actorCapUsd,...(v.xActorCapUsd!==undefined?{xActorCapUsd:xCap}:{}),rollingCapUsd:v.rollingCapUsd,freePlan:true};
 }
+export function actorChargeCap(config:Pick<ResearchConfig,'actorCapUsd'|'xActorCapUsd'>,platform:Platform):number {return platform==='x'?(config.xActorCapUsd??config.actorCapUsd):config.actorCapUsd;}
 /** First matching wall-clock minute strictly after now. A skipped DST minute uses the next valid local minute; a repeated minute runs once. */
-export function nextResearchTime(config: Pick<ResearchConfig,'time'|'timezone'>, after: number): number {
+export function nextResearchTime(config: Pick<ResearchConfig,'time'|'secondTime'|'timezone'>, after: number): number {
   const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:config.timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   const parts=(t:number)=>Object.fromEntries(fmt.formatToParts(t).map(p=>[p.type,p.value]));
   const local=parts(after), key=(p:Record<string,string>)=>`${p.year}-${p.month}-${p.day}`;
+  const slots=[config.time,...(config.secondTime?[config.secondTime]:[])];
   const today=key(local), current=`${local.hour}:${local.minute}`;
   for(let t=Math.floor(after/60000)*60000+60000;t<=after+49*3600000;t+=60000){
     const p=parts(t), date=key(p), time=`${p.hour}:${p.minute}`;
-    if(time>=config.time && (date!==today||current<config.time)) return t;
+    if(slots.some(slot=>time>=slot && (date!==today||current<slot))) return t;
   }
   throw new RuntimeError('Unable to resolve the next local schedule.');
 }
@@ -66,7 +72,7 @@ export function actorArguments(config: ResearchConfig, platform: Platform, start
   // Only plain search phrases are accepted; operators cannot override time, author or URL scope through query syntax.
   const phrases=config.queries[platform].map(q=>'"'+q.replace(/["\\\r\n]/g,' ')+'"');
   const input=platform==='x'?{twitterContent:`(${phrases.join(' OR ')}) since_time:${start} until_time:${end}`,queryType:'Latest',maxItems:Math.max(20,config.maxItems)}:{searchTerms:[phrases.join(' OR ')],searchTime:'day',searchSort:'new',maxPostsCount:config.maxItems,searchPosts:true,searchComments:false,searchCommunities:false,crawlCommentsPerPost:false,aiAnalysis:false};
-  return {actor:RESEARCH_ACTORS[platform],input,waitSecs:0,callOptions:{memory:1024,timeout:180,maxItems:config.maxItems,maxTotalChargeUsd:config.actorCapUsd}};
+  return {actor:RESEARCH_ACTORS[platform],input,waitSecs:0,callOptions:{memory:1024,timeout:180,maxItems:config.maxItems,maxTotalChargeUsd:actorChargeCap(config,platform)}};
 }
 export function toolPayload(result: Record<string,unknown>): Record<string,unknown> {
   if(result.structuredContent&&typeof result.structuredContent==='object'&&!Array.isArray(result.structuredContent))return result.structuredContent as Record<string,unknown>;
@@ -112,7 +118,7 @@ export function reportChecks(run:ResearchRun, classified:boolean) {
   const done=run.sources.filter(s=>s.stage==='done').length, invalid=run.sources.reduce((n,s)=>n+s.invalid,0);
   return [
     {label:'Both platforms retrieved',status:done===2?'pass':'fail',observed:`${done}/2 platforms`,method:'Require terminal SUCCEEDED Actor runs and a matching dataset response for X and Reddit.'},
-    {label:'Actor charges within cap',status:run.sources.every(s=>s.usageUsd!==undefined&&s.usageUsd<=run.definition.config.actorCapUsd+0.000001)?'pass':'fail',observed:run.sources.map(s=>`${s.platform}: ${s.usageUsd===undefined?'unverified':'$'+s.usageUsd}`).join('; '),method:'Compare each terminal Actor run’s provider-reported usageTotalUsd with the approved per-Actor cap. Missing charge evidence cannot pass.'},
+    {label:'Actor charges within cap',status:run.sources.every(s=>s.usageUsd!==undefined&&s.usageUsd<=actorChargeCap(run.definition.config,s.platform)+0.000001)?'pass':'fail',observed:run.sources.map(s=>`${s.platform}: ${s.usageUsd===undefined?'unverified':'$'+s.usageUsd}`).join('; '),method:'Compare each terminal Actor run’s provider-reported usageTotalUsd with the approved per-Actor cap. Missing charge evidence cannot pass.'},
     {label:'Usable source evidence',status:invalid===0&&done===2?'pass':'fail',observed:`${invalid} invalid rows`,method:'Validate platform post URLs, text and timestamps; missing fields remain a coverage gap.'},
     {label:'Relevance and grounding',status:classified?'pass':'fail',observed:classified?'Every candidate classified; retained posts cite their observed URL and reason.':'Classification unavailable or incomplete.',method:'AI classifies every in-window candidate against the reviewed scope. Server accepts only observed post indices and nonempty reasons; this is not a human precision score.'},
     {label:'Window and deduplication',status:'pass',observed:`${run.sources.reduce((n,s)=>n+s.outsideWindow,0)} outside-window and ${run.sources.reduce((n,s)=>n+s.duplicates,0)} duplicate rows excluded`,method:'Retain only unique canonical post URLs with timestamps in the 24 hours ending at scan start.'},
@@ -126,7 +132,7 @@ export function reportText(research:ResearchRun, startedAt:string):string {
     ...(selected.length?selected.slice(0,12).flatMap((p,i)=>[`${i+1}. ${p.platform.toUpperCase()} · ${p.at}`,p.url,p.text.slice(0,500),`Why relevant: ${p.reason}`,'']):['No relevant posts retained in the available evidence. Review source coverage and checks below.','']),
     ...(selected.length>12?[`${selected.length-12} additional relevant posts are retained in the console.`]:[]),
     'Validation',...(research.checks||[]).map(c=>`${c.status.toUpperCase()} · ${c.label}: ${c.observed}\nMeasured by: ${c.method}`),'',
-    `Billing controls: at most two Actor starts, $${c.actorCapUsd.toFixed(2)} billed cap per Actor, $${c.rollingCapUsd.toFixed(2)} reserved per rolling 31 days. Shared Apify Free allowance also applies; dataset/API infrastructure usage is governed by the provider allowance. No upgrade or overage authorized.`
+    `Billing controls: at most two Actor starts, $${c.actorCapUsd.toFixed(2)} Reddit / $${actorChargeCap(c,'x').toFixed(2)} X billed caps, $${c.rollingCapUsd.toFixed(2)} reserved per rolling 31 days. Shared Apify Free allowance also applies; dataset/API infrastructure usage is governed by the provider allowance. No upgrade or overage authorized.`
   ].join('\n').slice(0,16000);
 }
 

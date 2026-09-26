@@ -1192,7 +1192,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
   }
   function researchEditor(agent:any, card:HTMLElement) {
     const section=node('details');section.dataset.researchEditor='';
-    section.append(node('summary',agent.research?'Daily research · saved · edit scope and delivery':'Set up daily X + Reddit research'));
+    section.append(node('summary',agent.research?`Daily research · ${agent.research.config.secondTime?'twice daily · '+agent.research.config.time+' & '+agent.research.config.secondTime+' · ':''}saved · edit scope and delivery`:'Set up daily X + Reddit research'));
     const form=doc.createElement('form'), status=node('p','','action-feedback');status.setAttribute('role','status');
     const field=(label:string,value:string,multiline=false)=>{const row=node('label',label);const control=doc.createElement(multiline?'textarea':'input') as HTMLInputElement|HTMLTextAreaElement;control.value=value;control.required=true;control.disabled=role!=='owner';row.append(control);form.append(row);return control;};
     const config=agent.research?.config;
@@ -1202,9 +1202,11 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const x=field('X search phrases · one per line',config?.queries.x.join('\n')||'',true);
     const recipient=field('Email report to',config?.recipient||recurring?.notifications?.recipients?.[0]||'');
     const time=field('Morning scan time',config?.time||'08:00');time.setAttribute('type','time');
+    const secondTime=field('Second scan time (optional)',config?.secondTime||'');secondTime.setAttribute('type','time');secondTime.required=false;
     const timezone=field('Timezone',config?.timezone||'America/Los_Angeles');
     const maxItems=field('Maximum dataset rows per platform',String(config?.maxItems||20));maxItems.setAttribute('type','number');
-    const cap=field('Maximum Actor charge per platform (USD)',String(config?.actorCapUsd||0.05));cap.setAttribute('type','number');cap.setAttribute('step','0.01');
+    const cap=field('Maximum Reddit Actor charge (USD)',String(config?.actorCapUsd||0.05));cap.setAttribute('type','number');cap.setAttribute('step','0.01');
+    const xCap=field('Maximum X Actor charge (USD)',String(config?.xActorCapUsd??config?.actorCapUsd??0.01));xCap.setAttribute('type','number');xCap.setAttribute('step','0.01');
     const rolling=field('Maximum reserved over rolling 31 days (USD)',String(config?.rollingCapUsd||4));rolling.setAttribute('type','number');rolling.setAttribute('step','0.01');
     const connections=state.connections.filter((c:any)=>c.status==='connected'&&new URL(c.endpoint).origin==='https://mcp.apify.com');
     const select=doc.createElement('select');select.setAttribute('aria-label','Apify research account');
@@ -1217,7 +1219,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     const updateReuse=()=>{reuseConsent.checked=false;reuse.hidden=!needsResearchConnection();reuseConsent.required=!reuse.hidden;};
     updateReuse();select.addEventListener('change',updateReuse);
     const free=node('label','','consent'), checkbox=doc.createElement('input');checkbox.type='checkbox';checkbox.checked=Boolean(config?.freePlan);checkbox.required=true;free.append(checkbox,doc.createTextNode('Keep the existing Apify Free plan. Shared allowance applies; no upgrade or paid overage.'));form.append(free);
-    form.append(node('p','Review: two Actor starts, up to 18 status/dataset reads, a 24-hour window, platform URL/timestamp validation and deduplication. The selected Actors use event billing; each start passes the charge limit. Provider infrastructure usage also consumes the shared free allowance. A capped sample cannot prove complete platform coverage. Reports are sent after the morning scan finishes.','note'));
+    form.append(node('p','Review: two Actor starts, up to 18 status/dataset reads, a 24-hour window, platform URL/timestamp validation and deduplication. The selected Actors use event billing; each start passes the charge limit. Provider infrastructure usage also consumes the shared free allowance. A capped sample cannot prove complete platform coverage. Reports are sent after each scan finishes. Each scan covers the preceding 24 hours, so twice-daily reports can overlap.','note'));
     const prices=node('p');for(const [label,url] of [['Reddit Actor pricing','https://apify.com/harshmaur/reddit-scraper/pricing'],['X Actor pricing','https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest/pricing']]){const link=node('a',label);link.setAttribute('href',url);link.setAttribute('target','_blank');link.setAttribute('rel','noopener noreferrer');prices.append(link,doc.createTextNode(' · '));}form.append(prices);
     const generate=button('Suggest phrases from saved brief',async()=>{status.textContent='Preparing phrases from the saved company brief…';const draft=await mutate('research-draft',{agentId:agent.id});topics.value=String(draft.topics||'');reddit.value=(draft.queries?.reddit||[]).join('\n');x.value=(draft.queries?.x||[]).join('\n');dirty();status.textContent='Review the suggested scope and phrases, then save.';});form.prepend(generate);
     const save=button('Save research settings',async()=>{
@@ -1230,7 +1232,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
           if(!reuseConsent.checked)throw new Error('Review and approve reuse of the selected Apify account before saving.');
           const connected=await mutate('research-connect',{connectionId:connection.id,reviewed:true});connection={id:connected.connectionId};
         }
-        await mutate('research-save',{agentId:agent.id,config:{connectionId:connection.id,topics:topics.value,queries:{reddit:reddit.value.split('\n').map(s=>s.trim()).filter(Boolean),x:x.value.split('\n').map(s=>s.trim()).filter(Boolean)},recipient:recipient.value,time:time.value,timezone:timezone.value,maxItems:Number(maxItems.value),actorCapUsd:Number(cap.value),rollingCapUsd:Number(rolling.value),freePlan:checkbox.checked}});
+        await mutate('research-save',{agentId:agent.id,config:{connectionId:connection.id,topics:topics.value,queries:{reddit:reddit.value.split('\n').map(s=>s.trim()).filter(Boolean),x:x.value.split('\n').map(s=>s.trim()).filter(Boolean)},recipient:recipient.value,time:time.value,secondTime:secondTime.value,timezone:timezone.value,maxItems:Number(maxItems.value),actorCapUsd:Number(cap.value),xActorCapUsd:Number(xCap.value),rollingCapUsd:Number(rolling.value),freePlan:checkbox.checked}});
         await refresh();message('Research settings saved. Next: Run a trial, then approve the displayed scope in Approvals.');
       }catch(error){status.textContent=error instanceof Error?error.message:'Settings could not be saved. Review the settings and try again.';}
     },false);
@@ -1438,7 +1440,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) {
         if(a.research){
           const review=node('section','','card'), config=a.research.config;review.hidden=true;review.setAttribute('aria-label','Review daily research activation');
-          review.append(node('h4','Review daily research activation'),node('p',`Scan X and Reddit daily at ${config.time} ${config.timezone}; email ${config.recipient} when the scan finishes.`),node('p',`Saved limits: ${config.maxItems} rows per platform, $${config.actorCapUsd.toFixed(2)} per Actor and $${config.rollingCapUsd.toFixed(2)} reserved over 31 days. Existing Apify Free plan only.`),node('p','This authorizes only the saved bounded workflow without per-call prompts. Pause revokes it; edits require a fresh trial.','note'));
+          review.append(node('h4','Review daily research activation'),node('p',`Scan X and Reddit ${config.secondTime?'twice daily':'daily'} at ${[config.time,config.secondTime].filter(Boolean).join(' and ')} ${config.timezone}; email ${config.recipient} when the scan finishes.`),node('p',`Saved limits: ${config.maxItems} rows per platform, $${config.actorCapUsd.toFixed(2)} Reddit / $${(config.xActorCapUsd??config.actorCapUsd).toFixed(2)} X caps and $${config.rollingCapUsd.toFixed(2)} reserved over 31 days. Existing Apify Free plan only.`),node('p','This authorizes only the saved bounded workflow without per-call prompts. Pause revokes it; edits require a fresh trial.','note'));
           const activate=button('Activate daily',async()=>{review.hidden=false;activate.hidden=true;});
           review.append(button('Confirm daily research',async()=>{await mutate('activate',{agentId:a.id,reviewed:true});await refresh();message('Daily research activated within the reviewed bounds.');},false),button('Cancel activation',async()=>{review.hidden=true;activate.hidden=false;}));
           actions.append(activate,review);
