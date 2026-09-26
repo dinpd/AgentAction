@@ -7,7 +7,7 @@ const env={CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_ENVIRONMENT:'development'
 const agent:any={id:'agent',title:'Social research',goal:'Relevant X and Reddit conversations for a retirement planning app',setup:'Saved website brief',success:'Sourced digest',status:'draft',connectionId:'apify',tools:[]};
 const connections:any[]=[{id:'apify',label:'Existing Apify account',status:'connected',endpoint:'https://mcp.apify.com/?tools=harshmaur/reddit-scraper',tools:[],suggestions:[]}];
 connections.push({...connections[0],id:'other-apify',label:'Other Apify account'});
-let runs:any[]=[],role='owner',saved=0,connected=0,activated=0;
+let runs:any[]=[],role='owner',saved=0,connected=0,activated=0,failSave=true;
 const server=createServer(async(req,res)=>{
  const url=new URL(req.url!,'http://localhost');
  if(!url.pathname.startsWith('/api/')){const out=await worker.fetch(new Request(url),env);res.statusCode=out.status;out.headers.forEach((v,k)=>res.setHeader(k,v));res.end(Buffer.from(await out.arrayBuffer()));return;}
@@ -17,7 +17,7 @@ const server=createServer(async(req,res)=>{
  else if(url.pathname==='/api/automations/acme/state')data={jobs:[],runs:[],notifications:{recipients:['reports@example.com']}};
  else if(url.pathname.endsWith('/research-draft'))data={topics:'Brand mentions and retirement planning tools; exclude promotions.',queries:{x:['Example','retirement planning'],reddit:['Example','financial scenarios']}};
  else if(url.pathname.endsWith('/research-connect')){assert.equal(body.connectionId,'apify');assert.equal(body.reviewed,true);connected++;connections.push({...connections[0],id:'research',endpoint:RESEARCH_ENDPOINT});data={connectionId:'research'};}
- else if(url.pathname.endsWith('/research-save')){saved++;assert.equal(body.config.connectionId,'research');assert.equal(body.config.freePlan,true);agent.research={config:body.config,digest:'digest',tools:[]};}
+ else if(url.pathname.endsWith('/research-save')){if(failSave){failSave=false;res.statusCode=409;res.setHeader('content-type','application/json');res.end(JSON.stringify({error:'Provider temporarily unavailable; retry saving.'}));return;}saved++;assert.equal(body.config.connectionId,'research');assert.equal(body.config.freePlan,true);agent.research={config:body.config,digest:'digest',tools:[]};}
  else if(url.pathname.endsWith('/trial')){const run={id:'trial',agentId:agent.id,kind:'trial',startedAt:new Date().toISOString(),status:'awaiting_approval',events:[],research:{definition:agent.research,sources:[{platform:'x',stage:'ready'},{platform:'reddit',stage:'ready'}]},pending:{id:'approval',tool:'research-scan',arguments:{scope:agent.research.config}}};runs=[run];agent.lastTrial=run.id;data={runId:run.id};}
  else if(url.pathname.endsWith('/approve')){assert.equal(body.approvalId,'approval');const r=runs[0];r.pending=undefined;r.status='completed';r.outcome='met';r.summary='2/2 platforms retrieved. Email: accepted.';r.research.sources.forEach((s:any)=>s.stage='done');r.research.checks=[{label:'Both platforms retrieved',status:'pass',observed:'2/2 platforms',method:'Check completed Actor runs and matching dataset rows.'}];r.research.report='Actual sourced report\nhttps://x.com/alice/status/123\nWhy relevant: retirement planning';r.research.delivery={status:'accepted'};}
  else if(url.pathname.endsWith('/activate')){assert.equal(body.reviewed,true);activated++;agent.status='active';agent.nextRun=Date.now()+86400000;}
@@ -40,7 +40,8 @@ try{
  const reuse=editor.getByRole('checkbox',{name:'Use this account’s existing server-side credential',exact:false});await reuse.check();
  await editor.getByLabel('Apify research account').selectOption('other-apify');assert.equal(await reuse.isChecked(),false);
  await editor.getByLabel('Apify research account').selectOption('apify');await reuse.check();await editor.getByRole('button',{name:'Save research settings'}).click();
- await page.getByText('Research settings saved. Next:',{exact:false}).waitFor();assert.equal(saved,1);assert.equal(connected,1);
+ await editor.getByText('Provider temporarily unavailable; retry saving.',{exact:true}).waitFor();assert.equal(saved,0);assert.match(await editor.getByLabel('Reddit search phrases · one per line',{exact:true}).inputValue(),/financial scenarios/);assert.equal(await reuse.isChecked(),true);
+ await editor.getByRole('button',{name:'Save research settings'}).click();await page.getByText('Research settings saved. Next:',{exact:false}).waitFor();assert.equal(saved,1);assert.equal(connected,2);
  await page.reload();await page.getByText('Daily research · saved · edit scope and delivery',{exact:true}).click();
  assert.equal(await editor.getByRole('button',{name:'Saved',exact:true}).isDisabled(),true);
  assert.match(await editor.getByLabel('Reddit search phrases · one per line',{exact:true}).inputValue(),/financial scenarios/);

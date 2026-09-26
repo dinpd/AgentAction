@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentRuntime, type RuntimeStorage, type Agent, type Run, type Connection } from '../src/agent-runtime.ts';
-import { researchConfig, nextResearchTime, sourcePosts, RESEARCH_ACTORS, RESEARCH_ENDPOINT, researchPricing, actorArguments, type SourceProgress } from '../src/research-digest.ts';
+import { researchConfig, nextResearchTime, sourcePosts, RESEARCH_ACTORS, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, actorArguments, type SourceProgress } from '../src/research-digest.ts';
 import { type McpTool, parseEndpointURL } from '../src/mcp-client.ts';
 const config={connectionId:'apify',topics:'Retirement planning tools and brand mentions; exclude generic promotions.',queries:{x:['Example','retirement planning'],reddit:['Example','retirement planning']},recipient:'reports@example.com',time:'08:00',timezone:'America/Los_Angeles',maxItems:20,actorCapUsd:0.05,rollingCapUsd:4,freePlan:true};
 class Storage implements RuntimeStorage {
@@ -20,7 +20,7 @@ const schemas:McpTool[]=[
 ];
 const pricing={data:{pricingInfos:[{startedAt:'2020-01-01',pricingModel:'PAY_PER_EVENT',pricingPerEvent:{actorChargeEvents:{result:{eventTitle:'Result',eventPriceUsd:0.001}}}}]}};
 async function harness(){
- const storage=new Storage(),calls:any[]=[],reports:any[]=[];let changed=false,outputChanged=false,providerFailure=false,networkFailure=false,recipient=true,pending=false;
+ const storage=new Storage(),calls:any[]=[],reports:any[]=[];let changed=false,outputChanged=false,providerFailure=false,networkFailure=false,recipient=true,pending=false,missingTool='';
  const agent:Agent={id:'agent',connectionId:'apify',title:'Social research',goal:'Relevant public posts',setup:'Company brief: retirement planning app.',success:'Report',tools:[],status:'draft',createdAt:new Date().toISOString()};
  const connection:Connection={id:'apify',endpoint:RESEARCH_ENDPOINT,token:'SECRET-TOKEN',tools:schemas,protocol:'2025-03-26',label:'Apify',status:'connected',createdAt:new Date().toISOString(),suggestions:[]};
  await storage.put('agent:agent',agent);await storage.put('connection:apify',connection);await storage.put('endpoint-approvals',[{endpoint:RESEARCH_ENDPOINT,approvedBy:'owner',approvedAt:new Date().toISOString()}]);
@@ -31,7 +31,7 @@ async function harness(){
   const msg=JSON.parse(init.body);let result:any;
   if(msg.method==='notifications/initialized')return new Response(null,{status:202});
   if(msg.method==='initialize')result={protocolVersion:'2025-03-26',capabilities:{tools:{}}};
-  if(msg.method==='tools/list')result={tools:schemas.map(t=>({...t,...(outputChanged?{outputSchema:{type:'object',description:'changing sample'}}:{}),...(changed&&t.name==='call-actor'?{inputSchema:{type:'object',required:['another']}}:{})}))};
+  if(msg.method==='tools/list')result={tools:schemas.filter(t=>t.name!==missingTool&&new URL(String(input)).searchParams.get('tools')!.split(',').some(selector=>selector.replace('/','--')===t.name)).map(t=>({...t,...(outputChanged?{outputSchema:{type:'object',description:'changing sample'}}:{}),...(changed&&t.name==='call-actor'?{inputSchema:{type:'object',required:['another']}}:{})}))};
   if(msg.method==='tools/call'){
    calls.push(msg.params);const p=msg.params;
    if(networkFailure&&p.name==='call-actor')throw new Error('timeout SECRET-TOKEN');
@@ -49,7 +49,7 @@ async function harness(){
  const save=await request('research-save',{agentId:'agent',config});assert.equal(save.status,200,JSON.stringify(save.body));
  const trial=async()=>{const r=await request('trial',{agentId:'agent'});assert.equal(r.status,200);return (await storage.get<Run>('run:'+r.body.runId))!;};
  const advance=async(count=12)=>{for(let i=0;i<count;i++){for(const run of (await storage.list<Run>({prefix:'run:'})).values())if(run.research?.due){run.research.due=Date.now()-1;await storage.put('run:'+run.id,run);}await runtime.alarm();}};
- return {storage,calls,reports,request,trial,advance,reload:async()=>{runtime=new AgentRuntime(storage,env,fetcher,bridge);await runtime.recover();},change:()=>changed=true,outputChange:()=>outputChanged=true,fail:()=>providerFailure=true,networkFail:()=>networkFailure=true,removeRecipient:()=>recipient=false,pending:()=>pending=true};
+ return {storage,calls,reports,request,trial,advance,omitTool:(name:string)=>missingTool=name,reload:async()=>{runtime=new AgentRuntime(storage,env,fetcher,bridge);await runtime.recover();},change:()=>changed=true,outputChange:()=>outputChanged=true,fail:()=>providerFailure=true,networkFail:()=>networkFailure=true,removeRecipient:()=>recipient=false,pending:()=>pending=true};
 }
 test('reviewed scope → two starts → durable status checks → actual rows → measured report → exact wall-clock activation',async()=>{
  const h=await harness(),run=await h.trial();assert.equal(h.calls.length,0);assert.equal(run.pending?.tool,'research-scan');
@@ -108,4 +108,17 @@ test('approved daily slot executes once across duplicate alarms and depleted res
  let runs=[...(await h.storage.list<Run>({prefix:'run:'})).values()];assert.equal(runs.filter(r=>r.kind==='scheduled').length,1);assert.equal(h.calls.filter(c=>c.name==='call-actor').length,4);
  await h.storage.put('research-budget',[{at:Date.now(),amount:4}]);const current=(await h.storage.get<Agent>('agent:agent'))!;current.nextRun=Date.now()-1;await h.storage.put('agent:agent',current);await h.advance();
  runs=[...(await h.storage.list<Run>({prefix:'run:'})).values()];assert.equal(runs.filter(r=>r.kind==='scheduled').length,2);assert.equal(h.calls.filter(c=>c.name==='call-actor').length,4);assert.equal((await h.storage.get<Agent>('agent:agent'))?.status,'paused');assert.match(h.reports.at(-1).detail,/reservation limit is exhausted/);
+});
+
+test('initial Apify connection selects every helper required for polling and results',async()=>{
+ const selected=new URL(RESEARCH_ENDPOINT).searchParams.get('tools')!.split(',');
+ assert.deepEqual(selected,[...RESEARCH_TOOLS,...Object.values(RESEARCH_ACTORS)]);
+ const h=await harness();
+ const original=(await h.storage.get<Connection>('connection:apify'))!;
+ original.endpoint='https://mcp.apify.com/?tools=harshmaur/reddit-scraper';await h.storage.put('connection:apify',original);
+ h.omitTool('get-dataset-items');
+ const missing=await h.request('research-connect',{connectionId:'apify',reviewed:true});assert.equal(missing.status,409);assert.match(JSON.stringify(missing.body),/get-dataset-items/);assert.equal(h.calls.length,0);
+ h.omitTool('');const connected=await h.request('research-connect',{connectionId:'apify',reviewed:true});assert.equal(connected.status,200,JSON.stringify(connected.body));
+ const saved=await h.request('research-save',{agentId:'agent',config:{...config,connectionId:connected.body.connectionId}});assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(h.calls.length,0);
+ assert.throws(()=>parseEndpointURL(RESEARCH_ENDPOINT.replace('get-actor-run,','')));
 });

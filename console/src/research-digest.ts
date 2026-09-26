@@ -2,8 +2,8 @@ import { boundedText, object, RuntimeError, textField, type McpTool } from './mc
 import { emailAddress } from './notifications.ts';
 
 export const RESEARCH_ACTORS = { reddit: 'harshmaur/reddit-scraper', x: 'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest' } as const;
-export const RESEARCH_ENDPOINT = `https://mcp.apify.com/?tools=call-actor,${RESEARCH_ACTORS.reddit},${RESEARCH_ACTORS.x}`;
 export const RESEARCH_TOOLS = ['call-actor', 'get-actor-run', 'get-dataset-items'];
+export const RESEARCH_ENDPOINT = `https://mcp.apify.com/?tools=${RESEARCH_TOOLS.join(',')},${RESEARCH_ACTORS.reddit},${RESEARCH_ACTORS.x}`;
 export type Platform = keyof typeof RESEARCH_ACTORS;
 export type ResearchConfig = { connectionId: string; topics: string; queries: Record<Platform,string[]>; recipient: string; time: string; timezone: string; maxItems: number; actorCapUsd: number; rollingCapUsd: number; freePlan: true };
 export type ResearchDefinition = { config: ResearchConfig; tools: McpTool[]; pricing?: Record<Platform,string>; digest: string; approved?: { actor: string; at: string; digest: string } };

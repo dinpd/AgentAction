@@ -782,7 +782,8 @@ export class AgentRuntime {
     if(connection.status!=='connected'||connection.endpoint!==RESEARCH_ENDPOINT)throw new RuntimeError('Connect the reviewed X and Reddit research tools first.',409);
     const names=[...RESEARCH_TOOLS,...Object.values(RESEARCH_ACTORS).map(s=>s.replace('/','--'))];
     const tools=names.map(name=>connection.tools.find(t=>t.name===name));
-    if(tools.some(t=>!t))throw new RuntimeError('Apify must expose both Actors, call-actor, get-actor-run and get-dataset-items. Refresh its capabilities.',409);
+    const missing=names.filter((_,i)=>!tools[i]);
+    if(missing.length)throw new RuntimeError(`Apify did not expose required research tools: ${missing.join(', ')}. Reconnect the research tool set; no Actor was started.`,409);
     const properties=object(tools.find(t=>t?.name==='call-actor')!.inputSchema.properties||{});
     if(!properties.callOptions)throw new RuntimeError('This Apify MCP version does not expose billing caps. Update the provider before running.',409);
     const pinned=(tools as McpTool[]).map(t=>({name:t.name,description:'',inputSchema:t.inputSchema,...(t.annotations?{annotations:t.annotations}:{})}));
