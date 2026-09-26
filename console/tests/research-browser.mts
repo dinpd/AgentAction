@@ -35,6 +35,7 @@ try{
  await editor.getByRole('button',{name:'Suggest phrases from saved brief'}).click();await editor.getByText('Review the suggested scope and phrases, then save.',{exact:true}).waitFor();
  assert.equal(await editor.getByLabel('Email report to',{exact:true}).inputValue(),'reports@example.com');
  assert.equal(await editor.getByLabel('Morning scan time',{exact:true}).inputValue(),'08:00');
+ await editor.getByLabel('Second scan time (optional)',{exact:true}).fill('20:00');await editor.getByLabel('Maximum X Actor charge (USD)',{exact:true}).fill('0.01');
  await editor.getByRole('checkbox',{name:'Keep the existing Apify Free plan.',exact:false}).check();
  await editor.getByRole('button',{name:'Save research settings'}).click();assert.equal(saved,0);assert.equal(connected,0);
  const reuse=editor.getByRole('checkbox',{name:'Use this account’s existing server-side credential',exact:false});await reuse.check();
@@ -42,8 +43,8 @@ try{
  await editor.getByLabel('Apify research account').selectOption('apify');await reuse.check();await editor.getByRole('button',{name:'Save research settings'}).click();
  await editor.getByText('Provider temporarily unavailable; retry saving.',{exact:true}).waitFor();assert.equal(saved,0);assert.match(await editor.getByLabel('Reddit search phrases · one per line',{exact:true}).inputValue(),/financial scenarios/);assert.equal(await reuse.isChecked(),true);
  await editor.getByRole('button',{name:'Save research settings'}).click();await page.getByText('Research settings saved. Next:',{exact:false}).waitFor();assert.equal(saved,1);assert.equal(connected,2);
- await page.reload();await page.getByText('Daily research · saved · edit scope and delivery',{exact:true}).click();
- assert.equal(await editor.getByRole('button',{name:'Saved',exact:true}).isDisabled(),true);
+ await page.reload();await page.getByText('Daily research · twice daily · 08:00 & 20:00 · saved · edit scope and delivery',{exact:true}).click();
+ assert.equal(await editor.getByRole('button',{name:'Saved',exact:true}).isDisabled(),true);assert.equal(await editor.getByLabel('Second scan time (optional)',{exact:true}).inputValue(),'20:00');assert.equal(await editor.getByLabel('Maximum X Actor charge (USD)',{exact:true}).inputValue(),'0.01');
  assert.match(await editor.getByLabel('Reddit search phrases · one per line',{exact:true}).inputValue(),/financial scenarios/);
  await editor.getByLabel('Relevance scope and exclusions',{exact:true}).fill('Updated scope');assert.equal(await editor.getByRole('button',{name:'Save research settings'}).isEnabled(),true);assert.match(await editor.locator('summary').innerText(),/unsaved/);
  await editor.getByRole('button',{name:'Save research settings'}).click();await page.getByText('Research settings saved. Next:',{exact:false}).waitFor();
@@ -55,11 +56,11 @@ try{
  await page.getByText('PASS · Both platforms retrieved · 2/2 platforms',{exact:true}).click();assert.match(await page.locator('#runs').innerText(),/Measured by: Check completed/);
  await page.getByRole('button',{name:'Activate daily',exact:true}).click();
  const review=page.getByRole('region',{name:'Review daily research activation'});await review.waitFor();
- assert.match(await review.innerText(),/08:00 America\/Los_Angeles/);assert.match(await review.innerText(),/reports@example.com/);assert.match(await review.innerText(),/\$0.05 per Actor/);assert.equal(activated,0);
+ assert.match(await review.innerText(),/08:00 and 20:00 America\/Los_Angeles/);assert.match(await review.innerText(),/reports@example.com/);assert.match(await review.innerText(),/\$0.05 Reddit \/ \$0.01 X/);assert.equal(activated,0);
  await review.getByRole('button',{name:'Cancel activation'}).click();assert.equal(activated,0);assert.equal(await review.isVisible(),false);
  await page.getByRole('button',{name:'Activate daily',exact:true}).click();await review.getByRole('button',{name:'Confirm daily research'}).click();await page.getByText('Daily research activated within the reviewed bounds.',{exact:true}).waitFor();assert.equal(agent.status,'active');assert.equal(activated,1);
  await page.getByRole('button',{name:'Pause',exact:true}).click();await page.getByText('Agent paused. Pending calls were cancelled.',{exact:true}).waitFor();assert.equal(agent.status,'paused');
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'/tmp/aa275-research-mobile.png',fullPage:true});
- role='viewer';await page.reload();await page.getByText('Daily research · saved · edit scope and delivery',{exact:true}).click();assert.equal(await editor.getByRole('button',{name:'Saved',exact:true}).isDisabled(),true);
+ role='viewer';await page.reload();await page.getByText('Daily research · twice daily · 08:00 & 20:00 · saved · edit scope and delivery',{exact:true}).click();assert.equal(await editor.getByRole('button',{name:'Saved',exact:true}).isDisabled(),true);
  assert.deepEqual(errors,[]);console.log('Research browser acceptance passed: saved-brief phrases, explicit save/reload, reviewed credential reuse, existing approval queue, measurable report, activation, pause and mobile.');
 }finally{await browser.close();await new Promise<void>(r=>server.close(()=>r()));}

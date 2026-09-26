@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.45.0-rc.1 - 2026-09-25
+
+### Added
+
+- Optional second daily local research time, shown in saved cards and the explicit schedule review. The scheduler chooses the next local slot across timezone and daylight-saving changes.
+- Independent X Actor charge caps, enforced in pricing preflight, execution, observed charges and summed rolling reservations. A $0.05 Reddit / $0.01 X configuration reserves $3.72 for 62 scans.
+
+### Compatibility
+
+- Existing single-time schedules and shared caps retain their behavior. Saving cadence or cap changes invalidates approval and requires a new successful trial. No destructive migration or paid-plan upgrade.
+- Each scan retains the existing 24-hour lookback; twice-daily reports can overlap. Limits are per workspace and the provider’s shared Free allowance still applies.
+- Install Python artifacts from the GitHub v0.45.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.44.3-rc.1 - 2026-09-25
 
 ### Fixed
