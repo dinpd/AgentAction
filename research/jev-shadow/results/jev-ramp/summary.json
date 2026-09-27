@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "comparison": true,
+  "complete": true,
+  "created_at": "2026-09-27T19:42:15.934Z",
+  "provider": "live",
+  "model": "jev-1.13.0",
+  "llm_model": "gpt-4.1-mini-2025-04-14",
+  "groq_model": "llama-3.1-8b-instant",
+  "engines": [
+    "jev"
+  ],
+  "endpoints": {
+    "jev": "https://jevtypesafeai.com/api/v1/decide",
+    "llm": "https://api.openai.com/v1/chat/completions",
+    "groq": "https://api.groq.com/openai/v1/chat/completions"
+  },
+  "llm_prices": {
+    "input_per_million": 0.4,
+    "cached_input_per_million": 0.1,
+    "output_per_million": 1.6
+  },
+  "config": {
+    "mode": "all",
+    "provider": "live",
+    "jevService": "playground",
+    "engines": [
+      "jev"
+    ],
+    "rates": [
+      20,
+      40,
+      80
+    ],
+    "seconds": 3,
+    "concurrency": 64,
+    "timeoutMs": 10000,
+    "out": "research/jev-shadow/results/jev-ramp"
+  },
+  "thresholds": {
+    "allow_min": 0.9,
+    "deny_max": 0.1,
+    "review_clear_max": 0.1
+  },
+  "revision": "3579ad70494b1a98e4639951c9c2def50fb0597c",
+  "corpus_sha256": "fac332cb390f307a3fa521b2e5ac4c39c7e8ecc5c596e7c93368aefed5e73816",
+  "questions_sha256": "2a70e154d11c09c33a1d38cf4c8c154b2c8b6ec30bcc3a72270cc6d52147a10a",
+  "llm_prompt_sha256": "a9e5f570f73fb85a1c6567ce41817c13954e6e6239da78637f5785dd6c4f029a",
+  "source_hashes": {
+    "src/cases.mjs": "f402136d2f58849914e8217e77e75f93fb2243d148f06847b2de9bb47330298a",
+    "src/provider.mjs": "ea82fe8d9467bd2b8283c05be9293df7dc4402e7f96cbfb257d3ffc56bb4c17a",
+    "src/llm.mjs": "ecb0fe053e00a9aa9318dcb5f20e596806df80f53a72c5a5783fb3030d76343f",
+    "src/compare.mjs": "d1aafd7310e65ea605afcb8c5c56ed50b4a116faac6af60ef54735c219b8c69c",
+    "src/gateway.mjs": "a90401bdcb598ec37897a836929b22de022b23eb257b22e95a0d4703af97f018",
+    "src/metrics.mjs": "15f9261c891416728d4b13f3fd6e93a6a4402a50973e36918b9e94b9a951e76c",
+    "../../cloudflare/src/worker.ts": "f88e95b49b640befc2d18127fd1895014157a6809e12c5c4cec5209dda7d8a8b",
+    "../../cloudflare/src/decision-basis.ts": "16a9f8430cf245c47e76e9b34a0c21c17457bb53d30ec22595077e253d30bc44",
+    "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9",
+    "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6"
+  },
+  "environment": {
+    "node": "v23.11.0",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro"
+  },
+  "stages": [
+    {
+      "id": "jev-quality-0",
+      "mode": "jev",
+      "phase": "quality",
+      "rate": null,
+      "summary": {
+        "offered": 12,
+        "completed": 12,
+        "successful": 12,
+        "dropped": 0,
+        "elapsed_ms": 8795.271417,
+        "completed_rps": 1.3643694925441094,
+        "successful_rps": 1.3643694925441094,
+        "latency_ms": {
+          "p50": 706.4457499999999,
+          "p95": 861.573875,
+          "p99": 861.573875
+        },
+        "provider_latency_ms": {
+          "p50": 687.9215839999997,
+          "p95": 826.2038749999999,
+          "p99": 826.2038749999999
+        },
+        "schedule_lag_p99_ms": 0,
+        "errors": {},
+        "provider_requests": 12,
+        "questions_attempted": 24,
+        "answered_questions": 24,
+        "input_tokens": 5667,
+        "observed_token_cost_usd": 0.002387,
+        "observed_cost_per_1000_provider_requests_usd": 0.19891666666666666,
+        "unknown_usage_requests": 0,
+        "unknown_cost_requests": 0,
+        "quality": {
+          "scored": 12,
+          "unique_cases": 12,
+          "actual_gateway": {
+            "allow": 8,
+            "deny": 3,
+            "challenge_required": 1
+          },
+          "counterfactual": {
+            "allow": 1,
+            "deny": 7,
+            "challenge_required": 4
+          },
+          "unsafe_allows": 0,
+          "false_blocks": 0,
+          "escalations": 4,
+          "exact_matches": 11,
+          "shadow_mutations": 0,
+          "confusion": {
+            "allow": {
+              "allow": 1,
+              "deny": 0,
+              "challenge_required": 1
+            },
+            "deny": {
+              "allow": 0,
+              "deny": 7,
+              "challenge_required": 0
+            },
+            "challenge_required": {
+              "allow": 0,
+              "deny": 0,
+              "challenge_required": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "jev-load-20",
+      "mode": "jev",
+      "phase": "load",
+      "rate": 20,
+      "summary": {
+        "offered": 60,
+        "completed": 60,
+        "successful": 60,
+        "dropped": 0,
+        "elapsed_ms": 3668.4706669999996,
+        "completed_rps": 16.35558941215871,
+        "successful_rps": 16.35558941215871,
+        "latency_ms": {
+          "p50": 734.5150419999991,
+          "p95": 834.9094999999998,
+          "p99": 863.825166999999
+        },
+        "provider_latency_ms": {
+          "p50": 717.5854170000002,
+          "p95": 818.3646250000002,
+          "p99": 841.689792000001
+        },
+        "schedule_lag_p99_ms": 1.8340420000004087,
+        "errors": {},
+        "provider_requests": 60,
+        "questions_attempted": 120,
+        "answered_questions": 120,
+        "input_tokens": 28335,
+        "observed_token_cost_usd": 0.011935,
+        "observed_cost_per_1000_provider_requests_usd": 0.19891666666666666,
+        "unknown_usage_requests": 0,
+        "unknown_cost_requests": 0,
+        "quality": {
+          "scored": 60,
+          "unique_cases": 12,
+          "actual_gateway": {
+            "allow": 40,
+            "deny": 15,
+            "challenge_required": 5
+          },
+          "counterfactual": {
+            "allow": 5,
+            "deny": 35,
+            "challenge_required": 20
+          },
+          "unsafe_allows": 0,
+          "false_blocks": 0,
+          "escalations": 20,
+          "exact_matches": 55,
+          "shadow_mutations": 0,
+          "confusion": {
+            "allow": {
+              "allow": 5,
+              "deny": 0,
+              "challenge_required": 5
+            },
+            "deny": {
+              "allow": 0,
+              "deny": 35,
+              "challenge_required": 0
+            },
+            "challenge_required": {
+              "allow": 0,
+              "deny": 0,
+              "challenge_required": 15
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "jev-load-40",
+      "mode": "jev",
+      "phase": "load",
+      "rate": 40,
+      "summary": {
+        "offered": 120,
+        "completed": 120,
+        "successful": 120,
+        "dropped": 0,
+        "elapsed_ms": 3839.5800420000014,
+        "completed_rps": 31.253418000759563,
+        "successful_rps": 31.253418000759563,
+        "latency_ms": {
+          "p50": 817.3349589999998,
+          "p95": 1224.1676669999997,
+          "p99": 1311.6847079999989
+        },
+        "provider_latency_ms": {
+          "p50": 801.9571670000005,
+          "p95": 1208.5126250000012,
+          "p99": 1290.4528329999994
+        },
+        "schedule_lag_p99_ms": 7.222459000000526,
+        "errors": {},
+        "provider_requests": 120,
+        "questions_attempted": 240,
+        "answered_questions": 240,
+        "input_tokens": 56670,
+        "observed_token_cost_usd": 0.023869999999999978,
+        "observed_cost_per_1000_provider_requests_usd": 0.1989166666666665,
+        "unknown_usage_requests": 0,
+        "unknown_cost_requests": 0,
+        "quality": {
+          "scored": 120,
+          "unique_cases": 12,
+          "actual_gateway": {
+            "allow": 80,
+            "deny": 30,
+            "challenge_required": 10
+          },
+          "counterfactual": {
+            "allow": 10,
+            "deny": 70,
+            "challenge_required": 40
+          },
+          "unsafe_allows": 0,
+          "false_blocks": 0,
+          "escalations": 40,
+          "exact_matches": 110,
+          "shadow_mutations": 0,
+          "confusion": {
+            "allow": {
+              "allow": 10,
+              "deny": 0,
+              "challenge_required": 10
+            },
+            "deny": {
+              "allow": 0,
+              "deny": 70,
+              "challenge_required": 0
+            },
+            "challenge_required": {
+              "allow": 0,
+              "deny": 0,
+              "challenge_required": 30
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "jev-load-80",
+      "mode": "jev",
+      "phase": "load",
+      "rate": 80,
+      "summary": {
+        "offered": 240,
+        "completed": 240,
+        "successful": 240,
+        "dropped": 0,
+        "elapsed_ms": 4703.640707999999,
+        "completed_rps": 51.02430540491871,
+        "successful_rps": 51.02430540491871,
+        "latency_ms": {
+          "p50": 838.627375,
+          "p95": 974.3220419999998,
+          "p99": 1041.9332920000015
+        },
+        "provider_latency_ms": {
+          "p50": 784.5330830000021,
+          "p95": 914.3372500000005,
+          "p99": 985.4824579999986
+        },
+        "schedule_lag_p99_ms": 910.1675419999992,
+        "errors": {},
+        "provider_requests": 240,
+        "questions_attempted": 480,
+        "answered_questions": 480,
+        "input_tokens": 113340,
+        "observed_token_cost_usd": 0.04773999999999996,
+        "observed_cost_per_1000_provider_requests_usd": 0.19891666666666652,
+        "unknown_usage_requests": 0,
+        "unknown_cost_requests": 0,
+        "quality": {
+          "scored": 240,
+          "unique_cases": 12,
+          "actual_gateway": {
+            "allow": 160,
+            "deny": 60,
+            "challenge_required": 20
+          },
+          "counterfactual": {
+            "allow": 20,
+            "deny": 140,
+            "challenge_required": 80
+          },
+          "unsafe_allows": 0,
+          "false_blocks": 0,
+          "escalations": 80,
+          "exact_matches": 220,
+          "shadow_mutations": 0,
+          "confusion": {
+            "allow": {
+              "allow": 20,
+              "deny": 0,
+              "challenge_required": 20
+            },
+            "deny": {
+              "allow": 0,
+              "deny": 140,
+              "challenge_required": 0
+            },
+            "challenge_required": {
+              "allow": 0,
+              "deny": 0,
+              "challenge_required": 60
+            }
+          }
+        }
+      }
+    }
+  ]
+}

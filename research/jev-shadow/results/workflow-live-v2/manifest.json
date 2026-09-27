@@ -1,0 +1,98 @@
+{
+  "version": "workflow-v2",
+  "created_at": "2026-09-27T21:31:07.028Z",
+  "complete": false,
+  "fixture": false,
+  "options": {
+    "out": "research/jev-shadow/results/workflow-live-v2",
+    "fixture": false,
+    "holdoutRepeats": 2,
+    "loadSeconds": 20,
+    "loadRate": 5,
+    "concurrency": 32
+  },
+  "maximum_calls": 930,
+  "engines": [
+    "groq",
+    "llm",
+    "jev"
+  ],
+  "corpus_sha256": "1328bcd60476aa97cde3855b0fd0909e17048306ca99358f705a06e89d064676",
+  "questions_sha256": "5433b200ee3e842a2b29c9b9682d8e666c9364235a031b06cac243901cf4a8e8",
+  "sources": [
+    {
+      "path": "src/workflow/corpus.mjs",
+      "snapshot": "sources/0.txt",
+      "sha256": "8e8d23e2b1340671a42c1ce8ec5d648bd47547bd01d90882c8ff1d4179ae537d"
+    },
+    {
+      "path": "src/workflow/ledger.mjs",
+      "snapshot": "sources/1.txt",
+      "sha256": "aac9e01d6caaab556342ae2ba3af0f4e910f7329c84d6c905b822c7c9a999986"
+    },
+    {
+      "path": "src/workflow/provider.mjs",
+      "snapshot": "sources/2.txt",
+      "sha256": "0cf0934114c393ee451dacb7facba7b8a6fef44167a90e832b4d0429f04a4b6c"
+    },
+    {
+      "path": "src/workflow/evals.mjs",
+      "snapshot": "sources/3.txt",
+      "sha256": "6ef0a15721e5b45b41f9c05147a04fc3e9ba0628bbfed7e3b8f9c9b29ab9ad67"
+    },
+    {
+      "path": "src/workflow/run.mjs",
+      "snapshot": "sources/4.txt",
+      "sha256": "0cbe3e83e4ce35f829cd6e3a2c8cb26e0d342ced3a6590c2363bd8844ee3cdd2"
+    },
+    {
+      "path": "src/gateway.mjs",
+      "snapshot": "sources/5.txt",
+      "sha256": "a90401bdcb598ec37897a836929b22de022b23eb257b22e95a0d4703af97f018"
+    },
+    {
+      "path": "src/metrics.mjs",
+      "snapshot": "sources/6.txt",
+      "sha256": "15f9261c891416728d4b13f3fd6e93a6a4402a50973e36918b9e94b9a951e76c"
+    },
+    {
+      "path": "src/llm.mjs",
+      "snapshot": "sources/7.txt",
+      "sha256": "c9bbc9e9a981c18e0cd130c13f78284b6efe55db649f8731bc08d351f05caee4"
+    },
+    {
+      "path": "src/provider.mjs",
+      "snapshot": "sources/8.txt",
+      "sha256": "ea82fe8d9467bd2b8283c05be9293df7dc4402e7f96cbfb257d3ffc56bb4c17a"
+    },
+    {
+      "path": "src/cases.mjs",
+      "snapshot": "sources/9.txt",
+      "sha256": "f402136d2f58849914e8217e77e75f93fb2243d148f06847b2de9bb47330298a"
+    },
+    {
+      "path": "../../cloudflare/src/worker.ts",
+      "snapshot": "sources/10.txt",
+      "sha256": "f88e95b49b640befc2d18127fd1895014157a6809e12c5c4cec5209dda7d8a8b"
+    },
+    {
+      "path": "../../cloudflare/src/decision-basis.ts",
+      "snapshot": "sources/11.txt",
+      "sha256": "16a9f8430cf245c47e76e9b34a0c21c17457bb53d30ec22595077e253d30bc44"
+    },
+    {
+      "path": "../../cloudflare/src/intent-observation.ts",
+      "snapshot": "sources/12.txt",
+      "sha256": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"
+    },
+    {
+      "path": "../../packages/guard/src/intent.ts",
+      "snapshot": "sources/13.txt",
+      "sha256": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6"
+    }
+  ],
+  "revision": "3579ad70494b1a98e4639951c9c2def50fb0597c",
+  "runtime": "v23.11.0",
+  "thresholds": {},
+  "stages": []
+}

@@ -305,6 +305,12 @@ delivery and interoperability mechanisms, not separate product surfaces.
 See [Current implementation status](docs/action-gate-roadmap.md) for planned and
 adopter-facing work.
 
+## Research
+
+[Jev vs LLMs for authorization decisions](research/jev-shadow): synthetic approval
+workflows, live API measurements, raw evidence and reproducible evaluations.
+Experimental results; no production authorization changes.
+
 ## Architecture And Documentation
 
 - [Enterprise deployment and governance](docs/enterprise-governance.md)

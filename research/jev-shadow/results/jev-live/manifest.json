@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "comparison": true,
+  "complete": false,
+  "created_at": "2026-09-27T19:40:59.828Z",
+  "provider": "live",
+  "model": "jev-1.13.0",
+  "llm_model": "gpt-4.1-mini-2025-04-14",
+  "groq_model": "llama-3.1-8b-instant",
+  "engines": [
+    "jev"
+  ],
+  "endpoints": {
+    "jev": "https://jevtypesafeai.com/api/v1/decide",
+    "llm": "https://api.openai.com/v1/chat/completions",
+    "groq": "https://api.groq.com/openai/v1/chat/completions"
+  },
+  "llm_prices": {
+    "input_per_million": 0.4,
+    "cached_input_per_million": 0.1,
+    "output_per_million": 1.6
+  },
+  "config": {
+    "mode": "all",
+    "provider": "live",
+    "jevService": "playground",
+    "engines": [
+      "jev"
+    ],
+    "rates": [
+      1,
+      5,
+      20
+    ],
+    "seconds": 3,
+    "concurrency": 16,
+    "timeoutMs": 10000,
+    "out": "research/jev-shadow/results/jev-live"
+  },
+  "thresholds": {
+    "allow_min": 0.9,
+    "deny_max": 0.1,
+    "review_clear_max": 0.1
+  },
+  "revision": "3579ad70494b1a98e4639951c9c2def50fb0597c",
+  "corpus_sha256": "fac332cb390f307a3fa521b2e5ac4c39c7e8ecc5c596e7c93368aefed5e73816",
+  "questions_sha256": "2a70e154d11c09c33a1d38cf4c8c154b2c8b6ec30bcc3a72270cc6d52147a10a",
+  "llm_prompt_sha256": "a9e5f570f73fb85a1c6567ce41817c13954e6e6239da78637f5785dd6c4f029a",
+  "source_hashes": {
+    "src/cases.mjs": "f402136d2f58849914e8217e77e75f93fb2243d148f06847b2de9bb47330298a",
+    "src/provider.mjs": "ea82fe8d9467bd2b8283c05be9293df7dc4402e7f96cbfb257d3ffc56bb4c17a",
+    "src/llm.mjs": "ecb0fe053e00a9aa9318dcb5f20e596806df80f53a72c5a5783fb3030d76343f",
+    "src/compare.mjs": "d1aafd7310e65ea605afcb8c5c56ed50b4a116faac6af60ef54735c219b8c69c",
+    "src/gateway.mjs": "a90401bdcb598ec37897a836929b22de022b23eb257b22e95a0d4703af97f018",
+    "src/metrics.mjs": "15f9261c891416728d4b13f3fd6e93a6a4402a50973e36918b9e94b9a951e76c",
+    "../../cloudflare/src/worker.ts": "f88e95b49b640befc2d18127fd1895014157a6809e12c5c4cec5209dda7d8a8b",
+    "../../cloudflare/src/decision-basis.ts": "16a9f8430cf245c47e76e9b34a0c21c17457bb53d30ec22595077e253d30bc44",
+    "../../cloudflare/src/intent-observation.ts": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9",
+    "../../packages/guard/src/intent.ts": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6"
+  },
+  "environment": {
+    "node": "v23.11.0",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro"
+  },
+  "stages": []
+}

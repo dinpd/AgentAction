@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentAction — Decisioning benchmark</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1423;color:#eef5ff;font-family:system-ui,sans-serif}main{max-width:1500px;margin:auto;padding:30px 42px}.brand{font-size:14px;letter-spacing:.15em;color:#55dbc5;font-weight:700}header{display:flex;justify-content:space-between;align-items:center}h1{font-size:38px;letter-spacing:-.035em;margin:20px 0 7px}p{color:#a7b6cf;font-size:17px;margin:8px 0}.badge{border:1px solid #a4824c;background:#29231b;color:#ffce86;padding:9px 12px;border-radius:7px;font-size:13px}nav{display:flex;gap:12px;align-items:center;margin:24px 0}select,button{background:#17283e;color:#eef5ff;border:1px solid #38506a;border-radius:6px;padding:9px 12px;font-size:15px}button{cursor:pointer}.panels.triple{grid-template-columns:repeat(3,1fr)}.triple .big{font-size:52px}.triple .value{font-size:22px}.triple .quality .value{font-size:19px}.triple h2{font-size:21px}.panels{display:grid;grid-template-columns:1fr 1fr;gap:22px}.panel{border:1px solid #2b405c;border-radius:14px;background:#101e31;padding:25px}.panel.right{border-color:#398d87}h2{font-size:23px;margin:0 0 5px}.sub{font-size:14px;color:#a7b6cf;min-height:38px}.big{font-size:69px;font-weight:650;letter-spacing:-.06em;line-height:1.1;margin-top:12px}.unit{color:#a7b6cf;font-size:15px}.bar{height:8px;background:#253650;border-radius:5px;margin:20px 0}.fill{height:100%;background:#8ea8cf;border-radius:5px;transition:width .6s}.right .fill{background:#55dbc5}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0 22px}.value{font-size:25px;font-weight:600}.label{font-size:12px;color:#a7b6cf;margin-top:4px}.quality{border-top:1px solid #2b405c;padding-top:18px;display:flex;justify-content:space-between;gap:10px}.quality .value{font-size:22px}.evidence{margin-top:21px;border:1px solid #2b405c;border-radius:10px;padding:17px;display:grid;grid-template-columns:1fr 1fr;gap:20px}.evidence strong{font-size:15px}.detail{font-size:13px;color:#a7b6cf;line-height:1.8}.verdict{color:#55dbc5;font-weight:600}footer{margin-top:20px;font-size:13px;color:#a7b6cf;line-height:1.7}.note{color:#ffce86}.status{font-size:13px;color:#a7b6cf;margin-left:auto}@media(max-width:850px){main{padding:20px}.panels{gap:10px}.panel{padding:15px}.big{font-size:46px}h1{font-size:29px}.value{font-size:19px}}
+
+.view-tabs{display:flex;gap:12px;margin-top:20px}.view-tabs button[aria-pressed=true]{border-color:#55dbc5;color:#55dbc5}#criteria-view{margin-top:24px}.flow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin:18px 0}.flow article,.payload-box{padding:20px;border:1px solid #38506a;border-radius:12px;background:#101e31}.flow h3{margin:5px 0 12px;color:#55dbc5;font-size:18px}.flow p{font-size:14px;line-height:1.6}.flow small{color:#a7b6cf}.payload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#cceee8;font-size:13px;line-height:1.65;margin-bottom:0}table{width:100%;border-collapse:collapse;font-size:14px;margin:18px 0}td,th{text-align:left;padding:12px;border-bottom:1px solid #38506a}th{color:#a7b6cf;font-size:12px}details{margin:16px 0;border:1px solid #38506a;border-radius:8px;padding:15px}summary{cursor:pointer}.case-note{font-size:14px;color:#ffce86;line-height:1.5}[hidden]{display:none!important}
+</style>
+<main>
+<header><span class="brand">AGENTACTION / DECISIONING RESEARCH</span><span class="badge" id="badge">Loading recorded measurements</span></header>
+<h1>Same workload. Side-by-side evidence.</h1>
+<p id="comparison-description">Deterministic gateway vs gateway with advisory semantic checks.</p>
+<div class="view-tabs"><button id="show-metrics" aria-pressed="true">Throughput comparison</button><button id="show-criteria" aria-pressed="false">Payload → factors → decision</button></div>
+<div id="metrics-view">
+<nav><label for="stage">Offered load</label><select id="stage"></select><button id="replay">Replay stages</button><span id="status" class="status"></span></nav>
+<section class="panels">
+<article class="panel" id="left"><h2>Current gateway</h2><div class="sub">Policy + local audit and research basis</div><div class="big" data-field="rps">—</div><div class="unit">successful requests / second</div><div class="bar"><div class="fill" data-field="bar"></div></div><div class="metrics"><div><div class="value" data-field="p50">—</div><div class="label">p50 latency</div></div><div><div class="value" data-field="p95">—</div><div class="label">p95 latency</div></div><div><div class="value" data-field="p99">—</div><div class="label">p99 latency</div></div></div><div class="quality"><div><div class="value" data-field="unsafe">—</div><div class="label">Unsafe counterfactual allows</div></div><div><div class="value" data-field="escalations">—</div><div class="label">Escalations</div></div><div><div class="value" data-field="errors">—</div><div class="label">Errors / drops</div></div></div></article>
+<article class="panel right" id="right"><h2>Gateway + Jev shadow</h2><div class="sub">Same policy + two semantic questions + persisted advice</div><div class="big" data-field="rps">—</div><div class="unit">successful requests / second</div><div class="bar"><div class="fill" data-field="bar"></div></div><div class="metrics"><div><div class="value" data-field="p50">—</div><div class="label">p50 latency</div></div><div><div class="value" data-field="p95">—</div><div class="label">p95 latency</div></div><div><div class="value" data-field="p99">—</div><div class="label">p99 latency</div></div></div><div class="quality"><div><div class="value" data-field="unsafe">—</div><div class="label">Unsafe counterfactual allows</div></div><div><div class="value" data-field="escalations">—</div><div class="label">Escalations</div></div><div><div class="value" data-field="errors">—</div><div class="label">Errors / drops</div></div></div></article>
+</section>
+<section class="evidence"><div><strong>Actual authorization stays unchanged</strong><div class="detail" id="evidence">Waiting for recorded evidence</div></div><div><strong>How to read this comparison</strong><div class="detail">The baseline has no semantic classifier. Jev adds a check and its latency. Counterfactual outcomes show what an enforcing integration would do; shadow mode changes no permissions.</div></div></section>
+</div>
+<section id="criteria-view" hidden>
+<h2>One action. Six factors. Explicit decision rules.</h2>
+<p>Two semantic judgments join four deterministic checks. A model score cannot override gateway policy.</p>
+<div class="flow">
+<article><small>1 / GATEWAY RULES</small><h3>Identity · scope · restrictions · approval</h3><p>Match the declared agent, check the tool is declared, apply its access/block rules, then check data-flow approval. The real gateway returns allow, deny or challenge.</p></article>
+<article><small>2 / MODEL CLASSIFICATION</small><h3>Intent match + ambiguity</h3><p>Does the action fulfill the explicit intent without extra effects or subjects? Is intent missing or vague enough to need clarification? Each provider receives identical state and criteria.</p></article>
+<article><small>3 / COMPOSITION</small><h3>Hard rules take precedence</h3><p id="threshold-rules">Loading exact thresholds…</p><p>Gateway deny/challenge stays binding. Only a gateway allow can be tightened by model advice.</p></article>
+</div>
+<label for="case-select">Inspect a synthetic case </label><select id="case-select"></select>
+<div class="payload-grid" style="margin-top:16px"><article class="payload-box"><strong>Exact model state</strong><pre id="model-state"></pre></article><article class="payload-box"><strong>Gateway event · evaluated against manifest</strong><pre id="gateway-event"></pre></article></div>
+<p class="case-note" id="case-truth"></p>
+<table><thead><tr><th>Recorded quality pass</th><th>Intent match</th><th>Needs review</th><th>Model advice</th><th>Gateway actual</th><th>Combined, if enforced</th></tr></thead><tbody id="case-answers"></tbody></table>
+<p class="case-note">Shadow experiment: actual authorization stays unchanged. Combined outcomes are hypothetical. No downstream tool executes. Model scores are not a calibrated safety guarantee.</p>
+<details><summary>Exact question instructions and criteria sent to every model</summary><pre id="exact-questions"></pre></details>
+<details><summary>Exact deterministic gateway manifest</summary><pre id="exact-manifest"></pre></details>
+<p class="detail">This experiment has two semantic outputs. Broader factors such as data sensitivity, monetary limits, recipient trust or policy-specific risk are future evaluation scope, not measured here.</p>
+</section>
+<footer><div id="run"></div><div class="note">Local Node + fsync adapter, not deployed Cloudflare capacity. 12 authored synthetic cases; no safety or saturation claim.</div><div id="capture-label">Screen capture of recorded measurements. Stage replay does not send API requests.</div></footer>
+</main>
+<script>
+let data, timer, criteria;
+const select=document.querySelector('#stage');
+function panel(id,stage,rate){const root=document.getElementById(id);const s=stage?.summary;const set=(key,value)=>root.querySelector(`[data-field="${key}"]`).textContent=value;set('rps',s?s.successful_rps.toFixed(2):'pending');for(const k of ['p50','p95','p99'])set(k,s&&s.latency_ms[k]!==null?s.latency_ms[k].toFixed(1)+' ms':'—');set('unsafe',s?s.quality.unsafe_allows:'—');set('escalations',s?s.quality.escalations:'—');set('errors',s?Object.values(s.errors).reduce((a,b)=>a+b,0)+' / '+s.dropped:'—');root.querySelector('[data-field="bar"]').style.width=s?Math.min(100,s.successful_rps/rate*100)+'%':'0%'}
+function render(){
+ if(!data)return;
+ const rate=Number(select.value), leftMode=data.comparison?'llm':'baseline', rightMode=data.comparison?'jev':'shadow';
+ const available=data.complete?data.stages:[...data.stages,...(data.progress?.stages??[])];
+ const find=mode=>available.filter(s=>s.mode===mode&&s.rate===rate).at(-1);
+ const left=find(leftMode), right=find(rightMode);
+ if(data.engines?.includes('groq')&&!document.getElementById('groq')){const card=document.getElementById('left').cloneNode(true);card.id='groq';card.querySelector('h2').textContent='Gateway + Groq GPT-OSS';card.querySelector('.sub').textContent=data.groq_model+' · strict JSON · low reasoning';document.querySelector('.panels').append(card);document.querySelector('.panels').classList.add('triple');}
+ if(document.getElementById('groq'))panel('groq',find('groq'),rate);
+ panel('left',left,rate);panel('right',right,rate);
+ document.querySelector('#left h2').textContent=data.comparison?'Gateway + GPT-4.1 mini':'Current gateway';
+ document.querySelector('#right h2').textContent='Gateway + Jev shadow';
+ document.querySelector('#left .sub').textContent=data.comparison?data.llm_model+' · strict JSON · temperature 0':'Policy + local audit and research basis';
+ document.querySelector('#right .sub').textContent=data.model+' · two typed semantic questions';
+ document.querySelector('#comparison-description').textContent=data.comparison?'Matched semantic checks, workload, concurrency and deadline. All lanes preserve gateway policy.':'Deterministic gateway vs gateway with advisory semantic checks.';
+ const examples=data.rows.filter(r=>r.mode===rightMode&&r.stage===`${rightMode}-load-${rate}`&&!r.dropped);
+ const row=examples.find(r=>r.gateway_decision==='deny')??examples[0];
+ document.querySelector('#evidence').textContent=row?`${row.case_id}: gateway ${row.actual_decision}; model ${row.advisory}; counterfactual ${row.counterfactual}. Basis ${row.basis_id}.`:'Evidence is being collected. Actual authorization stays unchanged.';
+ const cost=s=>s?.summary.observed_cost_per_1000_provider_requests_usd==null?'n/a':'$'+s.summary.observed_cost_per_1000_provider_requests_usd.toFixed(4);
+ document.querySelector('.evidence>div:nth-child(2) strong').textContent=data.comparison?'Cost and comparison context':'How to read this comparison';
+ document.querySelector('.evidence>div:nth-child(2) .detail').textContent=data.comparison?`Estimated cost / 1,000 provider requests: LLM ${cost(left)} · Jev ${cost(right)}${data.engines?.includes('groq')?' · Groq '+cost(find('groq')):''}. Errors and abstentions remain visible. Speed alone does not establish better decisions.`:'The baseline has no semantic classifier. Jev adds a check and its latency. Counterfactual outcomes show a possible enforcing policy; shadow changes no permissions.';
+}
+async function refresh(){try{
+ const response=await fetch('/data');if(!response.ok)return;data=await response.json();
+ const rates=[...new Set([...data.stages,...(data.progress?.stages??[])].filter(s=>s.phase==='load').map(s=>s.rate))].sort((a,b)=>a-b);
+ const old=select.value;if([...select.options].map(o=>Number(o.value)).join()!==rates.join()){select.replaceChildren(...rates.map(rate=>{const o=document.createElement('option');o.value=rate;o.textContent=rate+' req/s';return o}));if(rates.includes(Number(old)))select.value=old;}
+ const active=!data.complete&&data.progress&&(Date.now()-Date.parse(data.progress.updated_at)<30000);
+ if(active&&rates.length)select.value=rates.at(-1);
+ document.querySelector('#badge').textContent=data.provider==='live'?(active?'LIVE API TEST IN PROGRESS':'LIVE API ATTEMPT / RECORDED RESULTS'):'SCRIPTED FIXTURES — NOT MODEL PERFORMANCE';
+ document.querySelector('#status').textContent=data.complete?'Complete recorded run':active?'Live counters · final rate includes drain':'Partial run — no final comparison';
+ document.querySelector('#run').textContent=`Run ${data.created_at} · ${data.model}${data.comparison?' vs '+data.llm_model:''}`;
+ document.querySelector('#capture-label').textContent=active?'Live measurements. No downstream actions execute.':'Screen capture of recorded measurements. Stage replay does not send API requests.';
+ render();renderCase();
+}catch{document.querySelector('#status').textContent='Waiting for run artifacts'}}
+function renderCase(){
+ if(!criteria)return;const c=criteria.cases.find(c=>c.id===document.querySelector('#case-select').value);if(!c)return;
+ document.querySelector('#model-state').textContent=JSON.stringify(c.state,null,2);
+ document.querySelector('#gateway-event').textContent=JSON.stringify(c.event,null,2);
+ document.querySelector('#case-truth').textContent=`Evaluation label: ${c.evaluation.truth} · Expected deterministic gateway: ${c.evaluation.expected_gateway}. These labels are withheld from every model.`;
+ const body=document.querySelector('#case-answers');body.replaceChildren();
+ for(const mode of data?.engines??['llm','jev','groq']){const row=data?.rows.find(r=>r.mode===mode&&r.stage===`${mode}-quality-0`&&r.case_id===c.id);const tr=document.createElement('tr');
+ const values=[mode==='llm'?'OpenAI':mode==='groq'?'Groq':'Jev',row?.provider?.answers?.intent_match?.noul?.toFixed(3)??'—',row?.provider?.answers?.needs_review?.noul?.toFixed(3)??'—',row?.advisory??'pending',row?.actual_decision??'pending',row?.counterfactual??'pending'];
+ if(row?.provider?.status&&row.provider.status!=='ok')values[1]=row.provider.status;
+ for(const value of values){const td=document.createElement('td');td.textContent=value;tr.append(td)}body.append(tr);}
+}
+for(const view of ['metrics','criteria'])document.querySelector('#show-'+view).onclick=()=>{for(const name of ['metrics','criteria']){document.querySelector('#'+name+'-view').hidden=name!==view;document.querySelector('#show-'+name).setAttribute('aria-pressed',String(name===view))}};
+async function loadCriteria(){try{const r=await fetch('/criteria');if(!r.ok)throw Error();criteria=await r.json();const chooser=document.querySelector('#case-select');chooser.replaceChildren(...criteria.cases.map(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.id;return o}));chooser.value='send-instead';chooser.onchange=renderCase;
+ document.querySelector('#exact-questions').textContent=JSON.stringify(criteria.questions,null,2);document.querySelector('#exact-manifest').textContent=JSON.stringify(criteria.manifest,null,2);
+ const t=criteria.thresholds;document.querySelector('#threshold-rules').textContent=`Model advice: allow when intent match ≥ ${t.allow_min} and needs review ≤ ${t.review_clear_max}; deny when match ≤ ${t.deny_max} and review ≤ ${t.review_clear_max}; otherwise challenge. Errors also require review.`;renderCase();
+ }catch{document.querySelector('#threshold-rules').textContent='Open this dashboard through its localhost server to load the exact corpus.'}}
+loadCriteria();
+select.onchange=render;document.querySelector('#replay').onclick=()=>{clearInterval(timer);select.selectedIndex=0;render();timer=setInterval(()=>{if(select.selectedIndex>=select.options.length-1){clearInterval(timer);return;}select.selectedIndex++;render()},6000)};refresh();setInterval(refresh,1000);
+</script></html>
