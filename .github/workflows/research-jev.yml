@@ -1,0 +1,46 @@
+name: Jev Shadow Research
+
+on:
+  pull_request:
+    paths:
+      - "research/jev-shadow/**"
+      - "cloudflare/src/**"
+      - "packages/guard/src/intent.ts"
+      - ".github/workflows/research-jev.yml"
+  push:
+    branches: [main]
+    paths:
+      - "research/jev-shadow/**"
+      - "cloudflare/src/**"
+      - "packages/guard/src/intent.ts"
+      - ".github/workflows/research-jev.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shadow-invariants:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: research/jev-shadow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+      - run: npm test
+      - name: Reproduce local gateway and fault controls (no provider credential)
+        run: node --experimental-strip-types src/run.mjs --mode all --provider fixture --rates 1,5,20 --seconds 1 --out runs/ci
+      - name: Recount raw results and validate persisted evidence
+        run: node --experimental-strip-types src/verify.mjs runs/ci
+      - name: Reproduce matched provider comparison with scripted fixtures
+        run: node --experimental-strip-types src/compare.mjs --provider fixture --rates 1,5,20 --seconds 1 --out runs/comparison-ci
+      - name: Verify comparison and shadow invariants
+        run: node --experimental-strip-types src/verify.mjs runs/comparison-ci
+      - name: Reproduce approval workflows without credentials
+        run: npm run workflow -- --fixture --no-load --out runs/workflow-ci
+      - name: Verify simulated workflow evidence
+        run: npm run verify:workflow -- runs/workflow-ci
+      - name: Verify published live workflow evidence
+        run: npm run verify:workflow -- results/workflow-live-v2-1

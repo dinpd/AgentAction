@@ -103,6 +103,13 @@ const permissionRows = [
 
 const proof = [
   {
+    state: "Research",
+    title: "Jev vs LLMs for authorization decisions",
+    copy: "We compared three models on synthetic approval workflows: what the user asked for, what the agent proposed, and whether approval still applies. Read the results, inspect the payloads, and rerun the evaluation.",
+    href: `${github}/tree/main/research/jev-shadow`,
+    linkLabel: "Read the experiment and results",
+  },
+  {
     state: "Available now",
     title: "Runtime action control",
     copy: "Local and hosted checks for exact tool calls, approvals, amount caps, budgets, circuit breakers, sensitive-data movement, idempotency, and replay protection.",

@@ -1,0 +1,117 @@
+{
+  "frozen_at": "2026-09-27T21:31:14.185Z",
+  "development_only": true,
+  "selections": {
+    "groq": {
+      "selected": {
+        "pass": 0.9,
+        "fail": 0.1
+      },
+      "candidates": [
+        {
+          "threshold": {
+            "pass": 0.9,
+            "fail": 0.1
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 2
+        },
+        {
+          "threshold": {
+            "pass": 0.8,
+            "fail": 0.2
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 2
+        },
+        {
+          "threshold": {
+            "pass": 0.7,
+            "fail": 0.3
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 2
+        }
+      ],
+      "rule": "Minimize unsafe semantic allows, then unnecessary reviews, then all mismatches; ties prefer stricter threshold. Development only.",
+      "production_ready": false
+    },
+    "llm": {
+      "selected": {
+        "pass": 0.9,
+        "fail": 0.1
+      },
+      "candidates": [
+        {
+          "threshold": {
+            "pass": 0.9,
+            "fail": 0.1
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 0
+        },
+        {
+          "threshold": {
+            "pass": 0.8,
+            "fail": 0.2
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 0
+        },
+        {
+          "threshold": {
+            "pass": 0.7,
+            "fail": 0.3
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 0,
+          "mismatches": 0
+        }
+      ],
+      "rule": "Minimize unsafe semantic allows, then unnecessary reviews, then all mismatches; ties prefer stricter threshold. Development only.",
+      "production_ready": false
+    },
+    "jev": {
+      "selected": {
+        "pass": 0.8,
+        "fail": 0.2
+      },
+      "candidates": [
+        {
+          "threshold": {
+            "pass": 0.9,
+            "fail": 0.1
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 8,
+          "mismatches": 12
+        },
+        {
+          "threshold": {
+            "pass": 0.8,
+            "fail": 0.2
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 1,
+          "mismatches": 2
+        },
+        {
+          "threshold": {
+            "pass": 0.7,
+            "fail": 0.3
+          },
+          "unsafe": 0,
+          "unnecessary_reviews": 1,
+          "mismatches": 2
+        }
+      ],
+      "rule": "Minimize unsafe semantic allows, then unnecessary reviews, then all mismatches; ties prefer stricter threshold. Development only.",
+      "production_ready": false
+    }
+  }
+}

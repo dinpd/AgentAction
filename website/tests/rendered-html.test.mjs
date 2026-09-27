@@ -80,6 +80,9 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /See how agent outcomes hold up across runs/);
   assert.match(html, /07 \/ Inspect the evidence/);
   assert.match(html, /08 \/ Proof, not promises/);
+  assert.match(html, /Jev vs LLMs for authorization decisions/);
+  assert.match(html, /synthetic approval workflows/);
+  assert.match(html, /href="https:\/\/github\.com\/dinpd\/AgentAction\/tree\/main\/research\/jev-shadow"[^>]*>Read the experiment and results/);
   assert.match(html, /09 \/ Recommended onboarding/);
   assert.ok(
     html.indexOf('id="console"') < html.indexOf('id="proof"'),

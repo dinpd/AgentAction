@@ -1,0 +1,101 @@
+{
+  "version": "complex-support-v1",
+  "created_at": "2026-09-27T20:03:40.355Z",
+  "complete": false,
+  "fixture": false,
+  "options": {
+    "out": "research/jev-shadow/results/complex-live-v1",
+    "fixture": false,
+    "qualityRepeats": 3,
+    "loadRepeats": 2,
+    "seconds": 6,
+    "rates": [
+      5,
+      20
+    ],
+    "concurrency": 32,
+    "timeoutMs": 15000
+  },
+  "engines": [
+    "groq",
+    "llm",
+    "jev"
+  ],
+  "revision": "3579ad70494b1a98e4639951c9c2def50fb0597c",
+  "runtime": "v23.11.0",
+  "thresholds": {
+    "pass_min": 0.9,
+    "fail_max": 0.1,
+    "clarification_max": 0.1
+  },
+  "corpus_sha256": "e41bd8d9164501781282469bfa53fcc4d3c6b30ce65564f7fdb57bacae020c9c",
+  "questions_sha256": "23a3d8778727a5ffd5ded6ca1bf69fb16d5bd029d655c8390c11b8e480043a20",
+  "sources": [
+    {
+      "path": "src/complex/corpus.mjs",
+      "snapshot": "sources/0.txt",
+      "sha256": "435fab05ea524048e8fa793390022bf7efd4284461068457cf63e3cf172f5c69"
+    },
+    {
+      "path": "src/complex/provider.mjs",
+      "snapshot": "sources/1.txt",
+      "sha256": "2a6626ee0205a47108f9d345bdd9f36a8d56b8352d4a076c01ad0a33f70f8371"
+    },
+    {
+      "path": "src/complex/evals.mjs",
+      "snapshot": "sources/2.txt",
+      "sha256": "55b3f0abf215182b7b3f081e2daaf408dcdfbdd17313e08ea141daf15a4a4f9a"
+    },
+    {
+      "path": "src/complex/run.mjs",
+      "snapshot": "sources/3.txt",
+      "sha256": "555e0d869e81064375e7833546a504dcfd8414674b089cd4d6e7ca9d706ffc0a"
+    },
+    {
+      "path": "src/gateway.mjs",
+      "snapshot": "sources/4.txt",
+      "sha256": "a90401bdcb598ec37897a836929b22de022b23eb257b22e95a0d4703af97f018"
+    },
+    {
+      "path": "src/metrics.mjs",
+      "snapshot": "sources/5.txt",
+      "sha256": "15f9261c891416728d4b13f3fd6e93a6a4402a50973e36918b9e94b9a951e76c"
+    },
+    {
+      "path": "src/llm.mjs",
+      "snapshot": "sources/6.txt",
+      "sha256": "c9bbc9e9a981c18e0cd130c13f78284b6efe55db649f8731bc08d351f05caee4"
+    },
+    {
+      "path": "src/provider.mjs",
+      "snapshot": "sources/7.txt",
+      "sha256": "ea82fe8d9467bd2b8283c05be9293df7dc4402e7f96cbfb257d3ffc56bb4c17a"
+    },
+    {
+      "path": "src/cases.mjs",
+      "snapshot": "sources/8.txt",
+      "sha256": "f402136d2f58849914e8217e77e75f93fb2243d148f06847b2de9bb47330298a"
+    },
+    {
+      "path": "../../cloudflare/src/worker.ts",
+      "snapshot": "sources/9.txt",
+      "sha256": "f88e95b49b640befc2d18127fd1895014157a6809e12c5c4cec5209dda7d8a8b"
+    },
+    {
+      "path": "../../cloudflare/src/decision-basis.ts",
+      "snapshot": "sources/10.txt",
+      "sha256": "16a9f8430cf245c47e76e9b34a0c21c17457bb53d30ec22595077e253d30bc44"
+    },
+    {
+      "path": "../../cloudflare/src/intent-observation.ts",
+      "snapshot": "sources/11.txt",
+      "sha256": "9cb22b538c014ebbe27308694acc6306f18f42976d3b656b7e21f884a092dae9"
+    },
+    {
+      "path": "../../packages/guard/src/intent.ts",
+      "snapshot": "sources/12.txt",
+      "sha256": "1568f5e51592f50387fc2ed4d4c81eba4cfaa46c76d4ca4b0ed1b9579fb3b0b6"
+    }
+  ],
+  "stages": []
+}

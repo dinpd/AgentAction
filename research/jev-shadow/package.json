@@ -1,0 +1,20 @@
+{
+  "name": "agentaction-jev-shadow-research",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
+    "baseline": "node --experimental-strip-types src/run.mjs --mode baseline",
+    "faults": "node --experimental-strip-types src/run.mjs --mode shadow --provider fixture",
+    "live": "node --experimental-strip-types src/run.mjs --mode all --provider live",
+    "compare": "node --experimental-strip-types src/compare.mjs",
+    "dashboard": "node src/dashboard.mjs",
+    "verify": "node --experimental-strip-types src/verify.mjs",
+    "workflow": "node --experimental-strip-types src/workflow/run.mjs",
+    "verify:workflow": "node --experimental-strip-types src/workflow/verify.mjs",
+    "dashboard:workflow": "node src/workflow/dashboard.mjs"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}
