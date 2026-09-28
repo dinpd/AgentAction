@@ -80,9 +80,19 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(html, /See how agent outcomes hold up across runs/);
   assert.match(html, /07 \/ Inspect the evidence/);
   assert.match(html, /08 \/ Proof, not promises/);
-  assert.match(html, /Jev vs LLMs for authorization decisions/);
-  assert.match(html, /synthetic approval workflows/);
-  assert.match(html, /href="https:\/\/github\.com\/dinpd\/AgentAction\/tree\/main\/research\/jev-shadow"[^>]*>Read the experiment and results/);
+  const proofSection = html.match(/<section id="proof"[\s\S]*?<\/section>/)?.[0];
+  const newsSection = html.match(/<section id="whats-new"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(proofSection);
+  assert.ok(newsSection);
+  assert.doesNotMatch(proofSection, /Jev|Research/);
+  assert.match(proofSection, /<article class="is-current"><p class="proof-state">Available now<\/p>/);
+  assert.ok(html.indexOf('id="proof"') < html.indexOf('id="whats-new"'));
+  assert.match(newsSection, /aria-labelledby="whats-new-title"/);
+  assert.match(newsSection, /What’s new/);
+  assert.match(newsSection, /<time dateTime="2026-09-27">September 27, 2026<\/time>/i);
+  assert.match(newsSection, /Jev vs LLMs for authorization decisions/);
+  assert.match(newsSection, /synthetic approval workflows/);
+  assert.match(newsSection, /href="https:\/\/github\.com\/dinpd\/AgentAction\/tree\/main\/research\/jev-shadow"[^>]*>Read the experiment and results/);
   assert.match(html, /09 \/ Recommended onboarding/);
   assert.ok(
     html.indexOf('id="console"') < html.indexOf('id="proof"'),
