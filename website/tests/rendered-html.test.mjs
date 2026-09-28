@@ -92,7 +92,8 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(newsSection, /<time dateTime="2026-09-27">September 27, 2026<\/time>/i);
   assert.match(newsSection, /Jev vs LLMs for authorization decisions/);
   assert.match(newsSection, /synthetic approval workflows/);
-  assert.match(newsSection, /href="https:\/\/github\.com\/dinpd\/AgentAction\/tree\/main\/research\/jev-shadow"[^>]*>Read the experiment and results/);
+  assert.match(newsSection, /href="\/research\/jev"[^>]*>Explore the interactive report/);
+  assert.match(newsSection, /href="https:\/\/github\.com\/dinpd\/AgentAction\/tree\/main\/research\/jev-shadow"[^>]*>Source &amp; methodology/);
   assert.match(html, /09 \/ Recommended onboarding/);
   assert.ok(
     html.indexOf('id="console"') < html.indexOf('id="proof"'),
@@ -678,4 +679,33 @@ test("practical recipes expose usable setup and preserve it in both download for
     for (const input of bundle.recipe.adoption.inputs) assert.ok(markdown.includes(input.description));
     for (const scenario of bundle.recipe.adoption.validation) assert.ok(markdown.includes(scenario.expected));
   }
+});
+
+test("serves a recorded interactive research report with restricted assets and sharing metadata", async () => {
+  const response = await render("/research/jev");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const csp = response.headers.get("content-security-policy");
+  assert.match(csp, /script-src 'self'/);
+  assert.match(csp, /connect-src 'self'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.doesNotMatch(csp, /unsafe-inline/);
+  const html = await response.text();
+  assert.match(html, /Recorded experiment · September 27, 2026/);
+  assert.match(html, /rel="canonical" href="https:\/\/agentaction.dev\/research\/jev"/);
+  assert.match(html, /property="og:title"/);
+  assert.match(html, /Source &amp; methodology/);
+  assert.match(html, /No new model calls or real actions/);
+  assert.match(html, /<noscript>/);
+  assert.doesNotMatch(html, /<script>/);
+  for (const id of ["phase", "cohort", "scenario", "repeat", "payload", "questions"]) assert.match(html, new RegExp(`id="${id}"`));
+  const script = await readFile(new URL("../dist/client/research/jev/dashboard.js", import.meta.url), "utf8");
+  await access(new URL("../dist/client/research/jev/dashboard.css", import.meta.url));
+  const dataPath = script.match(/fetch\('([^']+)'\)/)?.[1];
+  assert.match(dataPath, /^\/research\/jev\/recorded-[a-f0-9]{16}\.json$/);
+  const snapshot = JSON.parse(await readFile(new URL(`../dist/client${dataPath}`, import.meta.url), "utf8"));
+  assert.equal(snapshot.data.complete, true);
+  assert.equal(snapshot.data.fixture, false);
+  assert.equal(snapshot.rows.length, 528);
+  assert.equal(snapshot.rows.flatMap(r => r.attempts).length, 678);
 });

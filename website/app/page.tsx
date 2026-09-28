@@ -620,9 +620,12 @@ export default function Home() {
               user asked for, what the agent proposed, and whether approval still
               applies. Explore the findings, payloads, and reproducible evaluation.
             </p>
-            <a className="proof-link" href={`${github}/tree/main/research/jev-shadow`}>
-              Read the experiment and results <span aria-hidden="true">↗</span>
-            </a>
+            <div className="news-links">
+              <a className="proof-link" href="/research/jev">Explore the interactive report →</a>
+              <a className="proof-link" href={`${github}/tree/main/research/jev-shadow`}>
+                Source &amp; methodology <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </div>
         </article>
       </section>
