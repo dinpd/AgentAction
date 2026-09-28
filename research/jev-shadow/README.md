@@ -36,6 +36,9 @@ human waiting. This short load test does not establish maximum throughput.
 
 ## Read the evidence
 
+[Explore the interactive HTML report](https://agentaction.dev/research/jev) — a public, recorded snapshot with phase/cohort filters, payloads and workflow traces. No model calls run in the browser.
+
+
 - [Findings and interpretation](results/workflow-live-v2-1/FINDINGS.md)
 - [Full report](results/workflow-live-v2-1/REPORT.md)
 - [Methodology, criteria, workflow and limitations](WORKFLOW-EVALS.md)
@@ -120,3 +123,7 @@ allowlisted provider fields. It sends synthetic payloads only. The GET-only
 localhost dashboard has no credential handling or arbitrary-file endpoints.
 Tests cover malformed responses, timeouts, fault accounting, action/approval
 binding and hard-policy invariants; they do not prove model injection resistance.
+
+## Publish the recorded dashboard
+
+`node src/workflow/publish.mjs` regenerates the website report and static JSON from the final recorded run and local dashboard template. `node src/workflow/publish.mjs --check` verifies exact correspondence. The publication includes only summary, corpus and raw observations; no credentials, gateway journal or live controls.

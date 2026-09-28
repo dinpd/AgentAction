@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "research/jev-shadow/**"
+      - "website/public/research/jev/**"
+      - "website/app/research/jev/**"
       - "cloudflare/src/**"
       - "packages/guard/src/intent.ts"
       - ".github/workflows/research-jev.yml"
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - "research/jev-shadow/**"
+      - "website/public/research/jev/**"
+      - "website/app/research/jev/**"
       - "cloudflare/src/**"
       - "packages/guard/src/intent.ts"
       - ".github/workflows/research-jev.yml"

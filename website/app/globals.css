@@ -2883,3 +2883,5 @@ button:focus-visible {
   color: var(--muted);
   line-height: 1.65;
 }
+
+.news-links { display: flex; flex-wrap: wrap; gap: 0 1.5rem; }
