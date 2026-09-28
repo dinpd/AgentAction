@@ -2840,3 +2840,46 @@ button:focus-visible {
 @media (max-width: 760px) {
   .home-recipe-grid { grid-template-columns: 1fr; }
 }
+
+/* Dated project updates are separate from product availability and roadmap. */
+.whats-new {
+  border-top: 1px solid var(--line);
+}
+
+.news-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 3rem;
+  padding-block: 1.75rem;
+  border-top: 1px solid var(--ink);
+}
+
+.news-meta {
+  flex: 0 1 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.news-meta span {
+  color: #557c00;
+  font-weight: 800;
+}
+
+.news-copy {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.news-copy h3 {
+  font-size: clamp(1.3rem, 2.4vw, 1.8rem);
+}
+
+.news-copy > p {
+  max-width: 65ch;
+  margin-top: 0.9rem;
+  color: var(--muted);
+  line-height: 1.65;
+}

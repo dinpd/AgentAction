@@ -103,13 +103,6 @@ const permissionRows = [
 
 const proof = [
   {
-    state: "Research",
-    title: "Jev vs LLMs for authorization decisions",
-    copy: "We compared three models on synthetic approval workflows: what the user asked for, what the agent proposed, and whether approval still applies. Read the results, inspect the payloads, and rerun the evaluation.",
-    href: `${github}/tree/main/research/jev-shadow`,
-    linkLabel: "Read the experiment and results",
-  },
-  {
     state: "Available now",
     title: "Runtime action control",
     copy: "Local and hosted checks for exact tool calls, approvals, amount caps, budgets, circuit breakers, sensitive-data movement, idempotency, and replay protection.",
@@ -606,6 +599,32 @@ export default function Home() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section id="whats-new" className="whats-new section-shell" aria-labelledby="whats-new-title">
+        <div className="section-heading compact">
+          <div>
+            <p className="section-index">Updates</p>
+            <h2 id="whats-new-title">What’s new</h2>
+          </div>
+        </div>
+        <article className="news-entry" aria-labelledby="jev-news-title">
+          <div className="news-meta">
+            <time dateTime="2026-09-27">September 27, 2026</time>
+            <span>Research</span>
+          </div>
+          <div className="news-copy">
+            <h3 id="jev-news-title">Jev vs LLMs for authorization decisions</h3>
+            <p>
+              We compared three models on synthetic approval workflows: what the
+              user asked for, what the agent proposed, and whether approval still
+              applies. Explore the findings, payloads, and reproducible evaluation.
+            </p>
+            <a className="proof-link" href={`${github}/tree/main/research/jev-shadow`}>
+              Read the experiment and results <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </article>
       </section>
 
       <section id="observe" className="quickstart section-shell" aria-labelledby="quickstart-title">
