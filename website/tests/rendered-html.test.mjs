@@ -502,8 +502,36 @@ test("server-renders the governance landscape survey", async () => {
   assert.equal(article?.headline, "The AI Agent Governance Landscape");
   assert.equal(article?.image, "https://agentaction.dev/og.png");
   assert.equal(article?.datePublished, "2026-08-26");
-  assert.equal(article?.dateModified, "2026-08-26");
+  assert.equal(article?.dateModified, "2026-09-29");
   assert.equal(article?.publisher?.["@id"], "https://agentaction.dev/#organization");
+});
+
+test("landscape renders sourced coverage separately from maturity and preserves review scope", async () => {
+  const html = await (await render("/landscape")).text();
+  const map = html.match(/<section id="capability-map"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(map);
+  assert.equal((map.match(/data-project=/g) ?? []).length, 8);
+  assert.equal((map.match(/<td /g) ?? []).length, 48);
+  assert.equal((map.match(/Read source ↗/g) ?? []).length, 48);
+  assert.equal((map.match(/<th scope="col"/g) ?? []).length, 7);
+  assert.equal((map.match(/<th scope="row"/g) ?? []).length, 8);
+  assert.match(map, /Filter the capability map/);
+  assert.match(map, /role="status"/);
+  assert.match(map, /8<!-- --> of <!-- -->8<!-- --> approaches shown|8 of 8 approaches shown/);
+  assert.match(map, /Self-listed by the maintainer/);
+  assert.match(map, /no universal exactly-once guarantee/);
+  assert.match(map, /not that it is absent/);
+  assert.match(map, /Reference design/);
+  assert.match(map, /Announced/);
+  assert.match(map, /Reviewed <!-- -->2026-09-29|Reviewed 2026-09-29/);
+  assert.match(html, /August 2026 baseline/);
+  assert.match(html, /not all reverified/);
+  assert.match(html, /NVIDIA announcement/);
+  assert.doesNotMatch(html, /Nothing production-grade ships this|Every mature project stops/);
+  const doc = await readFile(new URL("../../docs/agent-governance-landscape.md", import.meta.url), "utf8");
+  for (const name of ["OpenShell", "Sentry", "AgentCore Policy", "Entra Agent ID", "agentgateway", "Auth0 AI SDKs", "AP2", "AgentAction"]) {
+    assert.ok(doc.includes(`### ${name} <a id="map-`), `${name} must have a qualified Markdown counterpart`);
+  }
 });
 
 test("publishes canonical sitemap and robots discovery endpoints", async () => {

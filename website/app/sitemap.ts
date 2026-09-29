@@ -25,7 +25,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${siteOrigin}/landscape`,
-      lastModified,
+      lastModified: "2026-09-29",
     },
   ];
 }

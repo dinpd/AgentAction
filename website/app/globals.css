@@ -2885,3 +2885,46 @@ button:focus-visible {
 }
 
 .news-links { display: flex; flex-wrap: wrap; gap: 0 1.5rem; }
+
+/* Landscape evidence map: semantic table, progressive disclosure, no rankings. */
+.capability-method { max-width: 78ch; color: var(--muted); font-size: .88rem; line-height: 1.65; margin: 1.2rem 0; }
+.capability-legend { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; list-style: none; padding: 0; margin: 1.5rem 0; }
+.capability-legend li { display: flex; align-items: center; gap: .5rem; font-size: .82rem; }
+.capability-mark { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1px solid currentColor; border-radius: 50%; font: 700 1rem/1 monospace; }
+.coverage-built { color: #365513; background: #edf3df; }
+.coverage-integration { color: #285065; background: #eaf0f4; }
+.coverage-announced { color: #79500f; background: #faf0dc; }
+.coverage-unknown { color: #606459; background: #f3f4ef; }
+.capability-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 1rem; border-top: 1px solid var(--ink); padding-top: 1.25rem; }
+.capability-filters label { display: grid; gap: .45rem; flex: 1 1 12rem; font-size: .78rem; font-weight: 650; }
+.capability-filters select, .capability-filters button { min-height: 44px; padding: .65rem .75rem; border: 1px solid #858a7b; border-radius: 0; background: var(--paper, #fafbf7); color: var(--ink); font: inherit; }
+.capability-filters select { width: 100%; }
+.capability-filters button { cursor: pointer; font-size: .82rem; }
+.capability-map :is(select, button, summary, a):focus-visible, .capability-scroll:focus-visible { outline: 3px solid #285065; outline-offset: 3px; }
+.capability-count, .capability-scroll-hint { font-size: .78rem; color: var(--muted); line-height: 1.6; margin: .9rem 0; }
+.capability-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--ink); }
+.capability-table { width: 100%; min-width: 1060px; border-collapse: collapse; table-layout: fixed; font-size: .78rem; }
+.capability-table caption { text-align: left; padding: .9rem 1rem; font-weight: 600; background: #f1f3e9; }
+.capability-table th, .capability-table td { padding: .8rem; border-right: 1px solid #d0d5c7; border-top: 1px solid #d0d5c7; vertical-align: top; overflow-wrap: anywhere; text-align: left; }
+.capability-table th:first-child { width: 210px; }
+.capability-table thead th { font-weight: 650; line-height: 1.45; background: #f1f3e9; }
+.capability-table th > span, .capability-table th > time { display: block; margin-top: .35rem; font-size: .69rem; line-height: 1.5; font-weight: 400; color: var(--muted); }
+.capability-table tbody th { background: #fafbf7; font-weight: 400; }
+.capability-table th .capability-maturity { display: inline-block; border: 1px solid #b1b7a7; padding: .15rem .4rem; font-weight: 650; color: var(--ink); }
+.capability-table td summary { display: flex; flex-direction: column; align-items: center; gap: .5rem; cursor: pointer; list-style: none; text-align: center; min-height: 58px; padding: .25rem; font-size: .7rem; }
+.capability-table summary::-webkit-details-marker { display: none; }
+.capability-table td summary::after { content: '+ Evidence'; font-size: .65rem; }
+.capability-table td details[open] summary::after { content: '− Evidence'; }
+.capability-table details p { font-size: .76rem; line-height: 1.6; font-weight: 400; margin: .7rem 0; }
+.capability-table details a { color: inherit; text-decoration: underline; text-underline-offset: .2em; display: inline-block; padding: .4rem 0; }
+.capability-scope { margin-top: .5rem; }
+.capability-scope summary { cursor: pointer; min-height: 32px; line-height: 1.6; text-decoration: underline; text-underline-offset: .2em; }
+.capability-empty { padding: 1rem; border: 1px solid var(--ink); margin-top: 1rem; }
+.finding-source { display: inline-block; margin-top: .6rem; font-size: .8rem; text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 700px) {
+  .capability-filters { gap: .8rem; }
+  .capability-filters label { flex-basis: 100%; }
+  .capability-filters button { width: 100%; }
+  .capability-table tbody th { position: sticky; left: 0; z-index: 1; box-shadow: 2px 0 0 #d0d5c7; }
+  .capability-table th:first-child { width: 165px; }
+}
