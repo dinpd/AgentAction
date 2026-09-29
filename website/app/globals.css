@@ -2928,3 +2928,44 @@ button:focus-visible {
   .capability-table tbody th { position: sticky; left: 0; z-index: 1; box-shadow: 2px 0 0 #d0d5c7; }
   .capability-table th:first-child { width: 165px; }
 }
+
+/* Qualitative overview: control/evidence × environment/task. */
+.governance-map-intro { max-width: 76ch; color: var(--muted); line-height: 1.7; margin-bottom: 2rem; }
+.governance-figure { margin: 0; }
+.governance-axis { display: grid; grid-template-columns: 32px 1fr 1fr; gap: 0; margin-bottom: 1rem; text-align: center; }
+.governance-axis strong { display: block; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; }
+.governance-axis div > span { display: block; margin-top: .35rem; color: var(--muted); font-size: .82rem; }
+.governance-quadrants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-left: 32px; }
+.governance-area { position: relative; padding: 1.8rem 2rem; border-top: 1px solid #d0d5c7; }
+.governance-area:nth-child(even) { border-left: 1px solid #d0d5c7; }
+.governance-area-task { background: #eaf0f4; }
+.governance-area-environment { background: #f2f1e7; border-bottom: 1px solid #d0d5c7; }
+.governance-context { position: absolute; right: calc(100% + 10px); top: 0; bottom: 0; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-size: .65rem; white-space: nowrap; }
+.governance-area h3 { font-size: 1.35rem; margin-bottom: .4rem; }
+.governance-question { color: var(--muted); font-size: .9rem; line-height: 1.5; margin-bottom: 1.2rem; }
+.governance-area ul { list-style: none; padding: 0; margin: 0; }
+.governance-area li + li { margin-top: .35rem; }
+.governance-area a { display: flex; align-items: baseline; gap: .55rem; width: fit-content; max-width: 100%; min-height: 44px; padding: .65rem 0; color: var(--ink); text-decoration: none; line-height: 1.4; }
+.governance-area a > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.governance-area a:hover { text-decoration: underline; text-underline-offset: .2em; }
+.governance-marker { flex: 0 0 1em; font-size: 1.1rem; line-height: 1; }
+.governance-figure figcaption { margin: 1.3rem 0 0 32px; color: var(--muted); font-size: .8rem; line-height: 1.65; }
+.governance-marker-legend { display: flex; gap: .5rem 1.5rem; flex-wrap: wrap; list-style: none; margin: 0 0 .8rem; padding: 0; }
+.governance-marker-legend li > span { color: var(--ink); }
+.governance-evidence-link { display: inline-block; margin: 1rem 0 0 32px; color: var(--ink); text-decoration: underline; text-underline-offset: .25em; }
+.governance-map a:focus-visible { outline: 3px solid #285065; outline-offset: 4px; }
+@media (max-width: 700px) {
+  .governance-area { padding: 1.3rem .85rem; }
+  .governance-area h3 { font-size: 1.1rem; }
+  .governance-area a { font-size: .85rem; }
+  .governance-question { font-size: .8rem; }
+  .governance-axis div > span { font-size: .75rem; padding: 0 .3rem; }
+}
+
+@media (max-width: 360px) {
+  .landscape-page .site-header { flex-wrap: wrap; }
+  .landscape-closing h2 { overflow-wrap: anywhere; }
+  .governance-area { padding-inline: .5rem; }
+  .governance-area a { gap: .3rem; }
+  .governance-marker { font-size: .9rem; }
+}

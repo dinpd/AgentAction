@@ -55,6 +55,30 @@ solving genuinely different problems. Three questions separate them:
 
 ---
 
+## Agent Governance Map — the organizing framework
+
+Start with four jobs, then use the capability matrix below to inspect evidence.
+The horizontal axis separates **control** (constrain what may happen) from
+**evidence** (establish what happened). The vertical axis separates the
+**execution environment** from the **business task**.
+
+| Context | Control | Evidence |
+|---|---|---|
+| **Business task** | **Govern actions:** “May this refund proceed?” AgentCore Policy, AP2 payment mandates, AgentAction action controls. | **Verify outcomes:** “Did the intended refund happen?” AP2 payment evidence and AgentAction's early intent evaluator. |
+| **Execution environment** | **Bound access:** “What can this agent reach?” Entra, OpenShell, agentgateway and announced Sentry enforcement. | **Monitor runtime:** “What did the agent do?” OpenShell runtime logs and announced Sentry monitoring/attested telemetry. |
+
+These are qualitative placements of representative capabilities, not product-wide
+scores or rankings. Repeated names show complementary coverage. Maturity markers
+remain separate: **● documented available capability**, **○ early/draft
+implementation**, **◇ announced reference design**. AP2 is payment-specific;
+AgentAction is early and self-listed; Sentry remains an announced reference design.
+Runtime logs and attested telemetry do not by themselves establish a verified
+business outcome. Sources and qualifications for these placements are listed in
+the capability entries below and linked directly from the website diagram.
+
+The practical question is: **Which jobs does our stack cover, and where are we
+relying on assumptions?**
+
 ## Capability map — September 29, 2026
 
 Eight representative approaches, including selected managed services and a hardware reference design alongside open-source projects. This is a documentation review, not an independent benchmark or certification. Scope is per row, not vendor-wide. The [interactive map](https://agentaction.dev/landscape#capability-map) filters focus, maturity and offering, and exposes these same qualifications and sources. AgentAction is self-listed under the same criteria.

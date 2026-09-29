@@ -14,8 +14,8 @@ export function CapabilityMap() {
     <section id="capability-map" className="section-shell capability-map" aria-labelledby="capability-title">
       <div className="section-heading">
         <div>
-          <p className="section-index">At a glance / Control focus</p>
-          <h2 id="capability-title">Different layers. Different guarantees.</h2>
+          <p className="section-index">Go deeper / Capability evidence</p>
+          <h2 id="capability-title">Inspect the evidence.</h2>
         </div>
         <p>Eight representative approaches, not a leaderboard. Coverage and maturity are separate. Select any cell to inspect its evidence.</p>
       </div>

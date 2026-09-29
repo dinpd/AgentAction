@@ -506,6 +506,37 @@ test("server-renders the governance landscape survey", async () => {
   assert.equal(article?.publisher?.["@id"], "https://agentaction.dev/#organization");
 });
 
+test("landscape explains the four governance jobs before presenting capability evidence", async () => {
+  const html = await (await render("/landscape")).text();
+  const overview = html.match(/<section id="governance-map"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(overview);
+  assert.ok(html.indexOf('id="governance-map"') < html.indexOf('id="capability-map"'));
+  assert.match(html, /href="#governance-map">Map<\/a>/);
+  for (const label of ["Control", "Evidence", "Business task", "Execution environment", "Govern actions", "Verify outcomes", "Bound access", "Monitor runtime"]) {
+    assert.ok(overview.includes(label), `missing organizing concept: ${label}`);
+  }
+  const sources = [...overview.matchAll(/<a href="(https:[^"]+)" title="([^"]+)" aria-label="([^"]+)">/g)];
+  assert.equal(sources.length, 11, "every representative placement links directly to its evidence");
+  for (const [, url, scope, accessibleName] of sources) {
+    assert.equal(new URL(url).protocol, "https:");
+    assert.ok(scope.length > 50);
+    assert.ok(accessibleName.includes(scope));
+  }
+  assert.match(overview, /Documented available capability/);
+  assert.match(overview, /Early \/ draft implementation/);
+  assert.match(overview, /Announced reference design/);
+  assert.match(overview, /AP2 is scoped to payments/);
+  assert.match(overview, /early, self-listed implementation/);
+  assert.match(overview, /not a product-wide score/);
+  assert.match(overview, /not arbitrary business-goal evaluation/);
+  assert.match(overview, /neither establishes a verified business outcome/);
+  assert.match(overview, /href="#capability-map"/);
+  const doc = await readFile(new URL("../../docs/agent-governance-landscape.md", import.meta.url), "utf8");
+  for (const title of ["Govern actions", "Verify outcomes", "Bound access", "Monitor runtime"]) {
+    assert.ok(doc.includes(title), `${title} must also be explained in the Markdown survey`);
+  }
+});
+
 test("landscape renders sourced coverage separately from maturity and preserves review scope", async () => {
   const html = await (await render("/landscape")).text();
   const map = html.match(/<section id="capability-map"[\s\S]*?<\/section>/)?.[0];

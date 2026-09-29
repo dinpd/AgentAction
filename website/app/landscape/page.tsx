@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Brand } from "../brand";
 import { CapabilityMap } from "./capability-map";
+import { GovernanceMap } from "./governance-map";
 
 const github = "https://github.com/dinpd/AgentAction";
 const sourceDoc = `${github}/blob/main/docs/agent-governance-landscape.md`;
@@ -497,7 +498,7 @@ export default function LandscapePage() {
       <header className="site-header">
         <Brand href="/" />
         <nav aria-label="Primary navigation">
-          <a href="#capability-map">Map</a>
+          <a href="#governance-map">Map</a>
           <a href="#findings">Findings</a>
           <a href="#projects">Projects</a>
           <a href="#standards">Standards</a>
@@ -558,6 +559,7 @@ export default function LandscapePage() {
         </div>
       </section>
 
+      <GovernanceMap />
       <CapabilityMap />
 
       <section id="findings" className="section-shell landscape-findings" aria-labelledby="findings-title">
