@@ -5,9 +5,11 @@ largest institutional backing to smallest independent project, with an explicit
 separation between what ships today and what is still a proposal.
 
 Maintained by [AgentAction](https://agentaction.dev). We are listed here too, in the
-independent tier where we belong. Verified August 2026 against each project's own
-repository, license file, and package registry. Corrections welcome: open an issue
-or a PR.
+independent tier where we belong. **Targeted update: September 29, 2026** for the
+capability map, NVIDIA entries and affected findings. Other catalog entries, status
+labels and figures retain their **August 2026 baseline** and were not all reverified.
+Sources are project documentation and repositories, not independent certification.
+Corrections welcome: open an issue or a PR.
 
 This is a short list on purpose. There are well over a hundred projects that could
 appear here. Each entry is included because it changes what a reader should conclude,
@@ -29,6 +31,8 @@ solving genuinely different problems. Three questions separate them:
 
 | Tag | Meaning |
 |---|---|
+| **Contain** | Restricts runtime access to processes, files or networks |
+| **Monitor** | Observes activity and supports intervention; does not itself prove outcomes |
 | **Gate** | Evaluates a specific tool call against policy, can block before execution |
 | **Route** | Proxies or federates agent traffic; enforcement coarse or absent |
 | **Validate** | Inspects model input/output for injection, PII, toxicity, hallucination |
@@ -41,6 +45,8 @@ solving genuinely different problems. Three questions separate them:
 | Status | Meaning |
 |---|---|
 | **Live** | Generally available, in production use |
+| **Available** | Published software; not a certification of production readiness |
+| **Reference design** | Announced architecture; verify component availability separately |
 | **Preview** | Vendor-labeled preview or beta. Usable, expect breaking changes |
 | **Early** | Pre-1.0 or thin adoption. Read the source before depending on it |
 | **Draft** | A specification with no adopted standing |
@@ -49,154 +55,167 @@ solving genuinely different problems. Three questions separate them:
 
 ---
 
+## Capability map — September 29, 2026
+
+Eight representative approaches, including selected managed services and a hardware reference design alongside open-source projects. This is a documentation review, not an independent benchmark or certification. Scope is per row, not vendor-wide. The [interactive map](https://agentaction.dev/landscape#capability-map) filters focus, maturity and offering, and exposes these same qualifications and sources. AgentAction is self-listed under the same criteria.
+
+B = built in; I = integration; A = announced; ? = not established by the reviewed source. These are coverage states, not scores. Built in includes early reference implementations. Read the scope before interpreting any mark.
+
+| Project | Maturity / offering | Identity & delegation | Runtime containment | Action authorization | State & approvals | Provider verification | Execution & outcomes | Reviewed |
+|---|---|---|---|---|---|---|---|---|
+| [OpenShell](#map-openshell) | Available / Open source | B | B | I | B | ? | ? | 2026-09-29 |
+| [Sentry](#map-sentry) | Reference design / Hardware reference | A | A | A | ? | ? | ? | 2026-09-29 |
+| [AgentCore Policy](#map-agentcore) | Available / Managed | B | ? | B | B | ? | ? | 2026-09-29 |
+| [Entra Agent ID](#map-entra) | Available / Managed | B | ? | I | ? | ? | ? | 2026-09-29 |
+| [agentgateway](#map-agentgateway) | Available / Open source | I | ? | B | ? | ? | ? | 2026-09-29 |
+| [Auth0 AI SDKs](#map-auth0) | Early / Open source + managed | B | ? | I | B | ? | ? | 2026-09-29 |
+| [AP2](#map-ap2) | Draft / Open source | I | ? | B | B | B | B | 2026-09-29 |
+| [AgentAction](#map-agentaction) | Early / Open source | I | ? | B | B | B | B | 2026-09-29 |
+
+### OpenShell <a id="map-openshell"></a>
+
+NVIDIA. Available software; deployment requirements still apply. Permission expansion is distinct from approval of an exact business transaction.
+
+- **Identity & delegation — Built in:** Sandbox credentials and controlled provider-credential injection; not a portable delegation-chain standard. [Source](https://docs.nvidia.com/openshell/latest/about/architecture).
+- **Runtime containment — Built in:** Separate trusted supervisor, filesystem/process controls and a mediated network path. [Source](https://docs.nvidia.com/openshell/latest/about/architecture).
+- **Action authorization — Integration:** API policy is native. Application-specific payload decisions can be added through supervisor middleware. [Source](https://docs.nvidia.com/openshell/latest/extensibility/overview).
+- **State & approvals — Built in:** Risky policy expansion requires review; this does not establish business-transaction budgets or single-use approvals. [Source](https://docs.nvidia.com/openshell/latest/about/architecture).
+- **Provider verification — Not established:** Extension tokens authenticate the caller; the reviewed contract does not establish provider-verifiable authority bound to an exact business payload. [Source](https://docs.nvidia.com/openshell/latest/extensibility/overview).
+- **Execution & outcomes — Not established:** Runtime logs do not by themselves establish that a business outcome satisfied its intended constraints. [Source](https://docs.nvidia.com/openshell/latest/about/architecture).
+
+### Sentry <a id="map-sentry"></a>
+
+NVIDIA. Announced September 28. BlueField-4 reference design; vendor claims are not independently benchmarked here.
+
+- **Identity & delegation — Announced:** The announcement describes agent identity verification through DOCA. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+- **Runtime containment — Announced:** Independent DPU monitoring and quarantine outside the agent runtime. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+- **Action authorization — Announced:** Granular tool/API access enforcement is described; exact transaction-payload semantics are not established. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+- **State & approvals — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+- **Provider verification — Not established:** Attested telemetry is described, but not a receiving-service contract for exact-action authorization receipts. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+- **Execution & outcomes — Not established:** Monitoring and attested telemetry are not proof of a verified business outcome. [Source](https://nvidianews.nvidia.com/news/open-agent-safety-platform).
+
+### AgentCore Policy <a id="map-agentcore"></a>
+
+AWS. Managed policy service. Dogwood's open-source reference interpreter has a separate maturity. This row does not score all AgentCore services.
+
+- **Identity & delegation — Built in:** Policy sessions bind to authenticated principals; supported multi-hop flows propagate caller identity. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html).
+- **Runtime containment — Not established:** This policy-service source does not establish OS isolation. AgentCore Runtime is a separate service. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html).
+- **Action authorization — Built in:** Cedar evaluates tool invocations and input parameters, including refund amounts. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-understanding-cedar.html).
+- **State & approvals — Built in:** Temporal policies constrain action sequences, invocation counts and sensitive-read follow-up. Multi-hop support is limited to one account and Region. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html).
+- **Provider verification — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html).
+- **Execution & outcomes — Not established:** Session history supports authorization; an independently verifiable business-outcome receipt is not established by this source. [Source](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html).
+
+### Entra Agent ID <a id="map-entra"></a>
+
+Microsoft / Agent 365. Identity and lifecycle coverage. Do not interpret scoped access tokens as exact-action authorization receipts.
+
+- **Identity & delegation — Built in:** Agent identities, ownership, scoped tokens and user/agent context anchor access and lifecycle governance. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Runtime containment — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Action authorization — Integration:** Identity and permissions supply access context; the application must enforce its business-action constraints. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **State & approvals — Not established:** Lifecycle and Conditional Access controls do not establish per-job transaction history or payload-bound approval in this overview. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Provider verification — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Execution & outcomes — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+
+### agentgateway <a id="map-agentgateway"></a>
+
+Open-source gateway. This row covers documented standalone MCP authorization, not every enterprise extension or custom integration.
+
+- **Identity & delegation — Integration:** Configure MCP authentication to supply validated JWT claims to authorization rules. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+- **Runtime containment — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+- **Action authorization — Built in:** MCP tool-name/target authorization. Tool arguments are documented as post-request access-log fields, not request-time authorization inputs. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+- **State & approvals — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+- **Provider verification — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+- **Execution & outcomes — Not established:** Tool result logging is documented; linked authorization-to-outcome verification is not established. [Source](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/).
+
+### Auth0 AI SDKs <a id="map-auth0"></a>
+
+Okta / Auth0. Open-source SDKs backed by managed Auth0 services. SDK maturity and service maturity are separate.
+
+- **Identity & delegation — Built in:** User authentication and Token Vault connect agents to user-authorized services. [Source](https://github.com/auth0/auth0-ai-js).
+- **Runtime containment — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://github.com/auth0/auth0-ai-js).
+- **Action authorization — Integration:** Application integrations connect authorization and approval flows to tool execution. [Source](https://github.com/auth0/auth0-ai-js).
+- **State & approvals — Built in:** Asynchronous authorization supports human approval; it is not a general temporal-policy engine. [Source](https://github.com/auth0/auth0-ai-js).
+- **Provider verification — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://github.com/auth0/auth0-ai-js).
+- **Execution & outcomes — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://github.com/auth0/auth0-ai-js).
+
+### AP2 <a id="map-ap2"></a>
+
+Google agentic commerce. Protocol and reference code for payments. Coverage does not imply adoption as a general-purpose action standard.
+
+- **Identity & delegation — Integration:** Payment participants integrate credential and identity systems with the protocol. [Source](https://github.com/google-agentic-commerce/AP2).
+- **Runtime containment — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://github.com/google-agentic-commerce/AP2).
+- **Action authorization — Built in:** Mandates express payment-specific intent and purchase authorization. [Source](https://github.com/google-agentic-commerce/AP2).
+- **State & approvals — Built in:** Mandates capture user consent for payment flows; not a generic session-budget engine. [Source](https://github.com/google-agentic-commerce/AP2).
+- **Provider verification — Built in:** Verifiable mandates carry payment authority across participant boundaries. [Source](https://github.com/google-agentic-commerce/AP2).
+- **Execution & outcomes — Built in:** Payment receipts provide transaction evidence; arbitrary business-goal evaluation remains outside this scope. [Source](https://github.com/google-agentic-commerce/AP2).
+
+### AgentAction <a id="map-agentaction"></a>
+
+Self-listed by the maintainer. Reference implementations and demos. Production use requires trusted context, complete mediation and durable atomic stores; no universal exactly-once guarantee.
+
+- **Identity & delegation — Integration:** Consumes enterprise identity and trusted caller context; does not replace the identity broker. [Source](https://github.com/dinpd/AgentAction/blob/main/packages/provider-express/README.md).
+- **Runtime containment — Not established:** An embedded guard is not OS isolation. Infrastructure must prevent bypass of the action boundary. [Source](https://github.com/dinpd/AgentAction/blob/main/packages/guard/src/index.ts).
+- **Action authorization — Built in:** Guard checks tool, resource, amount and declared data flow before a wrapped callback. [Source](https://github.com/dinpd/AgentAction/blob/main/packages/guard/src/index.ts).
+- **State & approvals — Built in:** Approvals, budgets and replay state exist. Local in-memory state alone does not survive crashes or resolve uncertain provider commits. [Source](https://github.com/dinpd/AgentAction/blob/main/packages/guard/src/index.ts).
+- **Provider verification — Built in:** Reference JWS/JWKS middleware verifies scoped receipts. Production replay/revocation stores must be durable and atomic; the Express package is private while its contract settles. [Source](https://github.com/dinpd/AgentAction/blob/main/packages/provider-express/README.md).
+- **Execution & outcomes — Built in:** Intent evaluation separates execution and trusted observations; missing evidence can yield indeterminate. Quality depends on the supplied contract and evidence. [Source](https://github.com/dinpd/AgentAction/blob/main/docs/intent-assurance.md).
+
+---
+
 # Findings
 
-## 1. Access control and action authorization are different problems, and the funded work is nearly all on the first one
+## 1. Access control and action authorization are different problems
 
-The MCP authorization spec is OAuth 2.1 at the transport layer. It authorizes a
-*client to reach a server* at scope granularity, and it says so: authorization is
-described as operating "at the transport level," it is OPTIONAL, and STDIO transports
-are told not to use it. Nothing in it evaluates whether a particular tool call with
-particular arguments should proceed; the spec only says hosts "SHOULD build robust
-consent and authorization flows."
+Identity and scoped access establish who can connect. Action authorization must also
+check the proposed operation. Granularity matters: [agentgateway's standalone MCP
+rules](https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/)
+use tool names and targets, while [AgentCore Policy](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-understanding-cedar.html)
+can evaluate input parameters. An OAuth token alone does not establish exact-payload
+business authorization.
 
-ID-JAG, Entra Agent ID, Auth0 Token Vault, Composio, Arcade, SPIFFE, WorkOS Pipes and
-Clerk's AgentPass all answer "who is this agent and how does it get a token." That is
-a real problem, it is close to solved, and it is not the same problem. Clerk's spec
-says the quiet part plainly: **"ongoing action-level control remains the service's
-responsibility."**
+## 2. Stateful authorization is already part of the landscape
 
-On the action side there is exactly one mature open standard, OpenID's AuthZEN
-Authorization API 1.0 (Final, January 2026), and it standardizes the request/response
-envelope between enforcement point and decision point. It standardizes the *question*,
-not the risk model.
+[AgentCore temporal policies](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html)
+use prior actions within a session to constrain sequences and invocation counts.
+Keep the managed service separate from Dogwood's open-source reference interpreter.
+Current documentation describes multi-hop identity propagation within one AWS account
+and Region, superseding this survey's earlier statement that multi-agent support was
+entirely future work. Session boundaries and propagation limits remain material.
 
-## 2. History-dependent constraints have no home in mainstream policy engines, and AWS just closed that gap at the top of the market
+## 3. Runtime isolation and provider verification protect different boundaries
 
-The agent failures that cost money are cumulative: a runaway tool loop, session spend
-crossing a budget, the third destructive call in one session, a payload changed after
-approval was granted, an approval reused after it should have been consumed.
+[OpenShell](https://docs.nvidia.com/openshell/latest/about/architecture) separates the
+trusted supervisor from the agent workload. NVIDIA's [Sentry announcement](https://nvidianews.nvidia.com/news/open-agent-safety-platform)
+describes a separate hardware trust domain. Neither control by itself establishes a
+provider-verifiable receipt for an exact business transaction. Conversely, an SDK
+wrapper cannot contain an agent that can bypass it. Complete mediation remains a
+deployment requirement.
 
-Cedar, OPA/Rego, CEL and Cerbos provide no operators for counts, sums, or time-windowed
-aggregates over prior events. This is deliberate, not an oversight: AWS notes Cedar
-"excludes loops and stateful operations, so policy evaluation terminates in O(n) time,"
-which is what buys automated reasoning about policies. SpiceDB and OpenFGA do hold
-durable state as relationship tuples, but still have no temporal or aggregate
-operators. History-dependent constraints therefore have to live outside the policy
-layer.
+## 4. Authorization, execution and outcome remain separate claims
 
-**This changed in August 2026,** and the live-versus-theory distinction matters here
-more than anywhere else in this document. AWS open-sourced
-[Dogwood](https://github.com/dogwood-policy/dogwood), which extends Cedar with metric
-first-order temporal logic: `formerly`, `since`, `count_within`, `count_distinct_within`,
-`sum_within`. Its documented examples are exactly the failure list above, including
-requiring that a tool argument match the output of a prior call, and one approval per
-trade. The **open-source reference interpreter is explicitly not for production use**
-(in-memory, no eviction, trace lost on crash). The **language itself ships inside
-Bedrock AgentCore Policy**, where temporal policies and rate limiting were announced
-6 August 2026. So the capability is live if you are an AWS customer and a research
-artifact if you are not. State is session-scoped with a 24-hour look-back, and
-multi-agent orchestration is listed as future work.
+[AP2](https://github.com/google-agentic-commerce/AP2) addresses payment evidence;
+[AgentAction's early intent evaluator](intent-assurance.md) separates execution from
+trusted observations and can return indeterminate when evidence is missing. An audit
+log or an allowed request alone does not establish that the intended task succeeded
+within its constraints. Compare evidence bindings and verifiers, rather than claiming
+that no projects connect these stages.
 
-Two accuracy notes. Temporal authorization policy is a mature research area, not a new
-idea: Basin et al.'s metric first-order temporal logic work runs from SACMAT 2010
-through enforcement, not just monitoring, in ESORICS 2022, and Dogwood is an
-application of that lineage. And outside AWS, durable state remains fragmented across
-LLM gateways tracking spend (LiteLLM, Portkey) and a handful of pre-1.0 agent projects.
+## 5. Identity propagation is not recursive delegation verification
 
-## 3. The enforcement point sits on the side of the boundary the constrained party controls
+[AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html)
+documents caller identity propagation across supported hops. Its account and Region
+limits illustrate why this is not a portable, recursively narrowing authority chain
+across organizations. Evaluate the specific trust boundary; a general delegation
+claim is not proof of cross-organizational interoperability.
 
-In almost every project here, the gate runs inside the agent's own runtime, SDK,
-sidecar, or the operator's own gateway. The party being constrained, or whoever
-operates it, also operates the constraint. An operator with code control can bypass it.
+## 6. Approval exists; its binding and durability need inspection
 
-Identity-aware proxies are a partial exception worth naming precisely. Pomerium and
-Teleport both mint their own signed JWT that the upstream verifies via a published
-JWKS endpoint (`X-Pomerium-Jwt-Assertion`, `Teleport-Jwt-Assertion`). But the claims
-are subject, email, groups, roles. They prove **who is calling, never what they were
-authorized to do.** agentgateway and ToolHive do RFC 8693 token exchange, so the
-backend verifies the *identity provider's* signature at scope granularity, not the
-gateway's decision. Envoy AI Gateway does per-tool CEL authorization at the gateway
-and forwards API keys. IBM ContextForge and Docker's gateway produce no
-downstream-verifiable artifact at all.
-
-DPoP (RFC 9449) looks like it closes this and does not. The proof covers HTTP method
-and URI only; the RFC is explicit that "only these two message parts are covered."
-`POST /transfer` for $10 and for $10,000,000 produce identical DPoP proofs.
-
-**Payments is the real exception, and it ships.** Google's AP2 uses SD-JWT mandates
-that the merchant, PSP, and credentials provider each verify against actual cart
-parameters before settling. Coinbase's x402 has the resource server verify a
-client-signed payment payload bound to exact amount, recipient, resource and nonce.
-Money forced the issue. Nothing equivalent exists for the MCP server or the SaaS
-mutation.
-
-The IETF's own gap analysis names this. `draft-chen-oauth-agent-authz-use-cases`
-calls it the **grant-layer versus execution-layer gap** and argues that at the moment
-of commitment "a simple access token representing Grant-Layer Authority is
-insufficient." It is an individual draft with no working group adoption, so treat it
-as a well-argued statement of the problem rather than a direction of travel.
-
-## 4. Authorization is not proof of execution, and almost nothing links the two
-
-Most projects treat the authorization decision as the terminal event and then log
-activity. Three claims that need to stay distinct get collapsed: that an action was
-authorized, that it executed, and that the intended outcome occurred within
-constraints.
-
-Pipelock is the honest illustration. Its signed action record carries verdict, side
-effect class, reversibility and policy hash, and **no outcome field at all**; its own
-spec states the receipt "does NOT prove that the action's effects were as described."
-The mediator sees the upstream status code and ships it to logs, but it is not in the
-signed record. An early "countersigned" conformance level was set aside.
-
-Payments is again the exception. AP2's payment receipt binds a hash of the closed
-mandate (authorized) to a status (executed) to PSP and network confirmation IDs
-(outcome), as three linked claims with working verification.
-
-Everywhere else, "we authorized it" and "it happened" live in separate systems that
-nobody joins.
-
-## 5. Delegation chains have no adopted standard
-
-When agent A delegates to agent B which calls tool C, no adopted standard constrains
-how authority propagates. The most striking evidence is normative and live: RFC 8693
-defines nested `act` claims as the standard representation of a delegation chain, then
-directs that consumers **"MUST only consider the token's top-level claims and the party
-identified as the current actor,"** and that prior actors "are informational only and
-are not to be considered in access control decisions." The standard way to represent a
-chain explicitly forbids using it for authorization.
-
-A2A defines transport, discovery and which auth schemes an endpoint requires. It has
-no delegation, attenuation, or chain semantics. MCP's own roadmap, updated 22 August
-2026, names the problem directly: authorization "assumes a person with a browser at
-consent time," while the caller may be an agent "spawning sub-agents that should get
-narrower authority than their parent." Its Agent Identity working group is *forming*.
-The IETF WIMSE cross-organizational delegation draft is a problem statement that
-declines to specify a solution, observing that no widely deployed mechanism lets a
-relying party verify a recursively attenuated delegation chain from another
-organization.
-
-One correction to the common framing: narrowing-only delegation **is** implemented at
-scale. Microsoft's AGT ships a 1,552-line identity and trust spec with conformance
-requirements for monotonic narrowing ("capabilities MUST only narrow, never widen"),
-no wildcard propagation, delegation depth limits, hash-chained scope chains and
-cascade revocation. But it runs on AGT's own `did:mesh:` scheme, it is public preview,
-and it does nothing for the cross-organizational case. Cloudflare, describing its own
-agent access architecture, states plainly: "We are not comfortable saying that
-multiplayer access control can be built end to end today."
-
-## 6. Human approval has no production-grade home at the gateway layer
-
-Every project doing genuine per-call approve/deny is a desktop or local tool, and
-several are dormant. MCP Guardian is the clearest implementation and has shipped
-nothing since April 2025. MCP Defender was acquired by Docker, whose forward
-investment is elsewhere. Microsoft AGT has approvals but ships an
-`InMemoryApprovalQueue` by default. Auth0's asynchronous authorization via CIBA plus
-push notification is the most production-ready human-in-the-loop path in the
-landscape, and it lives in an identity product rather than an agent gateway. Obot's
-webhook filters and Permit's commercial consent service are the closest paths to
-building one yourself.
+[Auth0 AI SDKs](https://github.com/auth0/auth0-ai-js) support asynchronous authorization;
+[OpenShell](https://docs.nvidia.com/openshell/latest/about/architecture) reviews risky
+permission expansion. Approving a permission change differs from approving one exact
+refund or deployment. Check approver identity, payload binding, expiry, atomic
+consumption and crash recovery. The earlier blanket claim that production approval
+does not exist was too broad.
 
 ---
 
@@ -206,6 +225,8 @@ building one yourself.
 
 | Project | Org | Tags | Status | License | Stars | Why it matters |
 |---|---|---|---|---|---|---|
+| [OpenShell](https://github.com/NVIDIA/OpenShell) | NVIDIA | Contain, Gate, Identity | **Available** | Apache-2.0 | Not re-counted | Reviewed September 29. Runtime isolation, credential protection and API/network policy with a separate supervisor. Business-payload checks can use [middleware](https://docs.nvidia.com/openshell/latest/extensibility/overview). Software availability is separate from Sentry hardware. |
+| [Sentry](https://nvidianews.nvidia.com/news/open-agent-safety-platform) | NVIDIA | Contain, Monitor | **Reference design** | Component-specific; not assessed | Not applicable | Reviewed September 29. Announced September 28 on BlueField-4 DPUs. Independent monitoring and enforcement; vendor availability/performance claims require deployment-specific verification. Attested telemetry is not a verified business outcome. |
 | [Agent Governance Toolkit](https://github.com/microsoft/agent-governance-toolkit) | Microsoft | Gate | **Preview** | MIT | 6.1k | The center of gravity. Intercepts every tool call, message, and delegation pre-execution; policy in YAML, Rego, or Cedar; SDKs in five languages. Also the only at-scale implementation of monotonic delegation narrowing, though on a proprietary `did:mesh:` scheme. Approvals default to an in-memory queue. |
 | [ContextForge](https://github.com/IBM/mcp-context-forge) | IBM | Route, Gate | **Live** | Apache-2.0 | 4.3k | The largest open-source gateway, GA since May 2026. A `tool_pre_invoke` plugin can block a call outright, so enforcement is real but **plugin-authored**: there is no built-in decision point yet (issue #2223 proposes one). 7,000+ tests, monthly releases. |
 | [AP2](https://github.com/google-agentic-commerce/AP2) | Google + FIDO | Receipt | **Draft spec, working implementations** | Apache-2.0 | 3.1k | **The counterexample to findings 3 and 4.** SD-JWT mandates verified by merchant, PSP, and credentials provider against actual cart parameters before settlement, with receipts binding authorization to execution to outcome. Spec is v0.2; the reference SDKs genuinely verify. Payments only. |
@@ -334,19 +355,17 @@ seam, and per-tool authorization tied to JWT claims as the default shape. Anyone
 building here should assume the enforcement layer is commoditizing and plan
 accordingly.
 
-The stateful layer moved this month. Until August 2026 it was fair to say mainstream
+The stateful layer moved in August 2026. Until August 2026 it was fair to say mainstream
 policy engines could not express "the third destructive call this session" or "no more
 than $5,000 transferred in the last hour." Dogwood and Bedrock AgentCore Policy
 changed that for AWS customers, and the underlying temporal-logic research is fifteen
 years old and well understood. Expect this to spread.
 
-What has not moved is the evidence layer. Every mature project stops at OpenTelemetry
-spans and structured logs, which the operator can rewrite. The gateways that do hand a
-downstream service something signed are attesting identity, not authority. Nothing
-outside payments links the authorization decision to what actually executed, and
-nothing at all constrains authority across a delegation chain in a way a relying party
-in another organization can verify. Three separate standards efforts have written down
-some version of this gap in the last six months. All three are individual drafts.
+Evidence needs a more specific comparison than the presence of logs. NVIDIA describes
+attested telemetry; AP2 carries payment mandates and receipts; early projects including
+AgentAction connect scoped authority to execution and outcome evidence. These are
+different guarantees. Check payload binding, trusted issuers, independent observations
+and failure recovery before treating any one as proof of a successful authorized task.
 
 The short version: **the industry has largely solved "may this agent connect," is
 rapidly solving "may this call proceed," and has barely started on "can anyone else
@@ -362,9 +381,9 @@ Most readers arrive with a specific problem. Roughly:
 | Policy across a mixed estate with SDKs in several languages | [Microsoft AGT](https://github.com/microsoft/agent-governance-toolkit), accepting preview status |
 | Constraints over sequences, budgets, or session history | Bedrock AgentCore Policy if you are on AWS. Otherwise you are assembling durable state yourself |
 | Content validation of model input and output | [Guardrails AI](https://github.com/guardrails-ai/guardrails), or [NeMo Guardrails](https://github.com/NVIDIA-NeMo/Guardrails) for conversational rails |
-| Isolation and credential brokering more than policy | [Docker MCP Gateway](https://github.com/docker/mcp-gateway) |
+| Runtime isolation and credential brokering | [OpenShell](https://docs.nvidia.com/openshell/latest/about/architecture) for the agent runtime; [Docker MCP Gateway](https://github.com/docker/mcp-gateway) for containerized MCP servers. Verify deployment boundaries. |
 | Protection against tool descriptions changing under you | [mcp-context-protector](https://github.com/trailofbits/mcp-context-protector) |
-| Human approval on individual calls | Nothing production-grade ships this. [Auth0's CIBA flow](https://github.com/auth0/auth0-ai-js) if you are identity-centric, [Obot](https://github.com/obot-platform/obot) filters if you are building it yourself |
+| Human approval on individual calls | [Auth0's CIBA flow](https://github.com/auth0/auth0-ai-js) if you are identity-centric, [OpenShell](https://docs.nvidia.com/openshell/latest/about/architecture) for permission expansion. Exact-action binding, expiry and replay semantics still require inspection. |
 | A receiving service that must verify authority itself | [AP2](https://github.com/google-agentic-commerce/AP2) if the domain is payments. Otherwise this is an open problem and every project attempting it is early |
 
 A general note on selection: the useful question is rarely "which tool is best," it is
@@ -383,10 +402,10 @@ For anyone working on this, the open problems are reasonably well defined:
    distinct claims linked by evidence rather than collapsing them into one log line.
 3. **Cross-organizational delegation** a relying party can verify recursively, which
    RFC 8693 currently instructs implementers not to attempt.
-4. **A server-side approval queue** with durable state, expiry, and payload binding,
-   as ordinary infrastructure rather than a desktop utility.
-5. **Temporal policy outside a single cloud provider**, given that the research is
-   settled and only one production implementation exists.
+4. **Consistent approval semantics** across runtimes: trusted approvers, durable
+   state, expiry, payload binding and atomic consumption.
+5. **Portable temporal policy** and shared session semantics across independent
+   infrastructure and providers.
 
 None of these are blocked on invention. They are blocked on someone building the
 boring, interoperable version and enough parties agreeing to verify it.

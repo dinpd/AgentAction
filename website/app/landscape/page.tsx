@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Brand } from "../brand";
+import { CapabilityMap } from "./capability-map";
 
 const github = "https://github.com/dinpd/AgentAction";
 const sourceDoc = `${github}/blob/main/docs/agent-governance-landscape.md`;
 const landscapeUrl = "https://agentaction.dev/landscape";
 const landscapeDescription =
-  "A verified survey of open-source projects that control what AI agents may do, ordered by institutional backing, separating what ships today from what is still a draft.";
+  "Compare agent governance by control focus, evidence and maturity, including NVIDIA OpenShell and Sentry. Open-source projects and selected managed offerings.";
 
 export const metadata: Metadata = {
   title: { absolute: "The AI Agent Governance Landscape — AgentAction" },
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
     url: "https://agentaction.dev/landscape",
     title: "The AI Agent Governance Landscape",
     description:
-      "Who actually gates agent actions, what ships today, and what is still one person's IETF draft. Verified August 2026.",
+      "Compare control focus and maturity. NVIDIA and capability-map review: September 29, 2026; wider catalog baseline: August 2026.",
     images: [
       {
         url: "/og.png",
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "The AI Agent Governance Landscape",
     description:
-      "Who actually gates agent actions, what ships today, and what is still one person's IETF draft. Verified August 2026.",
+      "Compare control focus and maturity. NVIDIA and capability-map review: September 29, 2026; wider catalog baseline: August 2026.",
     images: ["/og.png"],
   },
 };
@@ -48,7 +49,7 @@ const landscapeStructuredData = {
   description: landscapeDescription,
   image: "https://agentaction.dev/og.png",
   datePublished: "2026-08-26",
-  dateModified: "2026-08-26",
+  dateModified: "2026-09-29",
   author: { "@id": "https://agentaction.dev/#organization" },
   publisher: { "@id": "https://agentaction.dev/#organization" },
   isPartOf: { "@id": "https://agentaction.dev/#website" },
@@ -57,6 +58,8 @@ const landscapeStructuredData = {
 
 const statusLegend: [string, string][] = [
   ["Live", "Generally available, in production use"],
+  ["Available", "Published software; not a certification of production readiness"],
+  ["Reference design", "Announced architecture; verify component availability separately"],
   ["Preview", "Vendor-labeled preview or beta. Usable, expect breaking changes"],
   ["Early", "Pre-1.0 or thin adoption. Read the source before depending on it"],
   ["Draft", "A specification with no adopted standing"],
@@ -68,32 +71,38 @@ const findings = [
   {
     index: "01",
     title: "Access control and action authorization are different problems",
-    body: "The MCP authorization spec is OAuth 2.1 at the transport layer. It authorizes a client to reach a server at scope granularity, it is OPTIONAL, and STDIO transports are told not to use it. Nothing in it evaluates whether a particular call with particular arguments should proceed. ID-JAG, Entra Agent ID, Token Vault, Composio, Arcade, SPIFFE and Clerk AgentPass all answer who the agent is and how it gets a token. Clerk's own spec says the quiet part plainly: ongoing action-level control remains the service's responsibility.",
+    body: "Identity and scoped access establish who can connect. Tool authorization must also decide whether this operation is allowed. Inspect granularity: agentgateway documents tool-name checks, while AgentCore Policy can evaluate input parameters. Neither the word governance nor an OAuth token establishes exact-payload authorization by itself.",
+    source: "https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/",
   },
   {
     index: "02",
-    title: "History-dependent constraints had no home in policy engines, and AWS just changed that",
-    body: "Cedar, OPA/Rego, CEL and Cerbos have no operators for counts, sums, or time-windowed aggregates over prior events, by design. In August 2026 AWS open-sourced Dogwood, extending Cedar with metric first-order temporal logic. Its reference interpreter says outright it is not for production; the language ships inside Bedrock AgentCore Policy. So the capability is live if you are an AWS customer and a research artifact if you are not.",
+    title: "Stateful authorization is already part of the landscape",
+    body: "AWS AgentCore temporal policies evaluate prior actions within a session, including sequence and invocation limits. Dogwood extends Cedar with temporal conditions. Keep the managed service separate from the open-source reference interpreter, and inspect session boundaries: supported multi-hop propagation is currently limited to one AWS account and Region.",
+    source: "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html",
   },
   {
     index: "03",
-    title: "The enforcement point sits where the constrained party controls it",
-    body: "In almost every project, the gate runs inside the agent runtime, SDK, sidecar, or the operator's own gateway. Pomerium and Teleport do hand upstreams a signed JWT verified via JWKS, but the claims are subject, email, groups, roles. They prove who is calling, never what they were authorized to do. DPoP looks like it closes this and does not: it covers HTTP method and URI only, so a transfer of ten dollars and ten million dollars produce identical proofs. Payments is the real exception, and it ships.",
+    title: "Runtime isolation and provider verification protect different boundaries",
+    body: "OpenShell places enforcement in a trusted supervisor outside the agent workload. NVIDIA also describes Sentry as a watchdog in a separate hardware trust domain. These strengthen containment; they do not by themselves establish a receipt that a downstream business service verifies against the exact authorized transaction. An embedded SDK guard still needs infrastructure that prevents bypass.",
+    source: "https://docs.nvidia.com/openshell/latest/about/architecture",
   },
   {
     index: "04",
-    title: "Authorization is not proof of execution, and almost nothing links the two",
-    body: "Three claims that need to stay distinct get collapsed: that an action was authorized, that it executed, and that the intended outcome occurred within constraints. Pipelock is the honest illustration, carrying verdict, side-effect class and policy hash but no outcome field, and stating in its own spec that the receipt does not prove the action's effects were as described. Outside payments, authorized and happened live in separate systems nobody joins.",
+    title: "Authorization, execution and outcome remain separate claims",
+    body: "An allowed action may fail, and a completed operation may violate the task's constraints. AP2 addresses payment evidence; AgentAction's early intent evaluator distinguishes execution from trusted observations and can return indeterminate. The useful comparison is what evidence each system binds and who verifies it, not whether a product has an audit log.",
+    source: "https://github.com/dinpd/AgentAction/blob/main/docs/intent-assurance.md",
   },
   {
     index: "05",
-    title: "Delegation chains have no adopted standard",
-    body: "RFC 8693 defines nested act claims as the standard representation of a delegation chain, then directs that prior actors are informational only and are not to be considered in access control decisions. The standard way to represent a chain forbids using it for authorization. MCP's roadmap names sub-agent narrowing as open with its working group still forming. Microsoft AGT does implement monotonic narrowing at scale, but on a proprietary mesh scheme that does not cross organizational boundaries.",
+    title: "Identity propagation is not recursive delegation verification",
+    body: "AgentCore documents identity propagation for supported multi-hop flows, with account and Region limits. That is useful but does not establish a portable, recursively narrowing authority chain across organizations. Evaluate the trust boundary and supported deployment, rather than treating a delegation claim as universal interoperability.",
+    source: "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-session-based-temporal.html",
   },
   {
     index: "06",
-    title: "Human approval has no production-grade home at the gateway layer",
-    body: "Every project doing genuine per-call approve and deny is a desktop or local tool, and several are dormant. MCP Guardian has shipped nothing since April 2025. Microsoft AGT ships an in-memory approval queue by default. Auth0's asynchronous authorization via CIBA is the most production-ready path in the landscape, and it lives in an identity product rather than an agent gateway.",
+    title: "Approval exists; its binding and durability need inspection",
+    body: "Auth0 offers asynchronous authorization, and OpenShell reviews risky permission expansion. A permission change is different from approval of one exact refund or deployment. Check approver identity, payload binding, expiry, atomic consumption and crash recovery before relying on a workflow's approval guarantee. A blanket claim that production approval does not exist is too broad.",
+    source: "https://github.com/auth0/auth0-ai-js",
   },
 ];
 
@@ -115,6 +124,24 @@ const tiers: { title: string; index: string; blurb: string; projects: Project[] 
     blurb:
       "The center of gravity. Between them these set the default policy languages and integration seams for the whole category.",
     projects: [
+      {
+        name: "OpenShell",
+        href: "https://github.com/NVIDIA/OpenShell",
+        org: "NVIDIA · reviewed September 29, 2026",
+        tags: "Contain, Gate, Identity",
+        status: "Available",
+        note: "Runtime isolation, API/network policy and credential protection with a separate supervisor. Risky permission expansion receives review; custom business-action checks can use middleware. Part of Open Agent Safety Platform. Software availability is separate from Sentry hardware.",
+        links: [{ label: "Architecture", href: "https://docs.nvidia.com/openshell/latest/about/architecture" }, { label: "Extension boundaries", href: "https://docs.nvidia.com/openshell/latest/extensibility/overview" }],
+      },
+      {
+        name: "Sentry",
+        href: "https://nvidianews.nvidia.com/news/open-agent-safety-platform",
+        org: "NVIDIA · reviewed September 29, 2026",
+        tags: "Contain, Monitor",
+        status: "Reference design",
+        note: "Announced September 28 as an independent watchdog on BlueField-4 DPUs. Describes identity checks, access policy and attested telemetry. Availability and performance claims require deployment-specific verification; not scored as generally available software or proof of business outcomes.",
+        links: [{ label: "NVIDIA announcement", href: "https://nvidianews.nvidia.com/news/open-agent-safety-platform" }],
+      },
       {
         name: "Agent Governance Toolkit",
         href: "https://github.com/microsoft/agent-governance-toolkit",
@@ -403,6 +430,8 @@ const standards: [string, string, string, string][] = [
 // from "runs today" to "does not exist yet".
 function toneFor(status: string): string {
   const value = status.toLowerCase();
+  if (value === "available") return "live";
+  if (value === "reference design") return "preview";
   if (value.includes("dormant")) return "dormant";
   if (value.includes("forming") || value.includes("concept")) return "concept";
   if (value.includes("individual draft")) return "concept";
@@ -434,11 +463,11 @@ const choosing: [string, string][] = [
     "Content validation of model input and output",
     "Guardrails AI, or NeMo Guardrails for conversational rails. Different layer from everything above",
   ],
-  ["Isolation and credential brokering more than policy", "Docker MCP Gateway"],
+  ["Runtime isolation and credential brokering", "OpenShell for the agent runtime; Docker MCP Gateway for containerized MCP servers. Verify each deployment boundary"],
   ["Protection against tool descriptions changing under you", "mcp-context-protector from Trail of Bits"],
   [
     "Human approval on individual calls",
-    "Nothing production-grade ships this. Auth0 CIBA if you are identity-centric, Obot filters if you are building it yourself",
+    "Auth0 asynchronous authorization for application approval; OpenShell for permission expansion. Exact-action approval still needs explicit payload, expiry and replay semantics",
   ],
   [
     "A receiving service that must verify authority itself",
@@ -450,8 +479,8 @@ const openProblems = [
   "An interoperable, action-bound authorization receipt a receiving service can verify without a callback and without trusting the caller's infrastructure. AP2 demonstrates the shape; payments assumptions are baked into it.",
   "Execution closure, treating authorized, executed and outcome-achieved as three distinct claims linked by evidence rather than one log line.",
   "Cross-organizational delegation a relying party can verify recursively, which RFC 8693 currently instructs implementers not to attempt.",
-  "A server-side approval queue with durable state, expiry and payload binding, as ordinary infrastructure rather than a desktop utility.",
-  "Temporal policy outside a single cloud provider, given that the research is settled and only one production implementation exists.",
+  "Consistent approval semantics across runtimes: trusted approvers, durable state, expiry, payload binding and atomic consumption.",
+  "Portable temporal policy and shared session semantics across independent infrastructure and providers.",
 ];
 
 export default function LandscapePage() {
@@ -468,6 +497,7 @@ export default function LandscapePage() {
       <header className="site-header">
         <Brand href="/" />
         <nav aria-label="Primary navigation">
+          <a href="#capability-map">Map</a>
           <a href="#findings">Findings</a>
           <a href="#projects">Projects</a>
           <a href="#standards">Standards</a>
@@ -483,20 +513,20 @@ export default function LandscapePage() {
       </header>
 
       <section id="landscape-content" className="landscape-hero" aria-labelledby="landscape-title">
-        <p className="eyebrow">Independent survey · Verified August 2026</p>
+        <p className="eyebrow">Maintainer survey · Updated September 29, 2026</p>
         <h1 id="landscape-title">The AI agent governance landscape.</h1>
         <p className="landscape-lede">
-          Roughly fifty projects claim to control what AI agents may do, using
-          the same three words for very different problems. This survey orders
-          them by institutional backing, tags what each one actually enforces,
-          and separates what ships today from what is still one person&apos;s
-          expiring draft.
+          Agent identity, runtime isolation and action authorization solve different
+          problems. Compare representative approaches by control focus and evidence,
+          then explore the wider catalog by institutional backing. Availability,
+          early implementations and proposals are labeled separately.
         </p>
         <p className="landscape-disclosure">
           Maintained by AgentAction, which is listed in the independent tier
-          below. Verified against each project&apos;s own repository, license
-          file, and package registry. Inclusion is not endorsement and this is
-          not a ranking.{" "}
+          below. The capability map, NVIDIA entries and affected findings were
+          reviewed September 29, 2026. Other catalog entries and figures retain
+          their August 2026 baseline; they were not all reverified in this update.
+          Inclusion is not endorsement and this is not a ranking.{" "}
           <a href={sourceDoc}>
             Source and revision history on GitHub <span aria-hidden="true">↗</span>
           </a>
@@ -505,14 +535,14 @@ export default function LandscapePage() {
         <div className="landscape-legend" aria-label="Status legend">
           <h2>Status</h2>
           <p className="landscape-legend-lede">
-            Much of what gets cited in this space has never run. Every entry
-            below carries one of these.
+            Maturity is separate from capability coverage. A reference design or
+            early implementation should not be read as a production guarantee.
           </p>
           <div className="status-scale">
             <div className="status-scale-axis" aria-hidden="true">
               <span>Runs in production today</span>
               <span className="status-scale-rule" />
-              <span>Does not exist yet</span>
+              <span>Draft or proposed</span>
             </div>
             <dl>
               {statusLegend.map(([term, detail]) => (
@@ -528,6 +558,8 @@ export default function LandscapePage() {
         </div>
       </section>
 
+      <CapabilityMap />
+
       <section id="findings" className="section-shell landscape-findings" aria-labelledby="findings-title">
         <div className="section-heading">
           <div>
@@ -542,6 +574,7 @@ export default function LandscapePage() {
               <div>
                 <h3>{finding.title}</h3>
                 <p>{finding.body}</p>
+                <a className="finding-source" href={finding.source}>Source for this finding ↗</a>
               </div>
             </li>
           ))}
@@ -555,8 +588,9 @@ export default function LandscapePage() {
             <h2 id="projects-title">Ordered by backing, not by preference.</h2>
           </div>
           <p>
-            Around fifty projects could appear here. These are the ones that
-            change what you should conclude, one per distinct approach.
+            Wider catalog baseline: August 2026. NVIDIA entries reviewed
+            September 29; the map above has its own dated evidence. Inclusion
+            illustrates an approach, not a ranking.
           </p>
         </div>
 
@@ -685,20 +719,18 @@ export default function LandscapePage() {
             as the default integration seam, and per-tool authorization tied to
             JWT claims as the default shape. Anyone building here should assume
             the enforcement layer is commoditizing and plan accordingly. The
-            stateful layer moved this month, and the underlying temporal-logic
+            stateful layer moved in August 2026, and the underlying temporal-logic
             research is fifteen years old and well understood. Expect it to
             spread.
           </p>
           <p>
-            What has not moved is the evidence layer. Every mature project stops
-            at OpenTelemetry spans and structured logs, which the operator can
-            rewrite. The gateways that do hand a downstream service something
-            signed are attesting identity, not authority. Nothing outside
-            payments links the authorization decision to what actually executed,
-            and nothing constrains authority across a delegation chain in a way a
-            relying party in another organization can verify. Three separate
-            standards efforts have written down some version of this gap in the
-            last six months. All three are individual drafts.
+            Evidence requires a more specific comparison than the presence of
+            logs. NVIDIA describes attested telemetry; AP2 carries payment
+            mandates and receipts; early projects including AgentAction connect
+            scoped authority to execution and outcome evidence. These are
+            different guarantees. Check payload binding, trusted issuers,
+            independent observations and failure recovery before treating any
+            one of them as proof that an authorized task succeeded.
           </p>
           <p className="landscape-pullquote">
             The industry has largely solved &ldquo;may this agent connect,&rdquo;
