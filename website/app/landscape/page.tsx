@@ -1,5 +1,5 @@
+import { SiteHeader } from "../site-header";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Brand } from "../brand";
 import { CapabilityMap } from "./capability-map";
 import { GovernanceMap } from "./governance-map";
@@ -495,23 +495,14 @@ export default function LandscapePage() {
         Skip to content
       </a>
 
-      <header className="site-header">
-        <Brand href="/" />
-        <nav aria-label="Primary navigation">
-          <a href="#governance-map">Map</a>
-          <a href="#findings">Findings</a>
-          <a href="#projects">Projects</a>
-          <a href="#standards">Standards</a>
-          <span className="nav-divider" aria-hidden="true" />
-          <Link className="nav-page" href="/">Project</Link>
-          <Link className="nav-page" href="/gateway">Action gateway</Link>
-          <a className="nav-page nav-mcp-servers" href="https://mcpcheck.agentaction.dev/servers">MCP Servers</a>
-          <a className="nav-page nav-mcp-checker" href="https://mcpcheck.agentaction.dev">MCP Checker</a>
-          <a className="nav-cta" href={github}>
-            GitHub <span aria-hidden="true">↗</span>
-          </a>
-        </nav>
-      </header>
+      <SiteHeader links={[
+        { href: "/", label: "Project" },
+        { href: "#governance-map", label: "Map" },
+        { href: "#findings", label: "Findings" },
+        { href: "#projects", label: "Projects" },
+        { href: "#standards", label: "Standards" },
+        { href: "/gateway", label: "Action gateway" },
+      ]} />
 
       <section id="landscape-content" className="landscape-hero" aria-labelledby="landscape-title">
         <p className="eyebrow">Maintainer survey · Updated September 29, 2026</p>

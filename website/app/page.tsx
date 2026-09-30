@@ -1,3 +1,4 @@
+import { SiteHeader } from "./site-header";
 import Link from "next/link";
 import Image from "next/image";
 import { Brand } from "./brand";
@@ -213,23 +214,13 @@ export default function Home() {
         Skip to content
       </a>
 
-      <header className="site-header">
-        <Brand href="#top" />
-        <nav aria-label="Primary navigation">
-          <a href="#platform">Platform</a>
-          <a href="#architecture">Decision assurance</a>
-          <a href="#console">Console</a>
-          <a href="#observe">Start here</a>
-          <span className="nav-divider" aria-hidden="true" />
-          <Link className="nav-page" href="/gateway">Action gateway</Link>
-          <Link className="nav-page" href="/landscape">Landscape</Link>
-          <a className="nav-page nav-mcp-servers" href="https://mcpcheck.agentaction.dev/servers">MCP Servers</a>
-          <a className="nav-page nav-mcp-checker" href="https://mcpcheck.agentaction.dev">MCP Checker</a>
-          <a className="nav-cta" href={github}>
-            GitHub <span aria-hidden="true">↗</span>
-          </a>
-        </nav>
-      </header>
+      <SiteHeader home links={[
+        { href: "#platform", label: "Platform" },
+        { href: "#architecture", label: "Decision assurance" },
+        { href: "/gateway", label: "Action gateway" },
+        { href: "/landscape", label: "Landscape" },
+        { href: "#observe", label: "Start here", cta: true },
+      ]} />
 
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
@@ -299,6 +290,20 @@ export default function Home() {
           <div className="console-footer">
             The agent proposes. The trust layer assesses and enforces.
           </div>
+        </div>
+      </section>
+
+      <section id="mcp-directory" className="home-mcp-directory section-shell" aria-labelledby="mcp-directory-title">
+        <div className="directory-card">
+          <div>
+            <p className="section-index">MCP server directory</p>
+            <h2 id="mcp-directory-title">Find the tools your agent needs.</h2>
+            <p>Browse servers by capability. Review their public authentication and tool-risk signals before choosing what to connect.</p>
+            <p className="directory-note">Public pre-checks do not certify safety or test runtime behavior.</p>
+          </div>
+          <a className="button button-primary" href="https://mcpcheck.agentaction.dev/servers">
+            Browse MCP servers <span aria-hidden="true">↗</span>
+          </a>
         </div>
       </section>
 

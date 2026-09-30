@@ -58,6 +58,12 @@ Run `node --experimental-strip-types ../recipes/check.ts` and `node --experiment
 
 ## MCP checker
 
+The shared homepage, gateway, and landscape header separates Explore links from
+visitor Tools: MCP Checker and Console. The MCP Directory has a dedicated browse
+block below the homepage hero. Landscape stays in Explore;
+the homepage highlights Start here, and all three headers retain GitHub. Both
+groups remain visible at mobile widths.
+
 The primary navigation and homepage developer section link to
 [the public MCP checker](https://mcpcheck.agentaction.dev). It runs on its existing
 Worker with a custom domain; there is no duplicate website page or embedded frame.

@@ -1,0 +1,32 @@
+import Link from "next/link";
+import { Brand } from "./brand";
+
+type HeaderLink = { href: string; label: string; cta?: boolean };
+
+export function SiteHeader({ home = false, links }: { home?: boolean; links: HeaderLink[] }) {
+  return (
+    <header className="site-header grouped-header">
+      <Brand href={home ? "#top" : "/"} />
+      <nav aria-label="Primary navigation">
+        <div className="nav-group nav-explore" role="group" aria-label="Explore">
+          <span className="nav-group-label" aria-hidden="true">Explore</span>
+          <div className="nav-group-links">
+            {links.map(({ href, label, cta }) => (
+              <Link key={href} className={cta ? "nav-start" : undefined} href={href}>{label}</Link>
+            ))}
+          </div>
+        </div>
+        <div className="nav-group nav-tools" role="group" aria-label="Visitor tools">
+          <span className="nav-group-label" aria-hidden="true">Tools</span>
+          <div className="nav-group-links">
+            <a href="https://mcpcheck.agentaction.dev">MCP Checker</a>
+            <a href="https://observability-console.agentaction.dev/agents">Console <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <a className="nav-cta" href="https://github.com/dinpd/AgentAction">
+          GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </header>
+  );
+}

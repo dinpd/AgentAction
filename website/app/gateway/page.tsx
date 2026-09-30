@@ -1,5 +1,5 @@
+import { SiteHeader } from "../site-header";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Brand } from "../brand";
 
 const github = "https://github.com/dinpd/AgentAction";
@@ -90,21 +90,12 @@ export default function GatewayPage() {
         Skip to content
       </a>
 
-      <header className="site-header">
-        <Brand href="/" />
-        <nav aria-label="Primary navigation">
-          <a href="#workflow">How it works</a>
-          <a href="#compatibility">Compatibility</a>
-          <span className="nav-divider" aria-hidden="true" />
-          <Link className="nav-page" href="/">Project</Link>
-          <Link className="nav-page" href="/landscape">Landscape</Link>
-          <a className="nav-page nav-mcp-servers" href="https://mcpcheck.agentaction.dev/servers">MCP Servers</a>
-          <a className="nav-page nav-mcp-checker" href="https://mcpcheck.agentaction.dev">MCP Checker</a>
-          <a className="nav-cta" href={github}>
-            GitHub <span aria-hidden="true">↗</span>
-          </a>
-        </nav>
-      </header>
+      <SiteHeader links={[
+        { href: "/", label: "Project" },
+        { href: "#workflow", label: "How it works" },
+        { href: "#compatibility", label: "Compatibility" },
+        { href: "/landscape", label: "Landscape" },
+      ]} />
 
       <section id="gateway-content" className="gateway-hero" aria-labelledby="gateway-title">
         <div>

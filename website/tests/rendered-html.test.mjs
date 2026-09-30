@@ -135,7 +135,7 @@ test("makes the MCP checker discoverable while retaining recipe access", async (
     const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
     assert.match(nav, /href="https:\/\/mcpcheck\.agentaction\.dev">MCP Checker<\/a>/);
-    assert.match(nav, /href="https:\/\/mcpcheck\.agentaction\.dev\/servers">MCP Servers<\/a>/);
+    assert.doesNotMatch(nav, /mcpcheck\.agentaction\.dev\/servers/);
     assert.doesNotMatch(nav, /href="\/recipes"/);
     if (path === "/") {
       assert.match(html, /Building an MCP server\?/);
@@ -767,4 +767,38 @@ test("serves a recorded interactive research report with restricted assets and s
   assert.equal(snapshot.data.fixture, false);
   assert.equal(snapshot.rows.length, 528);
   assert.equal(snapshot.rows.flatMap(r => r.attempts).length, 678);
+});
+
+test("groups exploration separately from usable tools and preserves all header destinations", async () => {
+  for (const path of ["/", "/gateway", "/landscape"]) {
+    const html = await (await render(path)).text();
+    const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
+    assert.ok(nav);
+    const explore = nav.match(/aria-label="Explore">([\s\S]*?)<\/div><\/div>/)?.[1];
+    const tools = nav.match(/aria-label="Visitor tools">([\s\S]*?)<\/div><\/div>/)?.[1];
+    assert.ok(explore);
+    assert.ok(tools);
+    assert.doesNotMatch(tools, /MCP Directory|\/servers/);
+    assert.match(tools, /href="https:\/\/mcpcheck\.agentaction\.dev">MCP Checker/);
+    assert.match(tools, /href="https:\/\/observability-console\.agentaction\.dev\/agents">Console/);
+    assert.doesNotMatch(explore, /mcpcheck|observability-console/);
+    assert.match(nav, /class="nav-cta" href="https:\/\/github\.com\/dinpd\/AgentAction">GitHub/);
+    if (path !== "/landscape") assert.match(explore, /href="\/landscape">Landscape/);
+    if (path === "/") assert.match(explore, /href="#observe" class="nav-start">Start here/);
+    for (const [, id] of explore.matchAll(/href="#([^"]+)"/g)) {
+      assert.ok(html.includes(`id="${id}"`), `missing header target ${path}#${id}`);
+    }
+  }
+});
+
+test("gives the MCP directory a dedicated browse block below the hero", async () => {
+  const html = await (await render("/")).text();
+  const directory = html.match(/<section id="mcp-directory"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(directory);
+  assert.match(directory, /aria-labelledby="mcp-directory-title"/);
+  assert.match(directory, /Find the tools your agent needs/);
+  assert.match(directory, /href="https:\/\/mcpcheck\.agentaction\.dev\/servers">Browse MCP servers/);
+  assert.match(directory, /Public pre-checks do not certify safety or test runtime behavior/);
+  assert.ok(html.indexOf('id="hero-title"') < html.indexOf('id="mcp-directory"'));
+  assert.ok(html.indexOf('id="mcp-directory"') < html.indexOf('id="mcp-checker-title"'));
 });
