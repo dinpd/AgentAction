@@ -1,0 +1,105 @@
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
+const origin = process.env.DEMO_ORIGIN ?? 'http://localhost:3000';
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROME_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH } : {}) });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, reducedMotion: 'reduce' });
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+const outbound = [];
+page.on('request', request => { if (!request.url().startsWith(origin)) outbound.push(request.url()); });
+const next = async (count = 1) => {
+  for (let i = 0; i < count; i++) await page.locator('#next').click();
+};
+const decision = () => page.locator('#assessment-state').textContent();
+try {
+  await page.goto(`${origin}/demo`);
+  await page.locator('.server-card').last().waitFor();
+  assert.equal(await page.locator('.server-card').count(), 5);
+  assert.equal(await decision(), 'READY');
+  assert.equal(await page.locator('#back').isDisabled(), true);
+  await next(3);
+  assert.equal(await page.locator('.history-event').count(), 3);
+  await next();
+  assert.equal(await decision(), 'CHALLENGE');
+  assert.match(await page.locator('.required-evidence').textContent(), /Verified duplicate charge/);
+  await next();
+  assert.equal(await decision(), 'CHALLENGE');
+  assert.match(await page.locator('.assessment-intro h2').textContent(), /unconfirmed/);
+  await next(2);
+  assert.equal(await decision(), 'ALLOW');
+  assert.match(await page.locator('.execution').textContent(), /TOOL EXECUTED/);
+  await page.locator('#present').click();
+  assert.equal(await page.locator('#present').getAttribute('aria-pressed'), 'true');
+  await page.screenshot({ path: '/tmp/agentaction-demo-desktop.png', fullPage: true });
+  await next();
+  assert.match(await page.locator('.payload-column').last().textContent(), /Your \$750 refund is complete/);
+  assert.doesNotMatch(await page.locator('.payload-column').last().textContent(), /ref_603|internal_902/);
+  await next();
+  assert.equal(await decision(), 'DENY');
+  await page.locator('#timeline button').nth(3).click();
+  assert.equal(await decision(), 'CHALLENGE');
+  assert.match(await page.locator('#progress').textContent(), /9 \/ 10/);
+  await next();
+  assert.equal(await decision(), 'DENY');
+  assert.equal(await page.locator('#next').isDisabled(), true);
+  await page.locator('#back').click();
+  assert.equal(await page.locator('#next').isDisabled(), false);
+  assert.equal(await decision(), 'DENY');
+  await page.locator('#reset').click();
+  assert.equal(await decision(), 'READY');
+  assert.equal(await page.locator('.fact').count(), 0);
+
+  await page.locator('#scenario').selectOption('history');
+  await next(7);
+  assert.equal(await decision(), 'CHALLENGE');
+  assert.match(await page.locator('.required-evidence').textContent(), /corroboration/);
+  assert.equal(await page.locator('.history-event').count(), 6);
+  await next(2);
+  assert.equal(await decision(), 'ALLOW');
+  await page.screenshot({ path: '/tmp/agentaction-demo-history.png', fullPage: true });
+
+  await page.locator('#scenario').selectOption('refunded');
+  assert.equal(await page.locator('.fact').count(), 0);
+  await next(4);
+  assert.equal(await decision(), 'DENY');
+  assert.match(await page.locator('.assessment-intro').textContent(), /Yesterday/);
+  await page.locator('#scenario').selectOption('expired');
+  await next(7);
+  assert.equal(await decision(), 'CHALLENGE');
+  assert.match(await page.locator('.time-jump').textContent(), /90s/);
+  assert.equal(await page.locator('.fact.expired').count(), 1);
+  await next(2);
+  assert.equal(await decision(), 'ALLOW');
+  await page.locator('#scenario').selectOption('mismatch');
+  await next(7);
+  assert.equal(await decision(), 'DENY');
+  assert.match(await page.locator('.fact').allTextContents().then(t => t.join(' ')), /cus_999/);
+
+  await page.locator('#scenario').selectOption('verified');
+  await page.locator('#speed').selectOption('800');
+  await page.locator('#play').click();
+  await page.waitForTimeout(950);
+  await page.locator('#play').click();
+  const paused = await page.locator('#progress').textContent();
+  await page.waitForTimeout(950);
+  assert.equal(await page.locator('#progress').textContent(), paused);
+  await page.locator('#reset').click();
+  await page.locator('#play').click();
+  await page.locator('#scenario').selectOption('refunded');
+  await page.waitForTimeout(950);
+  assert.equal(await decision(), 'READY');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await next(4);
+  assert.equal(await decision(), 'DENY');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await page.screenshot({ path: '/tmp/agentaction-demo-mobile.png', fullPage: true });
+  assert.deepEqual(outbound, []);
+  assert.deepEqual(errors, []);
+  console.log('PASS: five servers, evidence/history/expiry/subject boundaries, payload sanitization, stepping, inspection, rewind, pause, scenario reset, mobile layout, CSP and no external requests.');
+} finally {
+  await browser.close();
+}
