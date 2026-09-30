@@ -71,8 +71,10 @@ Recipes remain available from the homepage section and footer.
 
 ## Temporal authorization demo
 
-`/demo` is an experimental presentation simulation linked from the homepage
-assessment card. Five synthetic MCP servers illustrate per-tool access,
+The homepage hero contains a compact native interactive simulation replacing
+the static assessment illustration. It starts while visible (except with reduced
+motion), pauses offscreen and offers scenario, playback, step and reset controls.
+`/demo` is its optional expanded presentation view. Five synthetic MCP servers illustrate per-tool access,
 accumulated evidence, customer history, data minimization, evidence expiry,
 confirmed outcomes and consumed actions. Play/pause, step, rewind, reset,
 scenario selection and historical-call inspection use local state only.
