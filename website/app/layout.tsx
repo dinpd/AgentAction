@@ -3,8 +3,8 @@ import "./globals.css";
 
 const siteOrigin = "https://agentaction.dev";
 const socialImage = `${siteOrigin}/og-trust-layer.png`;
-const siteTitle = "AgentAction — Connect agents to tools, safely and reliably";
-const siteDescription = "Find MCP servers, inspect public authentication and risk signals before connecting your account, and build supervised agents with observable run history.";
+const siteTitle = "AgentAction — Control what agents do. Prove what happened.";
+const siteDescription = "AgentAction evaluates agent decisions, enforces policy before actions execute, and checks outcomes against the intended job.";
 
 export const dynamic = "force-static";
 
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
         url: socialImage,
         width: 1200,
         height: 630,
-        alt: "AgentAction — The trust layer for autonomous AI agents",
+        alt: "AgentAction — Trust infrastructure for autonomous AI agents",
       },
     ],
   },

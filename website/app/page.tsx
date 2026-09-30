@@ -227,16 +227,17 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow">Trust infrastructure for autonomous AI agents</p>
           <h1 id="hero-title">
-            Connect agents to tools.
-            <span>Safely and reliably.</span>
+            Control what agents do.
+            <span>Prove what happened.</span>
           </h1>
           <p className="hero-lede">
-            Find an MCP server and review its automatic pre-check before connecting your account.
-            Then discover useful agents with AI, approve their actions, and follow every run.
+            AgentAction evaluates agent decisions, enforces policy before actions execute, and
+            checks outcomes against the intended job. Set the boundaries for autonomy,
+            require approval for consequential actions, and follow the evidence from intent to outcome.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href={agentBuilder}>
-              Connect an MCP <span aria-hidden="true">↗</span>
+            <a className="button button-primary" href="/demo">
+              See action control in practice <span aria-hidden="true">↗</span>
             </a>
             <a className="button button-secondary" href={monitoringSetup}>
               Start monitoring your agents <span aria-hidden="true">↗</span>
