@@ -3131,6 +3131,10 @@ button:focus-visible {
 .hero-demo button:focus-visible, .hero-demo select:focus-visible, .hero-demo a:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 .hd-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid #32382e; color: #99a889; font-size: 10px; line-height: 1.5; }
 .hd-footer a { color: var(--lime); white-space: nowrap; }
+@media (min-width: 981px) {
+  .hero-demo { display: flex; flex-direction: column; min-height: 740px; }
+  .hd-assessment { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+}
 @media (max-width: 980px) { .hero-demo { width: min(100%, 720px); } }
 @media (max-width: 640px) {
   .hero-demo { box-shadow: 8px 8px 0 var(--lime), 8px 8px 0 1px var(--ink); }
