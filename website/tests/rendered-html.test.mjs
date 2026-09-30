@@ -74,11 +74,13 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(response.headers.get("cache-control") ?? "", /s-maxage=/i);
 
   const html = await response.text();
-  assert.match(html, /<title>AgentAction — Connect agents to tools, safely and reliably<\/title>/i);
-  assert.match(html, /<h1 id="hero-title">Connect agents to tools\.<span>Safely and reliably\.<\/span><\/h1>/);
-  assert.match(html, /Find an MCP server and review its automatic pre-check/);
-  assert.match(html, /href="https:\/\/observability-console\.agentaction\.dev\/agents"[^>]*>Connect an MCP/);
-  assert.match(html, /<meta name="description" content="Find MCP servers, inspect public authentication and risk signals before connecting your account, and build supervised agents with observable run history\."/);
+  assert.match(html, /<title>AgentAction — Control what agents do\. Prove what happened\.<\/title>/i);
+  assert.match(html, /<h1 id="hero-title">Control what agents do\.<span>Prove what happened\.<\/span><\/h1>/);
+  assert.match(html, /AgentAction evaluates agent decisions, enforces policy before actions execute, and checks outcomes against the intended job\. Set the boundaries for autonomy, require approval for consequential actions, and follow the evidence from intent to outcome\./);
+  assert.doesNotMatch(html, /Connect agents to tools|Safely and reliably|Then discover useful agents with AI/);
+  assert.match(html, /href="\/demo"[^>]*>See action control in practice/);
+  assert.match(html, /href="https:\/\/observability-console\.agentaction\.dev\/#setup"[^>]*>Start monitoring your agents/);
+  assert.match(html, /<meta name="description" content="AgentAction evaluates agent decisions, enforces policy before actions execute, and checks outcomes against the intended job\."/);
   assert.doesNotMatch(html, /id="mcp-onboarding"|class="mcp-steps"/);
   assert.match(html, /Public findings are not safety certification/);
   assert.match(html, /authenticated tools may remain unseen/);
@@ -361,8 +363,8 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
 
   assert.ok(lifecycleOrder.every((index) => index >= 0));
   assert.deepEqual(lifecycleOrder, [...lifecycleOrder].sort((left, right) => left - right));
-  assert.match(html, /<meta property="og:title" content="AgentAction — Connect agents to tools, safely and reliably"/i);
-  assert.match(html, /<meta name="twitter:title" content="AgentAction — Connect agents to tools, safely and reliably"/i);
+  assert.match(html, /<meta property="og:title" content="AgentAction — Control what agents do\. Prove what happened\."/i);
+  assert.match(html, /<meta name="twitter:title" content="AgentAction — Control what agents do\. Prove what happened\."/i);
 
   const graph = structuredData(html).flatMap((entry) => entry["@graph"] ?? []);
   const organization = graph.find((entry) => entry["@type"] === "Organization");
@@ -372,6 +374,12 @@ test("positions AgentAction as a privacy-safe trust layer across the agent lifec
   assert.deepEqual(organization?.sameAs, ["https://github.com/dinpd/AgentAction"]);
   assert.equal(website?.["@id"], "https://agentaction.dev/#website");
   assert.equal(website?.publisher?.["@id"], organization?.["@id"]);
+  const description = "AgentAction evaluates agent decisions, enforces policy before actions execute, and checks outcomes against the intended job.";
+  assert.equal(website?.description, description);
+  for (const name of ["og:description", "twitter:description"]) {
+    const tag = html.match(new RegExp(`<meta (?:property|name)="${name}"[^>]*>`))?.[0];
+    assert.ok(tag?.includes(`content="${description}"`));
+  }
 });
 
 test("presents passive MCP observation as the preferred low-risk onboarding path", async () => {

@@ -107,9 +107,10 @@ def test_canonical_positioning_defines_brand_lifecycle_and_control_surfaces():
 
 def test_repository_positioning_matches_agentaction_website():
     assert "Trust infrastructure for autonomous AI agents" in WEBSITE_PAGE
-    assert "Connect agents to tools." in WEBSITE_PAGE
-    assert "Safely and reliably." in WEBSITE_PAGE
-    assert "discover useful agents with AI" in WEBSITE_PAGE
+    assert "Control what agents do." in WEBSITE_PAGE
+    assert "Prove what happened." in WEBSITE_PAGE
+    assert "checks outcomes against the intended job" in WEBSITE_PAGE
+    assert "follow the evidence from intent to outcome" in WEBSITE_PAGE
     # The existing creation card describes the shipped builder alongside evaluation.
     for surface in [
         "Agent Creation & Evaluation",
