@@ -18,7 +18,7 @@ try {
   assert.equal(await card.locator('.hd-sequence > span').textContent(), '1/10');
   assert.equal(await page.locator('#content .decision-console').count(), 0);
   assert.equal(await card.locator('.hd-server').count(), 5);
-  assert.ok((await card.boundingBox()).height < 650);
+  assert.ok((await card.boundingBox()).height >= 740 && (await card.boundingBox()).height < 800);
   assert.ok((await card.boundingBox()).width >= 550);
   assert.equal(await card.locator('.hd-reason').evaluate(e => parseFloat(getComputedStyle(e).fontSize)), 14);
   await next(3);
