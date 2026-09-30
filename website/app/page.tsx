@@ -1,3 +1,4 @@
+import { HeroDemo } from "./hero-demo";
 import { SiteHeader } from "./site-header";
 import Link from "next/link";
 import Image from "next/image";
@@ -255,42 +256,7 @@ export default function Home() {
           </ul>
         </div>
 
-        <div className="decision-console" aria-label="Example AgentAction decision assurance challenge">
-          <div className="console-header">
-            <span>decision.assess</span>
-            <span className="live-indicator">assurance active</span>
-          </div>
-          <div className="console-body">
-            <div className="code-line">
-              <span className="line-key">intent</span>
-              <span>issue customer refund</span>
-            </div>
-            <div className="code-line">
-              <span className="line-key">decision</span>
-              <span>approve $750 refund</span>
-            </div>
-            <div className="code-line">
-              <span className="line-key">evidence</span>
-              <span>order verified · history checked</span>
-            </div>
-            <div className="code-line">
-              <span className="line-key">policy</span>
-              <span>fresh duplicate-charge evidence required</span>
-            </div>
-            <div className="decision-rule" aria-hidden="true" />
-            <div className="decision-result">
-              <span className="decision-word">CHALLENGE</span>
-              <p>Payment evidence is missing. Challenge the agent to fetch and validate it.</p>
-            </div>
-            <div className="receipt-row">
-              <span>decision_trace</span>
-              <code>trace_01JAA4…A91C</code>
-            </div>
-          </div>
-          <div className="console-footer">
-            <a href="/demo">Explore the multi-server sequence <span aria-hidden="true">↗</span></a>
-          </div>
-        </div>
+        <HeroDemo />
       </section>
 
       <section id="mcp-directory" className="home-mcp-directory section-shell" aria-labelledby="mcp-directory-title">

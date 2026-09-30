@@ -40,7 +40,10 @@ test("serves the isolated temporal MCP simulation and links it from the homepage
   assert.match(response.headers.get('content-security-policy'), /connect-src 'none'/);
   assert.doesNotMatch(response.headers.get('content-security-policy'), /unsafe-inline/);
   const home = await (await render('/')).text();
-  assert.match(home, /href="\/demo">Explore the multi-server sequence/);
+  assert.match(home, /href="\/demo">Expand demo/);
+  assert.match(home, /aria-label="Interactive multi-MCP authorization demo"/);
+  assert.match(home, /id="hero-demo-scenario"/);
+  assert.doesNotMatch(home, /class="decision-console"/);
   assert.doesNotMatch(home, /Manager approval is still required/);
   for (const asset of ['demo.js', 'engine.js', 'demo.css']) await access(new URL(`../dist/client/demo/${asset}`, import.meta.url));
 });
