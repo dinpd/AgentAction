@@ -124,30 +124,6 @@ nav a:not(.nav-cta):hover,
   text-underline-offset: 0.3rem;
 }
 
-.nav-divider {
-  width: 1px;
-  height: 1.1rem;
-  flex: 0 0 auto;
-  background: rgba(17, 19, 15, 0.22);
-}
-
-/* Cross-page destinations, distinct from in-page anchors. */
-.nav-page {
-  position: relative;
-  color: var(--muted);
-}
-
-.nav-page::before {
-  content: "\2192";
-  margin-right: 0.32rem;
-  font-size: 0.82em;
-  opacity: 0.55;
-}
-
-.nav-page:hover {
-  color: var(--ink);
-}
-
 .nav-cta {
   padding: 0.7rem 1rem;
   border: 1px solid var(--ink);
@@ -2038,10 +2014,6 @@ button:focus-visible {
     display: none;
   }
 
-  .nav-divider {
-    display: none;
-  }
-
   .hero,
   .gateway-hero {
     min-height: 0;
@@ -2763,8 +2735,6 @@ button:focus-visible {
   }
 }
 
-/* Keep the public checker available on compact navigation. */
-.site-header nav .nav-mcp-checker { display: inline-flex; }
 
 .home-mcp-checker {
   display: flex;
@@ -2968,4 +2938,142 @@ button:focus-visible {
   .governance-area { padding-inline: .5rem; }
   .governance-area a { gap: .3rem; }
   .governance-marker { font-size: .9rem; }
+}
+
+/* Separate editorial exploration from tools visitors can use. */
+.grouped-header {
+  gap: 1.5rem;
+  padding-block: 1.75rem 1rem;
+}
+.grouped-header > .brand {
+  flex-shrink: 0;
+}
+.grouped-header nav {
+  flex: 1;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  font-size: .8rem;
+}
+.nav-group {
+  position: relative;
+}
+.nav-group-label {
+  position: absolute;
+  top: -1.1rem;
+  line-height: 1;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nav-group-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+}
+.grouped-header nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  white-space: nowrap;
+  min-height: 32px;
+}
+.nav-tools {
+  border-left: 1px solid rgba(17, 19, 15, .18);
+  padding-left: 1rem;
+}
+.grouped-header .nav-cta {
+  flex-shrink: 0;
+}
+.grouped-header .nav-start {
+  padding: .35rem .75rem;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--ink);
+}
+.grouped-header a:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+@media (max-width: 1150px) {
+  .grouped-header {
+    flex-wrap: wrap;
+  }
+  .grouped-header nav {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 720px) {
+  .grouped-header {
+    padding-block: 1rem;
+  }
+  .grouped-header nav {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .grouped-header .nav-group {
+    display: grid;
+    gap: .5rem;
+  }
+  .grouped-header .nav-group-label {
+    position: static;
+  }
+  .grouped-header .nav-explore {
+    flex-basis: 100%;
+  }
+  .grouped-header .nav-tools {
+    border-left: 0;
+    padding-left: 0;
+    flex: 1;
+  }
+  .grouped-header .nav-tools .nav-group-links {
+    gap: .25rem .85rem;
+  }
+  .grouped-header .nav-cta {
+    padding: .55rem .8rem;
+  }
+}
+
+.home-mcp-directory {
+  padding-bottom: 2.5rem;
+}
+.directory-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, .45);
+}
+.directory-card > div {
+  max-width: 43rem;
+}
+.directory-card h2 {
+  margin: .75rem 0;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  line-height: 1.15;
+}
+.directory-card p:not(.section-index) {
+  color: var(--muted);
+  line-height: 1.65;
+}
+.directory-card .directory-note {
+  margin-top: .75rem;
+  font-size: .875rem;
+}
+.directory-card .button {
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .directory-card {
+    flex-direction: column;
+    align-items: start;
+    padding: 1.5rem;
+    gap: 1.25rem;
+  }
 }
