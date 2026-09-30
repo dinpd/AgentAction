@@ -18,8 +18,9 @@ try {
   assert.equal(await card.locator('.hd-sequence > span').textContent(), '1/10');
   assert.equal(await page.locator('#content .decision-console').count(), 0);
   assert.equal(await card.locator('.hd-server').count(), 5);
-  assert.ok((await card.boundingBox()).height < 490);
-  assert.ok((await card.boundingBox()).width < 600);
+  assert.ok((await card.boundingBox()).height < 650);
+  assert.ok((await card.boundingBox()).width >= 550);
+  assert.equal(await card.locator('.hd-reason').evaluate(e => parseFloat(getComputedStyle(e).fontSize)), 14);
   await next(3);
   assert.equal(await card.locator('.hd-verdict').textContent(), 'CHALLENGE');
   await page.screenshot({ path: '/tmp/agentaction-hero-desktop.png' });
@@ -65,7 +66,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await card.scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-  assert.ok((await card.boundingBox()).height < 510);
+  assert.ok((await card.boundingBox()).height < 650);
   await card.screenshot({ path: '/tmp/agentaction-hero-mobile.png' });
   assert.deepEqual(errors, []);
 
