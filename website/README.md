@@ -68,3 +68,20 @@ The primary navigation and homepage developer section link to
 [the public MCP checker](https://mcpcheck.agentaction.dev). It runs on its existing
 Worker with a custom domain; there is no duplicate website page or embedded frame.
 Recipes remain available from the homepage section and footer.
+
+## Temporal authorization demo
+
+`/demo` is an experimental presentation simulation linked from the homepage
+assessment card. Five synthetic MCP servers illustrate per-tool access,
+accumulated evidence, customer history, data minimization, evidence expiry,
+confirmed outcomes and consumed actions. Play/pause, step, rewind, reset,
+scenario selection and historical-call inspection use local state only.
+
+All provider records and policies are simulated. No MCP connections, network
+requests, model inference, real refunds or email delivery occur. Field
+allowlists illustrate sanitization; they do not implement general prompt
+injection detection. This demo does not change supported runtime enforcement.
+
+`npm test` includes sequence and rendered-route acceptance. Browser acceptance:
+`PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/demo-browser.mjs`
+against a local preview, with `DEMO_ORIGIN` overriding `http://localhost:3000`.

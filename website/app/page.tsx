@@ -271,16 +271,16 @@ export default function Home() {
             </div>
             <div className="code-line">
               <span className="line-key">evidence</span>
-              <span>order verified · 8y tenure</span>
+              <span>order verified · history checked</span>
             </div>
             <div className="code-line">
               <span className="line-key">policy</span>
-              <span>&gt;$500 requires approval</span>
+              <span>fresh duplicate-charge evidence required</span>
             </div>
             <div className="decision-rule" aria-hidden="true" />
             <div className="decision-result">
               <span className="decision-word">CHALLENGE</span>
-              <p>Decision is plausible. Manager approval is still required.</p>
+              <p>Payment evidence is missing. Challenge the agent to fetch and validate it.</p>
             </div>
             <div className="receipt-row">
               <span>decision_trace</span>
@@ -288,7 +288,7 @@ export default function Home() {
             </div>
           </div>
           <div className="console-footer">
-            The agent proposes. The trust layer assesses and enforces.
+            <a href="/demo">Explore the multi-server sequence <span aria-hidden="true">↗</span></a>
           </div>
         </div>
       </section>

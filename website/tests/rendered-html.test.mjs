@@ -25,6 +25,26 @@ async function render(pathname = "/") {
   );
 }
 
+test("serves the isolated temporal MCP simulation and links it from the homepage", async () => {
+  const response = await render('/demo');
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Authorization is a <em>sequence/);
+  assert.match(html, /Experimental simulation · synthetic MCP servers/);
+  assert.match(html, /Customer history/);
+  assert.match(html, /No live MCP calls, model inference or real actions/);
+  assert.match(html, /<noscript>/);
+  for (const id of ['scenario', 'play', 'back', 'next', 'reset', 'speed', 'servers', 'timeline', 'assessment', 'history']) {
+    assert.ok(html.includes(`id="${id}"`));
+  }
+  assert.match(response.headers.get('content-security-policy'), /connect-src 'none'/);
+  assert.doesNotMatch(response.headers.get('content-security-policy'), /unsafe-inline/);
+  const home = await (await render('/')).text();
+  assert.match(home, /href="\/demo">Explore the multi-server sequence/);
+  assert.doesNotMatch(home, /Manager approval is still required/);
+  for (const asset of ['demo.js', 'engine.js', 'demo.css']) await access(new URL(`../dist/client/demo/${asset}`, import.meta.url));
+});
+
 test("website health recipe explains native recurring execution and exports appropriate setup", async () => {
   const response = await render("/recipes/website-health");
   assert.equal(response.status, 200);
