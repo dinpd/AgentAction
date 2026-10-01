@@ -1,0 +1,46 @@
+.research-article { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+.research-back, .research-actions a, .research-inline-link { text-decoration: underline; text-underline-offset: .25em; }
+.research-back { font-size: .9rem; }
+.research-status { display: table; margin-top: 2.5rem; padding: .5rem .75rem; border: 1px solid var(--ink); font-size: .9rem; font-weight: 650; }
+.research-intro h1 { margin: 1.5rem 0 1rem; max-width: 14ch; font-size: clamp(2.75rem, 7vw, 5.75rem); line-height: 1.04; }
+.research-intro h1 em { font-style: normal; background: var(--lime); padding-inline: .1em; }
+.research-subtitle { max-width: 40ch; font-size: clamp(1.3rem, 2.5vw, 1.8rem); line-height: 1.35; }
+.research-byline { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin-top: 1.8rem; font-size: 1rem; }
+.research-version { margin-top: .5rem; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.research-lead { max-width: 52ch; margin-top: 2rem; font-size: 1.25rem; line-height: 1.6; }
+.research-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; margin: 1.6rem 0 3.5rem; }
+.research-actions a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 650; }
+.research-actions .research-primary { padding: .9rem 1.2rem; background: var(--ink); color: var(--paper-strong); text-decoration: none; }
+.completion-research a:focus-visible { outline: 3px solid #446000; outline-offset: 5px; }
+.research-section { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: 2rem; border-top: 1px solid var(--line); padding-block: 2.5rem; }
+.research-kicker { font: 600 .9rem/1.6 "SFMono-Regular", Consolas, monospace; }
+.research-section h2 { font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.2; margin-bottom: 1.2rem; }
+.research-section > div > p, .research-scope { font-size: 1rem; line-height: 1.75; margin-top: 1rem; }
+.research-example { margin-top: 1.5rem; padding: 1.5rem; background: var(--paper-strong); border-left: 4px solid var(--lime-dark); }
+.research-example p { line-height: 1.7; }
+.research-example p + p { margin-top: .8rem; }
+.research-example .research-example-note, .research-section .research-disclosure { color: var(--muted); font-size: .9rem; }
+.research-caveat { border-left: 2px solid var(--ink); padding-left: 1rem; }
+.research-scope { padding-left: 1.2rem; }
+.research-scope li { padding-left: .25rem; margin-bottom: .75rem; }
+@media (max-width: 700px) {
+  .research-article { padding: 2rem 1.25rem 3rem; }
+  .research-section { grid-template-columns: 1fr; gap: 1rem; padding-block: 2rem; }
+  .research-status { margin-top: 1.75rem; }
+  .research-actions { gap: .75rem 1.2rem; }
+}
+
+.research-figure { margin: 2rem 0; padding: 1rem; background: white; border: 1px solid var(--line); }
+.research-figure img { display: block; width: 100%; height: auto; }
+.research-figure figcaption { margin-top: 1rem; font-size: .9rem; line-height: 1.65; }
+.research-figure a, .reader-fields + p a, .research-download a { text-decoration: underline; text-underline-offset: .2em; }
+.research-download > p, .research-download form > p { line-height: 1.7; margin-block: 1rem; }
+.reader-fields { display: grid; gap: 1rem; margin: 1.5rem 0; }
+.reader-fields label { display: block; font-weight: 650; }
+.reader-fields span { font-weight: 400; }
+.reader-fields input { display: block; width: 100%; margin-top: .5rem; min-height: 44px; padding: .65rem; border: 1px solid var(--ink); border-radius: 0; background: white; color: var(--ink); font: inherit; }
+.research-download button { padding: .9rem 1.2rem; border: 1px solid var(--ink); background: var(--ink); color: var(--paper-strong); font: inherit; font-weight: 650; cursor: pointer; }
+.research-download button:disabled { opacity: .65; cursor: default; }
+.research-download :is(button, input):focus-visible { outline: 3px solid #446000; outline-offset: 3px; }
+.reader-direct { display: inline-block; padding-block: .75rem; font-weight: 650; }
+#download { scroll-margin-top: 6rem; }
