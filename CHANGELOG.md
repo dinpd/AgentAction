@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.46.0-rc.1 - 2026-10-01
+
+### Added
+
+- Research landing page for *Can We Trust 'Done'?*, including its abstract, manuscript PDF, experimental figure, author attribution, reproducibility folder, and an invitation to submit community review comments.
+- Optional reader registration with direct PDF access retained. Readers may share an email and optional name/organization with the website inbox; this does not create a mailing-list subscription. Registration failures never block downloads.
+
+### Compatibility
+
+- Additive website route and registration endpoint; no Python, SDK, authorization, or schema migration. Existing website contact flows remain unchanged.
+- Retains the prerelease channel because the current product baseline is a release candidate; this website release does not promote the earlier research-workflow RC features to stable.
+- Install Python artifacts from the GitHub v0.46.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
+
 ## 0.45.0-rc.1 - 2026-09-25
 
 ### Added

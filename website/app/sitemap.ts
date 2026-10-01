@@ -6,6 +6,7 @@ const lastModified = "2026-08-26";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
+    { url: `${siteOrigin}/research/completion-assessment`, lastModified: "2026-10-01" },
     { url: `${siteOrigin}/research/jev`, lastModified: "2026-09-27" },
     ...[
       "/recipes",

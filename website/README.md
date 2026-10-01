@@ -56,6 +56,24 @@ succeed.
 
 Run `node --experimental-strip-types ../recipes/check.ts` and `node --experimental-strip-types --test ../recipes/registry.test.ts` alongside the site tests. Recipe changes trigger website and console CI. The console receives a non-secret catalog ID/version; it still requires normal authentication and explicit workspace setup.
 
+## Completion-assessment research
+
+The homepage Research update links to `/research/completion-assessment`, the
+landing page for **Can We Trust 'Done'? Evaluating Agent Completion and Requests
+for Additional Evidence** by Dan Itkis, MsETM (AgentAction.dev). It identifies the
+September 25, 2026 manuscript as a preprint, explains the experiment boundaries,
+and links directly to the pinned research artifact.
+
+The first-party PDF at
+`/research/completion-assessment/can-we-trust-done-2026-09-25.pdf` is an unchanged
+copy of `research/completion-assessment/output/pdf/agent-task-completion-arxiv.pdf`
+in the project repository. The rendered-route acceptance test verifies its SHA-256
+alongside byline, preprint status, scope, navigation and discovery metadata.
+
+The page includes the manuscript abstract and unchanged service-outcomes figure, with scope and alt text. Optional reader registration posts to `/api/research-download` and sends email to the existing private `info@agentaction.dev` inbox using the existing runtime-only email configuration. Email is required only for registration; name and organization are optional. It does not subscribe readers to a mailing list or store their details in browser storage. Direct PDF links work without registration or JavaScript, including when registration fails. Public review comments use a prefilled GitHub issue link.
+
+The registration handler bounds streamed request bytes, checks origin, validates fields, rejects control characters and honeypot/timing failures, uses a fixed recipient and subject, times out provider requests, and returns no submitted personal data. The existing inbox is the data store; no new database is introduced. Honeypot/timing checks are bot friction, not a rate limit. Tests mock email delivery; they do not send live registration emails.
+
 ## MCP checker
 
 The shared homepage, gateway, and landscape header separates Explore links from

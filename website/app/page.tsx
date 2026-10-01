@@ -580,6 +580,25 @@ export default function Home() {
             <h2 id="whats-new-title">What’s new</h2>
           </div>
         </div>
+        <article className="news-entry" aria-labelledby="completion-news-title">
+          <div className="news-meta">
+            <time dateTime="2026-10-01">October 1, 2026</time>
+            <span>Research · Preprint</span>
+          </div>
+          <div className="news-copy">
+            <h3 id="completion-news-title">Can we trust “done”?</h3>
+            <p>
+              When should an agent claim completion—and when should it request
+              more evidence? Our paper evaluates that tradeoff with reproducible
+              experiments, including where additional checks still fail.
+            </p>
+            <p>Dan Itkis, MsETM · AgentAction.dev · Open for community review</p>
+            <div className="news-links">
+              <a className="proof-link" href="/research/completion-assessment">Read the research</a>
+              <a className="proof-link" href="/research/completion-assessment/can-we-trust-done-2026-09-25.pdf">Paper (PDF)</a>
+            </div>
+          </div>
+        </article>
         <article className="news-entry" aria-labelledby="jev-news-title">
           <div className="news-meta">
             <time dateTime="2026-09-27">September 27, 2026</time>

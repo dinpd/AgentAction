@@ -1,8 +1,61 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
+import { createHash } from "node:crypto";
 
 const templateRoot = new URL("../", import.meta.url);
+
+test("publishes the completion preprint with attribution, limits and the reviewed PDF", async () => {
+  const path = "/research/completion-assessment";
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Evaluating Agent Completion and Requests for Additional Evidence/);
+  assert.match(html, /Dan Itkis, MsETM/);
+  assert.match(html, /AgentAction.dev/);
+  assert.match(html, /Preprint · Open for community review/);
+  assert.doesNotMatch(html, /not yet peer reviewed|has not undergone independent peer review/i);
+  assert.match(html, /Submit review comments on GitHub/);
+  assert.match(html, /Comments are public/);
+  const reviewHref = html.match(/href="([^"]+)">Submit review comments on GitHub/)?.[1];
+  assert.ok(reviewHref);
+  const reviewUrl = new URL(reviewHref.replaceAll("&amp;", "&").replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16))));
+  assert.equal(reviewUrl.origin, "https://github.com");
+  assert.equal(reviewUrl.pathname, "/dinpd/AgentAction/issues/new");
+  assert.match(reviewUrl.searchParams.get("body"), /https:\/\/agentaction.dev\/research\/completion-assessment/);
+  assert.match(html, /dateTime="2026-09-25"/i);
+  assert.match(html, /no live LLM-generated agent trajectories, customer workloads/);
+  assert.match(html, /not 620 independent task designs/);
+  assert.match(html, /has a direct interest in the evaluated project/);
+  assert.match(html, /rel="canonical" href="https:\/\/agentaction.dev\/research\/completion-assessment"/);
+  assert.match(html, /name="citation_author" content="Dan Itkis"/);
+  assert.match(html, /property="og:type" content="article"/);
+  assert.match(html, /Completion-assessment research folder/);
+  assert.ok(html.includes("https://github.com/dinpd/AgentAction/tree/59f324a33fe2fd04ae167e5bbd4cac0330c65c9e/research/completion-assessment"));
+  assert.match(html, /id="abstract-title"/);
+  assert.match(html, /The contribution is an executable evaluation protocol and a measured decision\/request interface/);
+  assert.match(html, /id="download"/);
+  assert.match(html, /Optional reader registration/);
+  assert.match(html, /Download PDF—no registration required/);
+  assert.match(html, /does not subscribe you to a mailing list/);
+  assert.match(html, /<noscript>/);
+  assert.match(html, /<input(?=[^>]*name="email")(?=[^>]*required)[^>]*>/);
+  const figure = await readFile(new URL("../dist/client/research/completion-assessment/service-outcomes.png", import.meta.url));
+  assert.equal(figure.subarray(1, 4).toString(), "PNG");
+  assert.match(html, /controlled subset excludes dishonest-collector cases/);
+  const pdf = `${path}/can-we-trust-done-2026-09-25.pdf`;
+  assert.ok(html.includes(`href="${pdf}"`));
+  const bytes = await readFile(new URL(`../dist/client${pdf}`, import.meta.url));
+  assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
+  // Frozen reviewed manuscript: a different or stale PDF must not ship unnoticed.
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), "a731936890628735b945718dbb6fe1006680926cb67480df5df88222e35ebac5");
+  const home = await (await render("/")).text();
+  assert.ok(home.includes(`href="${path}"`));
+  assert.ok(home.includes('href="/research/jev"'));
+  assert.ok(home.indexOf('id="completion-news-title"') < home.indexOf('id="jev-news-title"'));
+  const sitemap = await (await render("/sitemap.xml")).text();
+  assert.ok(sitemap.includes(`https://agentaction.dev${path}`));
+});
 
 async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
