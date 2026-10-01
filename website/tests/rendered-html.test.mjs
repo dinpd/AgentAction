@@ -142,7 +142,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.doesNotMatch(html, /transition-note|AgentAction is the canonical project brand/);
   assert.match(html, /<main id="top">/);
   assert.match(html, /Trusted action boundary/);
-  assert.match(html, /href="\/gateway"[^>]*>Action gateway</i);
+  assert.match(html, /href="\/gateway"[^>]*>\s*Explore the Gateway/i);
   assert.match(html, /href="\/landscape"[^>]*>Landscape</i);
   assert.match(html, /class="brand-symbol"/i);
   assert.doesNotMatch(html, /class="brand-symbol-(?:gate|action|proof)"/i);
@@ -166,7 +166,7 @@ test("server-renders the complete AgentAction project site", async () => {
   assert.match(proofSection, /<article class="is-current"><p class="proof-state">Available now<\/p>/);
   assert.ok(html.indexOf('id="proof"') < html.indexOf('id="whats-new"'));
   assert.match(newsSection, /aria-labelledby="whats-new-title"/);
-  assert.match(newsSection, /What’s new/);
+  assert.match(newsSection, /<h2 id="whats-new-title">Research<\/h2>/);
   assert.match(newsSection, /<time dateTime="2026-09-27">September 27, 2026<\/time>/i);
   assert.match(newsSection, /Jev vs LLMs for authorization decisions/);
   assert.match(newsSection, /synthetic approval workflows/);
@@ -208,7 +208,7 @@ test("server-renders the complete AgentAction project site", async () => {
 });
 
 test("makes the MCP checker discoverable while retaining recipe access", async () => {
-  for (const path of ["/", "/gateway", "/landscape"]) {
+  for (const path of ["/", "/gateway", "/landscape", "/research/completion-assessment"]) {
     const html = await (await render(path)).text();
     const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
@@ -595,7 +595,6 @@ test("landscape explains the four governance jobs before presenting capability e
   const overview = html.match(/<section id="governance-map"[\s\S]*?<\/section>/)?.[0];
   assert.ok(overview);
   assert.ok(html.indexOf('id="governance-map"') < html.indexOf('id="capability-map"'));
-  assert.match(html, /href="#governance-map">Map<\/a>/);
   for (const label of ["Control", "Evidence", "Business task", "Execution environment", "Govern actions", "Verify outcomes", "Bound access", "Monitor runtime"]) {
     assert.ok(overview.includes(label), `missing organizing concept: ${label}`);
   }
@@ -853,8 +852,8 @@ test("serves a recorded interactive research report with restricted assets and s
   assert.equal(snapshot.rows.flatMap(r => r.attempts).length, 678);
 });
 
-test("groups exploration separately from usable tools and preserves all header destinations", async () => {
-  for (const path of ["/", "/gateway", "/landscape"]) {
+test("uses the requested ordered header menu with working section destinations", async () => {
+  for (const path of ["/", "/gateway", "/landscape", "/research/completion-assessment"]) {
     const html = await (await render(path)).text();
     const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
@@ -867,7 +866,14 @@ test("groups exploration separately from usable tools and preserves all header d
     assert.match(tools, /href="https:\/\/observability-console\.agentaction\.dev\/agents">Console/);
     assert.doesNotMatch(explore, /mcpcheck|observability-console/);
     assert.match(nav, /class="nav-cta" href="https:\/\/github\.com\/dinpd\/AgentAction">GitHub/);
-    if (path !== "/landscape") assert.match(explore, /href="\/landscape">Landscape/);
+    const entries = [...explore.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map(([, href, label]) => ({ href, label }));
+    const prefix = path === "/" ? "" : "/";
+    assert.deepEqual(entries, [
+      { href: `${prefix}#platform`, label: "Platform" },
+      { href: "/landscape", label: "Landscape" },
+      { href: `${prefix}#whats-new`, label: "Research" },
+      { href: `${prefix}#observe`, label: "Start here" },
+    ]);
     if (path === "/") assert.match(explore, /href="#observe" class="nav-start">Start here/);
     for (const [, id] of explore.matchAll(/href="#([^"]+)"/g)) {
       assert.ok(html.includes(`id="${id}"`), `missing header target ${path}#${id}`);

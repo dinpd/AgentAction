@@ -215,13 +215,7 @@ export default function Home() {
         Skip to content
       </a>
 
-      <SiteHeader home links={[
-        { href: "#platform", label: "Platform" },
-        { href: "#architecture", label: "Decision assurance" },
-        { href: "/gateway", label: "Action gateway" },
-        { href: "/landscape", label: "Landscape" },
-        { href: "#observe", label: "Start here", cta: true },
-      ]} />
+      <SiteHeader home />
 
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
@@ -577,7 +571,7 @@ export default function Home() {
         <div className="section-heading compact">
           <div>
             <p className="section-index">Updates</p>
-            <h2 id="whats-new-title">What’s new</h2>
+            <h2 id="whats-new-title">Research</h2>
           </div>
         </div>
         <article className="news-entry" aria-labelledby="completion-news-title">
