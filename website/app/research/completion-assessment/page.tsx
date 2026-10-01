@@ -29,10 +29,10 @@ export const metadata: Metadata = {
 export default function CompletionResearchPage() {
   return (
     <main className="completion-research" id="top">
-      <SiteHeader links={[{ href: "/", label: "Start here" }, { href: "/#whats-new", label: "Research & updates" }, { href: "/landscape", label: "Landscape" }]} />
+      <SiteHeader />
       <article className="research-article">
         <header className="research-intro">
-          <Link className="research-back" href="/#whats-new">Research & updates</Link>
+          <Link className="research-back" href="/#whats-new">Research</Link>
           <p className="research-status">Preprint · Open for community review</p>
           <h1>Can we trust <em>“done”?</em></h1>
           <p className="research-subtitle">Evaluating Agent Completion and Requests for Additional Evidence</p>

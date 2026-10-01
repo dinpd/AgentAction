@@ -90,12 +90,7 @@ export default function GatewayPage() {
         Skip to content
       </a>
 
-      <SiteHeader links={[
-        { href: "/", label: "Project" },
-        { href: "#workflow", label: "How it works" },
-        { href: "#compatibility", label: "Compatibility" },
-        { href: "/landscape", label: "Landscape" },
-      ]} />
+      <SiteHeader />
 
       <section id="gateway-content" className="gateway-hero" aria-labelledby="gateway-title">
         <div>

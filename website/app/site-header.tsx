@@ -3,7 +3,14 @@ import { Brand } from "./brand";
 
 type HeaderLink = { href: string; label: string; cta?: boolean };
 
-export function SiteHeader({ home = false, links }: { home?: boolean; links: HeaderLink[] }) {
+export function SiteHeader({ home = false }: { home?: boolean }) {
+  const prefix = home ? "" : "/";
+  const links: HeaderLink[] = [
+    { href: `${prefix}#platform`, label: "Platform" },
+    { href: "/landscape", label: "Landscape" },
+    { href: `${prefix}#whats-new`, label: "Research" },
+    { href: `${prefix}#observe`, label: "Start here", cta: true },
+  ];
   return (
     <header className="site-header grouped-header">
       <Brand href={home ? "#top" : "/"} />

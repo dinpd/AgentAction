@@ -495,14 +495,7 @@ export default function LandscapePage() {
         Skip to content
       </a>
 
-      <SiteHeader links={[
-        { href: "/", label: "Project" },
-        { href: "#governance-map", label: "Map" },
-        { href: "#findings", label: "Findings" },
-        { href: "#projects", label: "Projects" },
-        { href: "#standards", label: "Standards" },
-        { href: "/gateway", label: "Action gateway" },
-      ]} />
+      <SiteHeader />
 
       <section id="landscape-content" className="landscape-hero" aria-labelledby="landscape-title">
         <p className="eyebrow">Maintainer survey · Updated September 29, 2026</p>
