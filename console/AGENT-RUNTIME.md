@@ -99,6 +99,39 @@ as finalized gateway Jobs, signed receipts or independently verified Evals. Thos
 existing evidence surfaces remain available in Observability; adapters can still
 use their established ingestion/evaluation path.
 
+## Social research workflow inspection
+
+Saved social research definitions expose **Workflow definition** under My
+agents; research runs expose **Workflow & evidence**. The same stable step IDs
+link typed data connections, model instructions, settings, failure behavior and
+recorded evidence. Inspection and candidate filtering perform no tool calls,
+inference or email delivery. Viewers can inspect without execution permission.
+
+Newly saved definitions include a versioned descriptive contract in the scope
+digest, frozen again in each run. Editing saved settings cannot rewrite old
+run definitions. Changes to the server-owned contract require a fresh save and
+trial; no user-defined graph execution is enabled. Older definitions disclose
+that their workflow snapshot is unavailable; existing settings and calls remain
+readable. An owner can select **Capture workflow snapshot** in the saved research
+settings without changing the scope; this requires a new trial and activation.
+New classification records distinguish selected, rejected and unknown
+candidates, with supplied reasons retained. Failed classification clears partial
+decisions rather than presenting them as complete.
+
+Evidence remains runtime-recorded, provider-reported or AI-assessed according
+to its source. These views do not create signed receipts or prove independent
+relevance, complete platform coverage, or inbox delivery. Existing 40-run
+retention, workspace access and credential redaction apply.
+
+The staged product plan is [Transparent agent builder](../docs/transparent-agent-builder-plan.md).
+Browser acceptance: run `tests/workflow-inspector-browser.mts` with the same
+Playwright setup as other console browser tests. Screenshots use synthetic
+fixtures and are written to the system temporary directory as
+`agentaction-347-{desktop,mobile}.png`.
+Set `WORKFLOW_PREVIEW_PORT=8793` when running that script to keep its synthetic,
+read-only fixture server open for local inspection instead of running browser
+assertions. It does not connect accounts, call a model or send email.
+
 ## Validation references
 
 - [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
