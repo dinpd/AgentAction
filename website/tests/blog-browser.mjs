@@ -18,6 +18,9 @@ try {
     assert.ok(await directory.isVisible());
     const highlight = page.locator('#iam-digest');
     assert.match(await highlight.textContent(), /bounded delegation/);
+    const digestBox = await highlight.boundingBox();
+    const heroBox = await page.locator('#content').boundingBox();
+    assert.ok(digestBox.y + digestBox.height <= heroBox.y + 1, 'digest precedes hero');
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();
     await page.waitForURL(`**${permalink}`);
     assert.match(await page.locator('h1').textContent(), /Identity moves into/);

@@ -219,6 +219,18 @@ export default function Home() {
 
       <SiteHeader home />
 
+      <section id="iam-digest" className="home-digest" aria-labelledby="iam-digest-title">
+        <div className="digest-highlight">
+          <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="96px" />
+          <div>
+            <p className="digest-meta">Agentic IAM digest · September 25–October 7, 2026</p>
+            <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
+            <p>Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.</p>
+          </div>
+          <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
+        </div>
+      </section>
+
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <p className="eyebrow">Trust infrastructure for autonomous AI agents</p>
@@ -254,21 +266,6 @@ export default function Home() {
         </div>
 
         <HeroDemo />
-      </section>
-
-      <section id="iam-digest" className="home-digest section-shell" aria-labelledby="iam-digest-title">
-        <div className="digest-section-heading">
-          <h2 id="iam-digest-title">Agentic IAM digest</h2>
-          <p>From the blog · September 25–October 7, 2026</p>
-        </div>
-        <div className="digest-highlight">
-          <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="(max-width: 720px) 100vw, 220px" />
-          <div>
-            <h3>Agentic IAM is moving into the action path.</h3>
-            <p>The emerging direction: distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened. Our first digest connects the latest announcements and research to that longer-term shift.</p>
-            <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
-          </div>
-        </div>
       </section>
 
       <section className="home-mcp-checker section-shell" aria-labelledby="mcp-checker-title">
