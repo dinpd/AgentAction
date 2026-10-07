@@ -9,6 +9,7 @@ export function SiteHeader({ home = false }: { home?: boolean }) {
     { href: `${prefix}#platform`, label: "Platform" },
     { href: "/landscape", label: "Landscape" },
     { href: `${prefix}#whats-new`, label: "Research" },
+    { href: "/blog", label: "Blog" },
     { href: `${prefix}#observe`, label: "Start here", cta: true },
   ];
   return (

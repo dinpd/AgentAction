@@ -872,6 +872,7 @@ test("uses the requested ordered header menu with working section destinations",
       { href: `${prefix}#platform`, label: "Platform" },
       { href: "/landscape", label: "Landscape" },
       { href: `${prefix}#whats-new`, label: "Research" },
+      { href: "/blog", label: "Blog" },
       { href: `${prefix}#observe`, label: "Start here" },
     ]);
     if (path === "/") assert.match(explore, /href="#observe" class="nav-start">Start here/);
@@ -891,4 +892,43 @@ test("gives the MCP directory a dedicated browse block below the hero", async ()
   assert.match(directory, /Public pre-checks do not certify safety or test runtime behavior/);
   assert.ok(html.indexOf('id="hero-title"') < html.indexOf('id="mcp-directory"'));
   assert.ok(html.indexOf('id="mcp-directory"') < html.indexOf('id="mcp-checker-title"'));
+});
+
+test("publishes the dated IAM digest with sources, context, image and homepage lead-in", async () => {
+  const path = "/blog/agentic-iam-digest-2026-10-07";
+  const index = await render("/blog");
+  assert.equal(index.status, 200);
+  const indexHtml = await index.text();
+  assert.ok(indexHtml.includes(`href="${path}"`));
+  assert.match(indexHtml, /September 25–October 7, 2026/);
+  assert.match(indexHtml, /rel="canonical" href="https:\/\/agentaction.dev\/blog"/);
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  for (const pattern of [/Identity moves into/, /dateTime="2026-10-07"/i, /13-day window/, /By AgentAction/, /Earlier context, outside this issue/, /Editorial outlook/, /longer-term developments vector/, /November 16, 2026/, /first half of 2027/, /Q4 FY27/, /v2 revised October 6, 2026; first submitted September 24/, /not certification/, /Research summaries are based on the linked abstracts/]) assert.match(html, pattern);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  assert.match(html, /property="og:type" content="article"/);
+  assert.match(html, /property="article:published_time" content="2026-10-07"/);
+  const articleData = structuredData(html).find((item) => item["@type"] === "BlogPosting");
+  assert.equal(articleData.datePublished, "2026-10-07");
+  assert.equal(articleData.mainEntityOfPage, `https://agentaction.dev${path}`);
+  for (const source of [
+    "https://www.nist.gov/news-events/news/2026/09/comments-software-and-agentic-ai-identity-concept-paper",
+    "https://investor.sailpoint.com/node/8276/pdf",
+    "https://www.rsa.com/news/press-releases/rsa-agent-id-world-summit-ai/",
+    "https://arxiv.org/abs/2609.33371v1", "https://arxiv.org/abs/2610.03213v1",
+    "https://arxiv.org/abs/2609.30614v2", "https://arxiv.org/abs/2610.04544v1",
+  ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
+  for (const anchor of ["new", "research", "vector", "watch"]) assert.ok(html.includes(`id="${anchor}"`));
+  assert.match(html, /<img[^>]+alt="Abstract agent nodes/);
+  const jpg = await readFile(new URL("../dist/client/blog/agentic-iam-2026-10-07.jpg", import.meta.url));
+  assert.equal(jpg.subarray(0, 3).toString("hex"), "ffd8ff");
+  const home = await (await render("/")).text();
+  const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(highlight);
+  assert.match(highlight, /bounded delegation/);
+  assert.ok(highlight.includes(`href="${path}"`));
+  assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="permissions-title"'));
+  const sitemap = await (await render("/sitemap.xml")).text();
+  for (const route of ["/blog", path]) assert.ok(sitemap.includes(`https://agentaction.dev${route}`));
 });

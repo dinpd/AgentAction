@@ -78,7 +78,7 @@ The registration handler bounds streamed request bytes, checks origin, validates
 
 The shared homepage, gateway, and landscape header separates Explore links from
 visitor Tools: MCP Checker and Console. The shared Explore menu is Platform /
-Landscape / Research / Start here, including on the paper page. Platform, Research
+Landscape / Research / Blog / Start here, including on the paper page. Platform, Research
 and Start here link to the corresponding homepage sections. The MCP Directory has a dedicated browse
 block below the homepage hero. Landscape stays in Explore;
 Start here is highlighted, and all shared headers retain GitHub. Both
@@ -107,3 +107,26 @@ injection detection. This demo does not change supported runtime enforcement.
 `npm test` includes sequence and rendered-route acceptance. Browser acceptance:
 `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/demo-browser.mjs`
 against a local preview, with `DEMO_ORIGIN` overriding `http://localhost:3000`.
+
+## Agentic IAM blog
+
+`/blog` lists dated editorial issues. The first issue covers September 25–October
+7, 2026 at `/blog/agentic-iam-digest-2026-10-07`, with primary-source links,
+availability distinctions, preprint limitations, older context and an explicitly
+editorial longer-term outlook. The homepage includes a short vector highlight
+and lead-in, and the shared header links to Blog. Add issue metadata to
+`app/blog/posts.ts` so index and sitemap discovery stay aligned.
+
+The original header illustration was generated with the built-in ImageGen tool
+and compressed to `public/blog/agentic-iam-2026-10-07.jpg`. Prompt: abstract agent
+nodes following fine branching paths through separate translucent authorization
+gates, delegated identity and bounded access, midnight navy backdrop, electric
+blue/cyan light and subtle amber evidence points; wide editorial composition,
+no text, logos, robots, locks or shield clipart. The header is locally packaged;
+no external image hotlink, reader tracking, form or subscription is added.
+
+Rendered-route acceptance checks the digest, primary sources, dates, maturity
+labels, illustration bytes, homepage lead-in, canonical/article metadata and
+sitemap. `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node
+tests/blog-browser.mjs` checks navigation and layout at desktop/mobile widths
+against `BLOG_ORIGIN` (default `http://localhost:3000`).

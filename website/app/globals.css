@@ -2941,6 +2941,13 @@ button:focus-visible {
 }
 
 /* Separate editorial exploration from tools visitors can use. */
+.home-digest { padding-block: 0 2.5rem; }
+.digest-highlight { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 2rem; padding: 1.5rem; border: 1px solid var(--line); background: var(--paper-strong); }
+.digest-highlight img { display: block; width: 100%; height: auto; }
+.digest-highlight h2 { font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.2; margin: .6rem 0; }
+.digest-highlight p:not(.section-index) { max-width: 80ch; font-size: 1rem; line-height: 1.7; }
+.digest-highlight .proof-link { display: inline-block; margin-top: .75rem; }
+@media (max-width: 720px) { .digest-highlight { grid-template-columns: 1fr; gap: 1rem; padding: 1.25rem; } }
 .grouped-header {
   gap: 1.5rem;
   padding-block: 1.75rem 1rem;
