@@ -1,5 +1,6 @@
 import { boundedText, object, RuntimeError, textField, type McpTool } from './mcp-client.ts';
 import { emailAddress } from './notifications.ts';
+import type { AgentWorkflowContract } from './research-workflow.ts';
 
 export const RESEARCH_ACTORS = { reddit: 'harshmaur/reddit-scraper', x: 'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest' } as const;
 // Apify actor_tool_naming.ts: names over 64 characters use 59 characters + '-' + SHA-256(actor)[0:4].
@@ -24,10 +25,10 @@ export const RESEARCH_TOOLS = ['call-actor', 'get-actor-run', 'get-dataset-items
 export const RESEARCH_ENDPOINT = `https://mcp.apify.com/?tools=${RESEARCH_TOOLS.join(',')},${RESEARCH_ACTORS.reddit},${RESEARCH_ACTORS.x}`;
 export type Platform = keyof typeof RESEARCH_ACTORS;
 export type ResearchConfig = { connectionId: string; topics: string; queries: Record<Platform,string[]>; recipient: string; time: string; secondTime?: string; timezone: string; maxItems: number; actorCapUsd: number; xActorCapUsd?: number; rollingCapUsd: number; freePlan: true };
-export type ResearchDefinition = { config: ResearchConfig; tools: McpTool[]; pricing?: Record<Platform,string>; digest: string; approved?: { actor: string; at: string; digest: string } };
-export type Post = { platform: Platform; url: string; at: string; text: string; reason?: string };
+export type ResearchDefinition = { workflow?: AgentWorkflowContract; config: ResearchConfig; tools: McpTool[]; pricing?: Record<Platform,string>; digest: string; approved?: { actor: string; at: string; digest: string } };
+export type Post = { platform: Platform; url: string; at: string; text: string; reason?: string; assessment?: { relevant: boolean; reason?: string } };
 export type SourceProgress = { platform: Platform; stage: 'ready'|'starting'|'waiting'|'reading'|'done'|'unavailable'; runId?: string; datasetId?: string; usageUsd?: number; polls: number; received: number; invalid: number; outsideWindow: number; duplicates: number; total?: number; gap?: string; posts: Post[] };
-export type ResearchRun = { definition: ResearchDefinition; approval?: { id: string; actor: string; at: string }; sources: SourceProgress[]; due?: number; deadline: number; report?: string; checks?: { label: string; status: 'pass'|'fail'; observed: string; method: string }[]; delivery?: { status: string; id?: string; error?: string }; deliveryAttempts?: number; reserved?: boolean };
+export type ResearchRun = { definition: ResearchDefinition; classification?: { status: 'succeeded'|'failed'|'not_needed'; model: string; completedAt: string }; approval?: { id: string; actor: string; at: string }; sources: SourceProgress[]; due?: number; deadline: number; report?: string; checks?: { label: string; status: 'pass'|'fail'; observed: string; method: string }[]; delivery?: { status: string; id?: string; error?: string }; deliveryAttempts?: number; reserved?: boolean };
 const day = 86400000;
 function retainedText(value:string):string {
   let text=value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,' ').trim().slice(0,1000);
@@ -126,14 +127,20 @@ export function reportChecks(run:ResearchRun, classified:boolean) {
 }
 export function reportText(research:ResearchRun, startedAt:string):string {
   const c=research.definition.config, selected=research.sources.flatMap(s=>s.posts.filter(p=>p.reason));
-  return [`Daily social research`, `Scope: ${c.topics}`,`Window: ${new Date(Date.parse(startedAt)-day).toISOString()} — ${startedAt}`,'',
+  const report=[`Daily social research`, `Scope: ${c.topics}`,`Window: ${new Date(Date.parse(startedAt)-day).toISOString()} — ${startedAt}`,'',
     ...research.sources.map(s=>`${s.platform==='x'?'X':'Reddit'}: ${s.stage==='done'?`${s.received} rows retrieved; ${s.posts.filter(p=>p.reason).length} relevant posts`:`UNAVAILABLE — ${s.gap||'Search could not be verified'}`}${s.stage==='done'&&s.gap?`; ${s.gap}`:''}`),
     'Coverage is a bounded sample, not an exhaustive search of either platform. A zero does not prove no relevant conversation exists.','',
     ...(selected.length?selected.slice(0,12).flatMap((p,i)=>[`${i+1}. ${p.platform.toUpperCase()} · ${p.at}`,p.url,p.text.slice(0,500),`Why relevant: ${p.reason}`,'']):['No relevant posts retained in the available evidence. Review source coverage and checks below.','']),
     ...(selected.length>12?[`${selected.length-12} additional relevant posts are retained in the console.`]:[]),
     'Validation',...(research.checks||[]).map(c=>`${c.status.toUpperCase()} · ${c.label}: ${c.observed}\nMeasured by: ${c.method}`),'',
     `Billing controls: at most two Actor starts, $${c.actorCapUsd.toFixed(2)} Reddit / $${actorChargeCap(c,'x').toFixed(2)} X billed caps, $${c.rollingCapUsd.toFixed(2)} reserved per rolling 31 days. Shared Apify Free allowance also applies; dataset/API infrastructure usage is governed by the provider allowance. No upgrade or overage authorized.`
-  ].join('\n').slice(0,16000);
+  ].join('\n');
+  const bytes=new TextEncoder();
+  if(bytes.encode(report).length<=16000)return report;
+  const marker='\n\n[Report truncated at the 16,000-byte limit. Full candidate evidence and checks remain in the console.]';
+  let retained=report.slice(0,16000);
+  while(bytes.encode(retained+marker).length>16000)retained=retained.slice(0,Math.floor(retained.length*0.9));
+  return retained+marker;
 }
 
 /** Public metadata only: never send the connected token to the API or follow redirects. */

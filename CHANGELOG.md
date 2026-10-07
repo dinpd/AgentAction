@@ -4,6 +4,22 @@
 
 No changes yet.
 
+## 0.47.0-rc.1 - 2026-10-07
+
+### Added
+
+- Read-only social research workflow inspection in My agents and Runs: typed step connections, AI instructions/model, provider bindings, limits, failure behavior and evidence associated with stable step IDs.
+- Versioned descriptive workflow contracts included in newly saved scope digests and frozen in each run. Saved-setting edits preserve historical run definitions; legacy workflow snapshots remain explicitly unavailable.
+- Candidate decision evidence distinguishes selected, rejected and unknown posts, with supplied explanations and source links. Incomplete classification clears partial decisions. Viewers can inspect and filter evidence without execution permission.
+- Research reports are bounded to 16,000 UTF-8 bytes with explicit truncation markers, keeping maximum multibyte candidate evidence within the persisted run budget.
+- A staged transparent-agent-builder plan, with transparency and auditability as the organizing product theme.
+
+### Compatibility
+
+- Additive optional workflow and classification fields; no destructive migration, new tool authority, or user-defined graph execution. Existing research settings remain readable and retain existing execution behavior; save and review a fresh trial to capture the new workflow contract.
+- Runtime-recorded evidence, provider reports and AI assessments remain distinct. Workflow digests are not signed provider receipts; email acceptance does not prove inbox receipt. Existing retention and workspace access controls apply.
+- Remains a release candidate because it introduces a persisted contract/evidence schema and retains the current prerelease baseline. Install Python artifacts from the GitHub v0.47.0-rc.1 prerelease; hosted services deploy from the merge commit. No registry publication is implied.
+
 ## 0.46.0-rc.1 - 2026-10-01
 
 ### Added

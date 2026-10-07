@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { AgentRuntime, type RuntimeStorage, type Agent, type Run, type Connection } from '../src/agent-runtime.ts';
 import { researchConfig, nextResearchTime, sourcePosts, RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, actorChargeCap, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, actorArguments, type SourceProgress } from '../src/research-digest.ts';
 import { type McpTool, parseEndpointURL, validateArguments } from '../src/mcp-client.ts';
+import { evidenceDigest } from '../src/recipe-evaluation.ts';
+import { RESEARCH_CLASSIFICATION_INSTRUCTIONS, AGENT_MODEL } from '../src/research-workflow.ts';
 const config={connectionId:'apify',topics:'Retirement planning tools and brand mentions; exclude generic promotions.',queries:{x:['Example','retirement planning'],reddit:['Example','retirement planning']},recipient:'reports@example.com',time:'08:00',timezone:'America/Los_Angeles',maxItems:20,actorCapUsd:0.05,rollingCapUsd:4,freePlan:true};
 class Storage implements RuntimeStorage {
  data=new Map<string,unknown>();alarm?:number;
@@ -21,7 +23,7 @@ const schemas:McpTool[]=[
  ...(['reddit','x'] as const).map(platform=>({name:RESEARCH_ACTOR_TOOLS[platform],description:'Actor',inputSchema:JSON.parse(readFileSync(new URL('./fixtures/apify-research/'+platform+'-input.json',import.meta.url),'utf8'))}))
 ];
 const pricing={data:{pricingInfos:[{startedAt:'2020-01-01',pricingModel:'PAY_PER_EVENT',pricingPerEvent:{actorChargeEvents:{result:{eventTitle:'Result',eventPriceUsd:0.001}}}}]}};
-async function harness(){
+async function harness(classification: 'selected'|'mixed'|'failed'|'secret' = 'selected', dense=false){
  const storage=new Storage(),calls:any[]=[],reports:any[]=[];let changed=false,outputChanged=false,providerFailure=false,networkFailure=false,recipient=true,pending=false,missingTool='',xCharge=0.005;
  const agent:Agent={id:'agent',connectionId:'apify',title:'Social research',goal:'Relevant public posts',setup:'Company brief: retirement planning app.',success:'Report',tools:[],status:'draft',createdAt:new Date().toISOString()};
  const connection:Connection={id:'apify',endpoint:RESEARCH_ENDPOINT,token:'SECRET-TOKEN',tools:schemas,protocol:'2025-03-26',label:'Apify',status:'connected',createdAt:new Date().toISOString(),suggestions:[]};
@@ -40,11 +42,11 @@ async function harness(){
    if(providerFailure&&p.name==='call-actor')return Response.json({jsonrpc:'2.0',id:msg.id,result:{isError:true,content:[{type:'text',text:'Quota exhausted SECRET-TOKEN'}]}});
    const platform=p.arguments.actor===RESEARCH_ACTORS.reddit||p.arguments.runId?.startsWith('reddit')||p.arguments.datasetId?.startsWith('reddit')?'reddit':'x';
    if(p.name==='call-actor'||p.name==='get-actor-run')result={_meta:{'com.apify/ActorRun':{usageTotalUsd:platform==='x'?xCharge:0.03}},structuredContent:{runId:platform+'Run123456',status:p.name==='call-actor'||pending?'RUNNING':'SUCCEEDED',storages:{datasets:{default:{id:platform+'Dataset123'}}}}};
-   else result={structuredContent:{datasetId:p.arguments.datasetId,items:[{url:platform==='x'?'https://x.com/alice/status/123456':'https://www.reddit.com/r/retirement/comments/abc123/planning',createdAt:new Date(Date.now()-60000).toISOString(),text:'How should I compare retirement planning tools?'}],totalItemCount:1}};
+   else result={structuredContent:{datasetId:p.arguments.datasetId,items:Array.from({length:dense?20:1},(_,index)=>({url:platform==='x'?`https://x.com/alice/status/${123456+index}`:`https://www.reddit.com/r/retirement/comments/abc${index}/planning`,createdAt:new Date(Date.now()-60000).toISOString(),text:dense?'\u4e00'.repeat(1000):'How should I compare retirement planning tools?'})),totalItemCount:dense?20:1}};
   }
   return Response.json({jsonrpc:'2.0',id:msg.id,result});
  }) as typeof fetch;
- const env={AGENT_MCP_ENDPOINTS:RESEARCH_ENDPOINT,AGENT_AI:{async run(_m:string,input:any){assert.ok(!JSON.stringify(input).includes('SECRET-TOKEN'));return {response:{posts:[{index:0,relevant:true,reason:'Asks about comparing retirement planning tools.'},{index:1,relevant:true,reason:'Seeks a retirement planning tool.'}]}};}}};
+ const env={AGENT_MCP_ENDPOINTS:RESEARCH_ENDPOINT,AGENT_AI:{async run(model:string,input:any){assert.equal(model,AGENT_MODEL);assert.equal(input.messages[0].content,RESEARCH_CLASSIFICATION_INSTRUCTIONS);assert.ok(!JSON.stringify(input).includes('SECRET-TOKEN'));const posts=JSON.parse(input.messages[1].content).posts;return {response:{posts:classification==='failed'?[]:posts.map((_:unknown,index:number)=>({index,relevant:classification!=='mixed'||index===0,reason:classification==='secret'?'SECRET-TOKEN':dense?'\u4e00'.repeat(250):classification==='mixed'&&index>0?'Outside the reviewed scope.':index===0?'Asks about comparing retirement planning tools.':'Seeks a retirement planning tool.'}))}};}}};
  const bridge={async ready(to:string){assert.equal(to,config.recipient);if(!recipient)throw new Error('recipient removed');},async report(input:any){reports.push(input);return {status:'accepted',id:'delivery'};}};
  let runtime=new AgentRuntime(storage,env,fetcher,bridge);
  const request=async(path:string,body:any,role='owner')=>{const r=await runtime.handle(new Request('https://runtime.test/'+path,{method:'POST',headers:{'x-runtime-role':role},body:JSON.stringify(body)}));return {status:r.status,body:await r.json() as any};};
@@ -65,6 +67,70 @@ test('reviewed scope → two starts → durable status checks → actual rows �
  assert.equal((await h.request('activate',{agentId:'agent',reviewed:true})).status,200);
  const agent=(await h.storage.get<Agent>('agent:agent'))!;assert.equal(agent.nextRun,nextResearchTime(config,Date.now()));
  await h.request('pause',{agentId:'agent'});assert.equal((await h.storage.get<Agent>('agent:agent'))?.research?.approved,undefined);
+});
+
+test('new definitions freeze workflow instructions, wiring and authority into the scope digest', async()=>{
+ const h=await harness(),run=await h.trial(),definition=run.research!.definition;
+ assert.ok(definition.workflow);
+ assert.equal(definition.digest,await evidenceDigest({config:definition.config,tools:definition.tools,workflow:definition.workflow}));
+ const frozen=structuredClone(definition);
+ assert.equal((await h.request('research-save',{agentId:'agent',config:{...config,topics:'Changed scope'}})).status,200);
+ assert.deepEqual((await h.storage.get<Run>('run:'+run.id))!.research!.definition,frozen);
+ assert.notEqual((await h.storage.get<Agent>('agent:agent'))!.research!.digest,frozen.digest);
+ assert.equal(h.calls.length,0);
+ const drift=await h.storage.get<Agent>('agent:agent');drift!.research!.workflow!.steps[3].settings.instructions='Unreviewed instruction';await h.storage.put('agent:agent',drift);
+ assert.equal((await h.request('trial',{agentId:'agent'})).status,409);
+ assert.equal(h.calls.length,0);
+});
+
+test('workflow drift blocks pending approval and pauses an approved run before further effects',async()=>{
+ for(const approved of [false,true]){
+  const h=await harness(),run=await h.trial();
+  if(approved)assert.equal((await h.request('approve',{runId:run.id,approvalId:run.pending!.id})).status,200);
+  const saved=(await h.storage.get<Run>('run:'+run.id))!;saved.research!.definition.workflow!.steps[3].settings.instructions='Different implementation';await h.storage.put('run:'+run.id,saved);
+  if(approved){
+   await h.advance();const stopped=(await h.storage.get<Run>('run:'+run.id))!;
+   assert.equal(stopped.status,'interrupted');assert.equal(stopped.outcome,'uncertain');assert.equal((await h.storage.get<Agent>('agent:agent'))!.status,'paused');
+  }else assert.equal((await h.request('approve',{runId:run.id,approvalId:run.pending!.id})).status,409);
+  assert.equal(h.calls.length,0);assert.equal(h.reports.length,0);
+ }
+});
+
+test('retained candidate decisions distinguish selections, rejections and failed assessment', async()=>{
+ for(const mode of ['mixed','failed','secret'] as const){
+  const h=await harness(mode),run=await h.trial();await h.request('approve',{runId:run.id,approvalId:run.pending!.id});await h.advance();
+  const completed=(await h.storage.get<Run>('run:'+run.id))!;
+  const posts=completed.research!.sources.flatMap(s=>s.posts);
+  if(mode==='mixed'){
+   assert.equal(completed.research!.classification?.status,'succeeded');
+   assert.deepEqual(posts.map(p=>p.assessment?.relevant),[true,false]);
+   assert.equal(posts[1].assessment?.reason,'Outside the reviewed scope.');assert.equal(posts[1].reason,undefined);
+  }else{
+   assert.equal(completed.research!.classification?.status,'failed');
+   assert.ok(posts.every(p=>!p.assessment&&!p.reason));assert.equal(completed.outcome,'not_met');
+  }
+  assert.ok(!JSON.stringify(completed).includes('SECRET-TOKEN'));
+ }
+});
+
+test('legacy definitions remain readable without fabricating a workflow snapshot',async()=>{
+ const h=await harness(),agent=(await h.storage.get<Agent>('agent:agent'))!;
+ delete agent.research!.workflow;agent.research!.digest=await evidenceDigest({config:agent.research!.config,tools:agent.research!.tools});await h.storage.put('agent:agent',agent);
+ const run=await h.trial();assert.equal(run.research!.definition.workflow,undefined);
+ assert.equal((await h.request('approve',{runId:run.id,approvalId:run.pending!.id})).status,200);await h.advance();
+ assert.equal((await h.storage.get<Run>('run:'+run.id))!.outcome,'met');
+});
+
+test('maximum candidate evidence and multibyte scope fit the persisted run budget',async()=>{
+ const h=await harness('selected',true);
+ assert.equal((await h.request('research-save',{agentId:'agent',config:{...config,topics:'\u4e00'.repeat(2000)}})).status,200);
+ const run=await h.trial();await h.request('approve',{runId:run.id,approvalId:run.pending!.id});await h.advance();
+ const completed=(await h.storage.get<Run>('run:'+run.id))!;
+ assert.equal(completed.research!.sources.flatMap(s=>s.posts).length,40);
+ assert.equal(completed.research!.classification?.status,'succeeded');assert.equal(completed.status,'completed');
+ assert.ok(new TextEncoder().encode(JSON.stringify(completed)).length<128000);
+ assert.ok(new TextEncoder().encode(completed.research!.report).length<=16000);
+ assert.match(completed.research!.report!,/Report truncated/);
 });
 test('scope edits cancel pending approval and invalidate trial; frozen input drift sends no start',async()=>{
  const h=await harness(),run=await h.trial();await h.request('research-save',{agentId:'agent',config:{...config,topics:'Changed relevance'}});

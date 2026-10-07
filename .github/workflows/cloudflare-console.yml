@@ -75,6 +75,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify frozen workflow and run evidence inspection
+        run: node --experimental-strip-types tests/workflow-inspector-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify Monitor status and exact approval links
         run: node --experimental-strip-types tests/agent-history-browser.mts
         env:

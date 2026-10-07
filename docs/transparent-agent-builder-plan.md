@@ -1,0 +1,58 @@
+# Transparent agent builder
+
+Transparency and auditability are the organizing product theme. Each agent must
+make its configured behavior, permitted actions, actual execution and outcome
+evidence inspectable. The builder extends AgentAction's trust lifecycle.
+
+## Delivery sequence
+
+1. **Inspectable social scanner** ([#347](https://github.com/dinpd/AgentAction/issues/347)):
+   versioned descriptive contract, typed step connections, frozen instructions
+   and settings, and read-only step evidence. Retain candidate decisions and
+   disclose unavailable historical evidence. Existing server code executes the
+   procedure; the descriptive contract does not execute user wiring.
+2. **Executable bounded definition**: make the same validated definition
+   authoritative for supported execution. Pin revisions, preserve approval
+   boundaries and prove interruption/retry behavior before introducing edits.
+3. **Editable behavior**: expose scope, instructions, supported mappings,
+   delivery, limits and bounded branches. Show revision diffs and changes to
+   authority. Validate on the server; changes require appropriate fresh trials
+   and approval. Workspace policy remains the authority ceiling.
+4. **Compare and activate**: evaluate revisions against retained samples with
+   external actions disabled. Separate recorded playback from fresh AI
+   computation. Review the exact revision, authority, results and unresolved
+   evidence gaps before activation.
+5. **Prove reuse with Website Health**: exercise deterministic observations,
+   persistent state, conditional findings and notifications alongside social
+   research's AI assessment. Generalize only capabilities demonstrated by both.
+
+## Product surfaces
+
+Definition shows configured steps and connections, input/output types,
+instructions, bindings, destinations, limits and failure behavior. Runs uses
+the same step identities to show recorded evidence and explicit missing data.
+Changes will correlate revisions, editors, trials, approvals and activation.
+
+Proposal, authorization, approval, execution, provider response, observation and
+assessment remain distinct. Evidence identifies its provenance and retained
+scope. Runtime digests are not signed provider receipts or independent outcome
+verification. Record declared explanations and sources, not private model
+reasoning. Access controls, redaction and retention apply throughout.
+
+## Boundaries and release gates
+
+Initial building blocks remain bounded retrieval, assessment, decisions,
+approval, actions and evaluation. Defer arbitrary scripts, unrestricted loops,
+generic transformation libraries and a broad connector marketplace. MCP tools
+provide external capabilities.
+
+An auditor must identify a run's revision, authority, recorded action and
+evidence. Old runs retain their original definitions. Missing retrieval cannot
+be called successful zero-result search; AI assessments cannot be presented as
+independent verification. Interrupted side effects remain uncertain when the
+provider cannot prove their disposition. Inspection performs no execution.
+
+Every software milestone starts with an issue and acceptance checks, then
+follows issue-to-merge and the repository release process. This first milestone
+adds optional contract and candidate evidence fields without rewriting legacy
+records. Legacy workflow snapshots remain explicitly unavailable.
