@@ -927,6 +927,7 @@ test("publishes the dated IAM digest with sources, context, image and homepage l
   const home = await (await render("/")).text();
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
+  assert.match(highlight, /<h2 id="iam-digest-title">Agentic IAM digest<\/h2>/);
   assert.match(highlight, /bounded delegation/);
   assert.ok(highlight.includes(`href="${path}"`));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="permissions-title"'));

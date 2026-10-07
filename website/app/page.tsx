@@ -257,11 +257,14 @@ export default function Home() {
       </section>
 
       <section id="iam-digest" className="home-digest section-shell" aria-labelledby="iam-digest-title">
+        <div className="digest-section-heading">
+          <h2 id="iam-digest-title">Agentic IAM digest</h2>
+          <p>From the blog · September 25–October 7, 2026</p>
+        </div>
         <div className="digest-highlight">
           <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="(max-width: 720px) 100vw, 220px" />
           <div>
-            <p className="section-index">From the blog · September 25–October 7, 2026</p>
-            <h2 id="iam-digest-title">Agentic IAM is moving into the action path.</h2>
+            <h3>Agentic IAM is moving into the action path.</h3>
             <p>The emerging direction: distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened. Our first digest connects the latest announcements and research to that longer-term shift.</p>
             <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
           </div>
