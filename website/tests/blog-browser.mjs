@@ -12,6 +12,10 @@ try {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(origin);
+    assert.equal(await page.locator('#mcp-directory').count(), 0);
+    const directory = page.locator('#platform').getByRole('link', { name: 'Browse MCP servers', exact: true });
+    assert.equal(await directory.getAttribute('href'), 'https://mcpcheck.agentaction.dev/servers');
+    assert.ok(await directory.isVisible());
     const highlight = page.locator('#iam-digest');
     assert.match(await highlight.textContent(), /bounded delegation/);
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();

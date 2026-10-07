@@ -882,16 +882,17 @@ test("uses the requested ordered header menu with working section destinations",
   }
 });
 
-test("gives the MCP directory a dedicated browse block below the hero", async () => {
+test("places the MCP directory beneath Open My agents in platform section 4", async () => {
   const html = await (await render("/")).text();
-  const directory = html.match(/<section id="mcp-directory"[\s\S]*?<\/section>/)?.[0];
-  assert.ok(directory);
-  assert.match(directory, /aria-labelledby="mcp-directory-title"/);
-  assert.match(directory, /Find the tools your agent needs/);
-  assert.match(directory, /href="https:\/\/mcpcheck\.agentaction\.dev\/servers">Browse MCP servers/);
-  assert.match(directory, /Public pre-checks do not certify safety or test runtime behavior/);
-  assert.ok(html.indexOf('id="hero-title"') < html.indexOf('id="mcp-directory"'));
-  assert.ok(html.indexOf('id="mcp-directory"') < html.indexOf('id="mcp-checker-title"'));
+  assert.doesNotMatch(html, /id="mcp-directory"|directory-card/);
+  const platform = html.match(/<section id="platform"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(platform);
+  const creation = platform.match(/<article>[\s\S]*?<\/article>/)?.[0];
+  assert.ok(creation);
+  assert.match(creation, /Agent Creation &amp; Evaluation/);
+  assert.match(creation, /href="https:\/\/mcpcheck\.agentaction\.dev\/servers">Browse MCP servers/);
+  assert.ok(creation.indexOf('Open My agents') < creation.indexOf('Browse MCP servers'));
+  assert.match(creation, /Public findings are not safety certification/);
 });
 
 test("publishes the dated IAM digest with sources, context, image and homepage lead-in", async () => {

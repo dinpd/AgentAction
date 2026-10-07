@@ -3044,46 +3044,7 @@ button:focus-visible {
   }
 }
 
-.home-mcp-directory {
-  padding-bottom: 2.5rem;
-}
-.directory-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2rem;
-  padding: 2rem;
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, .45);
-}
-.directory-card > div {
-  max-width: 43rem;
-}
-.directory-card h2 {
-  margin: .75rem 0;
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  line-height: 1.15;
-}
-.directory-card p:not(.section-index) {
-  color: var(--muted);
-  line-height: 1.65;
-}
-.directory-card .directory-note {
-  margin-top: .75rem;
-  font-size: .875rem;
-}
-.directory-card .button {
-  flex-shrink: 0;
-}
-@media (max-width: 720px) {
-  .directory-card {
-    flex-direction: column;
-    align-items: start;
-    padding: 1.5rem;
-    gap: 1.25rem;
-  }
-}
+.module-grid .module-directory-link { display: flex; width: fit-content; margin-top: .75rem; }
 
 /* Compact inline sequence in the homepage hero. Full inspection lives at /demo. */
 .hero-demo {

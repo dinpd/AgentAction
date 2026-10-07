@@ -79,8 +79,8 @@ The registration handler bounds streamed request bytes, checks origin, validates
 The shared homepage, gateway, and landscape header separates Explore links from
 visitor Tools: MCP Checker and Console. The shared Explore menu is Platform /
 Landscape / Research / Blog / Start here, including on the paper page. Platform, Research
-and Start here link to the corresponding homepage sections. The MCP Directory has a dedicated browse
-block below the homepage hero. Landscape stays in Explore;
+and Start here link to the corresponding homepage sections. Browse MCP servers
+appears beneath Open My agents in section 4, Agent Creation & Evaluation. Landscape stays in Explore;
 Start here is highlighted, and all shared headers retain GitHub. Both
 groups remain visible at mobile widths.
 

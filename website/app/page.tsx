@@ -78,6 +78,8 @@ const assuranceModules = [
     note: "Public findings are not safety certification; authenticated tools may remain unseen. OAuth discovery is available; OAuth login is not yet supported.",
     href: agentBuilder,
     linkLabel: "Open My agents",
+    secondaryHref: "https://mcpcheck.agentaction.dev/servers",
+    secondaryLabel: "Browse MCP servers",
   },
   {
     state: "Available now",
@@ -254,20 +256,6 @@ export default function Home() {
         <HeroDemo />
       </section>
 
-      <section id="mcp-directory" className="home-mcp-directory section-shell" aria-labelledby="mcp-directory-title">
-        <div className="directory-card">
-          <div>
-            <p className="section-index">MCP server directory</p>
-            <h2 id="mcp-directory-title">Find the tools your agent needs.</h2>
-            <p>Browse servers by capability. Review their public authentication and tool-risk signals before choosing what to connect.</p>
-            <p className="directory-note">Public pre-checks do not certify safety or test runtime behavior.</p>
-          </div>
-          <a className="button button-primary" href="https://mcpcheck.agentaction.dev/servers">
-            Browse MCP servers <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-      </section>
-
       <section id="iam-digest" className="home-digest section-shell" aria-labelledby="iam-digest-title">
         <div className="digest-highlight">
           <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="(max-width: 720px) 100vw, 220px" />
@@ -397,6 +385,11 @@ export default function Home() {
                 <Link className="text-link module-link" href={module.href}>
                   {module.linkLabel} <span aria-hidden="true">→</span>
                 </Link>
+              )}
+              {module.secondaryHref && (
+                <a className="text-link module-directory-link" href={module.secondaryHref}>
+                  {module.secondaryLabel}
+                </a>
               )}
             </article>
           ))}
