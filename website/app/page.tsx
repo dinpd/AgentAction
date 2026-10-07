@@ -221,7 +221,7 @@ export default function Home() {
 
       <section id="iam-digest" className="home-digest" aria-labelledby="iam-digest-title">
         <div className="digest-highlight">
-          <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="96px" />
+          <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="64px" />
           <div>
             <p className="digest-meta">Agentic IAM digest · September 25–October 7, 2026</p>
             <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
