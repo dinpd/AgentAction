@@ -10,7 +10,7 @@ export function SiteHeader({ home = false }: { home?: boolean }) {
     { href: "/landscape", label: "Landscape" },
     { href: `${prefix}#whats-new`, label: "Research" },
     { href: "/blog", label: "Blog" },
-    { href: `${prefix}#observe`, label: "Start here", cta: true },
+    { href: `${prefix}#observe`, label: "Engage", cta: true },
   ];
   return (
     <header className="site-header grouped-header">
@@ -20,7 +20,7 @@ export function SiteHeader({ home = false }: { home?: boolean }) {
           <span className="nav-group-label" aria-hidden="true">Explore</span>
           <div className="nav-group-links">
             {links.map(({ href, label, cta }) => (
-              <Link key={href} className={cta ? "nav-start" : undefined} href={href}>{label}</Link>
+              <Link key={href} className={cta ? "nav-action" : undefined} href={href}>{label}</Link>
             ))}
           </div>
         </div>
@@ -28,7 +28,7 @@ export function SiteHeader({ home = false }: { home?: boolean }) {
           <span className="nav-group-label" aria-hidden="true">Tools</span>
           <div className="nav-group-links">
             <a href="https://mcpcheck.agentaction.dev">MCP Checker</a>
-            <a href="https://observability-console.agentaction.dev/agents">Console <span aria-hidden="true">↗</span></a>
+            <a className="nav-action" href="https://observability-console.agentaction.dev/agents">Agent Console <span aria-hidden="true">↗</span></a>
           </div>
         </div>
         <a className="nav-cta" href="https://github.com/dinpd/AgentAction">

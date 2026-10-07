@@ -2997,7 +2997,7 @@ button:focus-visible {
 .grouped-header .nav-cta {
   flex-shrink: 0;
 }
-.grouped-header .nav-start {
+.grouped-header .nav-action {
   padding: .35rem .75rem;
   border-radius: 999px;
   background: var(--lime);

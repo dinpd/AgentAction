@@ -853,7 +853,7 @@ test("serves a recorded interactive research report with restricted assets and s
 });
 
 test("uses the requested ordered header menu with working section destinations", async () => {
-  for (const path of ["/", "/gateway", "/landscape", "/research/completion-assessment"]) {
+  for (const path of ["/", "/gateway", "/landscape", "/research/completion-assessment", "/blog", "/blog/agentic-iam-digest-2026-10-07"]) {
     const html = await (await render(path)).text();
     const nav = html.match(/<nav aria-label="Primary navigation">([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
@@ -863,7 +863,7 @@ test("uses the requested ordered header menu with working section destinations",
     assert.ok(tools);
     assert.doesNotMatch(tools, /MCP Directory|\/servers/);
     assert.match(tools, /href="https:\/\/mcpcheck\.agentaction\.dev">MCP Checker/);
-    assert.match(tools, /href="https:\/\/observability-console\.agentaction\.dev\/agents">Console/);
+    assert.match(tools, /class="nav-action" href="https:\/\/observability-console\.agentaction\.dev\/agents">Agent Console/);
     assert.doesNotMatch(explore, /mcpcheck|observability-console/);
     assert.match(nav, /class="nav-cta" href="https:\/\/github\.com\/dinpd\/AgentAction">GitHub/);
     const entries = [...explore.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map(([, href, label]) => ({ href, label }));
@@ -873,9 +873,10 @@ test("uses the requested ordered header menu with working section destinations",
       { href: "/landscape", label: "Landscape" },
       { href: `${prefix}#whats-new`, label: "Research" },
       { href: "/blog", label: "Blog" },
-      { href: `${prefix}#observe`, label: "Start here" },
+      { href: `${prefix}#observe`, label: "Engage" },
     ]);
-    if (path === "/") assert.match(explore, /href="#observe" class="nav-start">Start here/);
+    assert.ok(explore.includes(`href="${prefix}#observe" class="nav-action">Engage`));
+    assert.doesNotMatch(nav, />Start here</);
     for (const [, id] of explore.matchAll(/href="#([^"]+)"/g)) {
       assert.ok(html.includes(`id="${id}"`), `missing header target ${path}#${id}`);
     }
