@@ -113,8 +113,8 @@ against a local preview, with `DEMO_ORIGIN` overriding `http://localhost:3000`.
 `/blog` lists dated editorial issues. The first issue covers September 25–October
 7, 2026 at `/blog/agentic-iam-digest-2026-10-07`, with primary-source links,
 availability distinctions, preprint limitations, older context and an explicitly
-editorial longer-term outlook. The homepage includes a short vector highlight
-and lead-in, and the shared header links to Blog. Add issue metadata to
+editorial longer-term outlook. The homepage includes a compact digest subheader directly beneath navigation,
+with the vector summary and article lead-in, and the shared header links to Blog. Add issue metadata to
 `app/blog/posts.ts` so index and sitemap discovery stay aligned.
 
 The original header illustration was generated with the built-in ImageGen tool

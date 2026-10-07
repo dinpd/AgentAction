@@ -2941,16 +2941,16 @@ button:focus-visible {
 }
 
 /* Separate editorial exploration from tools visitors can use. */
-.home-digest { padding-block: 0 2.5rem; }
-.digest-section-heading { margin-bottom: 1.25rem; }
-.digest-section-heading h2 { font-size: clamp(2rem, 3.5vw, 2.8rem); line-height: 1.15; }
-.digest-section-heading p { margin-top: .5rem; font-size: .95rem; line-height: 1.6; color: var(--muted); }
-.digest-highlight { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 2rem; padding: 1.5rem; border: 1px solid var(--line); background: var(--paper-strong); }
+/* Latest editorial issue sits directly below the homepage navigation. */
+.home-digest { width: min(calc(100% - 3rem), var(--max)); margin: 0 auto; padding: 1.2rem 0; border-bottom: 1px solid var(--line); }
+.digest-highlight { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 1.25rem; }
 .digest-highlight img { display: block; width: 100%; height: auto; }
-.digest-highlight h3 { font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.2; margin: 0 0 .6rem; }
-.digest-highlight p:not(.section-index) { max-width: 80ch; font-size: 1rem; line-height: 1.7; }
-.digest-highlight .proof-link { display: inline-block; margin-top: .75rem; }
-@media (max-width: 720px) { .digest-highlight { grid-template-columns: 1fr; gap: 1rem; padding: 1.25rem; } }
+.digest-highlight h2 { font-size: clamp(1.25rem, 2vw, 1.65rem); line-height: 1.25; margin: .25rem 0; }
+.digest-highlight p { font-size: 1rem; line-height: 1.55; }
+.digest-highlight .digest-meta { color: var(--muted); font-size: .875rem; }
+.digest-highlight .proof-link { font-size: .95rem; padding-block: .65rem; }
+@media (max-width: 900px) { .digest-highlight { grid-template-columns: 80px minmax(0, 1fr); } .digest-highlight .proof-link { grid-column: 2; padding-block: .25rem; } }
+@media (max-width: 520px) { .digest-highlight { grid-template-columns: 1fr; gap: .75rem; } .digest-highlight img { display: none; } .digest-highlight .proof-link { grid-column: 1; } }
 .grouped-header {
   gap: 1.5rem;
   padding-block: 1.75rem 1rem;

@@ -927,10 +927,12 @@ test("publishes the dated IAM digest with sources, context, image and homepage l
   const home = await (await render("/")).text();
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /<h2 id="iam-digest-title">Agentic IAM digest<\/h2>/);
+  assert.match(highlight, /<h2 id="iam-digest-title">Identity is moving into the action path\.<\/h2>/);
   assert.match(highlight, /bounded delegation/);
   assert.ok(highlight.includes(`href="${path}"`));
-  assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="permissions-title"'));
+  assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
+  assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
+  assert.equal([...home.matchAll(/id="iam-digest"/g)].length, 1);
   const sitemap = await (await render("/sitemap.xml")).text();
   for (const route of ["/blog", path]) assert.ok(sitemap.includes(`https://agentaction.dev${route}`));
 });
