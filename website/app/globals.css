@@ -2940,17 +2940,16 @@ button:focus-visible {
   .governance-marker { font-size: .9rem; }
 }
 
-/* Separate editorial exploration from tools visitors can use. */
 /* Latest editorial issue sits directly below the homepage navigation. */
-.home-digest { width: min(calc(100% - 3rem), var(--max)); margin: 0 auto; padding: 1.2rem 0; border-bottom: 1px solid var(--line); }
-.digest-highlight { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; align-items: center; gap: 1.25rem; }
+.home-digest { width: min(calc(100% - 3rem), var(--max)); margin: 0 auto; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+.digest-highlight { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
 .digest-highlight img { display: block; width: 100%; height: auto; }
-.digest-highlight h2 { font-size: clamp(1.25rem, 2vw, 1.65rem); line-height: 1.25; margin: .25rem 0; }
-.digest-highlight p { font-size: 1rem; line-height: 1.55; }
-.digest-highlight .digest-meta { color: var(--muted); font-size: .875rem; }
-.digest-highlight .proof-link { font-size: .95rem; padding-block: .65rem; }
-@media (max-width: 900px) { .digest-highlight { grid-template-columns: 80px minmax(0, 1fr); } .digest-highlight .proof-link { grid-column: 2; padding-block: .25rem; } }
-@media (max-width: 520px) { .digest-highlight { grid-template-columns: 1fr; gap: .75rem; } .digest-highlight img { display: none; } .digest-highlight .proof-link { grid-column: 1; } }
+.digest-highlight h2 { font-size: clamp(1rem, 1.3vw, 1.15rem); font-weight: 600; line-height: 1.25; margin: .2rem 0; }
+.digest-highlight p { font-size: .875rem; line-height: 1.5; }
+.digest-highlight .digest-meta { color: var(--muted); font-size: .8125rem; }
+.digest-highlight .proof-link { font-size: .875rem; padding-block: .5rem; }
+@media (max-width: 900px) { .digest-highlight { grid-template-columns: 64px minmax(0, 1fr); } .digest-highlight .proof-link { grid-column: 2; padding-block: .25rem; } }
+@media (max-width: 520px) { .digest-highlight { grid-template-columns: 1fr; gap: .5rem; } .digest-highlight img { display: none; } .digest-highlight .proof-link { grid-column: 1; } }
 .grouped-header {
   gap: 1.5rem;
   padding-block: 1.75rem 1rem;

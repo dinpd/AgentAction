@@ -21,6 +21,12 @@ try {
     const digestBox = await highlight.boundingBox();
     const heroBox = await page.locator('#content').boundingBox();
     assert.ok(digestBox.y + digestBox.height <= heroBox.y + 1, 'digest precedes hero');
+    assert.ok(await highlight.locator('p:not(.digest-meta)').evaluate((summary) => parseFloat(getComputedStyle(summary).fontSize) >= 14), 'readable summary');
+    assert.ok(await highlight.locator('a').evaluate((link) => parseFloat(getComputedStyle(link).fontSize) >= 14), 'readable digest link');
+    if (width === 1440) {
+      assert.ok(digestBox.height <= 110, 'compact desktop subheader');
+      assert.ok(await highlight.locator('h2').evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) <= 20), 'secondary headline scale');
+    }
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();
     await page.waitForURL(`**${permalink}`);
     assert.match(await page.locator('h1').textContent(), /Identity moves into/);
