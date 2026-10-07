@@ -112,7 +112,9 @@ digest, frozen again in each run. Editing saved settings cannot rewrite old
 run definitions. Changes to the server-owned contract require a fresh save and
 trial; no user-defined graph execution is enabled. Older definitions disclose
 that their workflow snapshot is unavailable; existing settings and calls remain
-readable. New classification records distinguish selected, rejected and unknown
+readable. An owner can select **Capture workflow snapshot** in the saved research
+settings without changing the scope; this requires a new trial and activation.
+New classification records distinguish selected, rejected and unknown
 candidates, with supplied reasons retained. Failed classification clears partial
 decisions rather than presenting them as complete.
 

@@ -67,7 +67,13 @@ try {
  const legacy=page.locator('[data-supervised-run=legacy-run]');
  await legacy.locator('[data-workflow-inspector=run] > summary').click();assert.match(await legacy.innerText(),/Workflow snapshot unavailable/);
  const before=reads;await page.locator('#refresh').click();await page.waitForFunction(value=>document.querySelectorAll('[data-workflow-step]').length>=value,16);assert.ok(reads>before);assert.equal(writes,0);
+ delete (state.agents[0].research as any).workflow;
+ await page.reload();await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
+ await page.locator('[data-research-editor] > summary').click();
+ assert.equal(await page.getByRole('button',{name:'Capture workflow snapshot',exact:true}).isDisabled(),false);
  role='viewer';await page.reload();await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ await page.locator('[data-research-editor] > summary').click();
+ assert.equal(await page.getByRole('button',{name:'Capture workflow snapshot',exact:true}).isDisabled(),true);
  const viewer=page.locator('[data-supervised-run=frozen-run] [data-workflow-inspector=run]');await viewer.locator(':scope > summary').click();await viewer.locator('[data-workflow-step=classify] > summary').click();assert.equal(await viewer.getByLabel('Candidate decisions').isDisabled(),false);
  assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
  await page.setViewportSize({width:390,height:844});await viewer.scrollIntoViewIfNeeded();
