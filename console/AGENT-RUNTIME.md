@@ -124,7 +124,8 @@ retention, workspace access and credential redaction apply.
 The staged product plan is [Transparent agent builder](../docs/transparent-agent-builder-plan.md).
 Browser acceptance: run `tests/workflow-inspector-browser.mts` with the same
 Playwright setup as other console browser tests. Screenshots use synthetic
-fixtures and are written to `/tmp/agentaction-347-{desktop,mobile}.png`.
+fixtures and are written to the system temporary directory as
+`agentaction-347-{desktop,mobile}.png`.
 Set `WORKFLOW_PREVIEW_PORT=8793` when running that script to keep its synthetic,
 read-only fixture server open for local inspection instead of running browser
 assertions. It does not connect accounts, call a model or send email.

@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import { researchWorkflow } from '../src/research-workflow.ts';
@@ -61,7 +63,7 @@ try {
  assert.equal(await page.evaluate(()=>Boolean((window as any).INJECTED)),false);
  await frozen.locator('[data-workflow-step=retrieve] > summary').click();assert.match(await frozen.innerText(),/Provider quota unavailable/);
  await frozen.locator('[data-workflow-step=deliver] > summary').click();assert.match(await frozen.innerText(),/uncertain/);assert.match(await frozen.innerText(),/inbox receipt unverified/);
- await page.screenshot({path:'/private/tmp/agentaction-347-desktop.png',fullPage:true});
+ await page.screenshot({path:join(tmpdir(),'agentaction-347-desktop.png'),fullPage:true});
  const legacy=page.locator('[data-supervised-run=legacy-run]');
  await legacy.locator('[data-workflow-inspector=run] > summary').click();assert.match(await legacy.innerText(),/Workflow snapshot unavailable/);
  const before=reads;await page.locator('#refresh').click();await page.waitForFunction(value=>document.querySelectorAll('[data-workflow-step]').length>=value,16);assert.ok(reads>before);assert.equal(writes,0);
@@ -70,7 +72,7 @@ try {
  assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
  await page.setViewportSize({width:390,height:844});await viewer.scrollIntoViewIfNeeded();
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'No mobile horizontal overflow');
- await page.screenshot({path:'/private/tmp/agentaction-347-mobile.png',fullPage:true});
+ await page.screenshot({path:join(tmpdir(),'agentaction-347-mobile.png'),fullPage:true});
  await page.getByLabel('Workspace',{exact:true}).selectOption('beta');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
  await page.waitForFunction(()=>document.querySelectorAll('[data-workflow-inspector]').length===0);
  assert.equal(writes,0);assert.deepEqual(errors,[]);
