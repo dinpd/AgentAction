@@ -47,7 +47,7 @@ export function workflowInspector(runtime: Pick<Window, 'document'>, evidence = 
       section.append(node('p', 'This workflow contract version is unsupported by this inspector.', 'workflow-gap')); parent.append(section); return;
     }
     section.append(node('p', `Social research / implementation ${workflow.implementationVersion} / ${workflow.schemaVersion} / ${workflow.mode}`, 'workflow-meta'));
-    if(run&&!run.research?.execution)section.append(node('p','Step journal unavailable for this legacy run. Evidence below is a projection of retained records, not reconstructed execution events.','workflow-gap'));
+    if(run&&!run.research?.execution)section.append(node('p',`${workflow.mode==='descriptive'?'Legacy compatibility run: no step journal was recorded.':'Execution journal unavailable: this run has a retained evidence gap.'} Evidence below is a projection of retained records, not reconstructed execution events.`,'workflow-gap'));
     const steps = node('ol', '', 'workflow-steps');
     for (const step of workflow.steps) {
       const row = node('li');
