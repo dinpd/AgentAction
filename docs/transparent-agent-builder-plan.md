@@ -85,3 +85,7 @@ The localhost workflow preview serves synthetic fixtures, not live workspace
 data. It is read-only: trials, saves, scheduling and delivery are disabled.
 Use the live console for real trials and upgrades. The synthetic preview's
 rejected write requests are not evidence of legacy runtime incompatibility.
+No real account is signed in to this preview, so there is no login, logout or
+role-switching flow. Its synthetic viewer role cannot be changed to gain editing
+access. Sign in to the live console with the appropriate workspace membership
+for real editing and execution.

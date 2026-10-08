@@ -29,12 +29,15 @@ const legacyRun=structuredClone(selectedRun);legacyRun.id='legacy-run';delete (l
 const state={agents:[{id:'scanner',title:'Social research',goal:'Relevant public posts',success:'Report',connectionId:'apify',tools:[],status:'draft',createdAt:stamp,research:revised}],runs:[selectedRun,legacyRun],connections:[{id:'apify',label:'Apify',endpoint:'https://mcp.apify.com',status:'connected',tools:[],suggestions:[]}],drafts:[],workspaceRecipes:[],preparationSkills:[],inspections:[],oauthProviders:[],endpointAccess:{deployment:[],workspace:[]},model:definition.workflow.steps[3].settings.model};
 let role='owner',writes=0,reads=0,readOnlyPreview=Boolean(process.env.WORKFLOW_PREVIEW_PORT);
 const previewError='This synthetic preview is read-only. Trials, saves, scheduling and delivery are disabled. Use the live console to run agents.';
-const previewNotice='<aside id="workflow-preview-notice" aria-label="Preview environment"><strong>Synthetic preview · read-only</strong><p>Trials, saves, scheduling and delivery are disabled. These agents and runs are fixtures, not live workspace data.</p><a href="https://observability-console.agentaction.dev/agents">Open live console</a></aside>';
-const previewStyle='#workflow-preview-notice{position:sticky;top:0;z-index:5;padding:16px;margin-bottom:24px;border-left:4px solid #17634c;background:#e4f1eb;color:#143c30;overflow-wrap:anywhere}#workflow-preview-notice p{margin:8px 0}';
+const previewNotice='<aside id="workflow-preview-notice" aria-label="Preview environment"><strong>Synthetic preview · read-only</strong><p>Trials, saves, scheduling and delivery are disabled. These agents and runs are fixtures, not live workspace data.</p><p>No real account is signed in here. Account switching is unavailable; sign in to the live console for editing access.</p><a href="https://observability-console.agentaction.dev/agents">Open live console</a></aside>';
+const previewStyle='header .account{display:none!important}#workflow-preview-notice{position:sticky;top:0;z-index:5;padding:16px;margin-bottom:24px;border-left:4px solid #17634c;background:#e4f1eb;color:#143c30;overflow-wrap:anywhere}#workflow-preview-notice p{margin:8px 0}';
 const env={CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_ENVIRONMENT:'development',CONSOLE_MOCK_SUBJECT:'test',CONSOLE_MOCK_TENANT_ID:'acme'};
 const server=createServer(async(req,res)=>{
  try {
   const url=new URL(req.url!,'http://localhost');
+  if(readOnlyPreview&&req.method==='GET'&&url.pathname==='/cdn-cgi/access/logout'){
+   res.statusCode=303;res.setHeader('location','/agents#run');res.setHeader('cache-control','no-store');res.end();return;
+  }
   if(!url.pathname.startsWith('/api/')){
    const out=await worker.fetch(new Request(url),env);res.statusCode=out.status;out.headers.forEach((v,k)=>res.setHeader(k,v));
    if(readOnlyPreview&&url.pathname==='/agents')res.end((await out.text()).replace('<main>','<main>'+previewNotice));
@@ -66,6 +69,8 @@ try {
  await page.goto(base+'/agents?workspace=acme&run=frozen-run#run');
  const saved=page.locator('#agents [data-workflow-inspector=definition]');
  await saved.waitFor({state:'attached'});await saved.locator(':scope > summary').click();
+ assert.equal(await page.getByRole('region',{name:'Signed-in account',exact:true}).isVisible(),true);
+ assert.equal(await page.getByRole('link',{name:'Log out',exact:true}).isVisible(),true);
  assert.equal(await saved.locator('[data-workflow-step]').count(),8);
  await saved.locator('[data-workflow-step=classify] > summary').click();assert.match(await saved.innerText(),/Current scope after the run/);
  const frozen=page.locator('[data-supervised-run=frozen-run] [data-workflow-inspector=run]');
@@ -94,6 +99,10 @@ try {
  readOnlyPreview=true;await page.reload();await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
  const notice=page.getByRole('complementary',{name:'Preview environment'});
  await notice.waitFor({state:'visible'});assert.match(await notice.innerText(),/Synthetic preview · read-only/);
+ assert.match(await notice.innerText(),/No real account is signed in here/);assert.match(await notice.innerText(),/Account switching is unavailable/);
+ assert.equal(await page.getByRole('region',{name:'Signed-in account',exact:true}).count(),0);
+ assert.equal(await page.getByRole('link',{name:'Log out',exact:true}).count(),0);
+ assert.equal(await page.getByRole('link',{name:'Sign in',exact:true}).count(),0);
  await page.waitForFunction(()=>{const box=document.getElementById('workflow-preview-notice')!.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
  await page.screenshot({path:join(tmpdir(),'agentaction-358-desktop.png')});
  assert.equal(await notice.getByRole('link',{name:'Open live console'}).getAttribute('href'),'https://observability-console.agentaction.dev/agents');
@@ -105,6 +114,7 @@ try {
  const viewer=page.locator('[data-supervised-run=frozen-run] [data-workflow-inspector=run]');await viewer.locator(':scope > summary').click();await viewer.locator('[data-workflow-step=classify] > summary').click();assert.equal(await viewer.getByLabel('Candidate decisions').isDisabled(),false);
  assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
  await page.setViewportSize({width:390,height:844});await viewer.scrollIntoViewIfNeeded();
+ assert.equal(await page.getByRole('link',{name:'Log out',exact:true}).count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'No mobile horizontal overflow');
  await page.waitForFunction(()=>{const box=document.getElementById('workflow-preview-notice')!.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
  await page.screenshot({path:join(tmpdir(),'agentaction-347-mobile.png'),fullPage:true});
@@ -114,8 +124,17 @@ try {
  assert.equal(writes,0);assert.deepEqual(errors,[]);
  const rejected=await fetch(base+'/api/agents/acme/trial',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({agentId:'scanner'})});
  assert.equal(rejected.status,405);assert.deepEqual(await rejected.json(),{error:previewError});assert.equal(writes,1);
- readOnlyPreview=false;role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ const logout=await fetch(base+'/cdn-cgi/access/logout',{redirect:'manual'});
+ assert.equal(logout.status,303);assert.equal(logout.headers.get('location'),'/agents#run');assert.equal(logout.headers.get('cache-control'),'no-store');assert.equal(logout.headers.get('set-cookie'),null);
+ await page.goto(base+'/cdn-cgi/access/logout');assert.equal(page.url(),base+'/agents#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('complementary',{name:'Preview environment'}).isVisible(),true);assert.equal(writes,1);
+ assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isEnabled(),false);
+ await page.screenshot({path:join(tmpdir(),'agentaction-360-mobile.png')});
+ await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:join(tmpdir(),'agentaction-360-desktop.png')});
+ readOnlyPreview=false;role='viewer';await page.reload();await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
  assert.equal(await page.locator('#workflow-preview-notice').count(),0);
+ assert.equal(await page.getByRole('region',{name:'Signed-in account',exact:true}).isVisible(),true);
+ assert.equal(await page.getByRole('link',{name:'Log out',exact:true}).isVisible(),true);
  assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
- console.log('Workflow inspector browser acceptance passed: frozen/current revisions, typed wiring, decisions, partial coverage, uncertain delivery, legacy gaps, owner/viewer inspection, explicit read-only preview, rejected mutations, tenant switching, keyboard, mobile and no inspection writes.');
+ console.log('Workflow inspector browser acceptance passed: frozen/current revisions, typed wiring, decisions, partial coverage, uncertain delivery, legacy gaps, owner/viewer inspection, explicit read-only preview, no synthetic account switching, logout recovery, rejected mutations, tenant switching, keyboard, mobile and no inspection writes.');
 }finally{await browser.close();server.close();}
