@@ -11,7 +11,7 @@ evidence inspectable. The builder extends AgentAction's trust lifecycle.
    and settings, and read-only step evidence. Retain candidate decisions and
    disclose unavailable historical evidence. Existing server code executes the
    procedure; the descriptive contract does not execute user wiring.
-2. **Executable bounded definition**: make the same validated definition
+2. **Executable bounded definition** ([#356](https://github.com/dinpd/AgentAction/issues/356)): make the same validated definition
    authoritative for supported execution. Pin revisions, preserve approval
    boundaries and prove interruption/retry behavior before introducing edits.
 3. **Editable behavior**: expose scope, instructions, supported mappings,

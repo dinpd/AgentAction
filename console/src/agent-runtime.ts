@@ -12,7 +12,8 @@ import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type 
 import { mcpFailureReason, McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
 import { mcpEndpointConfig } from './mcp-endpoint-config.ts';
-import { AGENT_MODEL, RESEARCH_CLASSIFICATION_INSTRUCTIONS, researchWorkflow } from './research-workflow.ts';
+import { AGENT_MODEL, RESEARCH_CLASSIFICATION_INSTRUCTIONS, researchWorkflow, legacyResearchWorkflow } from './research-workflow.ts';
+import { executableResearch, executionState, inputReferences, resolvedInputs, recordStep, completeStep, startedStep, validateExecution } from './research-execution.ts';
 
 export type RuntimeStorage = {
   get<T>(key: string): Promise<T | undefined>;
@@ -71,6 +72,10 @@ export class AgentRuntime {
     for (const run of (await this.storage.list<Run>({ prefix: "run:" })).values()) {
       if(run.research && run.status==='executing'){
         for(const e of run.events)if(e.status==='executing')e.status='uncertain';
+        if(run.research.execution){
+          const pending=run.research.execution.journal.filter(e=>e.status==='started'&&!run.research!.execution!.journal.some(later=>later.sequence>e.sequence&&later.kind===e.kind&&later.step===e.step&&later.call===e.call&&later.attempt===e.attempt&&later.status!=='started'));
+          for(const entry of pending)recordStep(run.research,entry.step,'uncertain',{kind:entry.kind,call:entry.call,attempt:entry.attempt,observation:'Runtime restarted before completion was retained.'});
+        }
         run.research.due=Date.now()+1000;await this.saveRun(run);continue;
       }
       if (run.status === "executing" || run.status === "planning") {
@@ -83,6 +88,14 @@ export class AgentRuntime {
     await this.reschedule();
   }
   private async saveRun(run: Run): Promise<void> {
+    if(terminal(run)&&run.research?.execution){
+      const research=run.research,step=research.definition.workflow?.steps?.[research.execution!.cursor];
+      if(step){
+        const last=research.execution!.journal.filter(e=>e.kind==='step'&&e.step===step.id).at(-1);
+        const status=run.status==='cancelled'?'cancelled':'uncertain';
+        if(last?.status!==status)recordStep(research,step.id,status,{observation:'Run stopped before this step completed.'});
+      }
+    }
     const finalize = terminal(run) && run.contract && !run.evaluation;
     if (finalize) {
       if(run.contract!.binding.specification.rubrics?.length && hasRubricEvidence(run) && !run.rubricAssessment) {
@@ -194,7 +207,7 @@ export class AgentRuntime {
     if (count >= limit) throw new RuntimeError("The daily workspace limit has been reached. Try again tomorrow.", 429);
     await this.storage.put(`limit:${key}`, { day, count: count + 1 });
   }
-  private async infer(system: string, data: unknown, token?: string, responseSchema?: Record<string, unknown>): Promise<{ value: Record<string, unknown>; tokens: number }> {
+  private async infer(system: string, data: unknown, token?: string, responseSchema?: Record<string, unknown>, settings?: {model:string;maxOutputTokens:number;temperature:number}): Promise<{ value: Record<string, unknown>; tokens: number }> {
     if (!this.env.AGENT_AI) throw new RuntimeError("AI suggestions and execution are unavailable until the runtime AI binding is configured.", 503);
     await this.charge("inference", 120);
     const prompt = redact(await this.clean(data), token);
@@ -202,7 +215,7 @@ export class AgentRuntime {
     let result: Record<string, unknown>;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const inference = this.env.AGENT_AI.run(MODEL, { messages: [{ role: "system", content: system }, { role: "user", content: prompt }], response_format: responseSchema ? { type: "json_schema", json_schema: responseSchema } : { type: "json_object" }, max_tokens: system===PLAN_PROMPT ? 3400 : system===PREPARATION_PROMPT ? 3000 : system.startsWith('Assess each frozen') ? 2400 : 1600, temperature: 0.2 });
+      const inference = this.env.AGENT_AI.run(settings?.model || MODEL, { messages: [{ role: "system", content: system }, { role: "user", content: prompt }], response_format: responseSchema ? { type: "json_schema", json_schema: responseSchema } : { type: "json_object" }, max_tokens: settings?.maxOutputTokens ?? (system===PLAN_PROMPT ? 3400 : system===PREPARATION_PROMPT ? 3000 : system.startsWith('Assess each frozen') ? 2400 : 1600), temperature: settings?.temperature ?? 0.2 });
       const response = await Promise.race([inference, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("inference timeout")), 45000); })]);
       if (JSON.stringify(response).length > 24000) throw new Error("inference output limit");
       result = object(response);
@@ -703,6 +716,7 @@ export class AgentRuntime {
       const agent = await this.required<Agent>("agent", body.agentId);
       if (path === '/activate' && agent.research) {
         if(role!=='owner'||body.reviewed!==true)throw new RuntimeError('An owner must review and approve recurring research execution.',403);
+        if(!await this.researchImplementationCurrent(agent.research))throw new RuntimeError('Research implementation changed. Save settings and review a fresh trial.',409);
         const trial=agent.lastTrial?await this.required<Run>('run',agent.lastTrial):undefined;
         if(!trial?.research||trial.outcome!=='met'||trial.research.delivery?.status!=='accepted'||trial.research.definition.digest!==agent.research.digest)throw new RuntimeError('Complete a trial with both platforms, passing checks and an accepted report before activating.',409);
         await this.reports.ready(agent.research.config.recipient);
@@ -791,18 +805,26 @@ export class AgentRuntime {
     if(new TextEncoder().encode(JSON.stringify(pinned)).length>24000)throw new RuntimeError('Research tool inputs exceed the frozen evidence budget. Use narrower provider schemas.',409);
     return pinned;
   }
-  private researchImplementationCurrent(definition:ResearchDefinition):boolean{
-    return !definition.workflow || canonical(definition.workflow)===canonical(researchWorkflow(definition.config));
+  private async researchImplementationCurrent(definition:ResearchDefinition):Promise<boolean>{
+    if(!definition.workflow)return true;
+    if(definition.workflow.schemaVersion==='agentaction.workflow-contract.v1')return canonical(definition.workflow)===canonical(legacyResearchWorkflow(definition.config));
+    try{
+      executableResearch(definition);
+      return definition.digest===await evidenceDigest({config:definition.config,tools:definition.tools,workflow:definition.workflow});
+    }catch{return false;}
   }
   private async startResearch(agent:Agent, kind:Run['kind'], actor:string):Promise<Run>{
     const definition=structuredClone(agent.research!);
-    if(!this.researchImplementationCurrent(definition))throw new RuntimeError('Research implementation changed. Save the settings and review a fresh trial.',409);
+    if(!await this.researchImplementationCurrent(definition))throw new RuntimeError('Research implementation changed. Save the settings and review a fresh trial.',409);
     if(kind==='scheduled'&&definition.approved?.digest!==definition.digest)throw new RuntimeError('Review and approve this research scope before scheduling.',409);
     if(kind==='trial')await this.reports.ready(definition.config.recipient);
     const runs=[...(await this.storage.list<Run>({prefix:'run:'})).values()];
     if(runs.some(r=>r.agentId===agent.id&&!terminal(r)))throw new RuntimeError('Finish or cancel the pending run first.',409);
     await this.charge('runs',20);
-    const run:Run={id:id(),agentId:agent.id,kind,actor,status:'awaiting_approval',startedAt:now(),events:[],tokens:0,research:{definition,deadline:Date.now()+900000,sources:(['reddit','x'] as const).map(platform=>({platform,stage:'ready',polls:0,received:0,invalid:0,outsideWindow:0,duplicates:0,posts:[]}))}};
+    const executable=definition.workflow?.mode==='executable';
+    const retrieve=executable?executableResearch(definition).find(s=>s.id==='retrieve')!.settings:undefined;
+    const run:Run={id:id(),agentId:agent.id,kind,actor,status:'awaiting_approval',startedAt:now(),events:[],tokens:0,research:{definition,...(executable?{execution:executionState(definition)}:{}),deadline:Date.now()+Number(retrieve?.deadlineSeconds??900)*1000,sources:((retrieve?.platforms??['reddit','x']) as Array<'reddit'|'x'>).map(platform=>({platform,stage:'ready',polls:0,received:0,invalid:0,outsideWindow:0,duplicates:0,posts:[]}))}};
+    if(executable)recordStep(run.research!,'schedule','started',{inputs:inputReferences(run.research!,definition.workflow!.steps[0])});
     run.pending={id:id(),tool:'research-scan',arguments:{scope:definition.config,actors:RESEARCH_ACTORS,calls:'At most 2 Actor starts and 18 read calls; retrieve only datasets returned by those starts.',delivery:'Send one report to the reviewed recipient, including partial coverage and failures.'}};
     if(kind==='trial'){agent.lastTrial=run.id;await this.storage.put(`agent:${agent.id}`,agent);}
     const pinned=new Set([...(await this.storage.list<Agent>({prefix:'agent:'})).values()].map(a=>a.lastTrial));
@@ -814,51 +836,77 @@ export class AgentRuntime {
         run.research!.approval={id:run.pending!.id,actor:definition.approved!.actor,at:now()};delete run.pending;run.status='executing';
         for(const source of run.research!.sources){source.stage='unavailable';source.gap=error instanceof RuntimeError?error.message:'Account, recipient or budget preflight is unavailable.';}
         agent.status='paused';delete agent.nextRun;delete agent.research!.approved;await this.storage.put(`agent:${agent.id}`,agent);
-        await this.finishResearch(run);
+        if(run.research!.execution){completeStep(run.research!,definition.workflow!.steps[0],'failed');run.research!.due=Date.now()+1000;await this.saveRun(run);}
+        else await this.finishResearch(run);
       }
     }
     return run;
   }
   private async approveResearch(agent:Agent, run:Run, actor:string):Promise<void>{
     const research=run.research!, c=research.definition.config;
-    if(!this.researchImplementationCurrent(research.definition))throw new RuntimeError('Research implementation changed. Save the settings and review a fresh trial.',409);
+    if(!await this.researchImplementationCurrent(research.definition))throw new RuntimeError('Research implementation changed. Save the settings and review a fresh trial.',409);
+    if(research.definition.workflow?.mode==='executable')validateExecution(research,true);
     if(agent.research?.digest!==research.definition.digest)throw new RuntimeError('Research configuration changed. Review a fresh trial.',409);
     await this.reports.ready(c.recipient);
     const ledger=(await this.storage.get<Array<{at:number;amount:number}>>('research-budget')||[]).filter(e=>e.at>Date.now()-31*86400000);
-    if(ledger.reduce((sum,e)=>sum+e.amount,0)+(c.actorCapUsd+actorChargeCap(c,'x'))>c.rollingCapUsd+0.000001)throw new RuntimeError('The rolling 31-day research reservation limit is exhausted. No Actor was started.',429);
+    const reservation=Number(research.execution?research.definition.workflow!.steps[0].settings.reservationUsd:c.actorCapUsd+actorChargeCap(c,'x'));
+    if(ledger.reduce((sum,e)=>sum+e.amount,0)+reservation>c.rollingCapUsd+0.000001)throw new RuntimeError('The rolling 31-day research reservation limit is exhausted. No Actor was started.',429);
     // Reserve the full upper bound, including failed/uncertain starts. Never refund on an ambiguous provider response.
-    ledger.push({at:Date.now(),amount:(c.actorCapUsd+actorChargeCap(c,'x'))});await this.storage.put('research-budget',ledger);
-    run.startedAt=now();research.reserved=true;research.approval={id:run.pending!.id,actor,at:now()};research.deadline=Date.now()+900000;research.due=Date.now()+1000;
+    ledger.push({at:Date.now(),amount:reservation});await this.storage.put('research-budget',ledger);
+    run.startedAt=now();research.reserved=true;research.approval={id:run.pending!.id,actor,at:now()};research.deadline=Date.now()+Number(research.execution?research.definition.workflow!.steps[1].settings.deadlineSeconds:900)*1000;research.due=Date.now()+1000;
+    if(research.execution)completeStep(research,research.definition.workflow!.steps[0]);
     delete run.pending;run.status='executing';await this.saveRun(run);await this.reschedule();
   }
   private async advanceResearch(agent:Agent, run:Run):Promise<void>{
-    const research=run.research!,config=research.definition.config;
-    if(!this.researchImplementationCurrent(research.definition)){
+    const research=run.research!;
+    let stateValid=true;
+    if(research.definition.workflow?.mode==='executable')try{validateExecution(research);}catch{stateValid=false;}
+    if(!stateValid||!await this.researchImplementationCurrent(research.definition)){
       agent.status='paused';delete agent.nextRun;delete agent.research!.approved;await this.storage.put(`agent:${agent.id}`,agent);
       run.status='interrupted';run.outcome='uncertain';run.finishedAt=now();delete research.due;
-      run.summary='Workflow implementation changed during this run. Research is paused; inspect any prior provider actions, then save settings and review a fresh trial.';
+      run.summary='Workflow implementation or retained execution state changed during this run. Research is paused; inspect any prior provider actions, then save settings and review a fresh trial.';
       await this.saveRun(run);return;
     }
     if(agent.research?.digest!==research.definition.digest||!research.approval){run.status='cancelled';delete research.due;run.finishedAt=now();await this.saveRun(run);return;}
+    if(research.execution){await this.advanceResearchWorkflow(agent,run);return;}
     if(research.report){
-      try {
-        const delivery=await this.reports.report({id:`research:${run.id}`,jobId:agent.id,title:`${agent.title}: daily research digest`.slice(0,180),detail:research.report,recipient:config.recipient});
-        research.delivery=delivery;
-        if(['accepted','failed','cancelled','uncertain'].includes(delivery.status)){
-          run.status='completed';run.outcome=research.checks?.every(c=>c.status==='pass')&&delivery.status==='accepted'?'met':'not_met';run.finishedAt=now();delete research.due;
-          run.summary=`${research.sources.filter(s=>s.stage==='done').length}/2 platforms retrieved; ${research.sources.flatMap(s=>s.posts).filter(p=>p.reason).length} relevant posts. Email: ${delivery.status}. Provider acceptance does not prove inbox delivery.`;
-        }else research.due=Date.now()+60000;
-      }catch(error){
-        research.deliveryAttempts=(research.deliveryAttempts||0)+1;
-        research.delivery={status:'pending',error:error instanceof RuntimeError?error.message:'Report handoff could not be confirmed. Checking the same delivery ID again.'};
-        if(research.deliveryAttempts>=5){research.delivery.status='uncertain';run.status='failed';run.finishedAt=now();run.summary='Report handoff could not be confirmed. Check Notifications for this run before sending again.';delete research.due;}
-        else research.due=Date.now()+60000;
-      }
-      await this.saveRun(run);return;
+      await this.deliverResearch(agent,run);return;
     }
     const source=research.sources.find(s=>!['done','unavailable'].includes(s.stage));
     if(!source){await this.finishResearch(run);return;}
-    if(Date.now()>research.deadline||run.events.length>=20){source.stage='unavailable';source.gap='Workflow deadline or call limit reached; provider results are incomplete.';research.due=Date.now()+1000;await this.saveRun(run);return;}
+    await this.retrieveResearch(agent,run);
+  }
+  private async deliverResearch(agent:Agent,run:Run, inputs?:Record<string,any>, settings?:Record<string,unknown>):Promise<void>{
+    const research=run.research!,config=research.definition.config;
+    const deliveryId=`${settings?.deliveryPrefix??'research:'}${run.id}`;
+    const attempt=(research.execution?.handoffAttempts??research.deliveryAttempts??0)+1;
+    if(research.execution){
+      if(attempt>Number(settings!.maxHandoffAttempts)){research.delivery={status:'uncertain',error:'The bounded handoff attempts were exhausted; check the existing delivery identity.'};await this.saveRun(run);return;}
+      research.execution.handoffAttempts=attempt;recordStep(research,'deliver','started',{kind:'handoff',attempt});await this.saveRun(run);
+    }
+      try {
+        const delivery=await this.reports.report({id:deliveryId,jobId:agent.id,title:`${agent.title}: daily research digest`.slice(0,180),detail:inputs?.report??research.report!,recipient:inputs?.recipient.recipient??config.recipient});
+        research.delivery=delivery;
+        if(research.execution)recordStep(research,'deliver',delivery.status==='uncertain'?'uncertain':delivery.status==='failed'?'failed':'succeeded',{kind:'handoff',attempt,observation:delivery.status});
+        if(['accepted','failed','cancelled','uncertain'].includes(delivery.status)){
+          if(!research.execution){run.status='completed';run.outcome=research.checks?.every(c=>c.status==='pass')&&delivery.status==='accepted'?'met':'not_met';run.finishedAt=now();delete research.due;}
+          run.summary=`${research.sources.filter(s=>s.stage==='done').length}/2 platforms retrieved; ${research.sources.flatMap(s=>s.posts).filter(p=>p.reason).length} relevant posts. Email: ${delivery.status}. Provider acceptance does not prove inbox delivery.`;
+        }else if(research.execution&&attempt>=Number(settings!.maxHandoffAttempts)){research.delivery={...delivery,status:'uncertain',error:'Provider acceptance was not confirmed within the bounded handoff attempts.'};}
+        else research.due=Date.now()+Number(settings?.retryDelayMs??60000);
+      }catch(error){
+        research.deliveryAttempts=(research.deliveryAttempts||0)+1;
+        research.delivery={status:'pending',error:error instanceof RuntimeError?error.message:'Report handoff could not be confirmed. Checking the same delivery ID again.'};
+        if(research.execution)recordStep(research,'deliver','uncertain',{kind:'handoff',attempt,observation:research.delivery.error});
+        if((research.execution?attempt:research.deliveryAttempts)>=Number(settings?.maxHandoffAttempts??5)){research.delivery.status='uncertain';if(!research.execution){run.status='failed';run.finishedAt=now();delete research.due;}run.summary='Report handoff could not be confirmed. Check Notifications for this run before sending again.';}
+        else research.due=Date.now()+Number(settings?.retryDelayMs??60000);
+      }
+      await this.saveRun(run);
+  }
+  private async retrieveResearch(agent:Agent,run:Run,inputs?:Record<string,any>,settings?:Record<string,unknown>):Promise<void>{
+    const research=run.research!,config=research.definition.config;
+    const source=research.sources.find(s=>!['done','unavailable'].includes(s.stage));
+    if(!source)return;
+    if(Date.now()>research.deadline||run.events.length>=Number(settings?.maxCalls??20)){source.stage='unavailable';source.gap='Workflow deadline or call limit reached; provider results are incomplete.';research.due=Date.now()+1000;await this.saveRun(run);return;}
     if(source.stage==='starting'){
       source.stage='unavailable';source.gap='Actor start was interrupted; it may have executed. It will not be replayed.';research.due=Date.now()+1000;await this.saveRun(run);return;
     }
@@ -877,18 +925,22 @@ export class AgentRuntime {
         if(canonical(contract(saved))!==canonical(contract(current)))throw new RuntimeError('Research tool inputs or authority changed. Refresh capabilities and review a new trial.',409);
       }
       const name=source.stage==='ready'?'call-actor':source.stage==='reading'?'get-dataset-items':'get-actor-run';
-      if(name==='get-actor-run'&&source.polls>=8)throw new RuntimeError('Provider did not complete within eight status checks.');
-      const args=name==='call-actor'?actorArguments(config,source.platform,run.startedAt):name==='get-actor-run'?{runId:source.runId,waitSecs:0}:{datasetId:source.datasetId,limit:config.maxItems,offset:0,clean:true,fields:'id,url,postUrl,permalink,twitterUrl,title,text,body,selftext,createdAt,createdUtc,created_utc,created,timestamp'};
+      if(name==='get-actor-run'&&source.polls>=Number(settings?.maxPollsPerPlatform??8))throw new RuntimeError('Provider did not complete within eight status checks.');
+      const boundedConfig={...config,...(inputs?{queries:inputs.queries.queries,maxItems:Number(settings!.maxItemsPerPlatform)}:{})};
+      const args=name==='call-actor'?actorArguments(boundedConfig,source.platform,inputs?.window.end??run.startedAt,inputs?.window.start):name==='get-actor-run'?{runId:source.runId,waitSecs:Number(settings?.waitSeconds??0)}:{datasetId:source.datasetId,limit:boundedConfig.maxItems,offset:0,clean:true,fields:settings?.datasetFields??'id,url,postUrl,permalink,twitterUrl,title,text,body,selftext,createdAt,createdUtc,created_utc,created,timestamp'};
+      if(name==='call-actor'&&settings){Object.assign(args,{actor:(settings.actors as Record<string,string>)[source.platform],waitSecs:settings.waitSeconds});Object.assign((args as Record<string,any>).callOptions,{memory:settings.actorMemoryMb,timeout:settings.actorTimeoutSeconds,maxTotalChargeUsd:(settings.chargeCapsUsd as Record<string,number>)[source.platform]});}
       validateArguments(live.find(t=>t.name===name)!,args);
       if(name==='call-actor'){await researchPricing(source.platform,actorChargeCap(config,source.platform),this.fetcher);validateArguments(live.find(t=>t.name===RESEARCH_ACTOR_TOOLS[source.platform])!,object((args as Record<string,unknown>).input));source.stage='starting';}
       event={tool:name,source:{connectionId:connection.id,tool:name},arguments:args,status:'executing',approval:research.approval};run.events.push(event);
+      if(research.execution)recordStep(research,'retrieve','started',{kind:'tool',call:run.events.length-1});
       // Persist the uncertain boundary before external I/O. Only status/dataset reads are safe to resume after a crash.
       await this.saveRun(run);
       const start=Date.now(), result=await client.rpc('tools/call',{name,arguments:args});event.durationMs=Date.now()-start;
       if(result.isError===true)throw new RuntimeError('Apify rejected the call. Check free allowance, Actor access and provider status; unavailable is not no results.');
       const payload=toolPayload(JSON.parse(await this.clean(result)));
       if(name==='get-dataset-items'){
-        sourcePosts(source,payload,run.startedAt,config.maxItems);
+        const validation=research.execution?research.definition.workflow!.steps.find(s=>s.id==='validate')!.settings:undefined;
+        sourcePosts(source,payload,inputs?.window.end??run.startedAt,boundedConfig.maxItems,validation?{lookbackHours:Number(research.definition.workflow!.steps[0].settings.lookbackHours),futureToleranceSeconds:Number(validation.futureToleranceSeconds),retainedTextCharacters:Number(validation.retainedTextCharacters),retainedTextJsonBytes:Number(validation.retainedTextJsonBytes)}:undefined);
         event.result=JSON.stringify({datasetId:source.datasetId,received:source.received,total:source.total,invalid:source.invalid,evidence:'Normalized post evidence retained in research.sources for this run.'});
       }else{
         const evidence=actorEvidence(payload);
@@ -910,15 +962,23 @@ export class AgentRuntime {
       source.stage='unavailable';source.gap=error instanceof RuntimeError?error.message:'Provider transport failed; no Actor start will be replayed. Check the provider.';
       if(error instanceof RuntimeError&&error.status===409){agent.status='paused';delete agent.nextRun;delete agent.research!.approved;await this.storage.put(`agent:${agent.id}`,agent);for(const s of research.sources)if(s.stage==='ready'){s.stage='unavailable';s.gap='Scope invalidated by tool or connection changes.';}}
     }finally{await client.close();}
-    research.due=Date.now()+(source.stage==='waiting'?30000:1000);await this.saveRun(run);
+    if(research.execution&&event)recordStep(research,'retrieve',event.status as 'succeeded'|'failed'|'uncertain',{kind:'tool',call:run.events.indexOf(event)});
+    research.due=Date.now()+Number(source.stage==='waiting'?(settings?.pollDelayMs??30000):(settings?.advanceDelayMs??1000));await this.saveRun(run);
   }
   private async finishResearch(run:Run):Promise<void>{
-    const research=run.research!,posts=research.sources.flatMap(s=>s.posts);let classified=posts.length===0&&research.sources.every(s=>s.stage==='done');
-    if(posts.length){
+    const research=run.research!,classified=await this.classifyResearch(run);
+    research.checks=reportChecks(research,classified);research.report=reportText(research,run.startedAt);research.due=Date.now()+1000;
+    await this.saveRun(run);
+  }
+  private async classifyResearch(run:Run,inputs?:Record<string,any>,settings?:Record<string,unknown>,interrupted=false):Promise<boolean>{
+    const research=run.research!,posts:typeof research.sources[number]['posts']=inputs?.posts??research.sources.flatMap(s=>s.posts);
+    let classified=!interrupted&&posts.length===0&&research.sources.every(s=>s.stage==='done');
+    const batchSize=Number(settings?.batchSize??10);
+    if(posts.length&&!interrupted){
       try{
-        for(let offset=0;offset<posts.length;offset+=10){
-        const batch=posts.slice(offset,offset+10);
-        const {value,tokens}=await this.infer(RESEARCH_CLASSIFICATION_INSTRUCTIONS,{scope:research.definition.config.topics,posts:batch.map((p,index)=>({index,text:p.text}))},undefined);
+        for(let offset=0;offset<posts.length;offset+=batchSize){
+        const batch=posts.slice(offset,offset+batchSize);
+        const {value,tokens}=await this.infer(String(settings?.instructions??RESEARCH_CLASSIFICATION_INSTRUCTIONS),{scope:inputs?.scope.topics??research.definition.config.topics,posts:batch.map((p,index)=>({index,text:p.text}))},undefined,undefined,settings?{model:String(settings.model),maxOutputTokens:Number(settings.maxOutputTokens),temperature:Number(settings.temperature)}:undefined);
         run.tokens+=tokens;await this.noCredentials(value);
         if(!Array.isArray(value.posts)||value.posts.length!==batch.length)throw new Error('Incomplete classification');
         const seen=new Set<number>();
@@ -926,7 +986,8 @@ export class AgentRuntime {
           const p=object(raw),i=Number(p.index);
           if(!Number.isInteger(i)||i<0||i>=batch.length||seen.has(i)||typeof p.relevant!=='boolean')throw new Error('Invalid classification');
           seen.add(i);
-          const reason=p.relevant?textField(p.reason,'relevance reason',250):typeof p.reason==='string'&&p.reason.trim()?p.reason.trim().slice(0,250):undefined;
+          let reason=p.relevant?textField(p.reason,'relevance reason',Number(settings?.maxReasonCharacters??250)):typeof p.reason==='string'&&p.reason.trim()?p.reason.trim().slice(0,Number(settings?.maxReasonCharacters??250)):undefined;
+          if(settings&&reason)while(new TextEncoder().encode(JSON.stringify(reason)).length>Number(settings.maxReasonJsonBytes))reason=reason.slice(0,Math.floor(reason.length*0.9));
           batch[i].assessment={relevant:p.relevant,...(!p.relevant&&reason?{reason}:{})};
           if(p.relevant)batch[i].reason=reason;
         }
@@ -934,9 +995,58 @@ export class AgentRuntime {
         classified=true;
       }catch{for(const p of posts){delete p.reason;delete p.assessment;}}
     }
-    research.classification={status:classified?(posts.length?'succeeded':'not_needed'):'failed',model:MODEL,completedAt:now()};
-    research.checks=reportChecks(research,classified);research.report=reportText(research,run.startedAt);research.due=Date.now()+1000;
-    await this.saveRun(run);
+    if(interrupted)for(const post of posts){delete post.reason;delete post.assessment;}
+    if(inputs)for(const retained of research.sources.flatMap(source=>source.posts)){
+      const decision=posts.find(post=>post.platform===retained.platform&&post.url===retained.url);
+      if(decision?.assessment){retained.assessment=decision.assessment;retained.reason=decision.reason;}
+      else{delete retained.assessment;delete retained.reason;}
+    }
+    research.classification={status:classified?(posts.length?'succeeded':'not_needed'):'failed',model:String(settings?.model??MODEL),completedAt:now()};
+    return classified;
+  }
+  private async advanceResearchWorkflow(agent:Agent,run:Run):Promise<void>{
+    const research=run.research!,execution=research.execution!,steps=executableResearch(research.definition);
+    validateExecution(research);
+    // Deterministic steps can advance together, but each transition is persisted separately.
+    while(execution.cursor<steps.length){
+      const step=steps[execution.cursor],settings=step.settings;
+      const inputs=resolvedInputs(research,step,run.startedAt,run.outcome),wasStarted=startedStep(research,step.id);
+      if(!wasStarted){recordStep(research,step.id,'started',{inputs:inputReferences(research,step)});await this.saveRun(run);}
+      switch(settings.operation){
+        case 'research.retrieve.v1':
+          if(research.sources.some(s=>!['done','unavailable'].includes(s.stage))){await this.retrieveResearch(agent,run,inputs,settings);return;}
+          completeStep(research,step,research.sources.every(s=>s.stage==='done')?'succeeded':'failed');break;
+        case 'research.validate.v1': {
+          // Retrieval retains a bounded normalized dataset projection; this step verifies its window and publishes it.
+          for(const source of inputs.datasets as typeof research.sources){
+            const posts=source.posts.filter(p=>Date.parse(p.at)>=Date.parse(inputs.window.start)&&Date.parse(p.at)<=Date.parse(inputs.window.end)+Number(settings.futureToleranceSeconds)*1000);
+            source.outsideWindow+=source.posts.length-posts.length;source.posts=posts;
+          }
+          research.sources=inputs.datasets;
+          completeStep(research,step,research.sources.every(s=>s.stage==='done'&&!s.invalid)?'succeeded':'failed');break;
+        }
+        case 'research.classify.v1': {
+          const classified=await this.classifyResearch(run,inputs,settings,wasStarted);
+          completeStep(research,step,classified?'succeeded':'failed');break;
+        }
+        case 'research.checks.v1':
+          research.checks=reportChecks({...research,sources:inputs.datasets},['succeeded','not_needed'].includes(inputs.decisions.classification?.status)&&inputs.decisions.posts.length===inputs.candidates.length&&inputs.decisions.posts.every((p:{url:string;assessment?:unknown})=>p.assessment&&inputs.candidates.some((candidate:{url:string})=>candidate.url===p.url)));
+          completeStep(research,step,research.checks.every(c=>c.status==='pass')?'succeeded':'failed');break;
+        case 'research.compose.v1':
+          research.report=reportText({...research,sources:inputs.coverage.map((source:typeof research.sources[number])=>({...source,posts:inputs.decisions.posts.filter((p:typeof source.posts[number])=>p.platform===source.platform)})),checks:inputs.checks,definition:{...research.definition,config:{...research.definition.config,...inputs.scopeAndLimits}}},inputs.window.end,{maxDisplayedFindings:Number(settings.maxDisplayedFindings),maxReportBytes:Number(settings.maxReportBytes),windowStart:inputs.window.start});
+          completeStep(research,step);break;
+        case 'research.deliver.v1':
+          if(!['accepted','failed','cancelled','uncertain'].includes(research.delivery?.status||''))await this.deliverResearch(agent,run,inputs,settings);
+          if(!['accepted','failed','cancelled','uncertain'].includes(research.delivery?.status||''))return;
+          completeStep(research,step,research.delivery?.status==='accepted'?'succeeded':'failed');break;
+        case 'research.outcome.v1':
+          run.outcome=inputs.delivery?.status==='uncertain'?'uncertain':inputs.checks?.every((c:{status:string})=>c.status==='pass')&&inputs.delivery?.status==='accepted'?'met':'not_met';
+          run.status='completed';run.finishedAt=now();delete research.due;
+          completeStep(research,step,run.outcome==='met'?'succeeded':'failed');break;
+        default:throw new RuntimeError('Unsupported bounded workflow operation.',409);
+      }
+      await this.saveRun(run);
+    }
   }
 
   private async cancelPending(agentId: string): Promise<void> {
