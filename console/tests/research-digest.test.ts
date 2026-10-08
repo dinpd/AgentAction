@@ -98,6 +98,9 @@ test('executable steps publish wired outputs and a durable ordered journal of ac
  assert.equal(h.aiCalls[0].input.messages[0].content,steps[3].settings.instructions);assert.equal(h.aiCalls[0].model,steps[3].settings.model);assert.equal(h.aiCalls[0].input.temperature,steps[3].settings.temperature);assert.equal(h.aiCalls[0].input.max_tokens,steps[3].settings.maxOutputTokens);
  assert.equal(JSON.parse(h.aiCalls[0].input.messages[1].content).scope,research.definition.config.topics);
  assert.equal(h.reports[0].id,steps[6].settings.deliveryPrefix+run.id);assert.equal(h.reports[0].detail,research.report);
+ const windowStart=new Date(Date.parse(finished.startedAt)-Number(steps[0].settings.lookbackHours)*3600000).toISOString();
+ assert.match(h.calls.find(c=>c.arguments.actor===RESEARCH_ACTORS.x).arguments.input.twitterContent,new RegExp('since_time:'+Math.floor(Date.parse(windowStart)/1000)));
+ assert.ok(research.report!.includes(`Window: ${windowStart} — ${finished.startedAt}`));
 });
 
 test('recovery preserves completed AI decisions and never recomputes an interrupted assessment',async()=>{

@@ -69,8 +69,8 @@ export function nextResearchTime(config: Pick<ResearchConfig,'time'|'secondTime'
   }
   throw new RuntimeError('Unable to resolve the next local schedule.');
 }
-export function actorArguments(config: ResearchConfig, platform: Platform, startedAt: string) {
-  const end=Math.floor(Date.parse(startedAt)/1000), start=end-86400;
+export function actorArguments(config: ResearchConfig, platform: Platform, startedAt: string, windowStart?:string) {
+  const end=Math.floor(Date.parse(startedAt)/1000), start=windowStart?Math.floor(Date.parse(windowStart)/1000):end-86400;
   // Only plain search phrases are accepted; operators cannot override time, author or URL scope through query syntax.
   const phrases=config.queries[platform].map(q=>'"'+q.replace(/["\\\r\n]/g,' ')+'"');
   const input=platform==='x'?{twitterContent:`(${phrases.join(' OR ')}) since_time:${start} until_time:${end}`,queryType:'Latest',maxItems:Math.max(20,config.maxItems)}:{searchTerms:[phrases.join(' OR ')],searchTime:'day',searchSort:'new',maxPostsCount:config.maxItems,searchPosts:true,searchComments:false,searchCommunities:false,crawlCommentsPerPost:false,aiAnalysis:false};
@@ -126,9 +126,9 @@ export function reportChecks(run:ResearchRun, classified:boolean) {
     {label:'Window and deduplication',status:'pass',observed:`${run.sources.reduce((n,s)=>n+s.outsideWindow,0)} outside-window and ${run.sources.reduce((n,s)=>n+s.duplicates,0)} duplicate rows excluded`,method:'Retain only unique canonical post URLs with timestamps in the 24 hours ending at scan start.'},
   ] as NonNullable<ResearchRun['checks']>;
 }
-export function reportText(research:ResearchRun, startedAt:string, settings={maxDisplayedFindings:12,maxReportBytes:16000}):string {
+export function reportText(research:ResearchRun, startedAt:string, settings:{maxDisplayedFindings:number;maxReportBytes:number;windowStart?:string}={maxDisplayedFindings:12,maxReportBytes:16000}):string {
   const c=research.definition.config, selected=research.sources.flatMap(s=>s.posts.filter(p=>p.reason));
-  const report=[`Daily social research`, `Scope: ${c.topics}`,`Window: ${new Date(Date.parse(startedAt)-day).toISOString()} — ${startedAt}`,'',
+  const report=[`Daily social research`, `Scope: ${c.topics}`,`Window: ${settings.windowStart??new Date(Date.parse(startedAt)-day).toISOString()} — ${startedAt}`,'',
     ...research.sources.map(s=>`${s.platform==='x'?'X':'Reddit'}: ${s.stage==='done'?`${s.received} rows retrieved; ${s.posts.filter(p=>p.reason).length} relevant posts`:`UNAVAILABLE — ${s.gap||'Search could not be verified'}`}${s.stage==='done'&&s.gap?`; ${s.gap}`:''}`),
     'Coverage is a bounded sample, not an exhaustive search of either platform. A zero does not prove no relevant conversation exists.','',
     ...(selected.length?selected.slice(0,settings.maxDisplayedFindings).flatMap((p,i)=>[`${i+1}. ${p.platform.toUpperCase()} · ${p.at}`,p.url,p.text.slice(0,500),`Why relevant: ${p.reason}`,'']):['No relevant posts retained in the available evidence. Review source coverage and checks below.','']),
