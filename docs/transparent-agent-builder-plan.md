@@ -56,3 +56,32 @@ Every software milestone starts with an issue and acceptance checks, then
 follows issue-to-merge and the repository release process. This first milestone
 adds optional contract and candidate evidence fields without rewriting legacy
 records. Legacy workflow snapshots remain explicitly unavailable.
+
+## Legacy Compatibility And Cleanup
+
+Existing social scanners without a workflow snapshot, or with the supported v1
+descriptive snapshot, retain their compatibility execution path. They are not
+broken merely because they lack the newer step journal. Historical runs keep
+their frozen definition and explicitly disclose missing evidence; never
+retroactively manufacture a journal.
+
+To adopt executable v2, a workspace owner opens the saved research settings and
+selects **Capture workflow snapshot**. Review any connection-reuse consent and
+save the bounded scope. This creates the current executable definition, clears
+previous activation and trial eligibility, and cancels pending runs. Run and
+approve a fresh trial, review its actual evidence and accepted report, then
+activate the new revision. Do not transfer old scheduling approval across the
+upgrade.
+
+Supervised MCP agents and built-in recurring agents still use their own
+supported runtimes. Do not remove them, their recipes or compatibility code
+solely because they are not on the social scanner's executable contract.
+For an actually incompatible live agent, identify its definition, connection,
+failure and affected pending work first. Prefer pausing it and keeping its run
+history until it can be upgraded and retried. Permanent deletion is a separate,
+explicit decision, not an automatic migration step.
+
+The localhost workflow preview serves synthetic fixtures, not live workspace
+data. It is read-only: trials, saves, scheduling and delivery are disabled.
+Use the live console for real trials and upgrades. The synthetic preview's
+rejected write requests are not evidence of legacy runtime incompatibility.

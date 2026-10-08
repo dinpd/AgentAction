@@ -27,18 +27,27 @@ for(const step of definition.workflow.steps){
 for(const event of execution.journal)event.at=stamp;
 const legacyRun=structuredClone(selectedRun);legacyRun.id='legacy-run';delete (legacyRun.research.definition as any).workflow;delete (legacyRun.research as any).execution;delete (legacyRun.research as any).classification;delete (legacyRun.research.sources[0].posts[0] as any).assessment;
 const state={agents:[{id:'scanner',title:'Social research',goal:'Relevant public posts',success:'Report',connectionId:'apify',tools:[],status:'draft',createdAt:stamp,research:revised}],runs:[selectedRun,legacyRun],connections:[{id:'apify',label:'Apify',endpoint:'https://mcp.apify.com',status:'connected',tools:[],suggestions:[]}],drafts:[],workspaceRecipes:[],preparationSkills:[],inspections:[],oauthProviders:[],endpointAccess:{deployment:[],workspace:[]},model:definition.workflow.steps[3].settings.model};
-let role='owner',writes=0,reads=0;
+let role='owner',writes=0,reads=0,readOnlyPreview=Boolean(process.env.WORKFLOW_PREVIEW_PORT);
+const previewError='This synthetic preview is read-only. Trials, saves, scheduling and delivery are disabled. Use the live console to run agents.';
+const previewNotice='<aside id="workflow-preview-notice" aria-label="Preview environment"><strong>Synthetic preview · read-only</strong><p>Trials, saves, scheduling and delivery are disabled. These agents and runs are fixtures, not live workspace data.</p><a href="https://observability-console.agentaction.dev/agents">Open live console</a></aside>';
+const previewStyle='#workflow-preview-notice{position:sticky;top:0;z-index:5;padding:16px;margin-bottom:24px;border-left:4px solid #17634c;background:#e4f1eb;color:#143c30;overflow-wrap:anywhere}#workflow-preview-notice p{margin:8px 0}';
 const env={CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_ENVIRONMENT:'development',CONSOLE_MOCK_SUBJECT:'test',CONSOLE_MOCK_TENANT_ID:'acme'};
 const server=createServer(async(req,res)=>{
  try {
   const url=new URL(req.url!,'http://localhost');
-  if(!url.pathname.startsWith('/api/')){const out=await worker.fetch(new Request(url),env);res.statusCode=out.status;out.headers.forEach((v,k)=>res.setHeader(k,v));res.end(Buffer.from(await out.arrayBuffer()));return;}
-  if(req.method!=='GET'){writes++;res.statusCode=405;res.end('{}');return;}
+  if(!url.pathname.startsWith('/api/')){
+   const out=await worker.fetch(new Request(url),env);res.statusCode=out.status;out.headers.forEach((v,k)=>res.setHeader(k,v));
+   if(readOnlyPreview&&url.pathname==='/agents')res.end((await out.text()).replace('<main>','<main>'+previewNotice));
+   else if(readOnlyPreview&&url.pathname==='/assets/agents.css')res.end((await out.text())+previewStyle);
+   else res.end(Buffer.from(await out.arrayBuffer()));return;
+  }
+  if(req.method!=='GET'){writes++;res.statusCode=405;res.setHeader('content-type','application/json');res.end(JSON.stringify({error:previewError}));return;}
   reads++;let value:any={};
-  if(url.pathname==='/api/console/session')value={tenant_id:'acme',email:'owner@example.com',memberships:['acme','beta'].map(id=>({tenant:{tenant_id:id,display_name:id},membership:{role}}))};
+  const effectiveRole=readOnlyPreview?'viewer':role;
+  if(url.pathname==='/api/console/session')value={tenant_id:'acme',email:readOnlyPreview?'preview@example.com':'owner@example.com',memberships:['acme','beta'].map(id=>({tenant:{tenant_id:id,display_name:id},membership:{role:effectiveRole}}))};
   else if(url.pathname.startsWith('/api/agents/'))value=url.pathname.includes('/beta/')?{...state,agents:[],runs:[],connections:[]}:state;
   else if(url.pathname.startsWith('/api/automations/'))value={jobs:[],runs:[],findings:[]};
-  else if(url.pathname.endsWith('/setup'))value={membership:{role},sources:[]};
+  else if(url.pathname.endsWith('/setup'))value={membership:{role:effectiveRole},sources:[]};
   else if(url.pathname.endsWith('/catalog'))value={servers:[],total:0,capabilities:[],authTypes:[],nextOffset:null};
   res.setHeader('content-type','application/json');res.end(JSON.stringify(value));
  }catch(error){res.statusCode=500;res.end(JSON.stringify({error:String(error)}));}
@@ -82,16 +91,31 @@ try {
  await page.reload();await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  await page.locator('[data-research-editor] > summary').click();
  assert.equal(await page.getByRole('button',{name:'Capture workflow snapshot',exact:true}).isDisabled(),false);
- role='viewer';await page.reload();await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ readOnlyPreview=true;await page.reload();await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ const notice=page.getByRole('complementary',{name:'Preview environment'});
+ await notice.waitFor({state:'visible'});assert.match(await notice.innerText(),/Synthetic preview · read-only/);
+ await page.waitForFunction(()=>{const box=document.getElementById('workflow-preview-notice')!.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
+ await page.screenshot({path:join(tmpdir(),'agentaction-358-desktop.png')});
+ assert.equal(await notice.getByRole('link',{name:'Open live console'}).getAttribute('href'),'https://observability-console.agentaction.dev/agents');
  await page.locator('[data-research-editor] > summary').click();
  assert.equal(await page.getByRole('button',{name:'Capture workflow snapshot',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'Pause',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'Suggest phrases from saved brief',exact:true}).isDisabled(),true);
+ assert.equal(await page.locator('#refresh').isEnabled(),true);assert.equal(await page.getByLabel('Workspace',{exact:true}).isEnabled(),true);
  const viewer=page.locator('[data-supervised-run=frozen-run] [data-workflow-inspector=run]');await viewer.locator(':scope > summary').click();await viewer.locator('[data-workflow-step=classify] > summary').click();assert.equal(await viewer.getByLabel('Candidate decisions').isDisabled(),false);
  assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
  await page.setViewportSize({width:390,height:844});await viewer.scrollIntoViewIfNeeded();
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'No mobile horizontal overflow');
+ await page.waitForFunction(()=>{const box=document.getElementById('workflow-preview-notice')!.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
  await page.screenshot({path:join(tmpdir(),'agentaction-347-mobile.png'),fullPage:true});
+ await page.screenshot({path:join(tmpdir(),'agentaction-358-mobile.png')});
  await page.getByLabel('Workspace',{exact:true}).selectOption('beta');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
  await page.waitForFunction(()=>document.querySelectorAll('[data-workflow-inspector]').length===0);
  assert.equal(writes,0);assert.deepEqual(errors,[]);
- console.log('Workflow inspector browser acceptance passed: frozen/current revisions, typed wiring, decisions, partial coverage, uncertain delivery, legacy gaps, viewer inspection, tenant switching, keyboard, mobile and no writes.');
+ const rejected=await fetch(base+'/api/agents/acme/trial',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({agentId:'scanner'})});
+ assert.equal(rejected.status,405);assert.deepEqual(await rejected.json(),{error:previewError});assert.equal(writes,1);
+ readOnlyPreview=false;role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();
+ assert.equal(await page.locator('#workflow-preview-notice').count(),0);
+ assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);
+ console.log('Workflow inspector browser acceptance passed: frozen/current revisions, typed wiring, decisions, partial coverage, uncertain delivery, legacy gaps, owner/viewer inspection, explicit read-only preview, rejected mutations, tenant switching, keyboard, mobile and no inspection writes.');
 }finally{await browser.close();server.close();}

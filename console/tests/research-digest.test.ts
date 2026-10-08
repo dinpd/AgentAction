@@ -198,6 +198,35 @@ test('legacy definitions remain readable without fabricating a workflow snapshot
  assert.equal((await h.storage.get<Run>('run:'+run.id))!.outcome,'met');
 });
 
+test('legacy upgrades preserve historical evidence and require a fresh trial and activation',async()=>{
+ for(const snapshot of [false,true]){
+  const h=await harness(),agent=(await h.storage.get<Agent>('agent:agent'))!;
+  if(snapshot)agent.research!.workflow=legacyResearchWorkflow(agent.research!.config);
+  else delete agent.research!.workflow;
+  const {config:scope,tools,workflow}=agent.research!;
+  agent.research!.digest=await evidenceDigest({config:scope,tools,...(workflow?{workflow}:{})});
+  await h.storage.put('agent:agent',agent);
+  const old=await h.trial();assert.equal((await h.request('approve',{runId:old.id,approvalId:old.pending!.id})).status,200);await h.advance();
+  const retained=(await h.storage.get<Run>('run:'+old.id))!;assert.equal(retained.outcome,'met');assert.equal(retained.research!.execution,undefined);
+  assert.equal((await h.request('activate',{agentId:'agent',reviewed:true})).status,200);
+  const pending=await h.trial();
+  const calls=h.calls.length,reports=h.reports.length,aiCalls=h.aiCalls.length;
+  assert.equal((await h.request('research-save',{agentId:'agent',config:scope})).status,200);
+  const upgraded=(await h.storage.get<Agent>('agent:agent'))!;
+  assert.equal(upgraded.status,'draft');assert.equal(upgraded.nextRun,undefined);assert.equal(upgraded.lastTrial,undefined);assert.equal(upgraded.research!.approved,undefined);
+  assert.equal(upgraded.research!.workflow!.mode,'executable');assert.notEqual(upgraded.research!.digest,retained.research!.definition.digest);
+  assert.deepEqual(await h.storage.get<Run>('run:'+old.id),retained);
+  const cancelled=(await h.storage.get<Run>('run:'+pending.id))!;assert.equal(cancelled.status,'cancelled');assert.equal(cancelled.pending,undefined);assert.deepEqual(cancelled.research!.definition,pending.research!.definition);
+  assert.equal(h.calls.length,calls);assert.equal(h.reports.length,reports);assert.equal(h.aiCalls.length,aiCalls);
+  assert.equal((await h.request('activate',{agentId:'agent',reviewed:true})).status,409);
+  const fresh=await h.trial();assert.ok(fresh.research!.execution);assert.equal((await h.request('activate',{agentId:'agent',reviewed:true})).status,409);
+  assert.equal((await h.request('approve',{runId:fresh.id,approvalId:fresh.pending!.id})).status,200);await h.advance();
+  assert.equal((await h.storage.get<Run>('run:'+fresh.id))!.outcome,'met');
+  assert.equal((await h.request('activate',{agentId:'agent',reviewed:true})).status,200);
+  assert.deepEqual(await h.storage.get<Run>('run:'+old.id),retained);
+ }
+});
+
 test('maximum candidate evidence and multibyte scope fit the persisted run budget',async()=>{
  const h=await harness('selected',true);
  assert.equal((await h.request('research-save',{agentId:'agent',config:{...config,topics:'\u4e00'.repeat(2000)}})).status,200);
