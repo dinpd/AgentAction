@@ -89,3 +89,5 @@ No real account is signed in to this preview, so there is no login, logout or
 role-switching flow. Its synthetic viewer role cannot be changed to gain editing
 access. Sign in to the live console with the appropriate workspace membership
 for real editing and execution.
+The fixture only backs the agent inspector. Links to other console pages return
+to the preview; use the live console for workspace settings and recurring agents.
