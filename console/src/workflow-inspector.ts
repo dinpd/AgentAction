@@ -43,10 +43,11 @@ export function workflowInspector(runtime: Pick<Window, 'document'>, evidence = 
       section.append(node('p', 'Workflow snapshot unavailable for this legacy definition. Saved settings and recorded calls remain available.', 'workflow-gap'));
       parent.append(section); return;
     }
-    if (workflow.schemaVersion !== 'agentaction.workflow-contract.v1' || workflow.implementationVersion !== 1) {
+    if (!((workflow.schemaVersion === 'agentaction.workflow-contract.v1' && workflow.implementationVersion === 1 && workflow.mode === 'descriptive') || (workflow.schemaVersion === 'agentaction.workflow-contract.v2' && workflow.implementationVersion === 2 && workflow.mode === 'executable'))) {
       section.append(node('p', 'This workflow contract version is unsupported by this inspector.', 'workflow-gap')); parent.append(section); return;
     }
-    section.append(node('p', `Social research / implementation ${workflow.implementationVersion} / ${workflow.schemaVersion}`, 'workflow-meta'));
+    section.append(node('p', `Social research / implementation ${workflow.implementationVersion} / ${workflow.schemaVersion} / ${workflow.mode}`, 'workflow-meta'));
+    if(run&&!run.research?.execution)section.append(node('p','Step journal unavailable for this legacy run. Evidence below is a projection of retained records, not reconstructed execution events.','workflow-gap'));
     const steps = node('ol', '', 'workflow-steps');
     for (const step of workflow.steps) {
       const row = node('li');
@@ -64,6 +65,12 @@ export function workflowInspector(runtime: Pick<Window, 'document'>, evidence = 
       const configured = step.inputs.flatMap(port => port.config || []);
       if (configured.length) detail.append(node('h4', 'Saved inputs'), node('pre', JSON.stringify(Object.fromEntries(configured.map(key => [key, definition.config[key] ?? null])), null, 2)));
       if (observed) {
+        const execution=run!.research!.execution;
+        if(execution){
+          const journal=execution.journal.filter(entry=>entry.step===step.id);
+          detail.append(node('h4','Step journal'),node('p',`Runtime-recorded / frozen digest ${execution.digest}`,'workflow-meta'),node('pre',JSON.stringify(journal,null,2)));
+          if(!journal.length)detail.append(node('p','No execution transition retained for this step.','workflow-gap'));
+        }
         detail.append(node('h4', 'Recorded evidence'), node('p', observed.trust, 'workflow-meta'), node('pre', JSON.stringify(observed.data, null, 2)));
         if (step.id === 'classify') {
           const candidates = run!.research!.sources.flatMap(source => source.posts);

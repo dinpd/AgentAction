@@ -11,12 +11,12 @@ export type WorkflowStep = {
   failure: string;
 };
 export type AgentWorkflowContract = {
-  schemaVersion: 'agentaction.workflow-contract.v1'; recipe: 'social-research'; implementationVersion: 1;
-  mode: 'descriptive'; steps: WorkflowStep[];
+  schemaVersion: 'agentaction.workflow-contract.v1' | 'agentaction.workflow-contract.v2'; recipe: 'social-research'; implementationVersion: 1 | 2;
+  mode: 'descriptive' | 'executable'; steps: WorkflowStep[];
 };
 
 /** Describes the server-owned procedure. It does not grant authority or execute user wiring. */
-export function researchWorkflow(config: ResearchConfig): AgentWorkflowContract {
+export function legacyResearchWorkflow(config: ResearchConfig): AgentWorkflowContract {
   const input = (name: string, type: string, step: string, output: string): WorkflowInput => ({ name, type, from: { step, output } });
   return {
     schemaVersion: 'agentaction.workflow-contract.v1', recipe: 'social-research', implementationVersion: 1, mode: 'descriptive',
@@ -55,4 +55,19 @@ export function researchWorkflow(config: ResearchConfig): AgentWorkflowContract 
         failure: 'Failed checks or failed, cancelled or uncertain delivery cannot establish a met outcome.' },
     ],
   };
+}
+
+/** Only this bounded, server-owned recipe is executable. User graphs are not accepted. */
+export function researchWorkflow(config: ResearchConfig): AgentWorkflowContract {
+  const workflow = legacyResearchWorkflow(config);
+  workflow.schemaVersion = 'agentaction.workflow-contract.v2';
+  workflow.implementationVersion = 2;
+  workflow.mode = 'executable';
+  for (const step of workflow.steps) step.settings.operation = `research.${step.id}.v1`;
+  Object.assign(workflow.steps.find(s => s.id === 'retrieve')!.settings, { platforms: ['reddit', 'x'], waitSeconds: 0, actorMemoryMb: 1024, actorTimeoutSeconds: 180, pollDelayMs: 30000, advanceDelayMs: 1000,
+    datasetFields: 'id,url,postUrl,permalink,twitterUrl,title,text,body,selftext,createdAt,createdUtc,created_utc,created,timestamp' });
+  Object.assign(workflow.steps.find(s => s.id === 'classify')!.settings, { maxReasonCharacters: 250, maxReasonJsonBytes: 400, interruptedAssessment: 'No automatic recomputation; decisions remain unknown.' });
+  Object.assign(workflow.steps.find(s => s.id === 'deliver')!.settings, { retryDelayMs: 60000, deliveryPrefix: 'research:', interruptedHandoff: 'Check the same stable delivery ID; never create a replacement identity.' });
+  workflow.steps.find(s => s.id === 'retrieve')!.failure += ' Dataset results retain only the bounded normalized evidence projection, not the original provider payload.';
+  return workflow;
 }

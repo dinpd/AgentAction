@@ -107,21 +107,44 @@ link typed data connections, model instructions, settings, failure behavior and
 recorded evidence. Inspection and candidate filtering perform no tool calls,
 inference or email delivery. Viewers can inspect without execution permission.
 
-Newly saved definitions include a versioned descriptive contract in the scope
-digest, frozen again in each run. Editing saved settings cannot rewrite old
-run definitions. Changes to the server-owned contract require a fresh save and
-trial; no user-defined graph execution is enabled. Older definitions disclose
-that their workflow snapshot is unavailable; existing settings and calls remain
-readable. An owner can select **Capture workflow snapshot** in the saved research
-settings without changing the scope; this requires a new trial and activation.
+Newly saved definitions include a server-validated **executable v2 contract** in
+the scope digest, frozen again in each run. The bounded driver resolves typed
+inputs from published prior-step evidence references and executes only the
+supported recipe operations, using the frozen instructions and limits. Contract
+or execution-state drift stops further effects and pauses the scanner. Editing
+saved settings cannot rewrite old runs. Changes require a fresh save and trial;
+no user-defined graph execution is enabled. Descriptive v1 and absent contracts
+retain compatibility execution without fabricated step journals. An owner can
+select **Capture workflow snapshot** for either legacy definition without
+changing the scope; this requires a new trial and activation.
 New classification records distinguish selected, rejected and unknown
 candidates, with supplied reasons retained. Failed classification clears partial
 decisions rather than presenting them as complete.
+
+The additive execution record contains ordered, timestamped step transitions,
+frozen digest, typed input/output references and tool-call indices. References
+address retained normalized evidence, not raw provider payload snapshots; text
+is not duplicated across each step. Retrieval normalizes its bounded dataset
+projection, validation publishes candidates and coverage, and classification
+publishes separate decisions. A completed step is not recomputed on recovery.
+An interrupted AI assessment becomes failed with unknown decisions, rather than
+silently asking the model again. Deterministic steps may safely resume.
+
+Actor intent is persisted before provider I/O; interrupted starts remain
+uncertain and are never replayed. Status/dataset reads may resume. Delivery
+intent is persisted before each handoff, uses one stable `research:<run ID>`
+identity and is bounded to five attempts including pending responses. Retained
+provider acceptance is not handed off again after recovery. Unconfirmed
+delivery remains uncertain, not successful. This does not guarantee exactly-once
+email transport or provider deduplication. New explanation retention is bounded
+to 250 characters and 400 JSON UTF-8 bytes.
 
 Evidence remains runtime-recorded, provider-reported or AI-assessed according
 to its source. These views do not create signed receipts or prove independent
 relevance, complete platform coverage, or inbox delivery. Existing 40-run
 retention, workspace access and credential redaction apply.
+The journal is not tamper-proof or a permanent compliance archive. Legacy evidence
+projections and actual execution transitions are explicitly distinguished.
 
 The staged product plan is [Transparent agent builder](../docs/transparent-agent-builder-plan.md).
 Browser acceptance: run `tests/workflow-inspector-browser.mts` with the same

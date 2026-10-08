@@ -1238,7 +1238,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         await refresh();message('Research settings saved. Next: Run a trial, then approve the displayed scope in Approvals.');
       }catch(error){status.textContent=error instanceof Error?error.message:'Settings could not be saved. Review the settings and try again.';}
     },false);
-    const needsWorkflow=Boolean(config&&!agent.research?.workflow);
+    const needsWorkflow=Boolean(config&&agent.research?.workflow?.mode!=='executable');
     save.disabled=role!=='owner'||Boolean(config&&!needsWorkflow);
     if(config)save.textContent=needsWorkflow?'Capture workflow snapshot':'Saved';
     const dirty=()=>{save.disabled=role!=='owner';save.textContent='Save research settings';section.querySelector('summary')!.textContent='Daily research · unsaved changes';};form.addEventListener('input',dirty);

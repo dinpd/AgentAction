@@ -22,7 +22,7 @@ test('workflow connections are typed, ordered and reflect the actual server proc
   assert.equal(ai.settings.model, AGENT_MODEL);
   assert.equal(workflow.steps.find(s => s.id === 'retrieve')!.settings.maxCalls, 20);
   assert.deepEqual(workflow.steps.find(s => s.id === 'retrieve')!.settings.chargeCapsUsd, { reddit: 0.05, x: 0.01 });
-  assert.equal(workflow.mode, 'descriptive');
+  assert.equal(workflow.mode, 'executable');
   assert.ok(JSON.stringify(workflow).length < 10000);
 });
 

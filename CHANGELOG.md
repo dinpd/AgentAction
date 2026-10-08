@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.48.0-rc.1 - 2026-10-08
+
+### Added
+
+- Newly saved social scanners execute the frozen, server-validated v2 workflow contract: bounded operations, typed input connections, AI instructions and parameters, retrieval/poll/deadline limits, report bounds and stable delivery identity.
+- Durable ordered step journals retain transition timestamps, frozen digest, input/output references and links to recorded tool calls. The read-only inspector exposes these records without running tools, models or email delivery.
+- Recovery preserves completed steps, does not recompute interrupted AI assessment, and never replays interrupted Actor starts. Unconfirmed report handoff uses the same identity for at most five attempts and finishes with an explicitly uncertain outcome.
+
+### Compatibility
+
+- Significant functionality: minor release candidate for the executable contract and additive execution evidence schema. No destructive migration, arbitrary scripts, user graph editing or expanded tool authority. Legacy descriptive/absent contracts keep their compatibility execution; their missing step journals remain explicit. Owners can capture the executable definition by saving settings, then complete a fresh trial and activation. Historical runs retain their original definitions.
+- Evidence references address bounded retained projections, not original provider payloads. Journals are runtime-recorded, not signed receipts or tamper-proof independent audits. Existing workspace isolation, credential redaction and 40-run retention remain. New relevance explanations retain at most 250 characters / 400 JSON UTF-8 bytes to preserve the durable record budget. Provider acceptance does not prove inbox receipt; email transport remains at-least-once.
+- Install Python artifacts from the GitHub v0.48.0-rc.1 prerelease; hosted services deploy from the merge commit. No registry publication is implied.
+
 ## 0.47.0-rc.1 - 2026-10-07
 
 ### Added

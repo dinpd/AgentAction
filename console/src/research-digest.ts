@@ -1,6 +1,7 @@
 import { boundedText, object, RuntimeError, textField, type McpTool } from './mcp-client.ts';
 import { emailAddress } from './notifications.ts';
 import type { AgentWorkflowContract } from './research-workflow.ts';
+import type { ResearchExecution } from './research-execution.ts';
 
 export const RESEARCH_ACTORS = { reddit: 'harshmaur/reddit-scraper', x: 'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest' } as const;
 // Apify actor_tool_naming.ts: names over 64 characters use 59 characters + '-' + SHA-256(actor)[0:4].
@@ -28,11 +29,11 @@ export type ResearchConfig = { connectionId: string; topics: string; queries: Re
 export type ResearchDefinition = { workflow?: AgentWorkflowContract; config: ResearchConfig; tools: McpTool[]; pricing?: Record<Platform,string>; digest: string; approved?: { actor: string; at: string; digest: string } };
 export type Post = { platform: Platform; url: string; at: string; text: string; reason?: string; assessment?: { relevant: boolean; reason?: string } };
 export type SourceProgress = { platform: Platform; stage: 'ready'|'starting'|'waiting'|'reading'|'done'|'unavailable'; runId?: string; datasetId?: string; usageUsd?: number; polls: number; received: number; invalid: number; outsideWindow: number; duplicates: number; total?: number; gap?: string; posts: Post[] };
-export type ResearchRun = { definition: ResearchDefinition; classification?: { status: 'succeeded'|'failed'|'not_needed'; model: string; completedAt: string }; approval?: { id: string; actor: string; at: string }; sources: SourceProgress[]; due?: number; deadline: number; report?: string; checks?: { label: string; status: 'pass'|'fail'; observed: string; method: string }[]; delivery?: { status: string; id?: string; error?: string }; deliveryAttempts?: number; reserved?: boolean };
+export type ResearchRun = { definition: ResearchDefinition; execution?: ResearchExecution; classification?: { status: 'succeeded'|'failed'|'not_needed'; model: string; completedAt: string }; approval?: { id: string; actor: string; at: string }; sources: SourceProgress[]; due?: number; deadline: number; report?: string; checks?: { label: string; status: 'pass'|'fail'; observed: string; method: string }[]; delivery?: { status: string; id?: string; error?: string }; deliveryAttempts?: number; reserved?: boolean };
 const day = 86400000;
-function retainedText(value:string):string {
-  let text=value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,' ').trim().slice(0,1000);
-  while(new TextEncoder().encode(JSON.stringify(text)).length>1100)text=text.slice(0,Math.floor(text.length*0.8));
+function retainedText(value:string,characters=1000,jsonBytes=1100):string {
+  let text=value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,' ').trim().slice(0,characters);
+  while(new TextEncoder().encode(JSON.stringify(text)).length>jsonBytes)text=text.slice(0,Math.floor(text.length*0.8));
   return text;
 }
 export function researchConfig(raw: unknown): ResearchConfig {
@@ -88,7 +89,7 @@ export function actorEvidence(payload:Record<string,unknown>):{runId:string;data
   const datasetId=typeof entry==='string'?entry:entry&&typeof entry==='object'?(entry as Record<string,unknown>).id:payload.defaultDatasetId;
   return {runId:payload.runId,status:payload.status,...(validId(datasetId)?{datasetId}:{})};
 }
-export function sourcePosts(source:SourceProgress, payload:Record<string,unknown>, startedAt:string, maxItems:number):void {
+export function sourcePosts(source:SourceProgress, payload:Record<string,unknown>, startedAt:string, maxItems:number,settings={lookbackHours:24,futureToleranceSeconds:60,retainedTextCharacters:1000,retainedTextJsonBytes:1100}):void {
   if(payload.datasetId!==source.datasetId||!Array.isArray(payload.items))throw new RuntimeError('Dataset rows do not match this run. Coverage is unavailable.');
   const end=Date.parse(startedAt), seen=new Set<string>(); source.posts=[];
   source.received=Math.min(payload.items.length,maxItems);source.total=typeof payload.totalItemCount==='number'?payload.totalItemCount:undefined;
@@ -99,11 +100,11 @@ export function sourcePosts(source:SourceProgress, payload:Record<string,unknown
     try {url=new URL(String(p.postUrl||p.permalink||p.twitterUrl||p.url),source.platform==='reddit'?'https://www.reddit.com':undefined);}catch{source.invalid++;continue;}
     const host=url.hostname.replace(/^www\./,'');
     const valid=source.platform==='x'?['x.com','twitter.com'].includes(host)&&/^\/[^/]+\/status\/\d+/.test(url.pathname):host==='reddit.com'&&/\/comments\/[a-z0-9]+/i.test(url.pathname);
-    const text=retainedText([p.title,p.text||p.body||p.selftext].filter(v=>typeof v==='string').join('\n'));
+    const text=retainedText([p.title,p.text||p.body||p.selftext].filter(v=>typeof v==='string').join('\n'),settings.retainedTextCharacters,settings.retainedTextJsonBytes);
     const date=p.createdAt||p.createdUtc||p.created_utc||p.created||p.timestamp;
     const at=typeof date==='number'?date*(date<1e12?1000:1):Date.parse(String(date));
     if(!valid||url.href.length>500||url.protocol!=='https:'||url.username||url.password||!text||!Number.isFinite(at)){source.invalid++;continue;}
-    if(at<end-day||at>end+60000){source.outsideWindow++;continue;}
+    if(at<end-settings.lookbackHours*3600000||at>end+settings.futureToleranceSeconds*1000){source.outsideWindow++;continue;}
     url.search='';url.hash='';url.hostname=source.platform==='x'?'x.com':'www.reddit.com';
     const normalized=url.href.replace(/\/$/,'');
     const identity=source.platform+':'+(source.platform==='x'?url.pathname.match(/\/status\/(\d+)/)![1]:url.pathname.match(/\/comments\/([a-z0-9]+)/i)![1]);
@@ -125,21 +126,21 @@ export function reportChecks(run:ResearchRun, classified:boolean) {
     {label:'Window and deduplication',status:'pass',observed:`${run.sources.reduce((n,s)=>n+s.outsideWindow,0)} outside-window and ${run.sources.reduce((n,s)=>n+s.duplicates,0)} duplicate rows excluded`,method:'Retain only unique canonical post URLs with timestamps in the 24 hours ending at scan start.'},
   ] as NonNullable<ResearchRun['checks']>;
 }
-export function reportText(research:ResearchRun, startedAt:string):string {
+export function reportText(research:ResearchRun, startedAt:string, settings={maxDisplayedFindings:12,maxReportBytes:16000}):string {
   const c=research.definition.config, selected=research.sources.flatMap(s=>s.posts.filter(p=>p.reason));
   const report=[`Daily social research`, `Scope: ${c.topics}`,`Window: ${new Date(Date.parse(startedAt)-day).toISOString()} — ${startedAt}`,'',
     ...research.sources.map(s=>`${s.platform==='x'?'X':'Reddit'}: ${s.stage==='done'?`${s.received} rows retrieved; ${s.posts.filter(p=>p.reason).length} relevant posts`:`UNAVAILABLE — ${s.gap||'Search could not be verified'}`}${s.stage==='done'&&s.gap?`; ${s.gap}`:''}`),
     'Coverage is a bounded sample, not an exhaustive search of either platform. A zero does not prove no relevant conversation exists.','',
-    ...(selected.length?selected.slice(0,12).flatMap((p,i)=>[`${i+1}. ${p.platform.toUpperCase()} · ${p.at}`,p.url,p.text.slice(0,500),`Why relevant: ${p.reason}`,'']):['No relevant posts retained in the available evidence. Review source coverage and checks below.','']),
-    ...(selected.length>12?[`${selected.length-12} additional relevant posts are retained in the console.`]:[]),
+    ...(selected.length?selected.slice(0,settings.maxDisplayedFindings).flatMap((p,i)=>[`${i+1}. ${p.platform.toUpperCase()} · ${p.at}`,p.url,p.text.slice(0,500),`Why relevant: ${p.reason}`,'']):['No relevant posts retained in the available evidence. Review source coverage and checks below.','']),
+    ...(selected.length>settings.maxDisplayedFindings?[`${selected.length-settings.maxDisplayedFindings} additional relevant posts are retained in the console.`]:[]),
     'Validation',...(research.checks||[]).map(c=>`${c.status.toUpperCase()} · ${c.label}: ${c.observed}\nMeasured by: ${c.method}`),'',
     `Billing controls: at most two Actor starts, $${c.actorCapUsd.toFixed(2)} Reddit / $${actorChargeCap(c,'x').toFixed(2)} X billed caps, $${c.rollingCapUsd.toFixed(2)} reserved per rolling 31 days. Shared Apify Free allowance also applies; dataset/API infrastructure usage is governed by the provider allowance. No upgrade or overage authorized.`
   ].join('\n');
   const bytes=new TextEncoder();
-  if(bytes.encode(report).length<=16000)return report;
-  const marker='\n\n[Report truncated at the 16,000-byte limit. Full candidate evidence and checks remain in the console.]';
-  let retained=report.slice(0,16000);
-  while(bytes.encode(retained+marker).length>16000)retained=retained.slice(0,Math.floor(retained.length*0.9));
+  if(bytes.encode(report).length<=settings.maxReportBytes)return report;
+  const marker=`\n\n[Report truncated at the ${settings.maxReportBytes.toLocaleString('en-US')}-byte limit. Full candidate evidence and checks remain in the console.]`;
+  let retained=report.slice(0,settings.maxReportBytes);
+  while(bytes.encode(retained+marker).length>settings.maxReportBytes)retained=retained.slice(0,Math.floor(retained.length*0.9));
   return retained+marker;
 }
 
