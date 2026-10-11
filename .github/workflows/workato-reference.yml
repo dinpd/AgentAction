@@ -1,0 +1,28 @@
+name: Workato Reference
+on:
+  pull_request:
+    paths: ['integrations/workato-agentaction/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
+  push:
+    branches: [main]
+    paths: ['integrations/workato-agentaction/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/workato-agentaction
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: integrations/workato-agentaction/package-lock.json
+      - run: npm ci
+      - run: ruby -c connector.rb
+      - run: npm test
+      - run: npm run build
+      - run: python3 build-package.py
+      - run: npm audit

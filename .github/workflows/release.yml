@@ -55,6 +55,7 @@ jobs:
           - packages/provider-express
           - packages/openclaw
           - mcp-gateway-adapter
+          - integrations/workato-agentaction
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +84,18 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: npm run build
 
+      - name: Build Workato recipe import package
+        if: ${{ matrix.package == 'integrations/workato-agentaction' }}
+        working-directory: integrations/workato-agentaction
+        run: python3 build-package.py
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ matrix.package == 'integrations/workato-agentaction' }}
+        with:
+          name: workato-reference
+          path: /tmp/agentaction-workato-reference.zip
+          if-no-files-found: error
+
   publish:
     needs: [python, typescript]
     runs-on: ubuntu-latest
@@ -93,6 +106,11 @@ jobs:
         with:
           name: python-release
           path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: workato-reference
+          path: release/workato
 
       - name: Create GitHub release
         env:
@@ -107,12 +125,13 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \
               --notes-file release/release-notes.md
-            gh release upload "$GITHUB_REF_NAME" release/dist/* \
+            gh release upload "$GITHUB_REF_NAME" release/dist/* release/workato/* \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
               release/dist/* \
+              release/workato/* \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \

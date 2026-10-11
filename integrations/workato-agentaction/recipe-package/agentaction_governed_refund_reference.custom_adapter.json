@@ -1,0 +1,8 @@
+{
+  "title": "AgentAction Governed Refund Reference",
+  "description": null,
+  "logo_file_name": null,
+  "logo_content_type": null,
+  "version_no": 5,
+  "note": "Normalize typed inputs and wait durably for a separate exact-scope review."
+}
