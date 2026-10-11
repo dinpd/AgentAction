@@ -4,6 +4,20 @@
 
 No changes yet.
 
+## 0.50.0-rc.1 - 2026-10-10
+
+### Added
+
+- Automatic Workato synthetic-refund policy path: eligible USD refunds up to $100 execute with scope-bound single-use JIT authorization and signed outcome verification, without a reviewer or approval request.
+- Separate automatic SDK action and portable recipe asset alongside the original human-review recipe. Authorization mode is selected by the server route and persists with immutable business scope; replay returns the original refund and frozen evidence.
+- A reproducible 25-second narrated demo renderer using captured live Workato success, exact replay, and cap-denial jobs, plus automatic-path concurrency, recovery and boundary checks.
+
+### Compatibility
+
+- Significant functionality: additive minor release candidate for new authorization behavior. Existing manual requests retain their human-confirmation policy, including legacy durable records; no destructive migration or core gateway contract change. Cross-mode reuse of a business request ID fails with HTTP 409.
+- Synthetic USD refunds only. The automatic cap and reasons are server-defined; recipe tokens do not gain reviewer permissions. The mock provider remains under the same customer deployment, not an independent financial audit. Unknown mutations still require operator reconciliation.
+- Install Python artifacts from the GitHub v0.50.0-rc.1 prerelease. Workato deployment, both recipe assets and video-rendering instructions are in integrations/workato-agentaction; no registry publication is implied. The automatic recipe was tested live in the existing trial workspace; a separate-account import of the expanded package was not available.
+
 ## 0.49.0-rc.1 - 2026-10-10
 
 ### Added

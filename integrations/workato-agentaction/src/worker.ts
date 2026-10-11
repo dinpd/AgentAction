@@ -39,6 +39,8 @@ type Scope = {
   reason: string;
 };
 type Refund = {
+  authorization_mode?: "human" | "automatic";
+  policy_decision?: "allowed" | "denied";
   scope: Scope;
   scope_digest: string;
   tenant_id: string;
@@ -231,7 +233,10 @@ export default {
         });
       if (url.searchParams.size)
         throw new HttpError(400, "query_parameters_not_supported");
-      const parts = url.pathname.split("/").filter(Boolean);
+      const automatic =
+        url.pathname === "/automatic/requests" && request.method === "POST";
+      const path = automatic ? "/requests" : url.pathname;
+      const parts = path.split("/").filter(Boolean);
       if (parts[0] !== "requests" || parts.length > 3)
         throw new HttpError(404, "not_found");
       if (parts[1]) id(parts[1], "request_id");
@@ -248,8 +253,9 @@ export default {
         "content-type": "application/json",
         "x-principal": JSON.stringify(principal),
         "x-origin": url.origin,
+        "x-policy-mode": automatic ? "automatic" : "human",
       });
-      const forwarded = new Request(`https://refunds.internal${url.pathname}`, {
+      const forwarded = new Request(`https://refunds.internal${path}`, {
         method: request.method,
         headers,
         body:
@@ -272,7 +278,7 @@ export default {
   },
 };
 
-function manifest(agentId: string): Json {
+function manifest(agentId: string, automatic = false): Json {
   return {
     agent: { id: agentId },
     jit_authorization: {
@@ -285,7 +291,7 @@ function manifest(agentId: string): Json {
         name: "mock.create_refund",
         access: "write",
         auth_mode: "just_in_time",
-        approval: "human_confirm",
+        approval: automatic ? "none" : "human_confirm",
         constraints: {
           approval_ttl_seconds: 1800,
           token_ttl_seconds: 300,
@@ -310,14 +316,20 @@ function manifest(agentId: string): Json {
     },
   };
 }
-function contractFor(scope: Scope, createdAt: string): IntentContract {
+function contractFor(
+  scope: Scope,
+  createdAt: string,
+  automatic = false,
+): IntentContract {
   return bindIntentContract({
     schema_version: "agentpass.intent-contract.v1",
     intent_id: `workato-${scope.request_id}`,
     profile: "workato_refund.v1",
     issuer: "workato-reference-adapter",
     job_id: scope.request_id,
-    objective: "Refund the approved synthetic payment exactly once",
+    objective: automatic
+      ? "Execute the policy-authorized synthetic refund exactly once"
+      : "Refund the approved synthetic payment exactly once",
     issued_at: createdAt,
     required_outcomes: [
       {
@@ -427,6 +439,10 @@ export class WorkatoRefunds {
     }
     if (parts.length === 1 && request.method === "POST") {
       if (p.role !== "recipe") throw new HttpError(403, "recipe_required");
+      const mode =
+        request.headers.get("x-policy-mode") === "automatic"
+          ? "automatic"
+          : "human";
       const scope = scopeFrom(input);
       const digest = await sha256(JSON.stringify(scope));
       let r = await this.state.storage.get<Refund>(
@@ -437,7 +453,8 @@ export class WorkatoRefunds {
         r &&
         (r.scope_digest !== digest ||
           r.agent_id !== p.agent_id ||
-          r.requested_by !== p.subject)
+          r.requested_by !== p.subject ||
+          (r.authorization_mode || "human") !== mode)
       )
         throw new HttpError(409, "request_scope_mismatch");
       if (!r) {
@@ -445,8 +462,9 @@ export class WorkatoRefunds {
         if (ids.length >= MAX_REQUESTS)
           throw new HttpError(429, "demo_request_limit");
         const createdAt = timestamp();
-        const contract = contractFor(scope, createdAt);
+        const contract = contractFor(scope, createdAt, mode === "automatic");
         r = {
+          authorization_mode: mode,
           scope,
           scope_digest: digest,
           status: "created",
@@ -472,6 +490,7 @@ export class WorkatoRefunds {
             intent_id: contract.intent_id,
             intent_digest: contract.intent_digest,
             policy_eligible: String(scope.amount_cents <= LIMIT),
+            authorization_mode: mode,
           },
         };
         await this.save(r);
@@ -497,6 +516,7 @@ export class WorkatoRefunds {
           504,
         );
       }
+      if (mode === "automatic" && r.status !== "denied") await this.execute(r);
       return json(this.view(r, origin, replayed), replayed ? 200 : 201);
     }
     const r = await this.state.storage.get<Refund>(`request:${parts[1]}`);
@@ -588,6 +608,7 @@ export class WorkatoRefunds {
       (decision.findings || []).join("; "),
     );
     if (r.scope.amount_cents > LIMIT) {
+      r.policy_decision = "denied";
       r.status = "denied";
       this.add(r, "policy.denied", "Synthetic refunds are limited to USD 100.");
       return;
@@ -596,16 +617,29 @@ export class WorkatoRefunds {
     // fails closed; only the known missing approval/JIT findings may proceed.
     const expected = new Set([
       "missing jit_grant_id",
-      "event[0]: mock.create_refund requires approval but event is not approved",
       "event[0]: mock.create_refund requires JIT authorization but no jit_grant_id is present",
       "event[0]: JIT grant is marked invalid",
     ]);
+    if (r.authorization_mode !== "automatic")
+      expected.add(
+        "event[0]: mock.create_refund requires approval but event is not approved",
+      );
     if (
       decision.allow ||
       !decision.findings?.length ||
       !decision.findings.every((finding: string) => expected.has(finding))
     )
       throw new HttpError(503, "preflight_not_approval_only");
+    r.policy_decision = "allowed";
+    if (r.authorization_mode === "automatic") {
+      r.status = "policy_authorized";
+      this.add(
+        r,
+        "policy.allowed",
+        "Automatic synthetic policy: USD, supported reason, exact immutable scope, amount at most USD 100. Single-use JIT authorization is still required.",
+      );
+      return;
+    }
     r.approval = await this.callGateway(r, "POST", "/approval-requests", {
       ...r.event,
       approval_id: `workato-${r.scope.request_id}`,
@@ -638,7 +672,7 @@ export class WorkatoRefunds {
         JIT_GRANTS: this.env.JIT_GRANTS,
         AGENTID_MANIFESTS: {
           async get() {
-            return JSON.stringify(manifest(r.agent_id));
+            return JSON.stringify(manifest(r.agent_id, r.authorization_mode === "automatic"));
           },
           async put() {
             throw new Error("read-only manifest");
@@ -677,8 +711,12 @@ export class WorkatoRefunds {
     if (r.status === "succeeded") return;
     if (["pending", "denied", "expired", "created"].includes(r.status))
       throw new HttpError(409, "approval_required");
-    if (r.status === "approved") {
-      if (!r.approval || Date.parse(r.approval.expires_at) <= Date.now()) {
+    if (["approved", "policy_authorized"].includes(r.status)) {
+      const automatic = r.authorization_mode === "automatic";
+      if (
+        !automatic &&
+        (!r.approval || Date.parse(r.approval.expires_at) <= Date.now())
+      ) {
         r.status = "expired";
         await this.save(r);
         throw new HttpError(409, "approval_expired");
@@ -691,7 +729,7 @@ export class WorkatoRefunds {
       if (!r.grant) {
         r.grant = await this.callGateway(r, "POST", "/jit-grants", {
           ...r.event,
-          approval_id: r.approval.approval_id,
+          ...(automatic ? {} : { approval_id: r.approval!.approval_id }),
         });
         await this.save(r);
       }
@@ -705,9 +743,9 @@ export class WorkatoRefunds {
         "/authorize",
         {
           ...r.event,
-          approval_id: r.approval.approval_id,
+          ...(automatic ? {} : { approval_id: r.approval!.approval_id }),
           jit_grant_id: r.grant.jit_grant_id,
-          approved: true,
+          approved: !automatic,
         },
         true,
       );
@@ -734,6 +772,7 @@ export class WorkatoRefunds {
         scope: r.scope,
         event: r.execution,
         tenant_id: r.tenant_id,
+        authorization_mode: r.authorization_mode || "human",
       });
       this.failpoint?.("after_provider");
       r.status = "evidence_pending";
@@ -860,6 +899,8 @@ export class WorkatoRefunds {
   view(r: Refund, origin: string, replayed = false): Json {
     return {
       ...r.scope,
+      authorization_mode: r.authorization_mode || "human",
+      policy_decision: r.policy_decision || "",
       tenant_id: r.tenant_id,
       agent_id: r.agent_id,
       status: r.status,
@@ -868,7 +909,10 @@ export class WorkatoRefunds {
       intent_digest: r.contract.intent_digest,
       approval_id: r.approval?.approval_id || "",
       approval_expires_at: r.approval?.expires_at || "",
-      approval_url: `${origin}/review#${r.scope.request_id}`,
+      approval_url:
+        r.authorization_mode === "automatic"
+          ? ""
+          : `${origin}/review#${r.scope.request_id}`,
       evidence_url: `${origin}/review#${r.scope.request_id}`,
       replayed,
       refund_id: r.provider_result?.refund_id || "",
@@ -907,10 +951,16 @@ export class MockRefundProvider {
     if (request.method === "POST" && path === "/refund") {
       const scope = input.scope as Scope;
       const event = input.event as Json;
+      const mode = input.authorization_mode;
       if (
         !scope ||
         !event ||
-        event.approved !== true ||
+        !["human", "automatic"].includes(mode) ||
+        (mode === "human" && event.approved !== true) ||
+        (mode === "automatic" &&
+          (event.authorization_mode !== "automatic" ||
+            event.policy_eligible !== "true" ||
+            event.approved !== false)) ||
         !event.jit_grant_valid ||
         event.tool !== "mock.create_refund" ||
         event.resource !== `payment/${scope.payment_id}` ||
