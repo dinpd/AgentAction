@@ -1,0 +1,15 @@
+{
+  "name": "agentaction-workato-reference",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --experimental-strip-types tests/*.test.ts && ruby tests/connector_test.rb",
+    "build": "wrangler deploy --dry-run --outdir /tmp/agentaction-workato-dist",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.94.0"
+  }
+}

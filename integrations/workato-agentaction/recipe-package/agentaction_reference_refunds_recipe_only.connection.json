@@ -1,0 +1,9 @@
+{
+  "name": "AgentAction reference refunds — recipe only",
+  "provider": {
+    "zip_name": "agentaction_governed_refund_reference.custom_adapter.json",
+    "name": "AgentAction Governed Refund Reference",
+    "folder": ""
+  },
+  "root_folder": false
+}

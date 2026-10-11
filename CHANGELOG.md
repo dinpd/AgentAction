@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.49.0-rc.1 - 2026-10-10
+
+### Added
+
+- Workato governed-refund reference integration with a private Connector SDK connector, separate recipe and reviewer roles, durable approval/status handling, and a synthetic-provider execution adapter.
+- Exact business-request scope binding and idempotency, concurrent retry serialization, recovery after provider success, and fail-closed reconciliation for uncertain executions.
+- Correlated intent, AgentAction approval/JIT authorization, execution receipts, RS256-signed mock-provider read-back, and immutable finalized outcome evidence in a dedicated review timeline.
+
+### Compatibility
+
+- Significant functionality: additive minor release candidate for a new reference integration and execution boundary. Existing gateway contracts and protocol schemas are unchanged; no destructive migration. The adapter embeds the existing gateway and deploys separately.
+- Synthetic USD refunds only, capped at $100 with human review. No production payment account, real-money operation, marketplace publication, or new third-party OAuth access is included. The mock provider is a separate runtime trust boundary under the same customer account, not an independent financial audit.
+- Unknown execution outcomes require operator reconciliation; the adapter never blindly repeats a mutation. Credentials are configured outside source and recipe exports. The demo is bounded to 250 business requests per tenant.
+- Install Python artifacts from the GitHub v0.49.0-rc.1 prerelease. Workato source and deployment instructions are in integrations/workato-agentaction; no registry publication is implied.
+
 ## 0.48.0-rc.1 - 2026-10-08
 
 ### Added
