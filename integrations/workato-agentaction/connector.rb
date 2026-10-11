@@ -31,6 +31,7 @@
           { name: 'request_id', label: 'Business request ID' },
           { name: 'payment_id' }, { name: 'amount_cents', type: 'integer' },
           { name: 'currency' }, { name: 'reason' }, { name: 'status' },
+          { name: 'authorization_mode' }, { name: 'policy_decision' },
           { name: 'tenant_id' }, { name: 'agent_id' }, { name: 'scope_digest' },
           { name: 'intent_id' }, { name: 'intent_digest' }, { name: 'approval_id' },
           { name: 'approval_expires_at', type: 'date_time' },
@@ -45,6 +46,41 @@
     }
   },
   actions: {
+    automatic_refund: {
+      title: 'Execute refund under automatic policy',
+      description: 'Execute a <span class="provider">policy-governed synthetic refund</span>',
+      help: 'Automatically permits synthetic USD refunds up to 100 dollars with a supported reason. Reuse the same business ID on retry. Single-use JIT and signed outcome verification still apply.',
+      input_fields: lambda do |_object_definitions|
+        [
+          { name: 'request_id', label: 'Business request ID', optional: false,
+            hint: 'Stable case/action ID, using letters, numbers, hyphen or underscore. Do not regenerate on a retry.' },
+          { name: 'payment_id', optional: false },
+          { name: 'amount_cents', label: 'Amount in USD cents', type: 'integer', optional: false },
+          { name: 'currency', optional: false, default: 'USD', hint: 'Only USD is accepted by this synthetic demo.' },
+          { name: 'reason', optional: false, hint: 'Use duplicate_charge or service_failure.' },
+          { name: 'workato_recipe_id', label: 'Workato recipe ID', optional: true },
+          { name: 'workato_job_id', label: 'Workato job ID', optional: true },
+          { name: 'simulate_response_loss', label: 'Simulate one lost acceptance response', type: 'boolean', control_type: 'checkbox', optional: true, default: false,
+            convert_input: 'boolean_conversion',
+            hint: 'Demo fault only. The first response fails after durable acceptance. Retry with the same business ID.' }
+        ]
+      end,
+      execute: lambda do |_connection, input|
+        payload = input.reject { |_key, value| value.nil? || value == '' }
+        cents = input['amount_cents'].to_s
+        error('Amount must be positive integer USD cents') unless cents.match?(/\A[0-9]+\z/) && cents.to_i > 0
+        payload['amount_cents'] = cents.to_i
+        if payload.key?('simulate_response_loss')
+          flag = payload['simulate_response_loss']
+          error('Response-loss flag must be boolean') unless [true, false, 'true', 'false'].include?(flag)
+          payload['simulate_response_loss'] = flag == true || flag == 'true'
+        end
+        post('automatic/requests', payload)
+      end,
+      output_fields: lambda do |object_definitions|
+        object_definitions['refund']
+      end
+    },
     request_refund: {
       title: 'Request governed refund',
       description: 'Request a <span class="provider">governed synthetic refund</span>',

@@ -56,8 +56,25 @@ def main():
     assert call("/requests", "POST", lost_scope)[0] == 504
     _, recovered = call("/requests", "POST", lost_scope)
     assert recovered["replayed"] and recovered["status"] == "pending" and recovered["mutation_count"] == 0
+    automatic_scope = {**scope, "request_id": run + "-auto"}
+    status, automatic = call("/automatic/requests", "POST", automatic_scope)
+    assert status == 201 and automatic["status"] == "succeeded"
+    assert automatic["authorization_mode"] == "automatic" and automatic["policy_decision"] == "allowed"
+    assert automatic["mutation_count"] == 1 and automatic["qualified_success"]
+    assert not automatic["approval_id"]
+    _, automatic_replay = call("/automatic/requests", "POST", automatic_scope)
+    assert automatic_replay["refund_id"] == automatic["refund_id"] and automatic_replay["replayed"]
+    assert automatic_replay["mutation_count"] == 1
+    assert call("/requests", "POST", automatic_scope)[0] == 409
+    _, automatic_denied = call("/automatic/requests", "POST", {**scope, "request_id": run + "-auto-cap", "amount_cents": 10100})
+    assert automatic_denied["status"] == "denied" and automatic_denied["mutation_count"] == 0
+    _, automatic_evidence = call(f"/requests/{automatic_scope['request_id']}/evidence")
+    assert automatic_evidence["observation"]["provenance"]["verification_method"] == "jws"
+    assert any(entry["type"] == "policy.allowed" for entry in automatic_evidence["timeline"])
+    assert not any(entry["type"].startswith("approval.") for entry in automatic_evidence["timeline"])
     print(json.dumps({"passed": True, "request_id": run, "refund_id": approved["refund_id"],
-                      "mutation_count": 1, "qualified_success": True, "signed_observation": True}))
+                      "mutation_count": 1, "qualified_success": True, "signed_observation": True,
+                      "automatic_refund_id": automatic["refund_id"], "automatic_without_review": True}))
 
 
 if __name__ == "__main__":

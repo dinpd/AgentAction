@@ -138,6 +138,106 @@ async function setup() {
   return { env, call, scope, submit, approve, refunds, provider, jit };
 }
 
+test("automatic policy executes once with JIT and signed evidence without a reviewer or approval", async () => {
+  const f = await setup();
+  const result = await f.call("/automatic/requests", "POST", f.scope);
+  assert.equal(result.status, 201, JSON.stringify(result.body));
+  assert.equal(result.body.status, "succeeded");
+  assert.equal(result.body.authorization_mode, "automatic");
+  assert.equal(result.body.policy_decision, "allowed");
+  assert.equal(result.body.approval_id, "");
+  assert.equal(result.body.approval_url, "");
+  assert.equal(result.body.mutation_count, 1);
+  assert.equal(result.body.qualified_success, true);
+  const evidence = (await f.call("/requests/case-1/evidence")).body;
+  assert.equal(evidence.authorization.approved, false);
+  assert.equal(evidence.authorization.jit_grant_valid, true);
+  assert.equal(evidence.observation.provenance.verification_method, "jws");
+  assert.ok(evidence.timeline.some((e: any) => e.type === "policy.allowed"));
+  assert.equal((await f.jit.stores.get("demo")!.list({ prefix: "approval:" })).size, 0);
+});
+
+test("automatic policy denies over-cap and unauthorized requests without mutation", async () => {
+  const f = await setup();
+  const denied = await f.call("/automatic/requests", "POST", { ...f.scope, amount_cents: 10100 });
+  assert.equal(denied.body.status, "denied");
+  assert.equal(denied.body.policy_decision, "denied");
+  assert.equal(denied.body.mutation_count, 0);
+  assert.equal((await f.call("/automatic/requests", "POST", f.scope, reviewer)).status, 403);
+  assert.equal((await f.call("/automatic/requests", "POST", f.scope, "x".repeat(40))).status, 401);
+  assert.equal(f.provider.stores.size, 0);
+});
+
+test("automatic proposals reject invalid scope and caller-supplied authority before mutation", async () => {
+  const f = await setup();
+  for (const invalid of [
+    { amount_cents: "4900" },
+    { amount_cents: 49.5 },
+    { amount_cents: 0 },
+    { currency: "EUR" },
+    { reason: "arbitrary" },
+    { approved: true },
+    { authorization_mode: "automatic" },
+    { tenant_id: "other" },
+    { simulate_response_loss: "false" },
+  ]) {
+    assert.equal((await f.call("/automatic/requests", "POST", { ...f.scope, ...invalid })).status, 400);
+  }
+  assert.equal(f.provider.stores.size, 0);
+});
+
+test("automatic accepted request survives lost response and resumes without review", async () => {
+  const f = await setup();
+  const scope = { ...f.scope, simulate_response_loss: true };
+  assert.equal((await f.call("/automatic/requests", "POST", scope)).status, 504);
+  assert.equal(f.provider.stores.size, 0);
+  f.refunds.restart("demo");
+  const result = await f.call("/automatic/requests", "POST", scope);
+  assert.equal(result.body.status, "succeeded");
+  assert.equal(result.body.replayed, true);
+  assert.equal(result.body.mutation_count, 1);
+  assert.equal(result.body.approval_id, "");
+});
+
+test("caller cannot change manual policy through flags, headers, or reuse across paths", async () => {
+  const f = await setup();
+  const manual = await f.call("/requests", "POST", f.scope, recipe, { "x-policy-mode": "automatic" });
+  assert.equal(manual.body.status, "pending");
+  assert.equal(manual.body.authorization_mode, "human");
+  assert.equal((await f.call("/automatic/requests", "POST", f.scope)).status, 409);
+  assert.equal((await f.call("/requests", "POST", { ...f.scope, authorization_mode: "automatic" })).status, 400);
+  assert.equal((await f.call("/requests/case-1/execute", "POST", {})).status, 409);
+  const automatic = { ...f.scope, request_id: "auto-1" };
+  await f.call("/automatic/requests", "POST", automatic);
+  assert.equal((await f.call("/requests", "POST", automatic)).status, 409);
+});
+
+test("concurrent automatic retries preserve one refund, original final evidence, and immutable scope", async () => {
+  const f = await setup();
+  const runs = await Promise.all(Array.from({ length: 8 }, () => f.call("/automatic/requests", "POST", f.scope)));
+  assert.equal(runs.filter(r => r.status === 201).length, 1);
+  assert.equal(new Set(runs.map(r => r.body.refund_id)).size, 1);
+  assert.ok(runs.every(r => r.body.mutation_count === 1));
+  const before = (await f.call("/requests/case-1/evidence")).body.finalization;
+  const replay = await f.call("/automatic/requests", "POST", f.scope);
+  assert.equal(replay.body.replayed, true);
+  assert.deepEqual((await f.call("/requests/case-1/evidence")).body.finalization, before);
+  assert.equal((await f.call("/automatic/requests", "POST", { ...f.scope, amount_cents: 5000 })).status, 409);
+});
+
+test("automatic request recovers original refund after provider-success crash and restart", async () => {
+  const f = await setup();
+  f.refunds.get("demo").failpoint = (name: string) => { if (name === "after_provider") throw Error("crash"); };
+  assert.equal((await f.call("/automatic/requests", "POST", f.scope)).status, 503);
+  const original = await f.provider.stores.get("demo")!.get("refund:case-1");
+  f.refunds.restart("demo");
+  const recovered = await f.call("/automatic/requests", "POST", f.scope);
+  assert.equal(recovered.body.status, "succeeded");
+  assert.equal(recovered.body.refund_id, original.refund_id);
+  assert.equal(recovered.body.mutation_count, 1);
+  assert.equal(recovered.body.qualified_success, true);
+});
+
 test("pending -> human approval -> one refund -> signed outcome -> final snapshot", async () => {
   const f = await setup();
   const pending = await f.submit();

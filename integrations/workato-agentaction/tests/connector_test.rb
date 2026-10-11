@@ -10,6 +10,17 @@ class ConnectorTest < Minitest::Test
     { path: path, payload: payload }
   end
 
+  def test_automatic_action_uses_separate_route_with_same_validated_scope
+    action = @connector[:actions][:automatic_refund][:execute]
+    out = action.call(nil, { 'amount_cents' => '4900', 'request_id' => 'auto-1' })
+    assert_equal 'automatic/requests', out[:path]
+    assert_equal 4900, out[:payload]['amount_cents']
+    assert_equal 'auto-1', out[:payload]['request_id']
+    refute out[:payload].key?('approved')
+    refute out[:payload].key?('approval_id')
+    assert_equal 'requests', @connector[:actions][:request_refund][:execute].call(nil, { 'amount_cents' => '4900' })[:path]
+  end
+
   def get(_path)
     @status
   end

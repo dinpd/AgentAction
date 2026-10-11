@@ -1,0 +1,709 @@
+{
+  "name": "Automatic Support Refund — AgentAction Reference",
+  "description": "Synthetic USD refund: authorize by automatic policy, execute once, read verified status, and return the frozen outcome. No reviewer step.",
+  "version": 2,
+  "private": true,
+  "concurrency": 1,
+  "code": {
+    "number": 0,
+    "provider": "workato_recipe_function",
+    "name": "execute",
+    "as": "213e82e2",
+    "keyword": "trigger",
+    "input": {
+      "parameters_schema_json": "[{\"control_type\":\"text\",\"label\":\"Request ID\",\"name\":\"request_id\",\"type\":\"string\",\"optional\":false},{\"control_type\":\"text\",\"label\":\"Payment ID\",\"name\":\"payment_id\",\"type\":\"string\",\"optional\":false},{\"control_type\":\"integer\",\"label\":\"Amount cents\",\"parse_output\":\"integer_conversion\",\"name\":\"amount_cents\",\"type\":\"integer\",\"optional\":false,\"render_input\":\"integer_conversion\"},{\"control_type\":\"text\",\"label\":\"Currency\",\"name\":\"currency\",\"type\":\"string\",\"optional\":false},{\"control_type\":\"text\",\"label\":\"Reason\",\"name\":\"reason\",\"type\":\"string\",\"optional\":false}]",
+      "result_schema_json": "[{\"control_type\":\"text\",\"label\":\"Request ID\",\"optional\":true,\"type\":\"string\",\"name\":\"request_id\"},{\"control_type\":\"text\",\"label\":\"Status\",\"optional\":true,\"type\":\"string\",\"name\":\"status\"},{\"control_type\":\"text\",\"label\":\"Approval URL\",\"optional\":true,\"type\":\"string\",\"name\":\"approval_url\"},{\"control_type\":\"text\",\"label\":\"Evidence URL\",\"optional\":true,\"type\":\"string\",\"name\":\"evidence_url\"},{\"control_type\":\"text\",\"label\":\"Refund ID\",\"optional\":true,\"type\":\"string\",\"name\":\"refund_id\"},{\"control_type\":\"number\",\"label\":\"Mutation count\",\"parse_output\":\"float_conversion\",\"optional\":true,\"type\":\"number\",\"name\":\"mutation_count\"},{\"control_type\":\"text\",\"label\":\"Outcome verdict\",\"optional\":true,\"type\":\"string\",\"name\":\"outcome_verdict\"},{\"control_type\":\"checkbox\",\"label\":\"Qualified success\",\"render_input\":\"boolean_conversion\",\"parse_output\":\"boolean_conversion\",\"optional\":true,\"toggle_hint\":\"Select from option list\",\"toggle_field\":{\"label\":\"Qualified success\",\"control_type\":\"text\",\"toggle_hint\":\"Use custom value\",\"optional\":true,\"type\":\"boolean\",\"name\":\"qualified_success\"},\"type\":\"boolean\",\"name\":\"qualified_success\"},{\"control_type\":\"checkbox\",\"label\":\"Replayed\",\"render_input\":\"boolean_conversion\",\"parse_output\":\"boolean_conversion\",\"optional\":true,\"toggle_hint\":\"Select from option list\",\"toggle_field\":{\"label\":\"Replayed\",\"control_type\":\"text\",\"toggle_hint\":\"Use custom value\",\"optional\":true,\"type\":\"boolean\",\"name\":\"replayed\"},\"type\":\"boolean\",\"name\":\"replayed\"}]"
+    },
+    "extended_output_schema": [
+      {
+        "label": "Parameters",
+        "name": "parameters",
+        "properties": [
+          {
+            "control_type": "text",
+            "label": "Request ID",
+            "name": "request_id",
+            "type": "string",
+            "optional": false
+          },
+          {
+            "control_type": "text",
+            "label": "Payment ID",
+            "name": "payment_id",
+            "type": "string",
+            "optional": false
+          },
+          {
+            "control_type": "integer",
+            "label": "Amount cents",
+            "parse_output": "integer_conversion",
+            "name": "amount_cents",
+            "type": "integer",
+            "optional": false,
+            "render_input": "integer_conversion"
+          },
+          {
+            "control_type": "text",
+            "label": "Currency",
+            "name": "currency",
+            "type": "string",
+            "optional": false
+          },
+          {
+            "control_type": "text",
+            "label": "Reason",
+            "name": "reason",
+            "type": "string",
+            "optional": false
+          }
+        ],
+        "type": "object"
+      }
+    ],
+    "block": [
+      {
+        "number": 1,
+        "provider": "agentaction_governed_refund_reference",
+        "name": "automatic_refund",
+        "as": "389e03c8",
+        "keyword": "action",
+        "input": {
+          "currency": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_recipe_function\",\"line\":\"213e82e2\",\"path\":[\"parameters\",\"currency\"]}')}",
+          "request_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_recipe_function\",\"line\":\"213e82e2\",\"path\":[\"parameters\",\"request_id\"]}')}",
+          "payment_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_recipe_function\",\"line\":\"213e82e2\",\"path\":[\"parameters\",\"payment_id\"]}')}",
+          "amount_cents": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_recipe_function\",\"line\":\"213e82e2\",\"path\":[\"parameters\",\"amount_cents\"]}')}",
+          "reason": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_recipe_function\",\"line\":\"213e82e2\",\"path\":[\"parameters\",\"reason\"]}')}",
+          "workato_recipe_id": "#{_dp('{\"pill_type\":\"job_context\",\"path\":[\"recipe_id\"]}')}",
+          "workato_job_id": "#{_dp('{\"pill_type\":\"job_context\",\"path\":[\"job_id\"]}')}"
+        },
+        "extended_output_schema": [
+          {
+            "control_type": "text",
+            "label": "Business request ID",
+            "name": "request_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Payment ID",
+            "name": "payment_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "number",
+            "label": "Amount cents",
+            "name": "amount_cents",
+            "optional": true,
+            "parse_output": "integer_conversion",
+            "type": "integer"
+          },
+          {
+            "control_type": "text",
+            "label": "Currency",
+            "name": "currency",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Reason",
+            "name": "reason",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Authorization mode",
+            "name": "authorization_mode",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Policy decision",
+            "name": "policy_decision",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Status",
+            "name": "status",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Tenant ID",
+            "name": "tenant_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Agent ID",
+            "name": "agent_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Scope digest",
+            "name": "scope_digest",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Intent ID",
+            "name": "intent_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Intent digest",
+            "name": "intent_digest",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Approval ID",
+            "name": "approval_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "date_time",
+            "label": "Approval expires at",
+            "name": "approval_expires_at",
+            "optional": true,
+            "parse_output": "date_time_conversion",
+            "type": "date_time",
+            "render_input": "date_time_conversion"
+          },
+          {
+            "control_type": "text",
+            "label": "Human review URL",
+            "name": "approval_url",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Evidence timeline URL",
+            "name": "evidence_url",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "checkbox",
+            "label": "Replayed",
+            "name": "replayed",
+            "optional": true,
+            "parse_output": "boolean_conversion",
+            "type": "boolean",
+            "render_input": "boolean_conversion"
+          },
+          {
+            "control_type": "text",
+            "label": "Refund ID",
+            "name": "refund_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "number",
+            "label": "Mutation count",
+            "name": "mutation_count",
+            "optional": true,
+            "parse_output": "integer_conversion",
+            "type": "integer"
+          },
+          {
+            "control_type": "text",
+            "label": "Outcome verdict",
+            "name": "outcome_verdict",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Constraint compliance",
+            "name": "constraint_compliance",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "checkbox",
+            "label": "Qualified success",
+            "name": "qualified_success",
+            "optional": true,
+            "parse_output": "boolean_conversion",
+            "type": "boolean",
+            "render_input": "boolean_conversion"
+          },
+          {
+            "control_type": "date_time",
+            "label": "Created at",
+            "name": "created_at",
+            "optional": true,
+            "parse_output": "date_time_conversion",
+            "type": "date_time",
+            "render_input": "date_time_conversion"
+          }
+        ],
+        "visible_config_fields": [
+          "request_id",
+          "payment_id",
+          "amount_cents",
+          "currency",
+          "workato_job_id",
+          "workato_recipe_id"
+        ],
+        "uuid": "34b75a26-ddaa-4266-ab84-c6d2392c3059"
+      },
+      {
+        "number": 2,
+        "provider": "agentaction_governed_refund_reference",
+        "name": "get_refund",
+        "as": "7cd8902f",
+        "keyword": "action",
+        "input": {
+          "request_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"389e03c8\",\"path\":[\"request_id\"]}')}"
+        },
+        "extended_output_schema": [
+          {
+            "control_type": "text",
+            "label": "Business request ID",
+            "name": "request_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Payment ID",
+            "name": "payment_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "number",
+            "label": "Amount cents",
+            "name": "amount_cents",
+            "optional": true,
+            "parse_output": "integer_conversion",
+            "type": "integer"
+          },
+          {
+            "control_type": "text",
+            "label": "Currency",
+            "name": "currency",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Reason",
+            "name": "reason",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Authorization mode",
+            "name": "authorization_mode",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Policy decision",
+            "name": "policy_decision",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Status",
+            "name": "status",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Tenant ID",
+            "name": "tenant_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Agent ID",
+            "name": "agent_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Scope digest",
+            "name": "scope_digest",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Intent ID",
+            "name": "intent_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Intent digest",
+            "name": "intent_digest",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Approval ID",
+            "name": "approval_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "date_time",
+            "label": "Approval expires at",
+            "name": "approval_expires_at",
+            "optional": true,
+            "parse_output": "date_time_conversion",
+            "type": "date_time",
+            "render_input": "date_time_conversion"
+          },
+          {
+            "control_type": "text",
+            "label": "Human review URL",
+            "name": "approval_url",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Evidence timeline URL",
+            "name": "evidence_url",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "checkbox",
+            "label": "Replayed",
+            "name": "replayed",
+            "optional": true,
+            "parse_output": "boolean_conversion",
+            "type": "boolean",
+            "render_input": "boolean_conversion"
+          },
+          {
+            "control_type": "text",
+            "label": "Refund ID",
+            "name": "refund_id",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "number",
+            "label": "Mutation count",
+            "name": "mutation_count",
+            "optional": true,
+            "parse_output": "integer_conversion",
+            "type": "integer"
+          },
+          {
+            "control_type": "text",
+            "label": "Outcome verdict",
+            "name": "outcome_verdict",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "text",
+            "label": "Constraint compliance",
+            "name": "constraint_compliance",
+            "optional": true,
+            "type": "string"
+          },
+          {
+            "control_type": "checkbox",
+            "label": "Qualified success",
+            "name": "qualified_success",
+            "optional": true,
+            "parse_output": "boolean_conversion",
+            "type": "boolean",
+            "render_input": "boolean_conversion"
+          },
+          {
+            "control_type": "date_time",
+            "label": "Created at",
+            "name": "created_at",
+            "optional": true,
+            "parse_output": "date_time_conversion",
+            "type": "date_time",
+            "render_input": "date_time_conversion"
+          }
+        ],
+        "uuid": "a35e1662-716e-4788-a4e6-a06948261a03"
+      },
+      {
+        "number": 3,
+        "provider": "workato_recipe_function",
+        "name": "return_result",
+        "as": "8b9a368c",
+        "keyword": "action",
+        "toggleCfg": {
+          "result.qualified_success": false,
+          "result.replayed": false
+        },
+        "input": {
+          "result": {
+            "request_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"request_id\"]}')}",
+            "status": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"status\"]}')}",
+            "approval_url": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"approval_url\"]}')}",
+            "evidence_url": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"evidence_url\"]}')}",
+            "refund_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"refund_id\"]}')}",
+            "mutation_count": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"mutation_count\"]}')}",
+            "outcome_verdict": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"outcome_verdict\"]}')}",
+            "qualified_success": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"7cd8902f\",\"path\":[\"qualified_success\"]}')}",
+            "replayed": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"agentaction_governed_refund_reference\",\"line\":\"389e03c8\",\"path\":[\"replayed\"]}')}"
+          }
+        },
+        "extended_output_schema": [
+          {
+            "label": "Result",
+            "name": "result",
+            "properties": [
+              {
+                "control_type": "text",
+                "label": "Request ID",
+                "optional": true,
+                "type": "string",
+                "name": "request_id"
+              },
+              {
+                "control_type": "text",
+                "label": "Status",
+                "optional": true,
+                "type": "string",
+                "name": "status"
+              },
+              {
+                "control_type": "text",
+                "label": "Approval URL",
+                "optional": true,
+                "type": "string",
+                "name": "approval_url"
+              },
+              {
+                "control_type": "text",
+                "label": "Evidence URL",
+                "optional": true,
+                "type": "string",
+                "name": "evidence_url"
+              },
+              {
+                "control_type": "text",
+                "label": "Refund ID",
+                "optional": true,
+                "type": "string",
+                "name": "refund_id"
+              },
+              {
+                "control_type": "number",
+                "label": "Mutation count",
+                "parse_output": "float_conversion",
+                "optional": true,
+                "type": "number",
+                "name": "mutation_count"
+              },
+              {
+                "control_type": "text",
+                "label": "Outcome verdict",
+                "optional": true,
+                "type": "string",
+                "name": "outcome_verdict"
+              },
+              {
+                "control_type": "checkbox",
+                "label": "Qualified success",
+                "render_input": "boolean_conversion",
+                "parse_output": "boolean_conversion",
+                "optional": true,
+                "toggle_hint": "Select from option list",
+                "toggle_field": {
+                  "label": "Qualified success",
+                  "control_type": "text",
+                  "toggle_hint": "Use custom value",
+                  "optional": true,
+                  "type": "boolean",
+                  "name": "qualified_success"
+                },
+                "type": "boolean",
+                "name": "qualified_success"
+              },
+              {
+                "control_type": "checkbox",
+                "label": "Replayed",
+                "render_input": "boolean_conversion",
+                "parse_output": "boolean_conversion",
+                "optional": true,
+                "toggle_hint": "Select from option list",
+                "toggle_field": {
+                  "label": "Replayed",
+                  "control_type": "text",
+                  "toggle_hint": "Use custom value",
+                  "optional": true,
+                  "type": "boolean",
+                  "name": "replayed"
+                },
+                "type": "boolean",
+                "name": "replayed"
+              }
+            ],
+            "type": "object"
+          }
+        ],
+        "extended_input_schema": [
+          {
+            "label": "Result",
+            "name": "result",
+            "properties": [
+              {
+                "control_type": "text",
+                "label": "Request ID",
+                "optional": true,
+                "type": "string",
+                "name": "request_id"
+              },
+              {
+                "control_type": "text",
+                "label": "Status",
+                "optional": true,
+                "type": "string",
+                "name": "status"
+              },
+              {
+                "control_type": "text",
+                "label": "Approval URL",
+                "optional": true,
+                "type": "string",
+                "name": "approval_url"
+              },
+              {
+                "control_type": "text",
+                "label": "Evidence URL",
+                "optional": true,
+                "type": "string",
+                "name": "evidence_url"
+              },
+              {
+                "control_type": "text",
+                "label": "Refund ID",
+                "optional": true,
+                "type": "string",
+                "name": "refund_id"
+              },
+              {
+                "control_type": "number",
+                "label": "Mutation count",
+                "parse_output": "float_conversion",
+                "optional": true,
+                "type": "number",
+                "name": "mutation_count"
+              },
+              {
+                "control_type": "text",
+                "label": "Outcome verdict",
+                "optional": true,
+                "type": "string",
+                "name": "outcome_verdict"
+              },
+              {
+                "control_type": "checkbox",
+                "label": "Qualified success",
+                "render_input": "boolean_conversion",
+                "parse_output": "boolean_conversion",
+                "optional": true,
+                "toggle_hint": "Select from option list",
+                "toggle_field": {
+                  "label": "Qualified success",
+                  "control_type": "text",
+                  "toggle_hint": "Use custom value",
+                  "optional": true,
+                  "type": "boolean",
+                  "name": "qualified_success"
+                },
+                "type": "boolean",
+                "name": "qualified_success"
+              },
+              {
+                "control_type": "checkbox",
+                "label": "Replayed",
+                "render_input": "boolean_conversion",
+                "parse_output": "boolean_conversion",
+                "optional": true,
+                "toggle_hint": "Select from option list",
+                "toggle_field": {
+                  "label": "Replayed",
+                  "control_type": "text",
+                  "toggle_hint": "Use custom value",
+                  "optional": true,
+                  "type": "boolean",
+                  "name": "replayed"
+                },
+                "type": "boolean",
+                "name": "replayed"
+              }
+            ],
+            "type": "object"
+          }
+        ],
+        "visible_config_fields": [
+          "result.request_id",
+          "result.status",
+          "result.approval_url",
+          "result.evidence_url",
+          "result.refund_id",
+          "result.mutation_count",
+          "result.outcome_verdict",
+          "result.qualified_success",
+          "result.replayed"
+        ],
+        "uuid": "716cd545-ad64-4552-a48c-1d290eab1b37"
+      }
+    ],
+    "uuid": "729bd861-ea6b-46d2-afc8-ce1d79cb13e9",
+    "unfinished": false
+  },
+  "config": [
+    {
+      "keyword": "application",
+      "provider": "workato_recipe_function",
+      "skip_validation": false,
+      "account_id": null
+    },
+    {
+      "keyword": "application",
+      "provider": "agentaction_governed_refund_reference",
+      "skip_validation": false,
+      "account_id": {
+        "zip_name": "agentaction_reference_refunds_recipe_only.connection.json",
+        "name": "AgentAction reference refunds — recipe only",
+        "folder": "",
+        "custom": true
+      }
+    }
+  ]
+}

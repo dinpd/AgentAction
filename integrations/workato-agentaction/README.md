@@ -1,7 +1,7 @@
 # Workato governed refund reference
 
 This reference connects Workato recipe execution to AgentAction's existing
-approval, single-use JIT authorization, intent contracts, execution receipts,
+automatic policy or human approval, single-use JIT authorization, intent contracts, execution receipts,
 and frozen outcome evaluation. All payments and refunds are synthetic.
 
 The deployed example is at https://agentaction-workato-demo.drisw.workers.dev.
@@ -9,7 +9,29 @@ The private Workato project is **AgentAction Governed Refund Demo**; recipe
 **Governed Support Refund — AgentAction** is recipe `386130` in the trial
 workspace. Credentials are provisioned separately and never included in exports.
 
-## Flow
+## Automatic policy path
+
+**Automatic Support Refund — AgentAction**, recipe `386132`, is the live
+no-review showcase in the **AgentAction import validation** trial project.
+Its function inputs are the same five business fields as the review recipe.
+Execute refund under automatic policy calls authenticated `POST /automatic/requests`;
+Get refund status reads the result, and Return result returns the verified outcome.
+
+The server permits supported-reason USD refunds up to `10000` cents. It creates
+no approval request, returns `authorization_mode=automatic` and
+`policy_decision=allowed`, consumes one scope-bound JIT grant, executes the mock
+provider once, and verifies its signed read-back before qualified success.
+Over-cap requests return `denied` with zero mutations. Recipe credentials still
+cannot approve requests. The existing `POST /requests` path retains human review;
+caller flags and headers cannot select or bypass it. Reusing a business ID across
+the two modes is HTTP 409, even with otherwise identical scope.
+
+Resubmitting the same automatic request returns the original refund ID with
+`replayed=true` and mutation count one. A response-loss fault returns HTTP 504
+before execution; retry resumes the persisted automatic request. Recovery after
+an uncertain mutation uses provider read-back and never blindly repeats it.
+
+## Human-review flow
 
 1. A recipe function receives a stable business request ID, payment ID, integer
    amount in USD cents, currency, and reason (`duplicate_charge` or
@@ -76,7 +98,7 @@ python3 build-package.py --output /tmp/agentaction-workato-reference.zip
 ```
 
 In Workato, open **Tools → Recipe lifecycle management → Import**, choose the
-zip, and select a fresh project. The package contains the recipe, connector,
+zip, and select a fresh project. The package contains both the human-review and automatic recipes, the connector,
 and a connection placeholder. Save and release the imported private connector,
 then configure its connection with the HTTPS adapter origin and recipe token;
 the package deliberately has no URL or token. The recipe remains stopped on
@@ -113,8 +135,9 @@ python3 smoke.py --url https://YOUR-WORKER.workers.dev \
   --reviewer-token-file /private/path/reviewer.token
 ```
 
-This program approves a synthetic request as an automated reviewer fixture;
-it validates the authorization boundary, not the human review experience.
+This program covers both modes. Its human-path check uses an automated reviewer
+fixture; its automatic-path check creates no approval. It validates the
+authorization boundary, not the human review experience.
 
 The reference was also imported into a fresh project in the trial workspace,
 creating a new private connector and an unconfigured connection placeholder.
@@ -145,3 +168,26 @@ no production payment integration, SSO reviewer directory, automatic uncertain
 mutation reconciliation, retention policy, or credential rotation UI. Those are
 separate production integration requirements. The Python wheel contains the
 existing CLI; use this repository directory for the Worker and connector.
+
+## 25-second video
+
+The demo uses captured live recipe jobs: `j-AbtF3Do9-PWrN98-AB` ($49 execution),
+`j-AbtF3bdK-HR6m4e-AB` (same-ID replay), and `j-AbtF3xK6-GpBmQY-AB` ($101 denial).
+The success and replay share refund `mock_re_cc084eec-39f3-4160-a8d5-ce4f638997f6`;
+the cap denial has no refund and zero mutations. Authenticated evidence for
+`workato-auto-video-001` has JWS provenance and a `policy.allowed` event, with
+no approval event. Workato reports a successfully completed job for a handled
+policy denial; that does not mean a refund succeeded.
+
+`demo/render-video.py` creates a 25-second, 1920×1080, 30 fps H.264 MP4 from
+real UI captures and verified synthetic results. It needs Pillow, ffmpeg, and
+ffprobe; local macOS `say` supplies the optional narration. Captures and output
+are local delivery artifacts rather than committed binaries. The edit condenses
+three actual jobs; it does not claim an uninterrupted 25-second execution.
+Use its `--help` for required capture names and validation. Never capture the
+connection credential form or reviewer token, or include token files in assets.
+
+The automatic recipe asset derives from the previously imported native review
+recipe with the two tested action substitutions and preserved dependency and
+return mappings. It was exercised live; a fresh import of the expanded two-recipe
+zip into another account was not available for this iteration.
