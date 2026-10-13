@@ -6,6 +6,10 @@ No changes yet.
 
 ## 0.50.0-rc.1 - 2026-10-10
 
+### Website highlight
+
+- Automatic refunds in Workato: Let a Workato recipe handle eligible refunds within a $100 limit, then check the evidence for each outcome. This preview uses synthetic USD refunds.
+
 ### Added
 
 - Automatic Workato synthetic-refund policy path: eligible USD refunds up to $100 execute with scope-bound single-use JIT authorization and signed outcome verification, without a reviewer or approval request.

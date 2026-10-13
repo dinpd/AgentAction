@@ -2941,14 +2941,19 @@ button:focus-visible {
 }
 
 /* Latest editorial issue sits directly below the homepage navigation. */
-.home-digest { width: min(calc(100% - 3rem), var(--max)); margin: 0 auto; padding: .75rem 0; border-bottom: 1px solid var(--line); }
-.digest-highlight { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
+.home-updates { width: min(calc(100% - 3rem), var(--max)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.home-digest, .home-new { min-width: 0; padding: 1rem 0; }
+.home-digest { padding-right: 1.5rem; }
+.home-new { padding-left: 1.5rem; border-left: 1px solid var(--line); }
+.digest-highlight { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: .35rem 1rem; }
 .digest-highlight img { display: block; width: 100%; height: auto; }
-.digest-highlight h2 { font-size: clamp(1rem, 1.3vw, 1.15rem); font-weight: 600; line-height: 1.25; margin: .2rem 0; }
-.digest-highlight p { font-size: .875rem; line-height: 1.5; }
-.digest-highlight .digest-meta { color: var(--muted); font-size: .8125rem; }
-.digest-highlight .proof-link { font-size: .875rem; padding-block: .5rem; }
-@media (max-width: 900px) { .digest-highlight { grid-template-columns: 64px minmax(0, 1fr); } .digest-highlight .proof-link { grid-column: 2; padding-block: .25rem; } }
+.digest-highlight h2, .home-new h2 { font-size: clamp(1rem, 1.3vw, 1.15rem); font-weight: 600; line-height: 1.25; margin: .2rem 0; }
+.digest-highlight p, .home-new .new-summary { font-size: .875rem; line-height: 1.5; }
+.digest-highlight .digest-meta, .home-new .digest-meta { color: var(--muted); font-size: .8125rem; }
+.digest-highlight .proof-link, .home-new .proof-link { font-size: .875rem; padding-block: .25rem; }
+.digest-highlight .proof-link { grid-column: 2; }
+.home-new .new-label { color: var(--ink); font-weight: 600; }
+@media (max-width: 900px) { .home-updates { grid-template-columns: minmax(0, 1fr); } .home-digest { padding-right: 0; } .home-new { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); } }
 @media (max-width: 520px) { .digest-highlight { grid-template-columns: 1fr; gap: .5rem; } .digest-highlight img { display: none; } .digest-highlight .proof-link { grid-column: 1; } }
 .grouped-header {
   gap: 1.5rem;

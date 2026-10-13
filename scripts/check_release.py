@@ -54,6 +54,26 @@ def release_entry(changelog: str, release_version: str) -> tuple[str, str]:
     raise ValueError(f"CHANGELOG.md has no dated {release_version} release entry")
 
 
+def validate_website_highlight(release_version: str, notes: str) -> list[str]:
+    """Require reviewed public copy for feature releases, not patch fixes."""
+    base = release_version.split("-rc.")[0].split(".")
+    if base[2] != "0" or not re.search(r"^### Added\s*$", notes, re.MULTILINE):
+        return []
+    sections = re.findall(
+        r"^### Website highlight\s*\n(.*?)(?=^#{1,3} |\Z)",
+        notes, re.MULTILINE | re.DOTALL,
+    )
+    if len(sections) != 1:
+        return ["feature release requires one Website highlight section for the homepage"]
+    match = re.fullmatch(r"- ([^\n]+?): ([^\n]+)", sections[0].strip())
+    if not match:
+        return ["Website highlight must be one '- Public headline: Public summary' bullet"]
+    title, summary = match.groups()
+    if len(title) > 90 or len(summary) > 230 or any(c in title + summary for c in "<>`*[]"):
+        return ["Website highlight requires plain text, headline <=90 and summary <=230 characters"]
+    return []
+
+
 def validate(tag: str | None = None) -> tuple[str, str, list[str]]:
     errors: list[str] = []
     try:
@@ -87,6 +107,7 @@ def validate(tag: str | None = None) -> tuple[str, str, list[str]]:
         errors.append(str(error))
     if not notes:
         errors.append(f"CHANGELOG.md release {release_version} has no notes")
+    errors.extend(validate_website_highlight(release_version, notes))
 
     expected_tag = version_to_tag(project_version)
     if tag is not None and tag != expected_tag:

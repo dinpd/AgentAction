@@ -48,6 +48,16 @@ must not remain only under `Unreleased` for more than 30 days.
    what became possible, compatibility impact, installation target, and any
    migration.
 
+For significant minor/major releases, write a `### Website highlight` section
+with one plain-text bullet: `- Public headline: Public summary`. Keep the
+headline within 90 characters and summary within 230. Describe the benefit and
+what people can now do; retain any material preview, synthetic-data or
+availability limit. Avoid internal identifiers, raw commit subjects, acronyms
+and unsupported claims. Review this copy in the release PR. The release metadata
+gate requires it, and the existing tag workflow publishes it with the notes.
+The homepage pulls only this reviewed copy, automatically; patches, drafts and
+legacy releases without a highlight do not replace the current feature.
+
 ## Release gates
 
 At minimum, a stable product release requires:

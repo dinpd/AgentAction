@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
 import { recipes } from "../../recipes/registry";
+import { loadProductNews } from "./public-news";
 
 const featuredRecipes = ["competitor-pricing", "support-help-articles", "incident-to-ticket"]
   .flatMap((id) => recipes.filter((recipe) => recipe.id === id));
@@ -210,7 +211,8 @@ const transitionStages = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const news = await loadProductNews();
   return (
     <main id="top">
       <a className="skip-link" href="#content">
@@ -219,17 +221,30 @@ export default function Home() {
 
       <SiteHeader home />
 
-      <section id="iam-digest" className="home-digest" aria-labelledby="iam-digest-title">
-        <div className="digest-highlight">
-          <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="64px" />
-          <div>
-            <p className="digest-meta">Agentic IAM digest · September 25–October 7, 2026</p>
-            <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
-            <p>Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.</p>
+      <div className="home-updates">
+        <section id="iam-digest" className="home-digest" aria-labelledby="iam-digest-title">
+          <div className="digest-highlight">
+            <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="64px" />
+            <div>
+              <p className="digest-meta">Agentic IAM digest · September 25–October 7, 2026</p>
+              <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
+              <p>Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.</p>
+            </div>
+            <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
           </div>
-          <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
-        </div>
-      </section>
+        </section>
+        {news && (
+          <section id="product-news" className="home-new" aria-labelledby="product-news-title">
+            <p className="digest-meta">
+              <span className="new-label">New in AgentAction</span> · {news.prerelease ? "Release candidate" : "Feature release"} · {" "}
+              <time dateTime={news.date}>{new Date(`${news.date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</time>
+            </p>
+            <h2 id="product-news-title">{news.title}</h2>
+            <p className="new-summary">{news.summary}</p>
+            <a className="proof-link" href={news.href}>See what changed <span aria-hidden="true">↗</span></a>
+          </section>
+        )}
+      </div>
 
       <section id="content" className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
