@@ -120,11 +120,26 @@ prompt in `AGENTS.md` requires a plain-language headline and summary;
 what visitors can now do, retaining material preview and synthetic-data limits.
 Technical Added bullets and raw Git subjects are never displayed.
 
+`See what changed` opens `/whats-new`, an accessible public archive with the same
+cached feed, newest first. It retains up to six feature versions, combining
+candidate/stable releases of the same feature version. Both surfaces share one
+cache; incomplete feeds and outages preserve recent reviewed entries. Release
+note `updated_at` timestamps allow public-copy corrections without letting old
+feed copy replace a newer reviewed fallback. Sitemap and canonical metadata
+make the archive discoverable.
+
+Phrase highlights around enduring capability and user benefit. For Workato,
+lead with the integration and describe the synthetic refund recipe as supporting
+evidence, not the product’s identity. Keep actual reference/preview scope
+explicit. Five recent release-backed entries are bundled in
+`app/public-news-fallback.json` and mirrored in the corresponding changelog and
+GitHub notes; future release CI publishes reviewed copy automatically.
+
 Only minor/major releases with Added content and a Website highlight qualify;
 patches, drafts and legacy notes without public copy are skipped. Release
 candidates are labeled. The highlight is a single `- Public headline: Public
-summary` bullet (90/230 characters). The initial fallback is based on the
-merged Workato feature and its current release.
+summary` bullet (90/230 characters). The bundled history records its editorial
+review timestamp separately from each source release's publication date.
 
 Refresh is server-side on visits, cached for one hour per Worker instance, with
 coalesced requests, a two-second timeout, a 256 KiB response limit and five-minute

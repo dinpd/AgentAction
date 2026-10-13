@@ -21,11 +21,15 @@ try {
     const digestBox = await highlight.boundingBox();
     const news = page.locator('#product-news');
     assert.match(await news.textContent(), /New in AgentAction/);
-    assert.match(await news.getByRole('link', { name: 'See what changed' }).getAttribute('href'), /^https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v/);
+    assert.equal(await news.getByRole('link', { name: 'See what changed' }).getAttribute('href'), '/whats-new');
     const newsBox = await news.boundingBox();
     const heroBox = await page.locator('#content').boundingBox();
     assert.ok(digestBox.y + digestBox.height <= heroBox.y + 1, 'digest precedes hero');
-    assert.ok(await highlight.locator('p:not(.digest-meta)').evaluate((summary) => parseFloat(getComputedStyle(summary).fontSize) >= 14), 'readable summary');
+    assert.ok(await highlight.locator('p').evaluate((summary) => parseFloat(getComputedStyle(summary).fontSize) >= 14), 'readable summary');
+    for (const section of [highlight, news]) {
+      assert.ok(await section.locator('.update-label').evaluate((label) => getComputedStyle(label).textTransform === 'uppercase'), 'styled section label');
+      assert.ok(await section.locator('h2').evaluate((heading) => parseFloat(getComputedStyle(heading).fontWeight) >= 700), 'strong feature headline');
+    }
     assert.ok(await highlight.locator('a').evaluate((link) => parseFloat(getComputedStyle(link).fontSize) >= 14), 'readable digest link');
     if (width === 1440) {
       assert.ok(Math.abs(digestBox.y - newsBox.y) <= 1, 'updates share a desktop row');
@@ -35,6 +39,16 @@ try {
     }
     else assert.ok(newsBox.y >= digestBox.y + digestBox.height - 1, 'updates stack on mobile');
     await page.screenshot({ path: `/private/tmp/agentaction-updates-${width}.png` });
+    const homepageTitle = await news.locator('h2').textContent();
+    await news.getByRole('link', { name: 'See what changed' }).click();
+    await page.waitForURL('**/whats-new');
+    assert.equal(await page.locator('.news-item').count() >= 5, true);
+    assert.equal(await page.locator('.news-item h2').first().textContent(), homepageTitle);
+    assert.match(homepageTitle, /Workato integration/);
+    assert.ok(await page.locator('.news-source').first().evaluate((link) => parseFloat(getComputedStyle(link).fontSize) >= 14));
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'news page overflow');
+    await page.screenshot({ path: `/private/tmp/agentaction-whats-new-${width}.png`, fullPage: true });
+    await page.goto(origin);
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();
     await page.waitForURL(`**${permalink}`);
     assert.match(await page.locator('h1').textContent(), /Identity moves into/);
@@ -52,11 +66,17 @@ try {
   await page.goto(origin);
   await page.addStyleTag({ content: 'html { font-size: 200%; }' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'text zoom overflow');
+  await page.goto(`${origin}/whats-new`);
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'news text zoom overflow');
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const plainPage = await noScript.newPage();
   await plainPage.goto(origin);
   assert.match(await plainPage.locator('#product-news').textContent(), /New in AgentAction/);
   assert.ok(await plainPage.locator('#iam-digest a').isVisible());
+  await plainPage.getByRole('link', { name: 'See what changed' }).click();
+  await plainPage.waitForURL('**/whats-new');
+  assert.equal(await plainPage.locator('.news-item').count() >= 5, true);
   await plainPage.goto(`${origin}${permalink}`);
   assert.match(await plainPage.locator('#vector').textContent(), /Editorial outlook/);
   await noScript.close();

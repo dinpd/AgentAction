@@ -226,7 +226,10 @@ export default async function Home() {
           <div className="digest-highlight">
             <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="64px" />
             <div>
-              <p className="digest-meta">Agentic IAM digest · September 25–October 7, 2026</p>
+              <div className="update-heading">
+                <span className="update-label">Agentic IAM digest</span>
+                <span className="digest-meta">September 25–October 7, 2026</span>
+              </div>
               <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
               <p>Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.</p>
             </div>
@@ -235,13 +238,16 @@ export default async function Home() {
         </section>
         {news && (
           <section id="product-news" className="home-new" aria-labelledby="product-news-title">
-            <p className="digest-meta">
-              <span className="new-label">New in AgentAction</span> · {news.prerelease ? "Release candidate" : "Feature release"} · {" "}
-              <time dateTime={news.date}>{new Date(`${news.date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</time>
-            </p>
+            <div className="update-heading">
+              <span className="update-label update-label-new">New in AgentAction</span>
+              <p className="digest-meta">
+                {news.prerelease ? "Release candidate" : "Feature release"} · {" "}
+                <time dateTime={news.date}>{new Date(`${news.date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</time>
+              </p>
+            </div>
             <h2 id="product-news-title">{news.title}</h2>
             <p className="new-summary">{news.summary}</p>
-            <a className="proof-link" href={news.href}>See what changed <span aria-hidden="true">↗</span></a>
+            <Link className="proof-link" href="/whats-new">See what changed <span aria-hidden="true">→</span></Link>
           </section>
         )}
       </div>

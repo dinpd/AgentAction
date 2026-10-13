@@ -58,6 +58,14 @@ gate requires it, and the existing tag workflow publishes it with the notes.
 The homepage pulls only this reviewed copy, automatically; patches, drafts and
 legacy releases without a highlight do not replace the current feature.
 
+Phrase headlines strategically: lead with the enduring capability or integration
+and the benefit to the reader. Put demo scenarios in the summary as evidence.
+For example, use "Workato integration" rather than "Automatic refunds in
+Workato", then explain the action controls and outcome evidence and identify
+the synthetic refund reference example. Keep scope and availability precise;
+a working demo does not imply general production support. The homepage and
+`/whats-new` share the same reviewed feed, retaining six recent feature versions.
+
 ## Release gates
 
 At minimum, a stable product release requires:
