@@ -8,7 +8,7 @@ No changes yet.
 
 ### Website highlight
 
-- Automatic refunds in Workato: Let a Workato recipe handle eligible refunds within a $100 limit, then check the evidence for each outcome. This preview uses synthetic USD refunds.
+- Workato integration: Bring action controls and outcome evidence into Workato recipes. The reference integration demonstrates human-reviewed and automatic paths using synthetic USD refunds capped at $100.
 
 ### Added
 
@@ -39,6 +39,10 @@ No changes yet.
 
 ## 0.48.0-rc.1 - 2026-10-08
 
+### Website highlight
+
+- Research workflows with step-by-step evidence: Follow newly saved research workflows from source retrieval to report delivery, with a recorded history of each step. See what ran and where a run stopped; older workflows keep their existing behavior.
+
 ### Added
 
 - Newly saved social scanners execute the frozen, server-validated v2 workflow contract: bounded operations, typed input connections, AI instructions and parameters, retrieval/poll/deadline limits, report bounds and stable delivery identity.
@@ -52,6 +56,10 @@ No changes yet.
 - Install Python artifacts from the GitHub v0.48.0-rc.1 prerelease; hosted services deploy from the merge commit. No registry publication is implied.
 
 ## 0.47.0-rc.1 - 2026-10-07
+
+### Website highlight
+
+- Research workflow transparency: Inspect a research agent’s instructions, source connections and selection evidence in My agents and Runs. These read-only records explain the workflow without executing it.
 
 ### Added
 
@@ -81,6 +89,10 @@ No changes yet.
 - Install Python artifacts from the GitHub v0.46.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
 
 ## 0.45.0-rc.1 - 2026-09-25
+
+### Website highlight
+
+- Twice-daily research on your schedule: Schedule an optional second daily research scan in your local timezone, with separate spending limits for each source. Each scan looks back 24 hours, so reports can overlap.
 
 ### Added
 
@@ -146,6 +158,10 @@ No changes yet.
 - Install Python artifacts from the GitHub v0.44.0-rc.1 prerelease. Hosted services deploy from the merge commit; no registry publication is implied.
 
 ## 0.43.0-rc.1 - 2026-09-25
+
+### Website highlight
+
+- One place to review agent actions: Find pending actions in a dedicated Approvals queue, review the exact proposed call and open its run history. Approval still applies only to the action you reviewed.
 
 ### Added
 

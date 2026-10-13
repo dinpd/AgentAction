@@ -32,6 +32,11 @@ For a release-bearing task:
    retaining meaningful preview/synthetic/availability limits. Do not copy Git
    subjects, implementation details or marketing claims. The homepage pulls this
    reviewed copy automatically from CI-published release notes.
+   Lead with the enduring capability or integration and its user benefit. Name
+   demo scenarios as supporting examples, not as the product feature. Describe
+   shipped scope precisely: do not imply general production support from a
+   synthetic reference integration. Prefer clear capability names over narrow
+   demo actions, technical identifiers, superlatives or vague novelty.
 2. run the release gates documented in `docs/releasing.md`;
 3. merge through the normal issue-to-merge process;
 4. create and push the matching version tag;

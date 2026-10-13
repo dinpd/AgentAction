@@ -1,0 +1,42 @@
+[
+  {
+    "tag_name": "v0.50.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-10-11T03:10:14Z",
+    "body": "### Website highlight\n\n- Workato integration: Bring action controls and outcome evidence into Workato recipes. The reference integration demonstrates human-reviewed and automatic paths using synthetic USD refunds capped at $100.\n\n### Added\n\n- Automatic Workato synthetic-refund policy path: eligible USD refunds up to $100 execute with scope-bound single-use JIT authorization and signed outcome verification, without a reviewer or approval request.",
+    "reviewed_at": "2026-10-13T21:45:49Z"
+  },
+  {
+    "tag_name": "v0.48.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-10-08T15:25:45Z",
+    "body": "### Website highlight\n\n- Research workflows with step-by-step evidence: Follow newly saved research workflows from source retrieval to report delivery, with a recorded history of each step. See what ran and where a run stopped; older workflows keep their existing behavior.\n\n### Added\n\n- Newly saved social scanners execute the frozen, server-validated v2 workflow contract: bounded operations, typed input connections, AI instructions and parameters, retrieval/poll/deadline limits, report bounds and stable delivery identity.",
+    "reviewed_at": "2026-10-13T21:45:49Z"
+  },
+  {
+    "tag_name": "v0.47.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-10-07T19:22:11Z",
+    "body": "### Website highlight\n\n- Research workflow transparency: Inspect a research agent’s instructions, source connections and selection evidence in My agents and Runs. These read-only records explain the workflow without executing it.\n\n### Added\n\n- Read-only social research workflow inspection in My agents and Runs: typed step connections, AI instructions/model, provider bindings, limits, failure behavior and evidence associated with stable step IDs.",
+    "reviewed_at": "2026-10-13T21:45:49Z"
+  },
+  {
+    "tag_name": "v0.45.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-09-26T01:06:31Z",
+    "body": "### Website highlight\n\n- Twice-daily research on your schedule: Schedule an optional second daily research scan in your local timezone, with separate spending limits for each source. Each scan looks back 24 hours, so reports can overlap.\n\n### Added\n\n- Optional second daily local research time, shown in saved cards and the explicit schedule review. The scheduler chooses the next local slot across timezone and daylight-saving changes.",
+    "reviewed_at": "2026-10-13T21:45:49Z"
+  },
+  {
+    "tag_name": "v0.43.0-rc.1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-09-25T20:57:48Z",
+    "body": "### Website highlight\n\n- One place to review agent actions: Find pending actions in a dedicated Approvals queue, review the exact proposed call and open its run history. Approval still applies only to the action you reviewed.\n\n### Added\n\n- A dedicated Approvals menu with a workspace-scoped pending count. The queue contains actionable proposed calls with the existing exact-argument review, revision, approval and cancellation controls.",
+    "reviewed_at": "2026-10-13T21:45:49Z"
+  }
+]

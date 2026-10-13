@@ -14,10 +14,10 @@ function firstBullet(body, heading) {
   return section?.match(/^[-*] (.+(?:\n[ \t]+[^\n]+)*)/m)?.[1];
 }
 
-export function selectProductNews(releases) {
-  if (!Array.isArray(releases)) return null;
+export function selectProductNewsHistory(releases) {
+  if (!Array.isArray(releases)) return [];
   const candidates = releases.flatMap((release) => {
-    if (!release || release.draft !== false || typeof release.body !== 'string' || release.body.length > MAX_BYTES) return [];
+    if (!release || release.draft !== false || typeof release.tag_name !== 'string' || typeof release.body !== 'string' || release.body.length > MAX_BYTES) return [];
     const version = /^v(\d+)\.(\d+)\.0(?:-rc\.[1-9]\d*)?$/.exec(release.tag_name);
     if (!version || (Number(version[1]) === 0 && Number(version[2]) === 0)) return [];
     if (typeof release.published_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(release.published_at) || !Number.isFinite(Date.parse(release.published_at))) return [];
@@ -32,17 +32,44 @@ export function selectProductNews(releases) {
     const title = text.slice(0, colon);
     const summary = text.slice(colon + 2);
     if (!summary || summary.length > 230) return [];
+    // Bundled snapshots record review time; live notes use GitHub's revision time.
+    const revisedAt = release.reviewed_at ?? release.updated_at;
     return [{
       title,
       summary,
       date: release.published_at.slice(0, 10),
       publishedAt: release.published_at,
+      updatedAt: typeof revisedAt === 'string' && Number.isFinite(Date.parse(revisedAt)) ? revisedAt : release.published_at,
       tag: release.tag_name,
       prerelease: release.prerelease === true || release.tag_name.includes('-rc.'),
       href: `${RELEASE_ROOT}${release.tag_name}`,
     }];
   });
-  return candidates.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))[0] ?? null;
+  // One highlight per feature version, even when a candidate becomes stable.
+  const seen = new Set();
+  return candidates.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .filter((news) => {
+      const feature = news.tag.split('-')[0];
+      if (seen.has(feature)) return false;
+      seen.add(feature);
+      return true;
+    }).slice(0, 6);
+}
+
+export function selectProductNews(releases) {
+  return selectProductNewsHistory(releases)[0] ?? null;
+}
+
+function mergeHistory(current, incoming) {
+  const byFeature = new Map(current.map((news) => [news.tag.split('-')[0], news]));
+  for (const news of incoming) {
+    const feature = news.tag.split('-')[0];
+    const prior = byFeature.get(feature);
+    const newerRelease = !prior || Date.parse(news.publishedAt) > Date.parse(prior.publishedAt);
+    const newerCopy = prior && news.publishedAt === prior.publishedAt && Date.parse(news.updatedAt) >= Date.parse(prior.updatedAt);
+    if (newerRelease || newerCopy) byFeature.set(feature, news);
+  }
+  return [...byFeature.values()].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, 6);
 }
 
 async function boundedJson(response) {
@@ -65,11 +92,11 @@ async function boundedJson(response) {
   }
 }
 
-export function createProductNewsLoader(fallback, { fetcher = fetch, now = Date.now, timeoutMs = 2000 } = {}) {
+export function createProductNewsHistoryLoader(fallback, { fetcher = fetch, now = Date.now, timeoutMs = 2000 } = {}) {
   let latest = fallback;
   let expires = 0;
   let pending;
-  return async function loadProductNews() {
+  return async function loadProductNewsHistory() {
     if (now() < expires) return latest;
     if (pending) return pending;
     pending = (async () => {
@@ -81,11 +108,11 @@ export function createProductNewsLoader(fallback, { fetcher = fetch, now = Date.
           signal: controller.signal,
           redirect: 'error',
         });
-        const candidate = selectProductNews(await boundedJson(response));
-        if (candidate && (!latest || Date.parse(candidate.publishedAt) >= Date.parse(latest.publishedAt))) latest = candidate;
-        expires = now() + (candidate ? 60 * 60 * 1000 : 5 * 60 * 1000);
+        const candidates = selectProductNewsHistory(await boundedJson(response));
+        latest = mergeHistory(latest, candidates);
+        expires = now() + (candidates.length ? 60 * 60 * 1000 : 5 * 60 * 1000);
       } catch {
-        // Keep the last verified highlight, including on rate limits and timeout.
+        // Keep reviewed history, including on rate limits and timeout.
         expires = now() + 5 * 60 * 1000;
       } finally {
         clearTimeout(timeout);
@@ -98,4 +125,9 @@ export function createProductNewsLoader(fallback, { fetcher = fetch, now = Date.
       pending = undefined;
     }
   };
+}
+
+export function createProductNewsLoader(fallback, options) {
+  const loadHistory = createProductNewsHistoryLoader(fallback ? [fallback] : [], options);
+  return async () => (await loadHistory())[0] ?? null;
 }

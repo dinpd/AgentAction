@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createProductNewsLoader, RELEASES_URL, selectProductNews } from '../app/product-news.mjs';
+import { createProductNewsHistoryLoader, selectProductNewsHistory } from '../app/product-news.mjs';
 
 const release = (fields = {}) => ({
   tag_name: 'v0.50.0-rc.1', draft: false, prerelease: true,
@@ -80,4 +81,58 @@ test('aborts slow requests and retains fallback', async () => {
   });
   assert.deepEqual(await load(), fallback);
   assert.equal(aborted, true);
+});
+
+test('history is newest first, bounded and deduplicated across prerelease promotions', () => {
+  assert.deepEqual(selectProductNewsHistory([release({ tag_name: ['v0.50.0-rc.1'] })]), []);
+  const releases = Array.from({ length: 9 }, (_, i) => release({
+    tag_name: `v0.${50 + i}.0-rc.1`, published_at: `2026-10-${String(11 + i).padStart(2, '0')}T00:00:00Z`,
+  }));
+  releases.push(release({ tag_name: 'v0.58.0', prerelease: false, published_at: '2026-10-20T00:00:00Z' }));
+  releases.push(releases[0]);
+  const news = selectProductNewsHistory(releases.reverse());
+  assert.equal(news.length, 6);
+  assert.equal(news[0].tag, 'v0.58.0');
+  assert.equal(news[0].prerelease, false);
+  assert.equal(news[5].tag, 'v0.53.0-rc.1');
+  assert.equal(new Set(news.map((item) => item.tag.split('-')[0])).size, 6);
+  assert.deepEqual(selectProductNewsHistory(null), []);
+});
+
+test('a shared history refresh updates the homepage and archive while keeping missing recent entries', async () => {
+  let time = 0;
+  let calls = 0;
+  const old = selectProductNewsHistory([release({ tag_name: 'v0.49.0-rc.1', published_at: '2026-10-10T00:00:00Z' })])[0];
+  const loadHistory = createProductNewsHistoryLoader([fallback, old], {
+    now: () => time,
+    fetcher: async () => {
+      calls++;
+      if (calls === 1) return Response.json([release()]);
+      if (calls === 2) return Response.json([release({ tag_name: 'v0.51.0', published_at: '2026-10-12T00:00:00Z' })]);
+      throw new Error('offline');
+    },
+  });
+  const home = async () => (await loadHistory())[0];
+  assert.equal((await home()).tag, 'v0.50.0-rc.1');
+  assert.equal((await loadHistory()).length, 2);
+  assert.equal(calls, 1);
+  time = 3_600_001;
+  assert.equal((await home()).tag, 'v0.51.0');
+  const archive = await loadHistory();
+  assert.deepEqual(archive.map((item) => item.tag), ['v0.51.0', 'v0.50.0-rc.1', 'v0.49.0-rc.1']);
+  time += 3_600_001;
+  assert.deepEqual(await loadHistory(), archive);
+});
+
+test('reviewed copy revisions refresh without replacing newer fallback copy with an obsolete feed', async () => {
+  let time = 0;
+  let calls = 0;
+  const reviewed = selectProductNewsHistory([release({ reviewed_at: '2026-10-13T00:00:00Z', body: release().body.replace('Automatic refunds', 'Workato integration') })]);
+  const loadHistory = createProductNewsHistoryLoader(reviewed, {
+    now: () => time,
+    fetcher: async () => Response.json([release({ updated_at: ++calls === 1 ? '2026-10-12T00:00:00Z' : '2026-10-14T00:00:00Z', body: release().body.replace('Automatic refunds', calls === 1 ? 'Old demo headline' : 'Refined integration headline') })]),
+  });
+  assert.equal((await loadHistory())[0].title, 'Workato integration');
+  time += 3_600_001;
+  assert.equal((await loadHistory())[0].title, 'Refined integration headline');
 });

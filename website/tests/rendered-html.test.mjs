@@ -87,11 +87,40 @@ test("shows dated public feature news beside the digest above the hero", async (
   assert.match(news, /<h2 id="product-news-title">[^<]+<\/h2>/);
   assert.match(news, /Release candidate|Feature release/);
   assert.match(news, /<time dateTime="\d{4}-\d{2}-\d{2}">/i);
-  assert.match(news, /href="https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v\d+\.\d+\.0(?:-rc\.\d+)?"/);
+  assert.match(news, /href="\/whats-new"/);
+  assert.match(news, /class="update-label update-label-new"/);
   assert.match(news, /See what changed/);
   assert.equal([...html.matchAll(/id="product-news"/g)].length, 1);
   assert.ok(html.indexOf('class="home-updates"') < html.indexOf('id="iam-digest"'));
   assert.ok(html.indexOf('id="product-news"') < html.indexOf('id="hero-title"'));
+});
+
+test("publishes recent public feature highlights with shared feed, strategic copy and discovery metadata", async () => {
+  const response = await render('/whats-new');
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(html, /What’s new<br\s*\/?>in AgentAction\./);
+  assert.match(html, /aria-label="Recent feature highlights"/);
+  const items = [...html.matchAll(/<article class="news-item"[\s\S]*?<\/article>/g)].map((match) => match[0]);
+  assert.ok(items.length >= 5 && items.length <= 6);
+  assert.match(items[0], /Workato integration/);
+  assert.match(items[0], /reference integration/);
+  assert.match(items[0], /synthetic USD refunds/);
+  assert.doesNotMatch(items[0], /Automatic refunds in Workato/);
+  for (const item of items) {
+    assert.match(item, /<h2>[^<]+<\/h2>/);
+    assert.match(item, /Release candidate|Feature release/);
+    assert.match(item, /href="https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v\d+\.\d+\.0(?:-rc\.\d+)?"/);
+  }
+  const dates = items.map((item) => item.match(/dateTime="([^"]+)"/i)[1]);
+  assert.deepEqual(dates, [...dates].sort().reverse());
+  const home = await (await render('/')).text();
+  const homepageTitle = home.match(/<h2 id="product-news-title">([^<]+)<\/h2>/)[1];
+  assert.ok(items[0].includes(`<h2>${homepageTitle}</h2>`));
+  assert.match(html, /rel="canonical" href="https:\/\/agentaction.dev\/whats-new"/);
+  assert.match(html, /aria-label="Primary navigation"/);
+  assert.match(await (await render('/sitemap.xml')).text(), /https:\/\/agentaction.dev\/whats-new/);
 });
 
 test("serves the isolated temporal MCP simulation and links it from the homepage", async () => {
