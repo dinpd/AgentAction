@@ -78,6 +78,22 @@ async function render(pathname = "/") {
   );
 }
 
+test("shows dated public feature news beside the digest above the hero", async () => {
+  const html = await (await render('/')).text();
+  const news = html.match(/<section id="product-news"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(news);
+  assert.match(news, /aria-labelledby="product-news-title"/);
+  assert.match(news, /New in AgentAction/);
+  assert.match(news, /<h2 id="product-news-title">[^<]+<\/h2>/);
+  assert.match(news, /Release candidate|Feature release/);
+  assert.match(news, /<time dateTime="\d{4}-\d{2}-\d{2}">/i);
+  assert.match(news, /href="https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v\d+\.\d+\.0(?:-rc\.\d+)?"/);
+  assert.match(news, /See what changed/);
+  assert.equal([...html.matchAll(/id="product-news"/g)].length, 1);
+  assert.ok(html.indexOf('class="home-updates"') < html.indexOf('id="iam-digest"'));
+  assert.ok(html.indexOf('id="product-news"') < html.indexOf('id="hero-title"'));
+});
+
 test("serves the isolated temporal MCP simulation and links it from the homepage", async () => {
   const response = await render('/demo');
   assert.equal(response.status, 200);

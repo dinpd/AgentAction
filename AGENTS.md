@@ -26,6 +26,12 @@ changes may be marked `no release`, with a brief rationale.
 For a release-bearing task:
 
 1. update version metadata and `CHANGELOG.md` in the pull request;
+   for a significant feature release, include a `### Website highlight` with
+   one `- Public headline: Public summary` bullet (headline at most 90 characters,
+   summary at most 230). Explain what a visitor can now do in plain language,
+   retaining meaningful preview/synthetic/availability limits. Do not copy Git
+   subjects, implementation details or marketing claims. The homepage pulls this
+   reviewed copy automatically from CI-published release notes.
 2. run the release gates documented in `docs/releasing.md`;
 3. merge through the normal issue-to-merge process;
 4. create and push the matching version tag;

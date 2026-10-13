@@ -110,6 +110,29 @@ against a local preview, with `DEMO_ORIGIN` overriding `http://localhost:3000`.
 
 ## Agentic IAM blog
 
+### New in AgentAction
+
+The homepage pairs the digest with public feature news, side by side on desktop
+and stacked below 900px. It pulls reviewed `### Website highlight` copy from
+public GitHub release notes, published by the existing release CI. The delivery
+prompt in `AGENTS.md` requires a plain-language headline and summary;
+`scripts/check_release.py` checks format and length before release. Describe
+what visitors can now do, retaining material preview and synthetic-data limits.
+Technical Added bullets and raw Git subjects are never displayed.
+
+Only minor/major releases with Added content and a Website highlight qualify;
+patches, drafts and legacy notes without public copy are skipped. Release
+candidates are labeled. The highlight is a single `- Public headline: Public
+summary` bullet (90/230 characters). The initial fallback is based on the
+merged Workato feature and its current release.
+
+Refresh is server-side on visits, cached for one hour per Worker instance, with
+coalesced requests, a two-second timeout, a 256 KiB response limit and five-minute
+failure backoff. Outages retain bundled or last-good content. No credentials,
+CI write permissions, schedule or new deployments are needed for future
+highlights. If patch releases push the feature out of the 30-release feed, the
+fallback/last-good card remains.
+
 `/blog` lists dated editorial issues. The first issue covers September 25–October
 7, 2026 at `/blog/agentic-iam-digest-2026-10-07`, with primary-source links,
 availability distinctions, preprint limitations, older context and an explicitly
