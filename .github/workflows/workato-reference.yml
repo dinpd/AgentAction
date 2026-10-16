@@ -1,10 +1,10 @@
 name: Workato Reference
 on:
   pull_request:
-    paths: ['integrations/workato-agentaction/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
+    paths: ['integrations/workato-agentaction/**', 'integrations/refund-reference/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
   push:
     branches: [main]
-    paths: ['integrations/workato-agentaction/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
+    paths: ['integrations/workato-agentaction/**', 'integrations/refund-reference/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/workato-reference.yml']
 permissions:
   contents: read
 jobs:

@@ -4,6 +4,24 @@
 
 No changes yet.
 
+## 0.51.0-rc.1 - 2026-10-16
+
+### Website highlight
+
+- n8n integration: Bring action controls and signed outcome evidence into native n8n workflows. The reference demonstrates automatic policy, separate human review and safe retries using synthetic USD refunds capped at $100.
+
+### Added
+
+- Portable inactive n8n workflows for automatic and human-reviewed synthetic refunds, using private Header Auth credentials and built-in nodes. Review polling uses durable 70-second waits and a bounded 30-minute deadline.
+- Dedicated n8n reference Worker with workflow/execution correlations, scope-bound single-use authorization, signed provider read-back and frozen outcome evidence, reusing the tested Workato refund engine.
+- Automated native n8n/workerd acceptance harness including success, replay, policy denial, reviewer isolation, polling timeout and persisted review continuation across n8n restart. GitHub prereleases include a credential-free workflow import archive.
+
+### Compatibility
+
+- Significant functionality: additive minor release candidate retaining the prerelease baseline for a new reference integration. Workato identifiers, persisted records, roles and public contracts remain unchanged; no destructive migration or production gateway change.
+- Synthetic USD refunds only, capped at $100. No production payment connection, marketplace publication or new OAuth permissions. Separate reviewer credentials stay outside n8n. Provider signatures remain within one deployment and are not an independent financial audit. Uncertain mutations require operator reconciliation.
+- Install Python artifacts from the GitHub v0.51.0-rc.1 prerelease. n8n Worker source and native workflow imports are in integrations/n8n-agentaction and the attached workflow archive; no registry publication is implied. Native runtime validation uses local n8n 2.43.7 with a reviewer fixture, not an external account or human usability test.
+
 ## 0.50.0-rc.1 - 2026-10-10
 
 ### Website highlight

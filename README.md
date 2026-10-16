@@ -29,6 +29,7 @@ boundaries.
 | [MCP Readiness Check](https://agentaction-mcp-check.drisw.workers.dev/) | Anonymous server inspection, actionable guidance and exportable profiles; opt-in public evidence reused in discovery. |
 | [Gateway and refund control](https://agentid-refund-demo.drisw.workers.dev/) | Approval, scoped JIT authority, idempotency, audit, and provider-tool authorization in a support workflow. |
 | [Workato reference integration](integrations/workato-agentaction/) | A private recipe requests an exact-scope human approval, waits durably, and returns a synthetic refund's signed outcome and frozen intent evidence. |
+| [n8n reference integration](integrations/n8n-agentaction/) | Native workflows bring automatic or human-reviewed action controls and signed outcome evidence to synthetic refunds. |
 | [DevOps and SRE control](https://agentid-devops-demo.drisw.workers.dev/) | Production-context checks, deployment approval, JIT grants, dry-run dispatch, canary monitoring, and rollback control. |
 | [Policy builder](https://agentid-policy-builder.pages.dev/) | Browser-based manifest authoring with generated YAML, starter OPA policy, and example gateway requests. |
 | [Observability console demo](https://agentaction-observability-demo.drisw.workers.dev/?window=7#overview) | Public, read-only Fleet Overview, finalized Jobs explorer, and deterministic evidence timeline backed exclusively by synthetic fixtures. |

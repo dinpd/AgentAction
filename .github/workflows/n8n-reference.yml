@@ -1,0 +1,32 @@
+name: n8n Reference
+on:
+  pull_request:
+    paths: ['integrations/n8n-agentaction/**', 'integrations/refund-reference/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/n8n-reference.yml']
+  push:
+    branches: [main]
+    paths: ['integrations/n8n-agentaction/**', 'integrations/refund-reference/**', 'cloudflare/src/**', 'packages/guard/src/intent.ts', '.github/workflows/n8n-reference.yml']
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: integrations/n8n-agentaction
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: integrations/n8n-agentaction/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: python3 build-package.py
+      - run: npm audit
+      - name: Install isolated native n8n QA runtime
+        run: npm install --prefix "$RUNNER_TEMP/n8n-runtime" n8n@2.43.7 > "$RUNNER_TEMP/n8n-install.log" 2>&1
+      - name: Validate native imports, execution and durable restart
+        run: python3 runtime-smoke.py --n8n-bin "$RUNNER_TEMP/n8n-runtime/node_modules/.bin/n8n"
