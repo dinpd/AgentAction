@@ -1,0 +1,24 @@
+name = "agentaction-n8n-demo"
+main = "src/worker.ts"
+compatibility_date = "2026-10-10"
+workers_dev = true
+
+# Store N8N_CLIENTS_JSON as a secret. Each entry contains a SHA-256 token
+# hash, tenant_id, subject, agent_id, and role (recipe or reviewer).
+# No raw token, provider credential, or production payment system is included.
+
+[[durable_objects.bindings]]
+name = "REFUNDS"
+class_name = "N8nRefunds"
+
+[[durable_objects.bindings]]
+name = "MOCK_PROVIDER"
+class_name = "MockRefundProvider"
+
+[[durable_objects.bindings]]
+name = "JIT_GRANTS"
+class_name = "AgentIdJitGrants"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["N8nRefunds", "MockRefundProvider", "AgentIdJitGrants"]

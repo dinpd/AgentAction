@@ -56,6 +56,7 @@ jobs:
           - packages/openclaw
           - mcp-gateway-adapter
           - integrations/workato-agentaction
+          - integrations/n8n-agentaction
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +97,18 @@ jobs:
           path: /tmp/agentaction-workato-reference.zip
           if-no-files-found: error
 
+      - name: Build n8n workflow import package
+        if: ${{ matrix.package == 'integrations/n8n-agentaction' }}
+        working-directory: integrations/n8n-agentaction
+        run: python3 build-package.py
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ matrix.package == 'integrations/n8n-agentaction' }}
+        with:
+          name: n8n-reference
+          path: /tmp/agentaction-n8n-reference.zip
+          if-no-files-found: error
+
   publish:
     needs: [python, typescript]
     runs-on: ubuntu-latest
@@ -112,6 +125,11 @@ jobs:
           name: workato-reference
           path: release/workato
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: n8n-reference
+          path: release/n8n
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -125,13 +143,14 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \
               --notes-file release/release-notes.md
-            gh release upload "$GITHUB_REF_NAME" release/dist/* release/workato/* \
+            gh release upload "$GITHUB_REF_NAME" release/dist/* release/workato/* release/n8n/* \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
               release/dist/* \
               release/workato/* \
+              release/n8n/* \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \

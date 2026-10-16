@@ -1,0 +1,170 @@
+{
+  "name": "AgentAction Automatic Synthetic Refund Reference",
+  "active": false,
+  "nodes": [
+    {
+      "id": "run-demo",
+      "name": "Run demo",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "refund-inputs",
+      "name": "Refund inputs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({adapter_url: \"https://YOUR-WORKER.workers.dev\", request_id: \"n8n-auto-001\", payment_id: \"pi_demo_001\", amount_cents: 4900, currency: \"USD\", reason: \"duplicate_charge\", poll_deadline: Date.now() + 1800000}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "submit-refund",
+      "name": "Submit refund",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "url": "={{ $('Refund inputs').first().json.adapter_url + '/automatic/requests' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({request_id: $json.request_id, payment_id: $json.payment_id, amount_cents: $json.amount_cents, currency: $json.currency, reason: $json.reason, n8n_workflow_id: $workflow.id, n8n_execution_id: $execution.id}) }}"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "final-status",
+      "name": "Final status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [880, 100],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({...$json, polling_timed_out: $json.status === 'pending', reconciliation_required: !['succeeded','denied','expired','pending'].includes($json.status)}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "read-frozen-evidence",
+      "name": "Read frozen evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 100],
+      "parameters": {
+        "url": "={{ $('Refund inputs').first().json.adapter_url + '/requests/' + encodeURIComponent($('Refund inputs').first().json.request_id) + '/evidence' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "refund-outcome",
+      "name": "Refund outcome",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 100],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({...$('Final status').first().json, evidence: $json}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "setup-and-boundaries",
+      "name": "Setup and boundaries",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 280],
+      "parameters": {
+        "content": "## AgentAction \u00b7 synthetic refunds only\n1. Set your HTTPS Worker origin and business scope in Refund inputs. Keep request_id unchanged on retry; use a fresh ID for another business request.\n2. Select the private workflow Header Auth credential on EVERY HTTP Request node (Authorization: Bearer <workflow token>). Never put tokens in node fields.\n3. Human review happens at the adapter review URL with a separate reviewer credential. This workflow never approves.\n4. Wait uses 70-second durable pauses, bounded by a 30-minute polling deadline. A pending timeout is NOT a successful refund.\n5. Read qualified_success and evidence; a completed n8n execution may contain a policy denial.",
+        "height": 340,
+        "width": 620
+      }
+    }
+  ],
+  "connections": {
+    "Run demo": {
+      "main": [
+        [
+          {
+            "node": "Refund inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refund inputs": {
+      "main": [
+        [
+          {
+            "node": "Submit refund",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit refund": {
+      "main": [
+        [
+          {
+            "node": "Final status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final status": {
+      "main": [
+        [
+          {
+            "node": "Read frozen evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read frozen evidence": {
+      "main": [
+        [
+          {
+            "node": "Refund outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
