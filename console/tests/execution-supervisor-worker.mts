@@ -64,7 +64,7 @@ try {
   await restart();const restored=(await request('state')).body.runs[0];assert.deepEqual(restored.pending,before.pending);assert.deepEqual(restored.supervisor,before.supervisor);
   const approval={runId,approvalId:restored.pending.id};
   const attempts=await Promise.all([request('approve',approval),request('approve',approval)]);
-  assert.deepEqual(attempts.map(r=>r.status),[502,409]);assert.equal(effects,1);
+  assert.deepEqual(attempts.map(r=>r.status).sort(),[409,502]);assert.equal(effects,1);
   await restart();assert.equal((await request('approve',approval)).status,409);assert.equal(effects,1);
   const uncertain=(await request('state')).body.runs[0];assert.equal(uncertain.supervisor.actions[0].state,'uncertain');assert.equal(uncertain.events[0].status,'uncertain');
   // A committed claim followed by process death before dispatch is equally non-replayable.
