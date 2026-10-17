@@ -8,7 +8,7 @@ let role='owner',version=0,saves=0,fail=false;
 let limits={...DEFAULT_SUPERVISOR_LIMITS};
 const agent={id:'agent',title:'Synthetic refund',goal:'Refund one synthetic payment',success:'Provider result',status:'draft',connectionId:'server',tools:['refund']};
 const connection={id:'server',label:'Synthetic provider',status:'connected',endpoint:'https://example.com/mcp',tools:[{name:'refund',inputSchema:{type:'object'}}],suggestions:[]};
-const run={id:'run',agentId:'agent',kind:'trial',status:'interrupted',startedAt:new Date().toISOString(),events:[{actionId:'action-1',tool:'refund',arguments:{amount:10},status:'uncertain'}],summary:'Provider result unknown; automatic redispatch blocked.',supervisor:{policyVersion:0,limits,actions:[{id:'action-1',state:'uncertain',expiresAt:'2026-10-18T00:00:00Z'}],journal:[{sequence:1,actionId:'action-1',state:'dispatch_claimed',at:new Date().toISOString()},{sequence:2,actionId:'action-1',state:'uncertain',reason:'restart',at:new Date().toISOString()}]}};
+const run={id:'run',agentId:'agent',kind:'trial',status:'interrupted',startedAt:new Date().toISOString(),events:[{actionId:'action-1',tool:'refund',arguments:{amount:10},status:'uncertain'}],summary:'Provider result unknown; automatic redispatch blocked.',supervisor:{policyVersion:0,limits:{...limits,maxCalls:1},actions:[{id:'action-1',state:'uncertain',expiresAt:'2026-10-18T00:00:00Z'}],journal:[{sequence:1,actionId:'action-1',state:'dispatch_claimed',at:new Date().toISOString()},{sequence:2,actionId:'action-1',state:'uncertain',reason:'restart',at:new Date().toISOString()}]}};
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url!,'http://localhost');
   if(!url.pathname.startsWith('/api/')){const out=await worker.fetch(new Request('https://console.test'+url.pathname+url.search),env);res.statusCode=out.status;out.headers.forEach((value,key)=>res.setHeader(key,value));res.end(Buffer.from(await out.arrayBuffer()));return;}
@@ -41,6 +41,8 @@ try {
   await page.locator('[data-run-group] > summary').click();
   await page.getByText('Execution supervisor evidence',{exact:true}).click();
   assert.match(await page.locator('[data-execution-supervisor=run]').innerText(),/Action action-1: uncertain/);
+  assert.match(await page.locator('[data-supervised-run=run]').innerText(),/1\/1 tool calls/);
+  assert.doesNotMatch(await page.locator('[data-supervised-run=run]').innerText(),/1\/4 tool calls/);
   assert.equal(await page.getByRole('button',{name:'Approve and execute',exact:true}).count(),0);
   await page.screenshot({path:'/tmp/agentaction-372-supervisor-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

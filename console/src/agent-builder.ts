@@ -1493,7 +1493,7 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       if(['planning','executing'].includes(r.status)||runFeedback.has(runKey(r.id)))card.dataset.activeRun='true';
       if (actionable(r)) card.dataset.pendingApproval = "true";
       heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.status.replaceAll("_", " "), "pill"));
-      card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/${r.research?20:4} tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
+      card.append(heading, node("p", `${r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/${r.research?20:(r.supervisor?.limits.maxCalls ?? 4)} tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
       const runStatus=node('p','','action-feedback');runStatus.dataset.runFeedback='';runStatus.setAttribute('role','status');runStatus.setAttribute('aria-live','polite');card.append(runStatus);
       if (r.summary) card.append(node("p", r.summary));
       if(r.research){
