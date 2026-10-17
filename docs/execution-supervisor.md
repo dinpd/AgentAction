@@ -28,8 +28,23 @@ these guarantees is insufficient.
 ## Configuration
 
 In **My agents → Execution supervisor settings**, workspace owners can save
-ceilings for new supervised runs. The authenticated same-origin API also
-supports narrower agent and trial settings:
+ceilings for new supervised runs. Each supervised agent also has:
+
+- **Agent limits:** select only the fields to override, review inherited and
+  effective values, and save. Unchecked fields inherit workspace ceilings.
+  **Use workspace defaults** removes saved overrides. Only owners can relax or
+  remove a restriction that would widen the agent's effective limits; operators
+  can tighten them. Saving cancels that agent's pending supervised actions.
+- **Run limits:** optionally narrow the saved effective limits before selecting
+  **Run a trial**. These values apply only to that new trial, leave saved agent
+  policy and daily schedules unchanged, and clear after a successful start.
+  Failed starts retain the values for retry. Drafts stay isolated by agent and
+  workspace and reset when the workspace or agent policy revision changes.
+
+Times are entered in seconds. Viewers can inspect limits but cannot change
+settings or start trials. Research workflows use their existing controls.
+Conflicting saves show an error and retain input; refresh to load the current
+revision before trying again. The authenticated same-origin API remains available:
 
 ```text
 POST /api/agents/{workspace}/supervisor-settings
@@ -68,8 +83,7 @@ Saving workspace or agent settings invalidates affected pending supervised
 runs. Exact approval binding, durable claims and replay protection cannot be
 disabled. Research settings and approvals are unaffected.
 
-Agent and per-trial overrides are API capabilities in this release; the console
-form configures workspace ceilings. The run inspector shows action identities,
+The run inspector shows frozen effective limits, action identities,
 states, expiry and the ordered supervisor journal. It preserves the distinction
 between authorization, execution and outcome evidence.
 
@@ -121,3 +135,8 @@ checks claimed-but-unsent recovery and retained success.
 `npm run test:supervisor-browser` verifies workspace settings, conflict feedback,
 viewer restrictions, action/recovery evidence and mobile layout. Tests use
 synthetic effects and require no payment account.
+
+`npm run test:supervisor-overrides-browser` drives the real runtime from the
+console, verifying saved partial overrides, reset/inheritance, conflicts,
+per-trial isolation and frozen limits, role restrictions, validation and mobile
+layout without dispatching provider tools.

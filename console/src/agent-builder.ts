@@ -1376,6 +1376,87 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
     }
     if (!providers.length) options.append(node('p', 'OAuth is available for providers configured by the deployment owner. Other servers can use public or bearer access.', 'note'));
   }
+  const limitSpecs = [
+    ['maxCalls', 'Maximum tool calls', 1],
+    ['approvalTtlMs', 'Approval lifetime (seconds)', 1000],
+    ['executionTimeoutMs', 'Tool timeout (seconds)', 1000],
+  ] as const;
+  type LimitValues = Record<string, number>;
+  const trialLimitDrafts = new Map<string, { revision: string; values: LimitValues }>();
+  function effectiveAgentLimits(agent: any): LimitValues {
+    const parent = state.supervisorPolicy.limits;
+    return Object.fromEntries(limitSpecs.map(([key]) => [key, Math.min(parent[key], agent.supervisorLimits?.[key] ?? parent[key])]));
+  }
+  function limitSummary(values: LimitValues): string {
+    return `${values.maxCalls} tool calls · approval lifetime ${values.approvalTtlMs / 1000}s · tool timeout ${values.executionTimeoutMs / 1000}s`;
+  }
+  function overrideFields(parent: LimitValues, initial: LimitValues, ceiling: LimitValues, locked: Set<string>, onChange?: (values: LimitValues) => void) {
+    const host = node('div'), fields: Array<{key:string; scale:number; check:HTMLInputElement; input:HTMLInputElement}> = [];
+    const values = (validate = false): LimitValues => {
+      const result: LimitValues = {};
+      for (const {key, scale, check, input} of fields) if (check.checked) {
+        if (validate && !input.reportValidity()) throw new Error('Enter limits within the displayed bounds.');
+        if (input.value !== '') result[key] = validate ? Math.round(Number(input.value) * scale) : Number(input.value) * scale;
+      }
+      return result;
+    };
+    const preview = node('p', '', 'note'); preview.dataset.effectiveLimits = '';
+    const update = () => {
+      for (const {check, input} of fields) input.disabled = role === 'viewer' || !check.checked;
+      const proposed = values(); preview.textContent = `Effective limits: ${limitSummary({...parent, ...proposed})}`;
+      onChange?.(proposed);
+    };
+    for (const [key, label, scale] of limitSpecs) {
+      const group = node('div'), choice = doc.createElement('label'), check = doc.createElement('input');
+      choice.className = 'consent'; check.type = 'checkbox'; check.checked = Object.hasOwn(initial, key); check.disabled = role === 'viewer' || locked.has(key);
+      choice.append(check, doc.createTextNode(`Override ${label.toLowerCase()}`));
+      const wrap = doc.createElement('label'), input = doc.createElement('input');
+      input.type = 'number'; input.min = String(1 / scale); input.step = String(1 / scale); input.max = String(ceiling[key] / scale); input.required = true;
+      input.value = String(Math.min(initial[key] ?? parent[key], ceiling[key]) / scale);
+      input.disabled = role === 'viewer' || !check.checked;
+      wrap.append(node('span', label), input);
+      const hint = node('p', `Inherited: ${parent[key] / scale}${scale === 1000 ? ' seconds' : ' calls'}. Maximum allowed here: ${ceiling[key] / scale}.`, 'note');
+      if (locked.has(key)) hint.append(doc.createTextNode(' Only an owner can remove this restriction.'));
+      fields.push({key, scale, check, input}); group.append(choice, wrap, hint); host.append(group);
+      check.addEventListener('change', update); input.addEventListener('input', update);
+    }
+    host.append(preview); update();
+    return { host, read: () => values(true) };
+  }
+  function agentLimitControls(agent: any, card: HTMLElement): (() => LimitValues) | undefined {
+    if (agent.research || !state.supervisorPolicy) return;
+    const selectedTenant = tenant, parent = state.supervisorPolicy.limits, effective = effectiveAgentLimits(agent);
+    const detail = doc.createElement('details'); detail.dataset.agentLimits = agent.id;
+    detail.append(node('summary', 'Agent limits'), node('p', 'Save only the limits you override. Unchecked limits inherit workspace settings. Saving cancels pending supervised actions for this agent. Only owners can relax existing restrictions.', 'note'));
+    const form = doc.createElement('form'); form.setAttribute('aria-label', `Agent limits for ${agent.title}`);
+    const locked = new Set<string>(role === 'owner' ? [] : limitSpecs.filter(([key]) => effective[key] < parent[key]).map(([key]) => key));
+    const controls = overrideFields(parent, agent.supervisorLimits || {}, role === 'owner' ? parent : effective, locked);
+    const status = node('p', '', 'note'); status.setAttribute('role','status');
+    const save = doc.createElement('button'); save.type = 'submit'; save.textContent = 'Save agent limits'; save.disabled = role === 'viewer';
+    const reset = doc.createElement('button'); reset.type = 'button'; reset.className = 'secondary'; reset.textContent = 'Use workspace defaults'; reset.disabled = role === 'viewer' || (role !== 'owner' && locked.size > 0);
+    const persist = async (limits: LimitValues) => {
+      save.disabled = true; reset.disabled = true; status.textContent = 'Saving agent limits…';
+      try {
+        await request(`/api/agents/${encodeURIComponent(selectedTenant)}/supervisor-settings`, {scope:'agent',agentId:agent.id,expectedVersion:agent.supervisorVersion || 0,limits});
+        if (tenant !== selectedTenant) return;
+        await refresh(); message('Agent limits saved. Pending actions for this agent were cancelled.');
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Agent limits could not be saved.';
+        save.disabled = role === 'viewer'; reset.disabled = role === 'viewer' || (role !== 'owner' && locked.size > 0);
+      }
+    };
+    form.addEventListener('submit', event => { event.preventDefault(); try { void persist(controls.read()); } catch (error) { status.textContent = error instanceof Error ? error.message : 'Check the limits.'; } });
+    reset.addEventListener('click', () => { void persist({}); });
+    const actions = node('div', '', 'actions'); actions.append(save, reset); form.append(controls.host, actions, status); detail.append(form); card.append(detail);
+    const trial = doc.createElement('details'); trial.dataset.trialLimits = agent.id;
+    const runTitle = node('summary','Run limits');
+    trial.append(runTitle,node('p','Optional limits for the next trial only. Unchecked limits inherit the saved agent settings. Starting a trial prepares an action for approval; it does not execute tools.', 'note'));
+    const key = selectedTenant + ':' + agent.id, revision = `${state.supervisorPolicy.version}:${agent.supervisorVersion || 0}`;
+    if (trialLimitDrafts.get(key)?.revision !== revision) trialLimitDrafts.delete(key);
+    const runFields = overrideFields(effective, trialLimitDrafts.get(key)?.values || {}, effective, new Set(), values => {trialLimitDrafts.set(key,{revision,values});runTitle.textContent = Object.keys(values).length ? 'Run limits · custom limits set' : 'Run limits';});
+    trial.append(runFields.host); card.append(trial);
+    return () => runFields.read();
+  }
   function renderSupervisorSettings() {
     const host = get('supervisor-settings'); host.replaceChildren();
     const policy = state.supervisorPolicy;
@@ -1460,7 +1541,18 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       card.append(node("span", a.status, "pill"), node("h3", a.title), node("p", a.goal), node("p", `Success: ${a.research?"Both platform datasets retrieved, relevance assessed against the saved scope, and the report accepted by the email provider.":a.success}`, "note"));
       if(a.research)workflows.append(card,a.research);
       if(a.research || /social|reddit|twitter|posts/i.test(a.goal+' '+a.title))researchEditor(a,card);
-      actions.append(button("Run a trial", async () => { message("Planning a trial. No tool executes until you approve its arguments."); await mutate("trial", { agentId: a.id }); for(const previous of state.runs.filter((r:any)=>r.agentId===a.id))runFeedback.delete(runKey(previous.id)); await refresh(); message("Trial updated. Review its proposed call or result below."); }));
+      const trialLimits = agentLimitControls(a, card);
+      actions.append(button("Run a trial", async () => {
+        const selectedTenant = tenant;
+        let overrides: LimitValues;
+        try { overrides = trialLimits?.() || {}; } catch (error) { message(error instanceof Error ? error.message : 'Check the run limits.', true); return; }
+        message("Planning a trial. No tool executes until you approve its arguments.");
+        await request(`/api/agents/${encodeURIComponent(selectedTenant)}/trial`, { agentId: a.id, ...(Object.keys(overrides).length ? {supervisorLimits:overrides} : {}) });
+        trialLimitDrafts.delete(selectedTenant + ':' + a.id);
+        if (tenant !== selectedTenant) return;
+        for(const previous of state.runs.filter((r:any)=>r.agentId===a.id))runFeedback.delete(runKey(previous.id));
+        await refresh(); message("Trial updated. Review its proposed call or result below.");
+      }));
       const trial = state.runs.find((r: any) => r.id === a.lastTrial);
       if (a.status !== "active" && trial?.status === "completed" && trial.outcome === "met" && (!trial.contract || trial.evaluation?.status === "pass")) {
         if(a.research){
