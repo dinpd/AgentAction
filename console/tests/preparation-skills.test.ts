@@ -1,9 +1,11 @@
+import { testTransaction } from './transaction-storage.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { COMPANY_SKILL, preparationDefinition, briefFields, websiteURL, readResearchWebsite, suggestedWebsite } from '../src/preparation-skills.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
 import { evidenceDigest } from '../src/recipe-evaluation.ts';
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
  data=new Map<string,any>();
  async get<T>(key:string){return structuredClone(this.data.get(key)) as T|undefined;}
  async put<T>(key:string,value:T){assert.ok(JSON.stringify(value).length<64000);this.data.set(key,structuredClone(value));}

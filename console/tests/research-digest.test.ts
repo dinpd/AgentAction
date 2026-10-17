@@ -1,3 +1,4 @@
+import { testTransaction } from './transaction-storage.ts';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -9,6 +10,7 @@ import { evidenceDigest } from '../src/recipe-evaluation.ts';
 import { RESEARCH_CLASSIFICATION_INSTRUCTIONS, AGENT_MODEL, legacyResearchWorkflow } from '../src/research-workflow.ts';
 const config={connectionId:'apify',topics:'Retirement planning tools and brand mentions; exclude generic promotions.',queries:{x:['Example','retirement planning'],reddit:['Example','retirement planning']},recipient:'reports@example.com',time:'08:00',timezone:'America/Los_Angeles',maxItems:20,actorCapUsd:0.05,rollingCapUsd:4,freePlan:true};
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
  data=new Map<string,unknown>();alarm?:number;savedRuns:Run[]=[];
  async get<T>(key:string){return structuredClone(this.data.get(key)) as T|undefined;}
  async put<T>(key:string,value:T){assert.ok(new TextEncoder().encode(JSON.stringify(value)).length<128000,key);this.data.set(key,structuredClone(value));if(key.startsWith('run:'))this.savedRuns.push(structuredClone(value) as Run);}

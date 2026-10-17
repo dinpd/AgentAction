@@ -175,6 +175,15 @@ The guard package is published as
 [`@dinpd/ai-agent-guard`](https://www.npmjs.com/package/@dinpd/ai-agent-guard).
 See [`packages/guard/`](packages/guard/) for starter policies and more examples.
 
+### Durable supervised execution
+
+Hosted supervised agents use a configurable execution supervisor. Workspace
+owners set call, approval-lifetime and timeout ceilings; agent and trial limits
+can narrow them. Exact approvals survive restart, dispatch claims persist before
+provider calls, and uncertain effects stop for provider review. Inspect action
+identities and recovery evidence in run history. See the
+[supervisor configuration and guarantees](docs/execution-supervisor.md).
+
 ## How It Works
 
 AgentAction connects six claims without collapsing them together: the declared

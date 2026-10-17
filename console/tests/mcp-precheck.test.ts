@@ -1,3 +1,4 @@
+import { testTransaction } from './transaction-storage.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inspectEndpoint } from "../src/mcp-precheck.ts";
@@ -97,6 +98,7 @@ test("MCP limits and failed RPCs do not produce a successful tool assessment or 
 });
 
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
  data=new Map<string,unknown>();async get<T>(k:string){return structuredClone(this.data.get(k)) as T|undefined;}async put<T>(k:string,v:T){assert.ok(JSON.stringify(v).length<128000);this.data.set(k,structuredClone(v));}async delete(k:string){return this.data.delete(k);}async list<T>({prefix}:{prefix:string}){return new Map([...this.data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v) as T]));}async setAlarm(){}async deleteAlarm(){}
 }
 test("inspection is rate-limited, persisted per workspace and never approves endpoints or creates connections",async()=>{

@@ -760,6 +760,23 @@ test("endpoint approvals require current owner membership and overwrite spoofed 
 });
 
 
+test('supervisor settings use verified workspace roles and reject cross-origin or revoked access', async () => {
+  let role = 'owner', present = true, forwarded = 0;
+  const env: Env = {
+    ...baseEnv([], () => json({ workspace_mode:'directory', memberships:present ? [{tenant:{tenant_id:'acme'},membership:{role}}] : [] })),
+    CONSOLE_DIRECTORY_MODE:'true',
+    AGENT_WORKSPACES:{ getByName(name) { assert.equal(name,'workspace:acme'); return {async request(request) {
+      forwarded++; assert.equal(request.headers.get('x-runtime-role'),role); assert.equal(request.headers.get('x-runtime-actor'),'operator-123'); assert.equal(request.headers.get('x-runtime-workspace'),'acme'); return json({ok:true});
+    }}; } },
+  };
+  const post=(origin='https://console.test')=>accessRequest('/api/agents/acme/supervisor-settings',{method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder','x-runtime-role':'owner','x-runtime-actor':'attacker'},body:JSON.stringify({scope:'workspace',expectedVersion:0,limits:{maxCalls:2}})},{custom:{}});
+  assert.equal((await worker.fetch(post('https://evil.test'),env)).status,403);assert.equal(forwarded,0);
+  assert.equal((await worker.fetch(post(),env)).status,200);
+  role='operator';assert.equal((await worker.fetch(post(),env)).status,200); // The runtime applies the scope-specific owner check.
+  role='viewer';assert.equal((await worker.fetch(post(),env)).status,403);
+  present=false;assert.equal((await worker.fetch(post(),env)).status,403);assert.equal(forwarded,2);
+});
+
 test("endpoint pre-checks use current membership even before endpoint approval", async () => {
   let role = "viewer", present = true, inspections = 0;
   const env: Env = {
