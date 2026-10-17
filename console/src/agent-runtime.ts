@@ -179,7 +179,13 @@ export class AgentRuntime {
     if (agent.research) throw new RuntimeError('Research workflows retain their separately reviewed execution limits.', 409);
     if (body.expectedVersion !== (agent.supervisorVersion || 0)) throw new RuntimeError('Agent supervisor settings changed; refresh the current version.', 409);
     if ((agent.supervisorVersion || 0) >= 100) throw new RuntimeError('Agent supervisor revision limit reached.', 409);
-    supervisorLimits(body.limits, policy.limits);
+    const effective = supervisorLimits(body.limits, policy.limits);
+    if (role !== 'owner') {
+      for (const key of ['maxCalls', 'approvalTtlMs', 'executionTimeoutMs'] as const) {
+        const current = Math.min(policy.limits[key], agent.supervisorLimits?.[key] ?? policy.limits[key]);
+        if (effective[key] > current) throw new RuntimeError('Only a workspace owner can widen or reset an agent restriction.', 403);
+      }
+    }
     agent.supervisorLimits = structuredClone(body.limits as Partial<SupervisorLimits>);
     agent.supervisorVersion = (agent.supervisorVersion || 0) + 1;
     await this.storage.transaction(async tx => {

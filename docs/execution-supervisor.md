@@ -45,7 +45,8 @@ POST /api/agents/{workspace}/trial
 Requests require the same authentication, verified workspace membership, origin
 and `x-agentaction-request: agent-builder` header as other builder mutations.
 Workspace settings require owner membership; operators may narrow agent and
-trial limits. Current workspace policy and agent revisions appear in `state`.
+trial limits. Only owners may widen or clear existing agent restrictions within
+workspace ceilings. Current workspace policy and agent revisions appear in `state`.
 `expectedVersion` rejects stale policy edits. Workspace and agent revisions
 retain the configuring principal and time in immutable audit records.
 

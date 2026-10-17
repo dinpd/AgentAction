@@ -165,6 +165,17 @@ test('configured dispatch timeout records uncertainty and never retries', async 
   const h=await fixture(),run=await h.trial({executionTimeoutMs:5}); h.hang();
   assert.equal((await h.approve(run)).status,502); assert.equal(h.timeout(),true); assert.equal(h.effects(),1); assert.equal((await h.read(run.id)).supervisor!.actions[0].state,'uncertain');
 });
+test('operators can tighten agent restrictions but only owners can widen or reset them', async () => {
+  const h=await fixture();
+  assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:0,limits:{maxCalls:1,approvalTtlMs:5000,executionTimeoutMs:1000}})).status,200);
+  for(const limits of [{maxCalls:4},{},{maxCalls:1},{maxCalls:1,approvalTtlMs:6000,executionTimeoutMs:1000}]) {
+    assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:1,limits},'operator')).status,403);
+    assert.equal((await h.storage.get<Agent>('agent:agent'))!.supervisorVersion,1);
+  }
+  assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:1,limits:{maxCalls:1,approvalTtlMs:4000,executionTimeoutMs:800}},'operator')).status,200);
+  assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:2,limits:{}})).status,200);
+  const run=await h.trial();assert.deepEqual(run.supervisor!.limits,DEFAULT_SUPERVISOR_LIMITS);
+});
 test('supervisor bounds proposal history and provider reconciliation never dispatches', async () => {
   const state=supervisorRecord({version:0,limits:DEFAULT_SUPERVISOR_LIMITS},{...DEFAULT_SUPERVISOR_LIMITS,recoveryPolicy:'reconcile'});
   const action=proposeAction(state,'approval','digest'); claimAction(state,'approval','digest',0,'reviewer'); recoverActions(state);
