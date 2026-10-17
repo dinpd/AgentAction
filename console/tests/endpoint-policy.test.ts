@@ -1,3 +1,4 @@
+import { testTransaction } from './transaction-storage.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -7,6 +8,7 @@ import { McpClient, endpointURL } from "../src/mcp-client.ts";
 const endpoint = "https://mcp.vendor.com/mcp";
 const tool = { name: "read", description: "Read a document", inputSchema: { type: "object", properties: {}, additionalProperties: false } };
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
   data = new Map<string, unknown>(); alarm: number | undefined;
   async get<T>(key: string) { return structuredClone(this.data.get(key)) as T | undefined; }
   async put<T>(key: string, value: T) { assert.ok(JSON.stringify(value).length < 128000); this.data.set(key, structuredClone(value)); }
@@ -89,10 +91,12 @@ test("revocation disconnects, clears credentials, cancels pending runs and stops
 test("public DNS is checked again between discovery and tool execution, including cleanup",async()=>{
   const h=harness();await h.request("approve-endpoint",{endpoint,reviewed:true});const c=await h.request("connect",{endpoint,label:"Vendor",token:"SECRET"});
   await h.storage.put("agent:a",{id:"a",connectionId:c.body.connectionId,status:"draft",tools:[tool.name]} as Agent);
-  await h.storage.put("run:r",{id:"r",agentId:"a",status:"awaiting_approval",pending:{id:"call",tool:tool.name,arguments:{}},events:[]} as Run);
-  h.rebind();const before=h.mcp.filter(m=>m==="DELETE").length;assert.equal((await h.request("approve",{runId:"r",approvalId:"call"})).status,400);
+  h.env.AGENT_AI.run = async () => ({response:{type:'call',tool:tool.name,arguments:{}}}) as any;
+  const trial = await h.request('trial', {agentId:'a'}), runId = trial.body.runId;
+  const pending = (await h.storage.get<Run>(`run:${runId}`))!.pending!;
+  h.rebind();const before=h.mcp.filter(m=>m==="DELETE").length;assert.equal((await h.request("approve",{runId,approvalId:pending.id})).status,400);
   assert.ok(!h.mcp.includes("tools/call"));assert.equal(h.mcp.filter(m=>m==="DELETE").length,before);
-  const run=(await h.storage.get<Run>("run:r"))!;assert.equal(run.events[0].status,"failed");assert.match(run.summary!,/before it was sent/);
+  const run=(await h.storage.get<Run>(`run:${runId}`))!;assert.equal(run.events[0].status,"failed");assert.match(run.summary!,/before it was sent/);
 });
 
 test("workspace approval count and daily validation attempts are bounded",async()=>{

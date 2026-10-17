@@ -1,3 +1,4 @@
+import { testTransaction } from './transaction-storage.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentRuntime, type Agent, type Connection, type Run, type RuntimeStorage } from "../src/agent-runtime.ts";
@@ -8,6 +9,7 @@ import { AGENT_HTML, AGENT_JS } from "../src/agent-builder.ts";
 const endpoint = "https://mcp.firecrawl.dev/v2/mcp";
 const tool: McpTool = { name: "scrape", description: "Read a web page", inputSchema: { type: "object", properties: { url: { type: "string", format: "uri" } }, required: ["url"], additionalProperties: false } };
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
   data = new Map<string, unknown>(); alarm: number | undefined;
   async get<T>(key: string): Promise<T | undefined> { return structuredClone(this.data.get(key)) as T | undefined; }
   async put<T>(key: string, value: T) { assert.ok(new TextEncoder().encode(JSON.stringify(value)).byteLength < 128000); this.data.set(key, structuredClone(value)); }

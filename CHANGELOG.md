@@ -4,6 +4,26 @@
 
 No changes yet.
 
+## 0.52.0-rc.1 - 2026-10-17
+
+### Website highlight
+
+- Supervised execution with durable approvals: Configure hosted agent limits and inspect action evidence. Approvals survive restarts; uncertain provider effects stop for review. Synthetic refund tests verify replay prevention across Worker restarts.
+
+### Added
+
+- Reusable execution supervisor state machine integrated into hosted supervised agents, with stable action identities, frozen approval bindings, transactional approval consumption before dispatch, and bounded recovery journals.
+- Owner-configurable versioned workspace ceilings for call count, approval lifetime and tool timeout; agent and per-trial limits can only narrow those ceilings. Existing approval and provider safety boundaries cannot be disabled.
+- Workspace settings and per-action supervisor evidence in the operator console. Real Worker/SQLite restart acceptance and fault-injection tests exercise exact approval restoration, concurrent replay, lost provider responses and failed persistence.
+
+### Compatibility
+
+- Significant functionality: additive minor release candidate for changed hosted approval/evidence behavior. Research workflows retain their independently reviewed execution paths. Existing stored runs remain readable; legacy pending approvals must be cancelled and replaced with a fresh supervised trial.
+- At most one automatic dispatch per retained action identity. Claimed or uncertain effects are never blindly retried; a fresh run is a distinct action and requires provider review when earlier effects are unknown. Provider-supported idempotency is required for stronger guarantees. Cancellation does not reverse an accepted provider effect.
+- Hosted MCP recovery supports stop-for-review only. A transport-independent read-back reconciliation hook is available to trusted integrations; no provider reconciliation adapter, external framework adapter, distributed execution, or universal exactly-once guarantee is included.
+- Configuration revisions are immutable audit records; pending supervised actions are invalidated when their workspace or agent policy changes. Approval/action journals share run retention and existing workspace visibility. No new OAuth permissions or production payment connection.
+- Install Python artifacts from the GitHub v0.52.0-rc.1 prerelease. The hosted capability is deployed from the merged console source; no npm or PyPI registry publication is implied.
+
 ## 0.51.0-rc.1 - 2026-10-16
 
 ### Website highlight

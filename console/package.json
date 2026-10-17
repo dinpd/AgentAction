@@ -17,7 +17,9 @@
     "deploy:readiness": "wrangler deploy --config wrangler.readiness.jsonc",
     "test:readiness-worker": "node --experimental-strip-types tests/readiness-worker.mts",
     "test:readiness-browser": "node --experimental-strip-types tests/readiness-browser.mts",
-    "test:oauth-browser": "node --experimental-strip-types tests/oauth-worker-browser.mts"
+    "test:oauth-browser": "node --experimental-strip-types tests/oauth-worker-browser.mts",
+    "test:supervisor-worker": "node --experimental-strip-types tests/execution-supervisor-worker.mts",
+    "test:supervisor-browser": "node --experimental-strip-types tests/execution-supervisor-browser.mts"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"
