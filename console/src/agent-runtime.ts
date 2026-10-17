@@ -164,7 +164,7 @@ export class AgentRuntime {
       if (role !== 'owner') throw new RuntimeError('Only a workspace owner can change supervisor ceilings.', 403);
       if (body.agentId !== undefined || body.expectedVersion !== policy.version) throw new RuntimeError('Supervisor settings changed; refresh the current version.', 409);
       if (policy.version >= 100) throw new RuntimeError('Workspace supervisor revision limit reached.', 409);
-      const limits = supervisorLimits(body.limits);
+      const limits = supervisorLimits({ ...policy.limits, ...object(body.limits) });
       const next = { version: policy.version + 1, limits, configuredBy: actor, configuredAt: now() };
       await this.storage.transaction(async tx => {
         const current = await tx.get<SupervisorPolicy>('supervisor-policy');
@@ -179,7 +179,9 @@ export class AgentRuntime {
     if (agent.research) throw new RuntimeError('Research workflows retain their separately reviewed execution limits.', 409);
     if (body.expectedVersion !== (agent.supervisorVersion || 0)) throw new RuntimeError('Agent supervisor settings changed; refresh the current version.', 409);
     if ((agent.supervisorVersion || 0) >= 100) throw new RuntimeError('Agent supervisor revision limit reached.', 409);
-    agent.supervisorLimits = supervisorLimits(body.limits, policy.limits); agent.supervisorVersion = (agent.supervisorVersion || 0) + 1;
+    supervisorLimits(body.limits, policy.limits);
+    agent.supervisorLimits = structuredClone(body.limits as Partial<SupervisorLimits>);
+    agent.supervisorVersion = (agent.supervisorVersion || 0) + 1;
     await this.storage.transaction(async tx => {
       await tx.put(`agent:${agent.id}`, agent);
       await tx.put(`supervisor-agent-policy:${agent.id}:${agent.supervisorVersion}`, { version: agent.supervisorVersion, limits: agent.supervisorLimits, configuredBy: actor, configuredAt: now() });

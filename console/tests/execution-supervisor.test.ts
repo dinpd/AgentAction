@@ -145,6 +145,22 @@ test('configuration invalidates pending actions, rejects unsafe settings and sta
   assert.equal((await h.request('supervisor-settings',{scope:'workspace',expectedVersion:0,limits:{maxCalls:2}})).status,200);
   assert.equal((await h.read(run.id)).status,'cancelled'); assert.equal((await h.approve(run)).status,409); assert.equal(h.effects(),0);
 });
+test('partial agent overrides inherit workspace changes and empty settings restore inheritance', async () => {
+  const h=await fixture();
+  assert.equal((await h.request('supervisor-settings',{scope:'workspace',expectedVersion:0,limits:{maxCalls:3,approvalTtlMs:10000,executionTimeoutMs:2000}})).status,200);
+  assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:0,limits:{maxCalls:2}})).status,200);
+  assert.deepEqual((await h.storage.get<Agent>('agent:agent'))!.supervisorLimits,{maxCalls:2});
+  assert.equal((await h.request('supervisor-settings',{scope:'workspace',expectedVersion:1,limits:{maxCalls:4,approvalTtlMs:20000,executionTimeoutMs:4000}})).status,200);
+  const run=await h.trial();
+  assert.deepEqual(run.supervisor!.limits,{maxCalls:2,approvalTtlMs:20000,executionTimeoutMs:4000,recoveryPolicy:'review'});
+  assert.equal((await h.request('supervisor-settings',{scope:'agent',agentId:'agent',expectedVersion:1,limits:{}})).status,200);
+  assert.deepEqual((await h.storage.get<Agent>('agent:agent'))!.supervisorLimits,{});
+  h.outputs.unshift(call); const inherited=await h.trial();
+  assert.deepEqual(inherited.supervisor!.limits,{maxCalls:4,approvalTtlMs:20000,executionTimeoutMs:4000,recoveryPolicy:'review'});
+  assert.deepEqual((await h.storage.get<any>('supervisor-agent-policy:agent:1')).limits,{maxCalls:2});
+  assert.equal((await h.request('supervisor-settings',{scope:'workspace',expectedVersion:2,limits:{maxCalls:3}})).status,200);
+  assert.deepEqual((await h.storage.get<any>('supervisor-policy')).limits,{maxCalls:3,approvalTtlMs:20000,executionTimeoutMs:4000,recoveryPolicy:'review'});
+});
 test('configured dispatch timeout records uncertainty and never retries', async () => {
   const h=await fixture(),run=await h.trial({executionTimeoutMs:5}); h.hang();
   assert.equal((await h.approve(run)).status,502); assert.equal(h.timeout(),true); assert.equal(h.effects(),1); assert.equal((await h.read(run.id)).supervisor!.actions[0].state,'uncertain');

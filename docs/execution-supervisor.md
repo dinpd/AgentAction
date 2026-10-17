@@ -56,10 +56,13 @@ retain the configuring principal and time in immutable audit records.
 | `executionTimeoutMs` | 60,000 (60 seconds) | Positive integer; timeout leaves an ambiguous dispatch uncertain |
 | `recoveryPolicy` | `review` | Hosted MCP has no read-back adapter; `reconcile` is rejected |
 
-Owners may change workspace ceilings within platform bounds. Agent settings
+Owners may change workspace ceilings within platform bounds; omitted workspace
+fields keep their current values. Agent settings
 and per-run overrides can only narrow the effective parent limits. When a
 workspace ceiling tightens below an existing agent setting, new runs use the
-smaller value. Every run retains its effective limits and policy version.
+smaller value. Agent settings retain only the explicitly supplied fields;
+omitted fields inherit current workspace ceilings. Saving an empty `limits`
+object restores full inheritance. Every run retains its effective limits and policy version.
 Saving workspace or agent settings invalidates affected pending supervised
 runs. Exact approval binding, durable claims and replay protection cannot be
 disabled. Research settings and approvals are unaffected.
