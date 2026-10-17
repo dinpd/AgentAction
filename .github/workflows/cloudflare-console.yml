@@ -53,6 +53,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify agent and trial limit overrides against the runtime
+        run: npm run test:supervisor-overrides-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify job-first draft review and outcome assessment
         run: node --experimental-strip-types tests/job-first-draft-browser.mts
         env:

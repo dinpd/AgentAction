@@ -4,6 +4,25 @@
 
 No changes yet.
 
+## 0.53.0-rc.1 - 2026-10-17
+
+### Website highlight
+
+- Agent and trial limits in the console: Set saved agent overrides or tighter limits for one supervised trial directly in the console. See inherited limits, restore workspace defaults, and retain owner-only authority to relax restrictions.
+
+### Added
+
+- Agent limit controls for maximum tool calls, approval lifetime and tool timeout, with explicit overrides, inherited/effective values, saved revision checks and workspace-default reset.
+- Optional run limits on each supervised agent, applied only to its next new trial. Trial drafts stay isolated by agent and workspace, survive failed starts and clear after successful use; saved agent policy remains unchanged.
+- Runtime-backed browser acceptance for inherited values, reset, conflicts, exact API payloads, frozen trial limits, permission boundaries, validation and mobile layout.
+
+### Compatibility
+
+- Significant user-visible functionality: additive minor release candidate retaining the execution supervisor preview baseline. Existing supervisor endpoints, immutable run bindings, approval requirements, recovery behavior and research workflows are unchanged. No migration or new provider permissions.
+- Owners can relax or reset saved agent overrides within workspace ceilings. Operators can only tighten current effective restrictions; viewers cannot change settings or start trials. Optional trial limits cannot exceed effective workspace/agent limits.
+- Run limits apply before a new supervised trial is created; they do not edit frozen runs or change daily schedules. Saving agent settings cancels that agent's pending supervised actions. Uncertain provider effects still require review before creating another action.
+- Install Python artifacts from the GitHub v0.53.0-rc.1 prerelease; hosted console source is deployed from the merged commit. No npm or PyPI registry publication is implied.
+
 ## 0.52.0-rc.1 - 2026-10-17
 
 ### Website highlight

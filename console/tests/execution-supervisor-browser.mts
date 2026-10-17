@@ -32,7 +32,7 @@ page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(10
 const base=`http://127.0.0.1:${(server.address() as any).port}`;
 try {
   await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Execution supervisor settings',{exact:true}).click();
-  await page.getByLabel('Maximum tool calls',{exact:true}).fill('2');await page.getByLabel('Approval lifetime (seconds)',{exact:true}).fill('30');
+  await page.locator('#supervisor-settings').getByLabel('Maximum tool calls',{exact:true}).fill('2');await page.locator('#supervisor-settings').getByLabel('Approval lifetime (seconds)',{exact:true}).fill('30');
   await page.getByRole('button',{name:'Save supervisor settings',exact:true}).click();
   await page.getByText('Supervisor settings saved. Pending supervised actions were cancelled.',{exact:true}).waitFor();assert.equal(saves,1);assert.equal(limits.maxCalls,2);
   await page.getByText('Execution supervisor settings',{exact:true}).click();
@@ -48,6 +48,6 @@ try {
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:'/tmp/agentaction-372-supervisor-mobile.png',fullPage:true});
   role='viewer';await page.reload();await page.getByText('Execution supervisor settings',{exact:true}).click();
-  assert.equal(await page.getByRole('button',{name:'Save supervisor settings',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('Maximum tool calls',{exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Save supervisor settings',exact:true}).isDisabled(),true);assert.equal(await page.locator('#supervisor-settings').getByLabel('Maximum tool calls',{exact:true}).isDisabled(),true);
   assert.deepEqual(errors,[]);console.log('Supervisor browser acceptance passed: owner settings, versioned saves, conflict feedback, viewer restrictions, action/recovery evidence and mobile layout.');
 } finally {await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));}
