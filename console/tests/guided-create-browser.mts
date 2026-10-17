@@ -1,9 +1,11 @@
+import { testTransaction } from './transaction-storage.ts';
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 class Storage implements RuntimeStorage {
+  transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
  data = new Map<string, any>();
  async get<T>(key: string) { return structuredClone(this.data.get(key)) as T | undefined; }
  async put<T>(key: string, value: T) { this.data.set(key, structuredClone(value)); }

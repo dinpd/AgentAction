@@ -40,10 +40,18 @@ jobs:
       - name: Verify operator Worker bundle
         run: npm run dry-run
 
+      - name: Verify supervisor approvals and SQLite recovery across process restarts
+        run: npm run test:supervisor-worker
+
       - name: Install OAuth browser acceptance runtime
         run: |
           npm install --prefix /tmp/agentaction-oauth-browser --no-save playwright@1.63.0
           /tmp/agentaction-oauth-browser/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify supervisor settings and recovery evidence
+        run: npm run test:supervisor-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
       - name: Verify job-first draft review and outcome assessment
         run: node --experimental-strip-types tests/job-first-draft-browser.mts
