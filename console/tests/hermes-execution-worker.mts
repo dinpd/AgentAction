@@ -51,12 +51,12 @@ const invoke=async(session:string,extra:Record<string,unknown>={})=>{
 const pending=async()=>{const state=await operator('state');return state.runs.find((r:any)=>r.pending);};
 try {
   assert.match(await invoke('lost-effect',{path:'agent',observe:true}),/blocked/);assert.equal(await effects(),0);
-  const before=await pending();await restart();const restored=await pending();assert.deepEqual(restored.pending,before.pending);
+  const before=await pending();assert.deepEqual(before.pending.arguments,{paymentId:'synthetic-payment',amount:10});assert.equal(typeof before.pending.arguments.amount,'number');await restart();const restored=await pending();assert.deepEqual(restored.pending,before.pending);
   await operator('approve',{runId:restored.id,approvalId:restored.pending.id});await restart();
   assert.match(await invoke('lost-effect',{path:'agent',lostResult:true}),/blocked/);assert.equal(await effects(),1);
   await restart();assert.match(await invoke('lost-effect'),/blocked/);assert.equal(await effects(),1);
   let state=await operator('state');assert.equal(state.runs.find((r:any)=>r.id===restored.id).supervisor.actions[0].state,'uncertain');
-  assert.match(await invoke('success',{limits:{maxCalls:1}}),/blocked/);let p=await pending();await operator('approve',{runId:p.id,approvalId:p.pending.id});
+  assert.match(await invoke('success',{limits:{maxCalls:1}}),/blocked/);let p=await pending();assert.deepEqual(p.pending.arguments,{paymentId:'synthetic-payment',amount:10});await operator('approve',{runId:p.id,approvalId:p.pending.id});
   assert.match(await invoke('success',{limits:{maxCalls:1}}),/synthetic-refund/);assert.equal(await effects(),2);
   await restart();assert.match(await invoke('success',{limits:{maxCalls:1}}),/blocked/);assert.equal(await effects(),2);
   assert.match(await invoke('claim-loss'),/blocked/);p=await pending();await operator('approve',{runId:p.id,approvalId:p.pending.id});loseClaim=true;

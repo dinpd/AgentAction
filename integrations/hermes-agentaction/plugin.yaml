@@ -1,5 +1,5 @@
 name: agentaction
-version: 0.9.0
+version: 0.9.1
 manifest_version: 1
 api_version: 1
 description: AgentAction shadow observability and opt-in supervised Hermes tool execution

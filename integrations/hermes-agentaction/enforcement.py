@@ -75,6 +75,26 @@ class HermesExecutionAdapter:
     def block(message: str) -> str:
         return json.dumps({"error": "AgentAction blocked execution: " + message})
 
+    @staticmethod
+    def normalize(tool_name: str, args: dict) -> dict:
+        from model_tools import coerce_tool_args
+
+        def freeze(value):
+            value = json.loads(json.dumps(value, allow_nan=False))
+            if not isinstance(value, dict):
+                raise ValueError("Tool arguments must be an object")
+            _exact_numbers(value)
+            return value
+
+        # Agent middleware wraps handle_function_call, which coerces again.
+        # Direct model_tools dispatch coerces before middleware. Review the
+        # effective arguments on both paths and require a stable second pass.
+        normalized = freeze(coerce_tool_args(tool_name, freeze(args)))
+        repeated = freeze(coerce_tool_args(tool_name, freeze(normalized)))
+        if json.dumps(normalized, sort_keys=True) != json.dumps(repeated, sort_keys=True):
+            raise ValueError("Hermes argument normalization is unstable")
+        return normalized
+
     def execute(self, tool_name: str, args: dict, next_call: Any, session_id: str = "", **_kwargs: Any) -> Any:
         """Never raise: Hermes skips middleware that raises before next_call."""
         claimed = None
@@ -86,11 +106,7 @@ class HermesExecutionAdapter:
                 return self.block("Use a dedicated profile without other tool execution middleware or pre-tool policy hooks.")
             if not session_id or tool_name in {"delegate_task", "execute_code", "tool_call"}:
                 return self.block("A stable session ID is required; delegation, execute_code and tool_call are unsupported.")
-            # JSON roundtrip freezes a private plain-data copy for review/dispatch.
-            frozen = json.loads(json.dumps(args, allow_nan=False))
-            if not isinstance(frozen, dict):
-                return self.block("Tool arguments must be an object.")
-            _exact_numbers(frozen)
+            frozen = self.normalize(tool_name, args)
             run = self.request("start", {"sessionId": session_id, "supervisorLimits": self.limits})
             run_id = run["runId"]
             proposal = self.request("propose", {"runId": run_id, "tool": tool_name, "arguments": frozen})

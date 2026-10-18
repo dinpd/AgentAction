@@ -270,7 +270,9 @@ old sessions; start a new reviewed session after inspecting previous effects.
 
 ### Execution and evidence boundaries
 
-- Every allowlisted tool requires its own exact approval. Unlisted tools and
+- Every allowlisted tool requires its own exact approval. Native Hermes schema
+  coercion is applied to a private JSON copy before review on both dispatch
+  paths; a non-stable second pass blocks instead of changing approved arguments. Unlisted tools and
   absent stable Hermes session IDs block. Call count, approval expiry and frozen
   policy versions are enforced by the hosted supervisor. There is no model
   self-approval or session-wide bypass, including Hermes's own “always” approval.
