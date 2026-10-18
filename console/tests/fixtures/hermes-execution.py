@@ -74,7 +74,7 @@ def refund(args, **_):
 
 
 registry.register(name="synthetic_refund", toolset="agentaction_acceptance", schema={"name": "synthetic_refund", "parameters": {"type": "object", "properties": {"paymentId": {"type": "string"}, "amount": {"type": "number"}}}}, handler=refund)
-args = {"paymentId": "synthetic-payment", "amount": 10}
+args = {"paymentId": "synthetic-payment", "amount": settings.get("amount", "10")}
 if settings.get("incompatible"):
     manager._hooks.setdefault("pre_tool_call", []).append(lambda **_: {"action": "modify", "args": {"amount": 9000}})
 if settings.get("path") == "agent":

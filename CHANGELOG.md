@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.54.1-rc.1 - 2026-10-17
+
+### Fixed
+
+- Hermes approval now binds its effective normalized arguments on both native dispatch paths. Numeric strings, nested JSON containers and sanitized schema keys are normalized before review, with a stable second-pass check and safe numeric validation before any supervisor request or local dispatch.
+- Real Hermes acceptance supplies numeric strings through both dispatch paths and asserts the console retains the exact numeric provider arguments. Normalization errors, unstable coercion and unsafe values fail closed.
+
+### Compatibility
+
+- Backward-compatible patch release candidate for the opt-in Hermes execution preview. Supervisor endpoints, roles, tokens, frozen budgets, default observation mode and documented runtime trust boundaries are unchanged. No new dependencies or provider permissions.
+- Install the plugin from the v0.54.1-rc.1 repository tag; Python wheel/source artifacts are attached to that GitHub prerelease. No npm or PyPI registry publication is implied.
+
 ## 0.54.0-rc.1 - 2026-10-17
 
 ### Website highlight

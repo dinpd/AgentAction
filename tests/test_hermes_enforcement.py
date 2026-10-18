@@ -14,6 +14,7 @@ from test_hermes_observer import load_plugin_module
 def middleware_api(monkeypatch):
     monkeypatch.setitem(sys.modules, "hermes_cli", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "hermes_cli.middleware", SimpleNamespace(VALID_MIDDLEWARE={"tool_execution"}))
+    monkeypatch.setitem(sys.modules, "model_tools", SimpleNamespace(coerce_tool_args=lambda _name, args: args))
 
 
 class Context:
@@ -184,4 +185,41 @@ def test_numbers_cannot_round_between_review_and_dispatch(monkeypatch, number):
     monkeypatch.setattr(instance, 'request', no_request)
     effects = []
     assert 'blocked' in instance.execute('refund', {'nested': [{'amount': number}]}, effects.append, session_id='s')
+    assert effects == []
+
+
+def test_effective_normalized_args_are_reviewed_and_dispatched_from_a_private_copy(monkeypatch):
+    instance = adapter(monkeypatch)
+    def coerce(_name, args):
+        args['amount'] = float(args['amount'])
+        args['targets'] = json.loads(args['targets']) if isinstance(args['targets'], str) else args['targets']
+        return args
+    monkeypatch.setattr(sys.modules['model_tools'], 'coerce_tool_args', coerce)
+    payloads, effects = [], []
+    def request(action, body):
+        payloads.append((action, body))
+        return {'runId':'run','actionId':'action','bindingDigest':'digest','state':'awaiting_approval','approved':True,'claimed':True,'deadline':time.time()*1000+10000}
+    monkeypatch.setattr(instance, 'request', request)
+    original = {'amount':'10','targets':'["one"]'}
+    assert instance.execute('refund', original, lambda args: effects.append(args) or '{"ok":true}', session_id='s') == '{"ok":true}'
+    expected = {'amount':10.0,'targets':['one']}
+    assert payloads[1] == ('propose', {'runId':'run','tool':'refund','arguments':expected})
+    assert effects == [expected]
+    assert original == {'amount':'10','targets':'["one"]'}
+
+
+@pytest.mark.parametrize('mode', ['raises','unsafe','non_json','unstable'])
+def test_failed_or_inexact_normalization_never_requests_dispatch_authority(monkeypatch, mode):
+    instance = adapter(monkeypatch)
+    def coerce(_name, args):
+        if mode == 'raises': raise ValueError('private tool argument')
+        if mode == 'unsafe': return {'amount':int(args['amount'])}
+        if mode == 'non_json': return {'value':object()}
+        return {**args,'sequence':args.get('sequence',0)+1}
+    monkeypatch.setattr(sys.modules['model_tools'], 'coerce_tool_args', coerce)
+    def no_request(*_): pytest.fail('Normalization must succeed before supervisor requests')
+    monkeypatch.setattr(instance, 'request', no_request)
+    effects = []
+    result = instance.execute('refund', {'amount':'9007199254740993'}, effects.append, session_id='s')
+    assert 'blocked' in result and 'private tool argument' not in result
     assert effects == []
