@@ -210,3 +210,105 @@ ineligible, and manual-review cases, read-only constraints, expected decisions, 
 AgentAction verification steps. Use it to demonstrate meaningful declared goals
 and honest non-qualified outcomes without introducing real customer data or
 external side effects.
+
+## Opt-in execution supervisor (preview)
+
+The default remains the shadow observer. To **block tool execution** until an
+operator approves it, use a dedicated trusted Hermes profile with the execution
+adapter enabled. Tested with Hermes 0.21.0 at
+`29112bef099274229cadff79cdff7bf7b99c4b77`; older versions without
+`tool_execution` middleware register a deny hook instead of silently observing.
+Do not disable/unload this plugin while running a supervised profile.
+
+1. In the protected console, open **My agents → Connect a Hermes agent**.
+   A workspace owner enters a name and 1–20 exact allowed Hermes tool names.
+   `delegate_task`, `execute_code` and the `tool_call` orchestration bridge are
+   unsupported. Choose direct tools in a profile without other tool execution
+   middleware or pre-tool policy hooks. Ordinary request middleware runs before
+   review. Other plugins/runtime code are trusted, not sandboxed by this adapter.
+2. Save the one-time masked token in `AGENTACTION_EXECUTION_TOKEN`. This is a
+   separate execution credential: the write-only observation token cannot
+   authorize dispatch. Keep it in the host environment, outside model context,
+   commands and tool arguments. The console retains only its hash.
+3. Copy the displayed settings under `plugins.entries.agentaction.settings`:
+
+   ```yaml
+   execution_enabled: true
+   supervisor_endpoint: https://YOUR-PROTECTED-CONSOLE-ORIGIN
+   supervisor_workspace: YOUR-WORKSPACE
+   supervisor_agent_id: CONSOLE-PROVISIONED-ID
+   # Optional: these can only narrow the workspace and agent limits.
+   supervisor_limits:
+     maxCalls: 2
+     approvalTtlMs: 300000
+     executionTimeoutMs: 30000
+   ```
+
+   Set `supervisor_endpoint` explicitly to your actual console HTTPS origin;
+   it must have no path, query, user information or fragment. Redirects are
+   rejected. If Cloudflare Access protects that origin, the deployment owner
+   must allow machine access with a service token, then set
+   `AGENTACTION_ACCESS_CLIENT_ID` and `AGENTACTION_ACCESS_CLIENT_SECRET` in the
+   Hermes host. Those credentials pass Access; they do not replace the scoped
+   execution token or grant operator authority. Network/auth failures block.
+4. Enable the plugin and restart Hermes. Ingestion settings are optional for
+   execution mode. Without them, observation stays inert while execution stays
+   enforced. A missing/invalid execution configuration blocks tools.
+5. Make a tool request. Hermes returns a block with instructions to review the
+   exact call in console **Runs & approvals**. An operator or owner selects
+   **Approve Hermes call**. Retry the same tool and arguments in the same Hermes
+   session; the adapter claims it durably before the sole tool dispatch. Approval
+   alone does not dispatch the local tool. Cancel the run to deny it.
+
+Workspace and **Agent limits** controls also apply to external agents. Optional
+session limits come from `supervisor_limits` before the first call; changing
+those settings does not edit an existing session. Workspace/agent revisions,
+credential rotation, revocation and pause invalidate outstanding authority.
+Owners can rotate/revoke execution tokens from the external agent card. Replace
+the environment token and restart Hermes after rotation. Rotation cannot reopen
+old sessions; start a new reviewed session after inspecting previous effects.
+
+### Execution and evidence boundaries
+
+- Every allowlisted tool requires its own exact approval. Unlisted tools and
+  absent stable Hermes session IDs block. Call count, approval expiry and frozen
+  policy versions are enforced by the hosted supervisor. There is no model
+  self-approval or session-wide bypass, including Hermes's own “always” approval.
+- Identical tool name plus JSON arguments in one Hermes session reuse one stable
+  action. A model retry with a new tool-call ID cannot execute the same action
+  twice. Intentional repeated identical effects require a distinct session and
+  fresh operator review; a new session is a distinct run and duplicate detection
+  across sessions is not provided. Subagent orchestration is not supported.
+- Unknown or in-flight effects fence subsequent dispatch in that session. Lost
+  claim responses never cause dispatch. Claimed actions become uncertain after
+  Worker recovery or deadline expiry; no automatic reissue/reconciliation is
+  offered. The execution deadline also rejects late success reports. It cannot
+  forcibly terminate arbitrary Hermes tools; use each tool's own timeout and
+  process isolation. Cancellation/revocation cannot undo an already claimed call.
+- Exact arguments (up to 8 KB each) are intentionally retained and visible to
+  workspace members for approval. Numbers must be finite and within the JSON
+  safe integer range; use strings for larger exact values. Do not put secrets in them. Prompts and raw
+  tool results are not uploaded by this adapter. Success is explicitly
+  **adapter-reported**, not independent verification of a provider/business
+  outcome. A provider error or missing completion becomes uncertain.
+- The runtime, installed plugins and local host are trusted. This adapter covers
+  Hermes's native dispatch paths, not arbitrary code/commands using credentials
+  outside those paths. A terminal tool can run arbitrary commands; granting it
+  remains a broad authority decision for the operator. No universal exactly-once
+  or production payment certification is implied.
+- Preview bounds: 40 agents, 80 retained runs, pruning the oldest completed external record when
+  necessary (outstanding/unknown runs are retained), 1,000 permanent session tombstones per workspace, 100 credential
+  revisions per agent (final revocation remains available) and existing supervisor action/journal bounds. Hosted run
+  pruning may remove old terminal evidence; the tombstone then returns “expired”
+  and never recreates that session. Provision a new workspace when its tombstone
+  capacity is exhausted. There is no automatic tombstone deletion/reset.
+
+The synthetic acceptance uses real Hermes plugin registration, its agent and
+`model_tools` dispatch paths, real Worker SQLite, process restarts and an
+independent refund counter. It needs no model account or live provider:
+
+```bash
+cd console
+HERMES_RUNTIME=/path/to/pinned/hermes-agent HERMES_PYTHON=/path/to/venv/bin/python npm run test:hermes-worker
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs npm run test:hermes-browser
+```

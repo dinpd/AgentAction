@@ -4,6 +4,26 @@
 
 No changes yet.
 
+## 0.54.0-rc.1 - 2026-10-17
+
+### Website highlight
+
+- Hermes execution approvals and limits: Connect a trusted Hermes profile to the hosted supervisor. Review exact calls in the console, limit tool execution and stop replay after restarts or uncertain effects. Opt-in preview with synthetic refund acceptance.
+
+### Added
+
+- Opt-in Hermes execution adapter backed by the existing hosted supervisor: exact console approval, durable single-use dispatch claims, frozen workspace/agent/session limits, and adapter-reported completion evidence.
+- Owner provisioning, one-time scoped execution tokens, rotation/revocation and external agent limit controls in the console. Machine tokens are stored hashed and cannot approve actions or change policy; ingestion tokens remain observation-only.
+- Real Hermes plugin/dispatcher and Worker SQLite acceptance with synthetic refund effects, pending-approval restoration, independent process restarts, lost provider/claim responses, replay fencing and incompatible-profile blocking. Browser tests cover provisioning, approvals, credentials, roles and mobile layout.
+
+### Compatibility
+
+- Significant authorization/evidence capability: additive minor release candidate. Existing Hermes shadow observation stays the default and hosted MCP/research execution retains its existing behavior. No new provider permission or destructive migration.
+- Execution preview requires the tested Hermes middleware API and a dedicated trusted profile without other execution wrappers or pre-tool policy hooks. Delegation, execute_code and tool_call orchestration are unsupported. Local runtime/plugins/host remain trusted; arbitrary credential use outside Hermes dispatch is outside this boundary.
+- Exact tool arguments are retained for workspace review, bounded to 8 KB each; raw results/prompts are not exported by the execution adapter. Provider completion is adapter-reported. Identical calls in one session retain one action identity; new sessions are distinct and require review of earlier unknown effects.
+- Deadline expiry fences dispatch and rejects late success; it does not kill arbitrary local tools or undo accepted effects. Claimed/unknown actions require provider review. Permanent bounded session tombstones prevent replay after evidence pruning; see the adapter guide for retention ceilings.
+- Configure the actual protected console HTTPS origin explicitly. Access-protected deployments additionally require an owner-provisioned machine service token. Install the plugin from the v0.54.0-rc.1 repository tag; Python wheel/source artifacts are attached to that GitHub prerelease. No npm or PyPI registry publication is implied.
+
 ## 0.53.0-rc.1 - 2026-10-17
 
 ### Website highlight

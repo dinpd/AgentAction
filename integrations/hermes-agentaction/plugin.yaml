@@ -1,8 +1,8 @@
 name: agentaction
-version: 0.8.0
+version: 0.9.0
 manifest_version: 1
 api_version: 1
-description: Fail-open AgentAction shadow observability for Hermes Agent
+description: AgentAction shadow observability and opt-in supervised Hermes tool execution
 license: Apache-2.0
 homepage: https://agentaction.dev/
 tags: [observability, security, shadow-mode, agentaction]
@@ -23,6 +23,11 @@ requires_env:
     description: Tenant- and source-scoped AgentAction observation token
     secret: true
 config_schema:
+  execution_enabled: {type: bool, default: false, description: "Require hosted approval and a single-use durable claim for every tool"}
+  supervisor_endpoint: {type: str, default: "", description: "Protected supervisor HTTPS origin"}
+  supervisor_workspace: {type: str, default: "", description: "Workspace that provisioned the execution token"}
+  supervisor_agent_id: {type: str, default: "", description: "Console-provisioned external agent ID"}
+  supervisor_limits: {type: dict, default: {}, description: "Optional tighter frozen session limits"}
   endpoint: {type: str, default: "https://gateway.agentaction.dev", description: "AgentAction hosted gateway origin"}
   tenant_id: {type: str, default: "", description: "Assigned AgentAction tenant ID", required: true}
   source_id: {type: str, default: "hermes", description: "Registered observation source ID"}

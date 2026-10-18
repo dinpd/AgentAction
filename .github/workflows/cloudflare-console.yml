@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "console/**"
+      - "integrations/hermes-agentaction/**"
       - "recipes/**"
       - "fixtures/mcp-capability-coverage-v1/**"
       - ".github/workflows/cloudflare-console.yml"
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "console/**"
+      - "integrations/hermes-agentaction/**"
       - "recipes/**"
       - "fixtures/mcp-capability-coverage-v1/**"
       - ".github/workflows/cloudflare-console.yml"
@@ -57,6 +59,32 @@ jobs:
         run: npm run test:supervisor-overrides-browser
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify Hermes registration, approvals and token lifecycle
+        run: npm run test:hermes-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check out tested Hermes runtime
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: 29112bef099274229cadff79cdff7bf7b99c4b77
+          path: .hermes-runtime
+          persist-credentials: false
+
+      - name: Install Hermes runtime for synthetic execution acceptance
+        run: python -m pip install -e ../.hermes-runtime
+
+      - name: Verify real Hermes dispatch, claims and Worker restart recovery
+        run: npm run test:hermes-worker
+        env:
+          HERMES_RUNTIME: ${{ github.workspace }}/.hermes-runtime
+          HERMES_PYTHON: python
 
       - name: Verify job-first draft review and outcome assessment
         run: node --experimental-strip-types tests/job-first-draft-browser.mts

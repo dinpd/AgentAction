@@ -67,7 +67,7 @@ export function settleAction(state: SupervisorRecord, actionId: string, result: 
   if (!action || action.state !== 'dispatch_claimed') throw new RuntimeError('Action is no longer eligible for completion.', 409);
   action.state = result; record(state, action);
 }
-export function recoverActions(state: SupervisorRecord, reason: 'restart' | 'persistence_failure' = 'restart'): boolean {
+export function recoverActions(state: SupervisorRecord, reason: 'restart' | 'persistence_failure' | 'cancellation' = 'restart'): boolean {
   let changed = false;
   for (const action of state.actions) if (action.state === 'dispatch_claimed') { action.state = 'uncertain'; record(state, action, reason); changed = true; }
   return changed;

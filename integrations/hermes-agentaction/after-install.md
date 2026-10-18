@@ -14,3 +14,10 @@ data. Completed Hermes turns/runs appear in Jobs under the built-in **Observed
 execution** lifecycle profile; this does not infer semantic intent from prompts.
 With declared-intent capture enabled, Jobs labels the model's declaration and
 terminal report as self-attested rather than trusted user intent.
+
+For opt-in enforcement, open **My agents → Connect a Hermes agent** in the
+protected console and follow the [execution adapter setup](README.md#opt-in-execution-supervisor-preview).
+Save its separate execution token as `AGENTACTION_EXECUTION_TOKEN`, copy the
+supervisor settings and enable `execution_enabled: true` in a dedicated trusted
+profile. Every tool then blocks until an exact console approval and durable
+single-use claim. Ingestion configuration is optional for execution mode.
