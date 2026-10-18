@@ -14,6 +14,19 @@ class _NoRedirect(HTTPRedirectHandler):
         return None  # Never forward execution or Access credentials to a redirect.
 
 
+def _exact_numbers(value: Any) -> None:
+    # Python integers have arbitrary precision; the hosted JavaScript runtime
+    # does not. Never approve a rounded value and then dispatch the original.
+    if isinstance(value, (int, float)) and abs(value) > 9007199254740991:
+        raise ValueError("Numeric tool argument outside the shared JSON safe range")
+    if isinstance(value, dict):
+        for item in value.values():
+            _exact_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            _exact_numbers(item)
+
+
 class HermesExecutionAdapter:
     def __init__(self, ctx: Any):
         self.ctx = ctx
@@ -77,6 +90,7 @@ class HermesExecutionAdapter:
             frozen = json.loads(json.dumps(args, allow_nan=False))
             if not isinstance(frozen, dict):
                 return self.block("Tool arguments must be an object.")
+            _exact_numbers(frozen)
             run = self.request("start", {"sessionId": session_id, "supervisorLimits": self.limits})
             run_id = run["runId"]
             proposal = self.request("propose", {"runId": run_id, "tool": tool_name, "arguments": frozen})

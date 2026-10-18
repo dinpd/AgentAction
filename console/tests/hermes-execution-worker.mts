@@ -30,6 +30,7 @@ const invoke=async(session:string,extra:Record<string,unknown>={})=>{
   const home=join(temp,'home-'+(++count));await mkdir(home);
   const child=spawn(python,[fileURLToPath(new URL('./fixtures/hermes-execution.py',import.meta.url))],{env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'},stdio:['pipe','pipe','pipe']});
   child.stdin.write(JSON.stringify({home,runtime,token:registered.token,agentId:registered.agentId,plugin:fileURLToPath(new URL('../../integrations/hermes-agentaction/',import.meta.url)),effects:join(temp,'effects'),session,...extra})+'\n');
+  const timeout=setTimeout(()=>child.kill('SIGKILL'),60000);
   let output:any,err='';child.stderr.on('data',chunk=>{err+=chunk.toString();});
   const closed=new Promise<number|null>(resolve=>child.on('close',resolve));
   for await(const line of createInterface({input:child.stdout})) {
@@ -43,7 +44,8 @@ const invoke=async(session:string,extra:Record<string,unknown>={})=>{
       assert.ok(!JSON.stringify(body).includes(registered.token));
     }
   }
-  assert.equal(await closed,0,err);assert.ok(output,'Hermes returned no result: '+err);return String(output);
+  const exitCode=await closed;clearTimeout(timeout);
+  assert.equal(exitCode,0,err || 'Hermes child exceeded its 60-second acceptance deadline');assert.ok(output,'Hermes returned no result: '+err);return String(output);
 };
 const pending=async()=>{const state=await operator('state');return state.runs.find((r:any)=>r.pending);};
 try {

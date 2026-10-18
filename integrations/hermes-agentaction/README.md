@@ -286,7 +286,8 @@ old sessions; start a new reviewed session after inspecting previous effects.
   forcibly terminate arbitrary Hermes tools; use each tool's own timeout and
   process isolation. Cancellation/revocation cannot undo an already claimed call.
 - Exact arguments (up to 8 KB each) are intentionally retained and visible to
-  workspace members for approval. Do not put secrets in them. Prompts and raw
+  workspace members for approval. Numbers must be finite and within the JSON
+  safe integer range; use strings for larger exact values. Do not put secrets in them. Prompts and raw
   tool results are not uploaded by this adapter. Success is explicitly
   **adapter-reported**, not independent verification of a provider/business
   outcome. A provider error or missing completion becomes uncertain.

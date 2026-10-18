@@ -9,6 +9,10 @@ const now = () => new Date().toISOString();
 const runKey = (id: string) => `run:${id}`;
 const policy = async (s: Pick<RuntimeStorage, 'get'>): Promise<SupervisorPolicy> => await s.get<SupervisorPolicy>('supervisor-policy') || {version: 0, limits: {...DEFAULT_SUPERVISOR_LIMITS}};
 const blocked = (message: string): never => { throw new RuntimeError(message, 409); };
+function exactNumbers(value: unknown): void {
+  if (typeof value === 'number' && (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER)) throw new RuntimeError('External numeric arguments must be finite and within the JSON safe integer range; use strings for larger values.');
+  if (value && typeof value === 'object') for (const item of Object.values(value)) exactNumbers(item);
+}
 const allowedTools = (input: unknown): string[] => {
   if (!Array.isArray(input) || !input.length || input.length > 20 || input.some(t => typeof t !== 'string' || !/^[a-zA-Z0-9_.-]{1,128}$/.test(t) || ['delegate_task','execute_code','tool_call'].includes(t))) throw new RuntimeError('Choose 1–20 exact Hermes tool names. Delegation, execute_code and tool_call are unsupported.');
   return [...new Set(input)];
@@ -86,6 +90,7 @@ export class ExternalSupervisor {
       let result: unknown;
       if (action === 'propose') {
         const tool=textField(body.tool,'tool name',128), args=object(body.arguments);
+        exactNumbers(args);
         if (!current.tools.includes(tool)) throw new RuntimeError('Tool is outside the owner-approved allowlist.',403);
         if (new TextEncoder().encode(JSON.stringify(args)).byteLength > 8000) throw new RuntimeError('External tool arguments exceed the 8 KB approval limit.');
         // Tokens in arguments would disclose authority to readers of approval evidence.

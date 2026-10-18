@@ -174,3 +174,14 @@ def test_malformed_enable_flag_cannot_silently_disable_the_gate(monkeypatch):
     effects = []
     assert "blocked" in instance.execute("refund", {}, effects.append, session_id="s")
     assert effects == []
+
+
+@pytest.mark.parametrize('number', [9007199254740993, -9007199254740993, 1e30, float('nan'), float('inf')])
+def test_numbers_cannot_round_between_review_and_dispatch(monkeypatch, number):
+    instance = adapter(monkeypatch)
+    def no_request(*_):
+        pytest.fail('Inexact numeric arguments must fail before any proposal')
+    monkeypatch.setattr(instance, 'request', no_request)
+    effects = []
+    assert 'blocked' in instance.execute('refund', {'nested': [{'amount': number}]}, effects.append, session_id='s')
+    assert effects == []

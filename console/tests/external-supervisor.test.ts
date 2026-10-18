@@ -140,3 +140,10 @@ test('credential revision cap never prevents final revocation',async()=>{
   assert.equal((await f.request('external-revoke',{agentId:f.agentId})).status,200);
   assert.equal((await f.external('start',{sessionId:'revoked'})).status,401);
 });
+
+test('nonfinite or out-of-range JSON numbers cannot become rounded approvals',async()=>{
+  const f=await fixture(),id=await f.start();
+  for(const value of [9007199254740992,-9007199254740992,1e100])assert.equal((await f.propose(id,{nested:[{amount:value}]})).status,400);
+  const response=await new AgentRuntime(f.storage,{}).handle(new Request('https://runtime.test/external/propose',{method:'POST',headers:{'x-runtime-workspace':'acme',authorization:'Bearer '+f.token},body:`{"agentId":"${f.agentId}","runId":"${id}","tool":"refund","arguments":{"amount":1e400}}`}));
+  assert.equal(response.status,400);assert.equal((await f.read(id)).pending,undefined);
+});
