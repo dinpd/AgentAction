@@ -45,9 +45,10 @@ export class ExternalSupervisor {
     });
     for (const run of (await this.storage.list<Run>({prefix:'run:'})).values()) if (run.agentId === agent.id && run.external && (run.pending || run.supervisor!.actions.some(a => a.state === 'dispatch_claimed'))) {
       cancelActions(run.supervisor!); delete run.pending; delete run.external.approved;
-      if (recoverActions(run.supervisor!)) {
+      if (recoverActions(run.supervisor!, 'cancellation')) {
         run.status='interrupted'; run.outcome='uncertain';
         for (const event of run.events) if (event.status === 'executing') event.status='uncertain';
+        run.summary='External credentials changed while a claimed tool may still be running. Inspect the provider; revocation cannot undo its effect.';
       }
       else run.status='cancelled';
       await this.storage.put(runKey(run.id),run);

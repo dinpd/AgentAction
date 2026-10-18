@@ -21,7 +21,7 @@ const bundle=await build({stdin:{contents:`
     return worker.fetch(request,env);
   }};`,resolveDir:fileURLToPath(new URL('../src/',import.meta.url))},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],write:false});
 const create=()=>new Miniflare(convertV4MiniflareOptions({resourcePersistencePath:join(temp,'sqlite'),workers:[{name:'hermes-supervisor',modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2026-07-20',durableObjects:{AGENT_WORKSPACES:{className:'AgentWorkspace',useSQLite:true}}}]}));
-let mf=create(),count=0,loseClaim=false;
+let mf=create(),count=0,loseClaim=false,cancelOnComplete=false;
 const operator=async(action:string,body?:unknown)=>{const r=await mf.dispatchFetch('https://console.test/operator/'+action,{method:body===undefined?'GET':'POST',...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await r.json() as any;assert.equal(r.status,200,JSON.stringify(value));return value;};
 const restart=async()=>{await mf.dispose();mf=create();};
 const effects=async()=>Number(await readFile(join(temp,'effects'),'utf8').catch(()=> '0'));
@@ -37,6 +37,7 @@ const invoke=async(session:string,extra:Record<string,unknown>={})=>{
     let event:any;try{event=JSON.parse(line);}catch{continue;}
     if(event.type==='done')output=event.value;
     if(event.type==='rpc') {
+      if(cancelOnComplete && event.url.endsWith('/complete')) {cancelOnComplete=false;await operator('cancel',{runId:JSON.parse(event.body).runId});}
       const r=await mf.dispatchFetch(event.url,{method:'POST',headers:event.headers,body:event.body}),body=await r.json() as any;
       const lost=loseClaim && event.url.endsWith('/claim') && r.status===200;
       if(lost)loseClaim=false;
@@ -61,6 +62,10 @@ try {
   assert.match(await invoke('claim-loss'),/blocked/);p=await pending();await operator('approve',{runId:p.id,approvalId:p.pending.id});loseClaim=true;
   assert.match(await invoke('claim-loss'),/blocked/);assert.equal(await effects(),2);await restart();assert.match(await invoke('claim-loss'),/blocked/);assert.equal(await effects(),2);
   assert.match(await invoke('incompatible',{incompatible:true,path:'agent'}),/dedicated profile/);assert.equal(await effects(),2);
+  assert.match(await invoke('cancel-in-flight',{path:'agent'}),/blocked/);p=await pending();await operator('approve',{runId:p.id,approvalId:p.pending.id});cancelOnComplete=true;
+  assert.match(await invoke('cancel-in-flight',{path:'agent'}),/blocked/);assert.equal(await effects(),3);
+  state=await operator('state');const cancelled=state.runs.find((r:any)=>r.id===p.id);assert.equal(cancelled.status,'interrupted');assert.equal(cancelled.supervisor.actions[0].state,'uncertain');assert.equal(cancelled.events[0].status,'uncertain');assert.equal(cancelled.supervisor.journal.at(-1).reason,'cancellation');
+  await restart();assert.match(await invoke('cancel-in-flight'),/blocked/);assert.equal(await effects(),3);
   state=await operator('state');assert.ok(!JSON.stringify(state).includes('never-export'));assert.ok(!JSON.stringify(state).includes(registered.token));
   console.log('Hermes acceptance passed: real PluginContext, agent and model_tools dispatch paths, pending approval restoration, single-use claims, independent synthetic refund counter, lost provider result, lost claim response, process/Worker restarts and incompatible-plugin blocking.');
 } finally {await mf.dispose();await rm(temp,{recursive:true,force:true});}

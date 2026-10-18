@@ -126,7 +126,17 @@ export class AgentRuntime {
         if(last?.status!==status)recordStep(research,step.id,status,{observation:'Run stopped before this step completed.'});
       }
     }
-    if (run.status === 'cancelled' && run.supervisor) cancelActions(run.supervisor);
+    if (run.status === 'cancelled' && run.supervisor) {
+      cancelActions(run.supervisor);
+      if (run.external) {
+        delete run.external.approved; delete run.pending;
+        if (recoverActions(run.supervisor, 'cancellation')) {
+          run.status='interrupted'; run.outcome='uncertain';
+          for (const event of run.events) if (event.status === 'executing') event.status='uncertain';
+          run.summary='External authority was cancelled while a claimed tool may still be running. Inspect the provider; cancellation cannot undo its effect.';
+        }
+      }
+    }
     const finalize = terminal(run) && run.contract && !run.evaluation;
     if (finalize) {
       if(run.contract!.binding.specification.rubrics?.length && hasRubricEvidence(run) && !run.rubricAssessment) {

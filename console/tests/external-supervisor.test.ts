@@ -147,3 +147,12 @@ test('nonfinite or out-of-range JSON numbers cannot become rounded approvals',as
   const response=await new AgentRuntime(f.storage,{}).handle(new Request('https://runtime.test/external/propose',{method:'POST',headers:{'x-runtime-workspace':'acme',authorization:'Bearer '+f.token},body:`{"agentId":"${f.agentId}","runId":"${id}","tool":"refund","arguments":{"amount":1e400}}`}));
   assert.equal(response.status,400);assert.equal((await f.read(id)).pending,undefined);
 });
+
+for(const invalidation of ['cancel','pause','agent-policy','workspace-policy','external-revoke','external-rotate'])test(`in-flight external claim becomes uncertain immediately on ${invalidation}`,async()=>{
+  const f=await fixture(),id=await f.start(),p=(await f.propose(id)).body;await f.approve(id);await f.claim(id,p);
+  const mutation=invalidation==='agent-policy'?f.request('supervisor-settings',{scope:'agent',agentId:f.agentId,expectedVersion:0,limits:{maxCalls:2}}):invalidation==='workspace-policy'?f.request('supervisor-settings',{scope:'workspace',expectedVersion:0,limits:{maxCalls:2}}):f.request(invalidation,invalidation==='cancel'?{runId:id}:{agentId:f.agentId});
+  assert.equal((await mutation).status,200);
+  const run=await f.read(id);assert.equal(run.status,'interrupted');assert.equal(run.outcome,'uncertain');assert.equal(run.supervisor!.actions[0].state,'uncertain');assert.equal(run.events[0].status,'uncertain');assert.equal(run.supervisor!.journal.at(-1)!.reason,'cancellation');assert.equal(run.external!.approved,undefined);
+  await f.external('complete',{runId:id,actionId:p.actionId,status:'succeeded'});await f.claim(id,p);
+  assert.equal((await f.read(id)).supervisor!.actions[0].state,'uncertain');
+});
