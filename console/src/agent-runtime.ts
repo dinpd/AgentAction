@@ -1,3 +1,4 @@
+import { ExternalSupervisor, type ExternalAgent, type ExternalRun } from './external-supervisor.ts';
 import { DEFAULT_SUPERVISOR_LIMITS, supervisorLimits, supervisorRecord, actionDigest, proposeAction, claimAction, settleAction, recoverActions, cancelActions, type SupervisorLimits, type SupervisorPolicy, type SupervisorRecord } from './execution-supervisor.ts';
 import { RESEARCH_ACTORS, RESEARCH_ACTOR_TOOLS, researchToolContract, RESEARCH_ENDPOINT, RESEARCH_TOOLS, researchPricing, researchConfig, actorChargeCap, nextResearchTime, actorArguments, toolPayload, actorEvidence, sourcePosts, reportChecks, reportText, type ResearchDefinition, type ResearchRun } from './research-digest.ts';
 import { COMPANY_SKILL, PREPARATION_PROMPT, preparationSchema, preparationDefinition, websiteURL, suggestedWebsite, briefFields, readResearchWebsite, type WorkspaceSkill } from './preparation-skills.ts';
@@ -31,8 +32,9 @@ export type RuntimeEnv = OAuthEnv & {
 };
 export type Suggestion = { id: string; title: string; goal: string; setup: string; success: string; tools: string[] };
 export type Connection = McpConnection & { oauth?: OAuthConnection; catalog?:CatalogMetadata; id: string; label: string; suggestions: Suggestion[]; status: "connected" | "disconnected"; createdAt: string };
-export type Agent = { supervisorLimits?: Partial<SupervisorLimits>; supervisorVersion?: number; research?: ResearchDefinition; toolBindings?: ToolBindings; evaluationBinding?: RecipeEvalBinding; definition?: RecipeDefinition; workspaceRecipe?: { id: string; version: number }; recipe?: Pick<Recipe, "id" | "version" | "instructions" | "boundaries"> & { requirements: string[] }; id: string; connectionId: string; title: string; goal: string; setup: string; success: string; tools: string[]; status: "draft" | "active" | "paused"; nextRun?: number; lastTrial?: string; createdAt: string };
+export type Agent = { external?: ExternalAgent; supervisorLimits?: Partial<SupervisorLimits>; supervisorVersion?: number; research?: ResearchDefinition; toolBindings?: ToolBindings; evaluationBinding?: RecipeEvalBinding; definition?: RecipeDefinition; workspaceRecipe?: { id: string; version: number }; recipe?: Pick<Recipe, "id" | "version" | "instructions" | "boundaries"> & { requirements: string[] }; id: string; connectionId: string; title: string; goal: string; setup: string; success: string; tools: string[]; status: "draft" | "active" | "paused"; nextRun?: number; lastTrial?: string; createdAt: string };
 export type Run = {
+  external?: ExternalRun;
   supervisor?: SupervisorRecord;
   research?: ResearchRun;
   contract?: HostedContract; evaluation?: HostedEvaluation; rubricAssessment?:RubricAssessment;
@@ -80,6 +82,15 @@ export class AgentRuntime {
           for(const entry of pending)recordStep(run.research,entry.step,'uncertain',{kind:entry.kind,call:entry.call,attempt:entry.attempt,observation:'Runtime restarted before completion was retained.'});
         }
         run.research.due=Date.now()+1000;await this.saveRun(run);continue;
+      }
+      if (run.external) {
+        if (recoverActions(run.supervisor!)) {
+          run.status='interrupted';run.outcome='uncertain';delete run.pending;delete run.external.approved;
+          for(const event of run.events)if(event.status==='executing')event.status='uncertain';
+          run.summary='External execution was interrupted. Review the provider; automatic redispatch is blocked.';
+          await this.saveRun(run);
+        }
+        continue;
       }
       if (run.supervisor && !run.research) {
         const uncertain = recoverActions(run.supervisor);
@@ -214,6 +225,7 @@ export class AgentRuntime {
         if (request.method === 'GET' && path === '/state') return json(await this.snapshot());
         if (request.method !== "POST") throw new RuntimeError("Route not found.", 404);
         const body = object(JSON.parse(await boundedText(new Response(request.body), 24000)));
+        if (path.startsWith('/external/')) return json(await new ExternalSupervisor(this.storage).request(path,body,request.headers.get('authorization') || ''));
         return json(await this.mutate(path, body, request.headers.get("x-runtime-actor") || "operator", request.headers.get("x-runtime-role") || "operator"));
       });
     } catch (error) {
@@ -342,6 +354,7 @@ export class AgentRuntime {
   }
   async mutate(path: string, body: Record<string, unknown>, actor: string, role = "operator"): Promise<unknown> {
     if(!['owner','operator'].includes(role))throw new RuntimeError('An owner or operator must approve agent operations.',403);
+    if (['/external-register','/external-rotate','/external-revoke'].includes(path)) return new ExternalSupervisor(this.storage).owner(path,body,role,actor);
     if(path === '/supervisor-settings') return this.configureSupervisor(body, role, actor);
     if(path.startsWith('/research-'))return this.researchMutation(path,body,actor,role);
     if (path === "/inspect-endpoint") {
@@ -726,6 +739,7 @@ export class AgentRuntime {
       const run = await this.required<Run>("run", body.runId);
       if (run.status !== "awaiting_approval" || !run.pending || run.pending.id !== body.approvalId) throw new RuntimeError("This proposal is no longer pending.", 409);
       const agent = await this.required<Agent>("agent", run.agentId);
+      if(run.external)throw new RuntimeError('Revise the call in Hermes and review its new exact proposal.',409);
       const connection = await this.connected(agent);
       const tool = (await this.toolsFor(agent)).find(t => t.name === run.pending!.tool);
       if (!tool) throw new RuntimeError("The proposed tool is no longer available.", 409);
@@ -743,6 +757,7 @@ export class AgentRuntime {
       let run = await this.required<Run>("run", body.runId);
       if (run.status !== "awaiting_approval" || !run.pending || run.pending.id !== body.approvalId) throw new RuntimeError("This approval is no longer pending. Refresh the run.", 409);
       const agent = await this.required<Agent>("agent", run.agentId);
+      if(run.external)return new ExternalSupervisor(this.storage).approve(run,body.approvalId,actor);
       if(run.research){await this.approveResearch(agent,run,actor);return {runId:run.id};}
       const connection = await this.connected(agent);
       const pending = run.pending;
@@ -813,6 +828,7 @@ export class AgentRuntime {
     }
     if (path === "/activate" || path === "/pause") {
       const agent = await this.required<Agent>("agent", body.agentId);
+      if (path === '/activate' && agent.external) throw new RuntimeError('Hermes sessions are started by the external adapter.',409);
       if (path === '/activate' && agent.research) {
         if(role!=='owner'||body.reviewed!==true)throw new RuntimeError('An owner must review and approve recurring research execution.',403);
         if(!await this.researchImplementationCurrent(agent.research))throw new RuntimeError('Research implementation changed. Save settings and review a fresh trial.',409);
@@ -1155,6 +1171,7 @@ export class AgentRuntime {
     }
   }
   private async start(agent: Agent, kind: Run["kind"], actor: string, overrides: unknown = {}): Promise<Run> {
+    if(agent.external)throw new RuntimeError('Start this session from the configured Hermes adapter.',409);
     if(agent.research){ if (Object.keys(object(overrides)).length) throw new RuntimeError('Research uses its separately reviewed limits.',409); return this.startResearch(agent,kind,actor); }
     const connection = await this.connected(agent);
     const runs = [...(await this.storage.list<Run>({ prefix: "run:" })).values()];

@@ -1,4 +1,4 @@
-"""Hermes Agent registration for AgentAction shadow observability."""
+"""Hermes AgentAction observation and opt-in execution enforcement."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import atexit
 import logging
 import os
 from typing import Any
+
+from .enforcement import register_enforcement
 
 from .observer import (
     DECLARE_INTENT_TOOL_SCHEMA,
@@ -17,13 +19,28 @@ from .observer import (
 
 
 _observer: HermesShadowObserver | None = None
+_execution = None
 _logger = logging.getLogger(__name__)
 
 
 def register(ctx: Any) -> None:
-    """Register privacy-safe, fail-open observer callbacks with Hermes."""
-    global _observer
+    """Install execution control before optional fail-open observation."""
+    global _observer, _execution
 
+    enabled = ctx.get_config("execution_enabled", default=False)
+    if enabled is not False and enabled is not None:
+        _execution = register_enforcement(ctx)
+        if enabled is not True:
+            _execution.error = "execution_enabled must be a YAML boolean. Fix settings and restart Hermes."
+    try:
+        _register_observer(ctx)
+    except Exception:
+        # Never let optional observation failure unload an installed execution gate.
+        _logger.warning("AgentAction observation unavailable; execution configuration remains in effect")
+
+
+def _register_observer(ctx: Any) -> None:
+    global _observer
     tenant_id = ctx.get_config("tenant_id", default="")
     token = os.environ.get("AGENTACTION_INGEST_TOKEN", "")
     if not str(tenant_id or "").strip() or not token.strip():

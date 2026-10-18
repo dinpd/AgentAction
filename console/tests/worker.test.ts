@@ -760,6 +760,19 @@ test("endpoint approvals require current owner membership and overwrite spoofed 
 });
 
 
+test('external credentials require verified owner membership and same-origin console mutation', async () => {
+  let role='owner', forwarded=0;
+  const env: Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:[{tenant:{tenant_id:'acme'},membership:{role}}]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_WORKSPACES:{getByName(name){assert.equal(name,'workspace:acme');return {async request(request){forwarded++;assert.equal(request.headers.get('x-runtime-role'),'owner');assert.equal(request.headers.get('x-runtime-actor'),'operator-123');return json({ok:true});}};}}};
+  const post=(action:string,origin='https://console.test')=>accessRequest('/api/agents/acme/'+action,{method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder','x-runtime-role':'owner'},body:'{}'},{custom:{}});
+  for(const action of ['external-register','external-rotate','external-revoke']) {
+    assert.equal((await worker.fetch(post(action,'https://evil.test'),env)).status,403);
+    role='operator';assert.equal((await worker.fetch(post(action),env)).status,403);
+    role='viewer';assert.equal((await worker.fetch(post(action),env)).status,403);
+    role='owner';assert.equal((await worker.fetch(post(action),env)).status,200);
+  }
+  assert.equal(forwarded,3);
+});
+
 test('supervisor settings use verified workspace roles and reject cross-origin or revoked access', async () => {
   let role = 'owner', present = true, forwarded = 0;
   const env: Env = {

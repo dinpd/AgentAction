@@ -4870,6 +4870,10 @@ export default {
         return new Response(JSON.stringify(oauthClientMetadata(env)), { headers: secureHeaders('application/json; charset=utf-8') });
       } catch { return new Response(null, { status: 503 }); }
     }
+    if (url.pathname.startsWith('/api/external-agents/')) {
+      try { return await forwardExternalSupervisor(request,env); }
+      catch(error) { return problemResponse(request,asConsoleError(error)); }
+    }
     let identity: ConsoleIdentity;
     try {
       identity = await authenticateConsoleRequest(request, env);
@@ -5308,7 +5312,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
     try { catalogQuery = parseCatalogQuery(url.searchParams); }
     catch { throw new ConsoleError(400, "catalog_query_invalid", "Invalid catalog search parameters."); }
   }
-  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["supervisor-settings", "research-connect", "research-draft", "research-save", "oauth-start", "inspect-endpoint", "connect", "refresh-capabilities", "suggest", "profile-agents", "draft", "rank-tools", "save-draft", "save-skill", "configure-preparation", "prepare-brief", "save-brief", "template-draft", "create-bound", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
+  if (!isRead && (request.method !== "POST" || !(recurring ? ["create", "run", "activate", "pause", "route", "delete", "settings", "test-email", "acknowledge"] : ["external-register", "external-rotate", "external-revoke", "supervisor-settings", "research-connect", "research-draft", "research-save", "oauth-start", "inspect-endpoint", "connect", "refresh-capabilities", "suggest", "profile-agents", "draft", "rank-tools", "save-draft", "save-skill", "configure-preparation", "prepare-brief", "save-brief", "template-draft", "create-bound", "save-recipe", "create", "trial", "revise", "approve", "cancel", "activate", "pause", "disconnect", "approve-endpoint", "remove-endpoint"]).includes(action))) throw new ConsoleError(405, "agent_method_invalid", "Agent operation is not available.");
   if (!isRead && (request.headers.get("origin") !== url.origin || request.headers.get("x-agentaction-request") !== "agent-builder" || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))) throw new ConsoleError(403, "agent_origin_invalid", "Agent changes must come from the same-origin builder.", "forbidden");
   const session = await consoleSession(identity, env);
   if (!session.ok) return session;
@@ -5316,6 +5320,7 @@ async function forwardAgentRuntime(request: Request, identity: ConsoleIdentity, 
   const membership = data.memberships?.find(entry => entry.tenant?.tenant_id === tenantId)?.membership;
   if (!membership) throw new ConsoleError(403, "agent_membership_required", "Workspace membership is required.", "forbidden");
   if (!isRead && membership.role !== "owner" && membership.role !== "operator") throw new ConsoleError(403, "agent_operator_required", "An owner or operator must approve this operation.", "forbidden");
+  if (["external-register", "external-rotate", "external-revoke"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "external_owner_required", "Only a workspace owner can provision or revoke external execution credentials.", "forbidden");
   if (["research-connect", "research-draft", "research-save", "oauth-start", "approve-endpoint", "remove-endpoint"].includes(action) && membership.role !== "owner") throw new ConsoleError(403, "endpoint_owner_required", "Only a workspace owner can change endpoint approvals.", "forbidden");
   if (catalogQuery) {
     if (!env.MCP_REGISTRY) throw new ConsoleError(503, "catalog_unavailable", "Registry discovery is unavailable. Enter an MCP endpoint manually.", "unavailable");
@@ -5751,4 +5756,17 @@ function escapeHtml(value: string): string {
     '"': "&quot;",
     "'": "&#39;",
   })[character] || character);
+}
+
+// This narrow machine ingress has its own DO-verified credential. Never forward
+// caller-supplied role/actor/workspace headers or permit operator mutations here.
+async function forwardExternalSupervisor(request: Request, env: Env): Promise<Response> {
+  const url=new URL(request.url), parts=url.pathname.split('/');
+  if(env.CONSOLE_PUBLIC_DEMO === 'true' || parts.length !== 5 || !['start','propose','claim','complete'].includes(parts[4]) || url.search || request.method !== 'POST') throw new ConsoleError(404,'external_route_invalid','External supervisor route not found.');
+  if(!request.headers.get('authorization')?.startsWith('Bearer aae_') || !request.headers.get('content-type')?.startsWith('application/json')) throw new ConsoleError(401,'external_credential_required','External execution credential required.');
+  const workspace=validateTenantId(decodePathSegment(parts[3]),'workspace');
+  if(!env.AGENT_WORKSPACES)throw new ConsoleError(503,'external_unavailable','External supervisor unavailable.');
+  const body=await boundedText(new Response(request.body),24000);
+  const result=await env.AGENT_WORKSPACES.getByName(`workspace:${workspace}`).request(new Request(`https://agent-runtime.internal/external/${parts[4]}`,{method:'POST',headers:{'content-type':'application/json','authorization':request.headers.get('authorization')!,'x-runtime-workspace':workspace},body}));
+  return new Response(result.body,{status:result.status,headers:secureHeaders('application/json; charset=utf-8')});
 }

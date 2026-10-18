@@ -140,3 +140,29 @@ synthetic effects and require no payment account.
 console, verifying saved partial overrides, reset/inheritance, conflicts,
 per-trial isolation and frozen limits, role restrictions, validation and mobile
 layout without dispatching provider tools.
+
+## External Hermes execution
+
+The opt-in [Hermes execution adapter](../integrations/hermes-agentaction/#opt-in-execution-supervisor-preview)
+uses these same state transitions and the same workspace Durable Object. Owners
+register, rotate or revoke an external identity in My agents. Operators approve
+its exact proposals in Runs & approvals. Hashed, single-agent machine tokens can
+start sessions, propose, claim and report completion; they cannot approve, edit
+policy, read console snapshots or impersonate a console principal.
+
+Machine requests use `POST /api/external-agents/{workspace}/{start|propose|claim|complete}`
+with `Authorization: Bearer <execution-token>`. The Worker strips caller identity
+headers and the Durable Object verifies the credential and workspace. Protected
+Access installations additionally need service-token routing configured by the
+deployment owner. Same-origin console mutations remain behind verified user
+membership and owner/operator checks.
+
+Each action binds workspace, run, agent/credential revisions, tool allowlist,
+exact tool/arguments, frozen policy and limits. Operator approval is retained
+separately from its single-use transactional claim. No local dispatch occurs
+until the adapter receives that claim. All requests and failures are bounded;
+argument/result disclosure, profile compatibility, session retention, deadline
+fencing and cooperative-runtime limitations are documented in the adapter guide.
+External completion evidence is adapter-reported and does not invoke hosted AI
+planning or evaluation. Existing hosted MCP and research execution stay on their
+reviewed paths.
