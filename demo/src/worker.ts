@@ -1,3 +1,6 @@
+import { SHARED_AUTHORITY_HTML } from "./shared-authority/page.ts";
+import { sharedAuthorityRequest } from "./shared-authority/scenario.ts";
+
 type Env = {
   AGENTID_GATEWAY_URL: string;
   AGENTID_GATEWAY_TOKEN?: string;
@@ -322,6 +325,12 @@ const HTML = String.raw`<!doctype html>
     </div>
   </header>
 
+  <div style="max-width:1440px;margin:20px auto 0;padding:18px 22px;background:#dff2e9;border:1px solid #b7d4c7;border-radius:8px">
+    <strong>One task. Two providers. Shared authority.</strong>
+    <p style="font-size:14px;margin:6px 0">Refund $40 and close a support case with separate signed grants, then try changing the amount, replaying a call or using an impostor.</p>
+    <a href="/shared-authority" style="color:#006958;font-weight:600">Open the shared authority demo →</a>
+    <span style="font-size:12px;color:#526b75;margin-left:10px">Synthetic providers · provisioned trust</span>
+  </div>
   <main>
     <section class="customer">
       <h2>Support Case</h2>
@@ -960,6 +969,16 @@ export default {
     if (request.method === "OPTIONS") return empty();
     if (request.method === "GET" && url.pathname === "/") {
       return html(HTML);
+    }
+    if (request.method === "GET" && (url.pathname === "/shared-authority" || url.pathname === "/shared-authority/")) {
+      return new Response(SHARED_AUTHORITY_HTML, { headers: {
+        "content-type": "text/html; charset=utf-8", "cache-control": "no-store",
+        "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
+        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      } });
+    }
+    if (request.method === "POST" && url.pathname === "/api/shared-authority/run") {
+      return sharedAuthorityRequest(request);
     }
     if (request.method === "POST" && url.pathname === "/api/authorize") {
       return proxyGateway(request, env, "authorize");

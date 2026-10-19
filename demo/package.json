@@ -6,7 +6,9 @@
     "dev": "wrangler dev --local --port 8790",
     "deploy": "wrangler deploy",
     "dry-run": "wrangler deploy --dry-run --outdir /tmp/agentid-demo-worker-dist",
-    "test": "node --test --experimental-strip-types tests/*.test.ts"
+    "build": "npm run dry-run",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "test:browser": "node --experimental-strip-types tests/shared-authority-browser.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"

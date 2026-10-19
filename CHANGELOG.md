@@ -4,6 +4,26 @@
 
 No changes yet.
 
+## 0.55.0-rc.1 - 2026-10-18
+
+### Website highlight
+
+- Shared authority across providers: Explore how two synthetic providers verify exact actions from the same authority. Run a refund and case update, then challenge changed amounts, replay, provider identity, revocation and expiry in an interactive demo.
+
+### Added
+
+- Shared-authority experience in the existing refund demo: separate payment and support providers verify ES256-signed grants from the same provisioned issuer, with exact-action and audience binding, scoped Acme delegation, five-minute lifetime, revocation, and atomic synthetic consumption/effects.
+- Provider identity certificates and fresh key-possession challenges before customer dispatch. Support case closure requires a verified, matching payment execution receipt; both providers retain local business authorization and return signed execution evidence.
+- Eight adversarial controls, readable grants, separate authorization/verification/execution evidence, actual effect counters, isolated repeat/reset, and desktop/mobile browser acceptance. Existing refund, skill, MCP and enterprise authorization flows remain available.
+- Updated the refund demo's locked development tooling to resolve its dependency-audit findings.
+- Refund Worker verification and deployment workflow, with unit, browser and bundle gates before deployment of the existing Worker.
+
+### Compatibility
+
+- Additive minor release candidate for an experimental demo trust/evidence profile. New page and constrained scenario endpoint; no changes to production authorization protocols, existing gateway routes, provider credentials, or data schemas. The repository's existing execution previews retain their prerelease status.
+- Both providers execute in-process inside one Worker with synthetic data, per-run ephemeral keys and memory state, and explicitly provisioned trust/delegation. Provider identity exchanges are local simulations. No live payments, independently deployed vendors, external certification or durable cross-request replay/revocation guarantees are implied.
+- Install Python artifacts from the v0.55.0-rc.1 GitHub prerelease; no PyPI or npm registry publication is implied.
+
 ## 0.54.1-rc.1 - 2026-10-17
 
 ### Fixed
