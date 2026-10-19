@@ -6,61 +6,8 @@ import {
   canonical, createSigner, digest, sign, verify, verifyProviderIdentity,
   type Action, type Execution,
 } from "../src/shared-authority/protocol.ts";
-import { SCENARIOS, createWorld, runSharedAuthority } from "../src/shared-authority/scenario.ts";
-
-test("two providers accept distinct exact-action grants from one recognized issuer", async () => {
-  const result = await runSharedAuthority("happy_path");
-  assert.equal(result.workflowComplete, true);
-  assert.equal(result.blocked, false);
-  assert.deepEqual(result.effects, { refundCount: 1, refundedCents: 4000, caseClosed: true, paymentPayloads: 1, supportPayloads: 1 });
-  assert.equal(result.grants.length, 2);
-  assert.equal(result.receipts.length, 2);
-  for (const receipt of result.receipts) {
-    const identity = result.trust.providers.find(p => p.provider === receipt.provider)!;
-    const key = await crypto.subtle.importKey("jwk", identity.publicKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    const kid = receipt.provider === "PaymentsCo" ? "demo-payments" : "demo-support";
-    assert.deepEqual(await verify(receipt.proof, key, kid, "agentaction.demo.execution.v1"), receipt.claims);
-  }
-  assert.deepEqual(result.grants.map(g => g.claims.issuer), [ISSUER, ISSUER]);
-  assert.deepEqual(result.grants.map(g => g.claims.audience), [PAYMENT_ENDPOINT, SUPPORT_ENDPOINT]);
-  assert.notEqual(result.grants[0].claims.id, result.grants[1].claims.id);
-  const stages = result.steps.map(s => `${s.actor}/${s.stage}/${s.title}`);
-  assert.ok(stages.indexOf("Acme agent/verification/Payment execution receipt verified")
-    < stages.indexOf("SupportCo/execution/Case 1042 closed"));
-  assert.ok(!JSON.stringify(result).includes('"d":'));
-  assert.ok(!JSON.stringify(result).includes("privateKey"));
-});
-
-const denials = {
-  changed_amount: "action_changed", wrong_provider: "wrong_provider", impostor: "provider_identity_mismatch",
-  revoked: "revoked", untrusted_issuer: "invalid_signature_or_profile", expired: "expired_or_invalid_lifetime",
-  provider_policy: "provider_business_policy",
-} as const;
-for (const [scenario, reason] of Object.entries(denials)) {
-  test(`${scenario} is rejected with zero effects and an open support case`, async () => {
-    const result = await runSharedAuthority(scenario as keyof typeof denials);
-    assert.equal(result.workflowComplete, false);
-    assert.equal(result.blocked, true);
-    assert.equal(result.effects.refundCount, 0);
-    assert.equal(result.effects.refundedCents, 0);
-    assert.equal(result.effects.caseClosed, false);
-    assert.equal(result.steps.filter(s => s.stage === "execution").length, 0);
-    assert.ok(result.steps.some(s => s.status === "deny" && s.reason === reason));
-    if (scenario === "impostor") {
-      assert.equal(result.effects.paymentPayloads + result.effects.supportPayloads, 0);
-      assert.equal(result.grants.length, 0);
-    }
-  });
-}
-
-test("replay is rejected while exactly one verified refund closes the case", async () => {
-  const result = await runSharedAuthority("replay");
-  assert.equal(result.blocked, true);
-  assert.equal(result.workflowComplete, true);
-  assert.equal(result.effects.refundCount, 1);
-  assert.equal(result.effects.refundedCents, 4000);
-  assert.ok(result.steps.some(s => s.reason === "already_consumed"));
-});
+import { SCENARIOS } from "../src/shared-authority/scenario.ts";
+import { createWorld } from "./fixture-world.ts";
 
 test("authority refuses to issue grants outside Acme's exact delegation", async () => {
   const { authority } = await createWorld();
@@ -175,15 +122,12 @@ test("runs have distinct roots, grant identifiers and effects; grants cannot cro
   assert.equal(a.payments.options.state.refundCount + b.payments.options.state.refundCount, 0);
 });
 
-test("HTTP endpoint restricts inputs, never calls the gateway, and exposes only public evidence", async () => {
+test("HTTP endpoint requires independent services, rejects unbound inputs and never calls the gateway", async () => {
   const env = { AGENTID_GATEWAY: { fetch() { throw new Error("Unexpected external request"); } } } as any;
   for (const scenario of SCENARIOS) {
     const response = await worker.fetch(request(JSON.stringify({ scenario })), env);
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("cache-control"), "no-store");
-    const result = await response.json() as any;
-    assert.equal(result.scenario, scenario);
-    assert.ok(!JSON.stringify(result).includes("privateKey"));
+    assert.equal(response.status, 503);
+    assert.equal((await response.json() as any).outcomeUnknown, true);
   }
   for (const body of ["invalid", "null", "[]", '{}', '{"scenario":"unknown"}', '{"scenario":"happy_path","url":"https://evil.test"}']) {
     assert.equal((await worker.fetch(request(body), env)).status, 400);
@@ -199,3 +143,53 @@ test("HTTP endpoint restricts inputs, never calls the gateway, and exposes only 
 function request(body: string, contentType = "application/json") {
   return new Request("https://demo.test/api/shared-authority/run", { method: "POST", headers: { "content-type": contentType }, body });
 }
+
+for (const failure of ["bad_snapshot", "bad_execution", "wrong_receipt_grant"] as const) {
+  test(`unverifiable provider result (${failure}) stops downstream dispatch and never reports zero effects`, async () => {
+    const world = await createWorld();
+    const { root, authority, payments, paymentKey, supportKey, runId, now } = world;
+    let supportDispatches = 0;
+    const provider = (role: "PaymentsCo" | "SupportCo") => ({
+      async fetch(req: Request): Promise<Response> {
+        const url = new URL(req.url), key = role === "PaymentsCo" ? paymentKey : supportKey;
+        const endpoint = role === "PaymentsCo" ? PAYMENT_ENDPOINT : SUPPORT_ENDPOINT;
+        if (url.pathname === "/identity") return response({ provider: role, endpoint, kid: key.kid, publicKey: key.jwk,
+          certificate: await authority.certificate(role, endpoint, key),
+          proof: await sign({ runId, endpoint, challenge: url.searchParams.get("challenge") }, key, "agentaction.demo.possession.v1") });
+        assert.equal(url.pathname, "/mcp");
+        if (role === "SupportCo") { supportDispatches++; throw new Error("Downstream dispatch must stop"); }
+        const input = await req.json() as any;
+        const result = await payments.execute(input.grant, input.action);
+        assert.equal(result.allowed, true);
+        const snapshot = { provider: role, endpoint, runId, authorityFingerprint: await digest(root.jwk), challenge: input.challenge,
+          refundCount: 1, refundedCents: 4000, caseClosed: false, payloadsReceived: 1, consumedCount: 1, observedAt: now };
+        if (failure === "bad_execution") result.receipt = "forged";
+        if (failure === "wrong_receipt_grant") {
+          result.execution = { ...result.execution!, grantId: "different-grant" };
+          result.receipt = await sign(result.execution, key, "agentaction.demo.execution.v1");
+        }
+        return response({ result, snapshot: { claims: snapshot,
+          proof: failure === "bad_snapshot" ? "forged" : await sign(snapshot, key, "agentaction.demo.snapshot.v1") } });
+      },
+    });
+    const env: any = {
+      SHARED_AUTHORITY: {
+        root: async () => ({ kid: root.kid, jwk: root.jwk }),
+        start: async () => ({ id: runId, scenario: "happy_path", createdAt: now, expiresAt: now + 600, revoked: [] }),
+        grant: async (_id: string, action: Action, audience: string) => authority.issue(action, audience),
+      },
+      PAYMENTS_PROVIDER: provider("PaymentsCo"), SUPPORT_PROVIDER: provider("SupportCo"),
+    };
+    const out = await worker.fetch(request(JSON.stringify({ scenario: "happy_path" })), env);
+    assert.equal(out.status, 503);
+    const body = await out.json() as any;
+    assert.equal(body.outcomeUnknown, true);
+    assert.equal(body.runId, runId);
+    assert.equal(body.recovery.length, 2);
+    assert.equal(body.effects, undefined);
+    assert.equal(payments.options.state.refundCount, 1, "an effect can exist even when its response cannot be verified");
+    assert.equal(supportDispatches, 0);
+  });
+}
+
+function response(value: unknown): Response { return new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } }); }

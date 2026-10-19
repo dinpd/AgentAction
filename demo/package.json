@@ -4,11 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local --port 8790",
+    "dev:shared": "node tests/serve-independent.mjs",
     "deploy": "wrangler deploy",
+    "deploy:services": "wrangler deploy -c authority.wrangler.toml && wrangler deploy -c payments.wrangler.toml && wrangler deploy -c support.wrangler.toml && wrangler deploy -c wrangler.toml",
     "dry-run": "wrangler deploy --dry-run --outdir /tmp/agentid-demo-worker-dist",
-    "build": "npm run dry-run",
+    "build": "npm run dry-run && wrangler deploy -c authority.wrangler.toml --dry-run --outdir /tmp/agentaction-authority-dist && wrangler deploy -c payments.wrangler.toml --dry-run --outdir /tmp/agentaction-payments-dist && wrangler deploy -c support.wrangler.toml --dry-run --outdir /tmp/agentaction-support-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
-    "test:browser": "node --experimental-strip-types tests/shared-authority-browser.mjs"
+    "test:browser": "node --experimental-strip-types tests/shared-authority-browser.mjs",
+    "test:services": "node --experimental-strip-types tests/independent-services.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.94.0"

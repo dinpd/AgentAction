@@ -1,0 +1,17 @@
+name = "agentaction-demo-payments"
+main = "src/shared-authority/services/payments.ts"
+compatibility_date = "2026-10-10"
+workers_dev = true
+
+[[services]]
+binding = "AUTHORITY"
+service = "agentaction-demo-authority"
+entrypoint = "PaymentAuthority"
+
+[[durable_objects.bindings]]
+name = "RUNS"
+class_name = "PaymentRuns"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PaymentRuns"]

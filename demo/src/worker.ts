@@ -1,7 +1,8 @@
 import { SHARED_AUTHORITY_HTML } from "./shared-authority/page.ts";
 import { sharedAuthorityRequest } from "./shared-authority/scenario.ts";
+import type { SharedServices } from "./shared-authority/services/common.ts";
 
-type Env = {
+type Env = SharedServices & {
   AGENTID_GATEWAY_URL: string;
   AGENTID_GATEWAY_TOKEN?: string;
   AGENTID_DEMO_OIDC_SECRET?: string;
@@ -978,7 +979,7 @@ export default {
       } });
     }
     if (request.method === "POST" && url.pathname === "/api/shared-authority/run") {
-      return sharedAuthorityRequest(request);
+      return sharedAuthorityRequest(request, env);
     }
     if (request.method === "POST" && url.pathname === "/api/authorize") {
       return proxyGateway(request, env, "authorize");

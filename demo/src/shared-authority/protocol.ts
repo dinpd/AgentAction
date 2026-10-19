@@ -1,12 +1,12 @@
-/** Experimental demo profile. Keys and all claims are confined to one synthetic run. */
-export const ISSUER = "https://authority.demo.agentaction.local";
+/** Experimental demo profile with a provisioned authority and fixed provider audiences. */
+export const ISSUER = "https://agentaction-demo-authority.drisw.workers.dev";
 export const TENANT = "acme";
 export const AGENT = "support-agent-7";
 export const PRINCIPAL = "support-manager-17";
 export const DELEGATION = "acme-support-refunds-v1";
 export const PROFILE = "agentaction.demo.action-grant.v1";
-export const PAYMENT_ENDPOINT = "https://payments.demo.agentaction.local/mcp";
-export const SUPPORT_ENDPOINT = "https://support.demo.agentaction.local/mcp";
+export const PAYMENT_ENDPOINT = "https://agentaction-demo-payments.drisw.workers.dev/mcp";
+export const SUPPORT_ENDPOINT = "https://agentaction-demo-support.drisw.workers.dev/mcp";
 export type Action = {
   tool: string;
   customerId: string;
@@ -22,6 +22,7 @@ export const REFUND: Action = Object.freeze({
 });
 export type Signer = { privateKey: CryptoKey; publicKey: CryptoKey; jwk: JsonWebKey; kid: string };
 export type TrustedKey = Pick<Signer, "publicKey" | "kid">;
+export type PublicKey = { kid: string; jwk: JsonWebKey };
 export type Grant = {
   profile: string; issuer: string; id: string; runId: string;
   tenant: string; agent: string; principal: string; delegation: string;
@@ -39,6 +40,12 @@ export type Execution = {
 export async function createSigner(kid: string): Promise<Signer> {
   const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   return { ...keys, kid, jwk: await crypto.subtle.exportKey("jwk", keys.publicKey) };
+}
+
+export async function importTrusted(key: PublicKey): Promise<TrustedKey> {
+  if (!key || typeof key.kid !== "string" || !key.jwk || key.jwk.d || key.jwk.kty !== "EC" || key.jwk.crv !== "P-256") throw new Error("invalid_public_key");
+  return { kid: key.kid, publicKey: await crypto.subtle.importKey("jwk", key.jwk,
+    { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]) };
 }
 
 export function canonical(value: unknown): string {
@@ -120,13 +127,21 @@ export class DemoAuthority {
   }
 }
 
+export async function providerCertificate(options: {
+  certificate: string; root: TrustedKey; runId: string; now: number; provider: string; endpoint: string;
+}): Promise<ProviderCertificate> {
+  const cert = await verify<ProviderCertificate>(options.certificate, options.root.publicKey, options.root.kid, "agentaction.demo.provider.v1");
+  if (!cert || cert.issuer !== ISSUER || cert.runId !== options.runId || cert.provider !== options.provider
+      || cert.endpoint !== options.endpoint || !fresh(cert.issuedAt, cert.expiresAt, options.now)) throw new Error("provider_identity_mismatch");
+  await importTrusted({ kid: cert.keyId, jwk: cert.publicKey });
+  return cert;
+}
+
 export async function verifyProviderIdentity(options: {
   certificate: string; root: TrustedKey; runId: string; now: number;
   provider: string; endpoint: string; challenge: string; proof: string;
 }): Promise<CryptoKey> {
-  const cert = await verify<ProviderCertificate>(options.certificate, options.root.publicKey, options.root.kid, "agentaction.demo.provider.v1");
-  if (cert.issuer !== ISSUER || cert.runId !== options.runId || cert.provider !== options.provider
-      || cert.endpoint !== options.endpoint || !fresh(cert.issuedAt, cert.expiresAt, options.now)) throw new Error("provider_identity_mismatch");
+  const cert = await providerCertificate(options);
   const key = await crypto.subtle.importKey("jwk", cert.publicKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
   const proof = await verify<{ challenge: string; endpoint: string; runId: string }>(options.proof, key, cert.keyId, "agentaction.demo.possession.v1");
   if (proof.challenge !== options.challenge || proof.endpoint !== options.endpoint || proof.runId !== options.runId) throw new Error("provider_possession_mismatch");

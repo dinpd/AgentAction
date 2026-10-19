@@ -27,7 +27,7 @@ boundaries.
 | Experience | What it demonstrates |
 | --- | --- |
 | [MCP Readiness Check](https://agentaction-mcp-check.drisw.workers.dev/) | Anonymous server inspection, actionable guidance and exportable profiles; opt-in public evidence reused in discovery. |
-| [Shared authority across providers](https://agentid-refund-demo.drisw.workers.dev/shared-authority) | Synthetic refund and case closure through two providers using the same authority; challenge tampering, replay, identity, revocation, expiry and provider policy. |
+| [Shared authority across providers](https://agentid-refund-demo.drisw.workers.dev/shared-authority) | Synthetic refund and case closure through separately deployed providers using one authority, distinct signing keys and durable state; challenge eight trust boundaries. |
 | [Gateway and refund control](https://agentid-refund-demo.drisw.workers.dev/) | Approval, scoped JIT authority, idempotency, audit, and provider-tool authorization in a support workflow. |
 | [Workato reference integration](integrations/workato-agentaction/) | A private recipe requests an exact-scope human approval, waits durably, and returns a synthetic refund's signed outcome and frozen intent evidence. |
 | [n8n reference integration](integrations/n8n-agentaction/) | Native workflows bring automatic or human-reviewed action controls and signed outcome evidence to synthetic refunds. |
