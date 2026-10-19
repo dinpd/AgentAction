@@ -2,6 +2,9 @@ import { SHARED_AUTHORITY_HTML } from "./shared-authority/page.ts";
 import { sharedAuthorityRequest } from "./shared-authority/scenario.ts";
 import type { SharedServices } from "./shared-authority/services/common.ts";
 
+const SHARED_AUTHORITY_HOST = "shared-authority.agentaction.dev";
+const REFUND_ORIGIN = "https://refund.agentaction.dev";
+
 type Env = SharedServices & {
   AGENTID_GATEWAY_URL: string;
   AGENTID_GATEWAY_TOKEN?: string;
@@ -967,13 +970,17 @@ const HTML = String.raw`<!doctype html>
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const sharedHost = url.hostname === SHARED_AUTHORITY_HOST;
     if (request.method === "OPTIONS") return empty();
-    if (request.method === "GET" && url.pathname === "/") {
-      return html(HTML);
+    if (request.method === "GET" && url.pathname === "/" && !sharedHost) {
+      return html(url.origin === REFUND_ORIGIN
+        ? HTML.replace('href="/shared-authority"', `href="https://${SHARED_AUTHORITY_HOST}/"`)
+        : HTML);
     }
-    if (request.method === "GET" && (url.pathname === "/shared-authority" || url.pathname === "/shared-authority/")) {
-      return new Response(SHARED_AUTHORITY_HTML, { headers: {
-        "content-type": "text/html; charset=utf-8", "cache-control": "no-store",
+    if (request.method === "GET" && ((sharedHost && url.pathname === "/") || url.pathname === "/shared-authority" || url.pathname === "/shared-authority/")) {
+      const page = sharedHost ? SHARED_AUTHORITY_HTML.replaceAll('href="/"', `href="${REFUND_ORIGIN}/"`) : SHARED_AUTHORITY_HTML;
+      return new Response(page, { headers: {
+        "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-transform",
         "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
         "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
       } });
@@ -1564,7 +1571,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function html(body: string): Response {
   return new Response(body, {
-    headers: cors({ "content-type": "text/html; charset=utf-8" }),
+    headers: cors({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-transform" }),
   });
 }
 

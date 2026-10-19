@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local --port 8790",
+    "dev": "wrangler dev --local --port 8790 --local-upstream 127.0.0.1",
     "dev:shared": "node tests/serve-independent.mjs",
     "deploy": "wrangler deploy",
     "deploy:services": "wrangler deploy -c authority.wrangler.toml && wrangler deploy -c payments.wrangler.toml && wrangler deploy -c support.wrangler.toml && wrangler deploy -c wrangler.toml",

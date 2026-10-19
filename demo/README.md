@@ -10,11 +10,17 @@ and the gateway validates it against the tenant manifest.
 
 Live demo:
 
-https://agentid-refund-demo.drisw.workers.dev
+https://refund.agentaction.dev
+
+This is the original refund demo’s public entrypoint. The shared-authority demo
+opens directly at `https://shared-authority.agentaction.dev/`. Both managed HTTPS
+custom domains are declared in `wrangler.toml` on the existing refund Worker. The original
+`workers.dev` alias remains available; service-only bindings and the authority/
+provider cryptographic identifiers are unchanged.
 
 ## Shared authority across independently deployed providers
 
-Open [the shared-authority experience](https://agentid-refund-demo.drisw.workers.dev/shared-authority),
+Open [the shared-authority experience](https://shared-authority.agentaction.dev/),
 also linked from the original demo. Run **Refund $40. Close the case.** and
 inspect grants, execution evidence and signed provider effect snapshots.
 
@@ -108,8 +114,8 @@ after deployment. Use `npm run deploy:services` for the same deployment sequence
 To test the actual hosted services:
 
 ```bash
-DEMO_ORIGIN=https://agentid-refund-demo.drisw.workers.dev npm run test:services
-DEMO_ORIGIN=https://agentid-refund-demo.drisw.workers.dev PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:browser
+DEMO_ORIGIN=https://shared-authority.agentaction.dev REFUND_ORIGIN=https://refund.agentaction.dev npm run test:services
+DEMO_ORIGIN=https://shared-authority.agentaction.dev REFUND_ORIGIN=https://refund.agentaction.dev PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:browser
 ```
 
 `POST /api/shared-authority/run` still accepts only a fixed scenario in a JSON

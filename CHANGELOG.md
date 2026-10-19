@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.56.1-rc.1 - 2026-10-19
+
+### Fixed
+
+- Specific public entrypoints at `https://shared-authority.agentaction.dev/` and `https://refund.agentaction.dev/`. Each opens its named demo directly and navigation links connect them. Deployment configuration retains both custom domains; public links and hosted acceptance use them.
+- Standing delivery guidance requires `agentaction.dev` subdomains for public demo entrypoints and promotional links, with verified HTTPS routing before promotion.
+- Demo HTML responses disallow edge transformations so automatic zone-level script injection does not add browser traffic on the branded hosts.
+
+### Compatibility
+
+- Backward-compatible patch prerelease for public routing and branding. The existing Worker URL, routes, service bindings, signed issuer/audience identifiers, credentials and durable state are unchanged. No provider or authorization migration.
+- The shared-authority experience remains an experimental synthetic demo with separate services under one operator. Install Python artifacts from the v0.56.1-rc.1 GitHub prerelease; no PyPI or npm registry publication is implied.
+
 ## 0.56.0-rc.1 - 2026-10-19
 
 ### Website highlight

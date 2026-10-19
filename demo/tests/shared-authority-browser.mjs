@@ -8,12 +8,13 @@ const shots = process.env.SCREENSHOT_DIR || '/tmp/agentaction-390-browser';
 await mkdir(shots, { recursive: true });
 const stack = process.env.DEMO_ORIGIN ? null : await startIndependentStack();
 const origin = process.env.DEMO_ORIGIN || stack.origin('frontend');
+const refundOrigin = process.env.REFUND_ORIGIN || origin;
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, reducedMotion: 'reduce' });
 page.setDefaultTimeout(15000);
 const errors = [], outbound = [];
 page.on('pageerror', error => errors.push(error.message));
-page.on('request', request => { if (!request.url().startsWith(origin + '/')) outbound.push(request.url()); });
+page.on('request', request => { if (![origin, refundOrigin].some(base => request.url().startsWith(base + '/'))) outbound.push(request.url()); });
 async function run(scenario) {
   const oldRun = await page.locator('#run-status').getAttribute('data-run-id');
   await page.locator(scenario === 'happy_path' ? '#run-authorized' : `[data-scenario="${scenario}"]`).click();
@@ -24,7 +25,7 @@ async function run(scenario) {
   assert.equal(await page.locator('#run-authorized').isDisabled(), false);
 }
 try {
-  await page.goto(origin + '/');
+  await page.goto(refundOrigin + '/');
   await page.getByRole('link', { name: 'Open the shared authority demo' }).click();
   await page.getByRole('heading', { name: 'One task. Two providers. Shared authority.' }).waitFor();
   for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844 }]) {

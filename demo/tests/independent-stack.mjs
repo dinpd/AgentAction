@@ -29,6 +29,7 @@ export async function startIndependentStack() {
     const log = await open(join(directory, name + '.log'), 'a');
     const child = spawn(process.execPath, [join(cwd, 'node_modules/wrangler/bin/wrangler.js'),
       'dev', '-c', item.config, '--local', '--port', String(item.port), '--inspector-port', '0',
+      ...(name === 'frontend' ? ['--local-upstream', '127.0.0.1'] : []),
       '--persist-to', join(directory, 'state-' + name)], {
       cwd, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(directory, 'logs') },
       stdio: ['ignore', log.fd, log.fd],

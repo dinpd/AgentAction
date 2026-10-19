@@ -4,6 +4,16 @@ Follow the `issue-to-merge` workflow for every software change in this
 repository. Preserve unrelated local changes and do not report completion until
 the remote default branch contains the verified change.
 
+## Public demo addresses
+
+Use an `agentaction.dev` subdomain for public demo entrypoints and promotional
+links in documentation, the website, posts, and videos. Name the subdomain for the
+specific demo; do not use a generic `demo` hostname. Configure and verify HTTPS
+before promotion. Use `https://shared-authority.agentaction.dev/` for shared
+authority and `https://refund.agentaction.dev/` for the original refund demo.
+Keep signed provider/issuer identifiers stable unless their migration is
+explicitly part of the task.
+
 ## Release responsibility
 
 Classify the release impact before implementing each change and record it in

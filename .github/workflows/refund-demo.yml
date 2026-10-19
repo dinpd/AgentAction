@@ -65,4 +65,5 @@ jobs:
       - name: Verify hosted cross-service grants and signed evidence
         run: npm run test:services
         env:
-          DEMO_ORIGIN: https://agentid-refund-demo.drisw.workers.dev
+          DEMO_ORIGIN: https://shared-authority.agentaction.dev
+          REFUND_ORIGIN: https://refund.agentaction.dev

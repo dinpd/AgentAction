@@ -3,6 +3,10 @@ main = "src/worker.ts"
 compatibility_date = "2026-05-24"
 workers_dev = true
 preview_urls = true
+routes = [
+  { pattern = "shared-authority.agentaction.dev", custom_domain = true },
+  { pattern = "refund.agentaction.dev", custom_domain = true },
+]
 
 [vars]
 AGENTID_GATEWAY_URL = "https://agentid-gateway.drisw.workers.dev"

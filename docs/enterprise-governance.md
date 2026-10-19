@@ -93,7 +93,7 @@ in some places. The product-facing name is AgentAction.
 ## Demos And Packages
 
 - Hosted gateway-control demo:
-  [agentid-refund-demo.drisw.workers.dev](https://agentid-refund-demo.drisw.workers.dev/)
+  [refund.agentaction.dev](https://refund.agentaction.dev/)
 - Hosted DevOps-control demo:
   [agentid-devops-demo.drisw.workers.dev](https://agentid-devops-demo.drisw.workers.dev/)
 - Policy builder:
@@ -124,7 +124,7 @@ provider, and standards architecture.
 
 Hosted demos:
 
-- Gateway-control demo: [`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/)
+- Gateway-control demo: [`refund.agentaction.dev`](https://refund.agentaction.dev/)
 - DevOps-control demo: [`agentid-devops-demo.drisw.workers.dev`](https://agentid-devops-demo.drisw.workers.dev/)
 - Policy builder: [`agentid-policy-builder.pages.dev`](https://agentid-policy-builder.pages.dev/)
 
@@ -512,7 +512,7 @@ for the enterprise gateway and provider-side authorization patterns.
 ---
 
 The hosted gateway-control demo is available at
-[`agentid-refund-demo.drisw.workers.dev`](https://agentid-refund-demo.drisw.workers.dev/).
+[`refund.agentaction.dev`](https://refund.agentaction.dev/).
 It shows the broader AgentAction model in two concrete flows: a SaaS support app
 consulting AgentAction before refund actions, and an MCP gateway checking provider
 CRM tool calls before forwarding them. The MCP flow filters provider tools,
