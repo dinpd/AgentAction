@@ -119,7 +119,7 @@ export default function Digest() {
             <li><strong>Evaluation quality:</strong> separate blocked requests, completed authorized work, false rejections, and independently observed outcomes instead of reporting a single success rate.</li>
           </ul>
         </section>
-        <footer><p className="blog-source">Published by AgentAction, which develops controls for agent actions. Research summaries are based on the linked abstracts.</p><p><a href="/blog/agentic-iam-digest-2026-10-07">Previous issue: September 25–October 7</a> · <a href="/blog">All digests</a></p></footer>
+        <div><p className="blog-source">Published by AgentAction, which develops controls for agent actions. Research summaries are based on the linked abstracts.</p><p><a href="/blog/agentic-iam-digest-2026-10-07">Previous issue: September 25–October 7</a> · <a href="/blog">All digests</a></p></div>
       </div>
     </article>
   </main>;
