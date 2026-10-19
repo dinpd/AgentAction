@@ -12,6 +12,63 @@ Live demo:
 
 https://agentid-refund-demo.drisw.workers.dev
 
+## Shared authority across two providers
+
+Open [the shared-authority experience](https://agentid-refund-demo.drisw.workers.dev/shared-authority),
+also linked prominently from the original demo. Run **Refund $40. Close the case.**
+and inspect the evidence and actual synthetic effects:
+
+1. Acme explicitly delegates the fixture actions to AgentAction; both providers
+   recognize the issuer only for Acme's named agent, principal and delegation.
+2. The agent validates signed provider identities and fresh key-possession
+   challenges against expected endpoints before sending customer payloads.
+3. PaymentsCo verifies an ES256 exact-action grant, applies its own policy,
+   consumes the grant once and returns signed execution evidence.
+4. SupportCo accepts a different grant from the same issuer and verifies the
+   matching payment execution receipt before closing case 1042.
+
+Try the eight controls: change $40 to $400, replay the refund, send to the wrong
+provider, substitute an impostor endpoint, revoke an unused grant, use an unknown
+authority, dispatch after expiry, or lower PaymentsCo's own limit to $20.
+Rejected payment attempts leave the case open and create zero effects. Replay
+retains exactly the first $40 refund and can close the case using its verified
+receipt. Impostor detection precedes all customer payload dispatch.
+
+This is a self-contained synthetic extension of the existing refund Worker.
+Both providers are separate in-process classes, not independently deployed
+services or vendor integrations. Identity exchanges are local simulations;
+trusted roots and Acme's delegation are provisioned fixtures. Every scenario
+creates fresh ephemeral keys and isolated memory state. Reset/repeat starts a
+new run; there is no durable cross-request revocation/replay guarantee. Provider
+certificates and grants use a demo-only profile, not a public certification.
+No gateway credentials, signing private keys, real payments, external provider
+calls, personal data, or additional secrets are needed for this experience.
+
+`POST /api/shared-authority/run` accepts only a JSON object with one `scenario`
+field from the server's fixed scenario list, capped at 512 bytes. It returns
+public trust metadata, grants, evidence and synthetic effect counts; it accepts
+no destinations, grants, credentials, arbitrary tool arguments or script input.
+The original gateway-backed demo routes remain available unchanged.
+
+### Verify the demo
+
+```bash
+npm ci
+npm test
+npm run build
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:browser
+```
+
+Browser acceptance starts a local bridge to the real Worker handlers and checks
+every control at desktop/mobile widths, readable proofs, reset/repeat, request
+failure recovery, no outbound provider traffic, and the original page link.
+Use `DEMO_ORIGIN=http://localhost:8790` to run the same acceptance against a
+running local Worker, or the hosted origin after deployment. Screenshots are
+written to `/tmp/agentaction-388-browser` (override with `SCREENSHOT_DIR`).
+The `Refund Demo` workflow verifies pull requests and deploys the existing
+Worker on main only after those checks pass, using the existing Cloudflare
+repository secrets.
+
 The demo illustrates:
 
 - Support context lookup before action.
