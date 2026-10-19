@@ -54,7 +54,7 @@ async function run(scenario){
     el('case-state').textContent=effects.caseClosed?'Closed':'Open';el('payload-count').textContent=String(effects.paymentPayloads+effects.supportPayloads);
     const complete=result.workflowComplete;
     el('run-status').className='status '+(result.blocked?'fail':'pass');
-    el('run-status').textContent=result.blocked?(complete?'Replay blocked. One $40 refund executed; the verified result closed the case.':'Request blocked. No refund executed; case 1042 remains open.'):'Task complete. PaymentsCo refunded $40 once; SupportCo closed case 1042 after verifying payment evidence.';
+    el('run-status').textContent=result.blocked?(complete?'Replay blocked. One $40 refund executed; the verified result closed the case.':effects.refundCount?'Workflow stopped after a verified refund. $'+(effects.refundedCents/100).toFixed(0)+' refunded; case 1042 remains open. Review provider evidence before retrying.':'Request blocked. No refund executed; case 1042 remains open.'):'Task complete. PaymentsCo refunded $40 once; SupportCo closed case 1042 after verifying payment evidence.';
     const identityBlocked=result.steps.some(step=>step.reason==='provider_identity_mismatch');
     badge('agent-state',identityBlocked?'Impostor rejected':'Both provider identities verified',identityBlocked?'fail':'pass');
     badge('authority-state',result.grants.length?String(result.grants.length)+' exact-action grant'+(result.grants.length===1?'':'s')+' issued':'No grant issued',result.grants.length?'pass':'');

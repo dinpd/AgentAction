@@ -62,6 +62,17 @@ try {
     assert.equal(await page.locator('#case-state').textContent(), 'Open');
     assert.equal(await page.locator('#run-status').getAttribute('data-run-id'), null);
   }
+  // Render a partial-outcome response distinctly from a zero-effect rejection.
+  const partial=await (await page.request.post(origin+'/api/shared-authority/run',{data:{scenario:'happy_path'}})).json();
+  partial.blocked=true;partial.workflowComplete=false;partial.effects.caseClosed=false;
+  await page.route('**/api/shared-authority/run',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(partial)}));
+  await page.locator('#run-authorized').click();
+  await page.waitForFunction(()=>document.querySelector('#run-status').textContent.includes('Workflow stopped after a verified refund'));
+  assert.equal(await page.locator('#refund-total').textContent(),'$40');
+  assert.equal(await page.locator('#case-state').textContent(),'Open');
+  assert.doesNotMatch(await page.locator('#run-status').textContent(),/No refund executed/);
+  await page.unroute('**/api/shared-authority/run');
+
   // An interrupted request clears previous effects and leaves controls usable.
   await page.route('**/api/shared-authority/run', route => route.abort());
   await page.locator('#run-authorized').click();

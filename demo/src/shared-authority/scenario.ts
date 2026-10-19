@@ -1,6 +1,6 @@
 import {
   ISSUER, PAYMENT_ENDPOINT, PROFILE, REFUND, SUPPORT_ENDPOINT,
-  canonical, createSigner, digest, importTrusted, sign, verify, verifyProviderIdentity,
+  canonical, createSigner, digest, importTrusted, sign, validEffectId, verify, verifyProviderIdentity,
   type Action, type Execution, type Grant, type TrustedKey,
 } from "./protocol.ts";
 import type { ProviderResult } from "./providers.ts";
@@ -135,14 +135,15 @@ export async function runSharedAuthority(scenario: Scenario, services: SharedSer
     if (value.result.allowed) {
       const signed = await verify<Execution>(value.result.receipt, provider.key!.publicKey, provider.key!.kid, "agentaction.demo.execution.v1");
       if (canonical(signed) !== canonical(value.result.execution) || signed.runId !== runId || signed.provider !== provider.name
-        || signed.actionDigest !== await digest(action) || canonical(signed.action) !== canonical(action) || signed.status !== "executed") throw new Error("invalid_execution_receipt");
+        || !validEffectId(signed.effectId) || signed.actionDigest !== await digest(action)
+        || canonical(signed.action) !== canonical(action) || signed.status !== "executed") throw new Error("invalid_execution_receipt");
     }
     return value.result as ProviderResult;
   }
   async function execution(provider: Provider, token: string, authorized: Grant, action: Action) {
     const signed = await verify<Execution>(token, provider.key!.publicKey, provider.key!.kid, "agentaction.demo.execution.v1");
     if (signed.runId !== runId || signed.grantId !== authorized.id || signed.provider !== provider.name || signed.status !== "executed"
-      || signed.actionDigest !== authorized.actionDigest || canonical(signed.action) !== canonical(action)
+      || !validEffectId(signed.effectId) || signed.actionDigest !== authorized.actionDigest || canonical(signed.action) !== canonical(action)
       || !Number.isSafeInteger(signed.executedAt) || Math.abs(signed.executedAt - nowSeconds()) > 300) throw new Error("execution_mismatch");
     return signed;
   }

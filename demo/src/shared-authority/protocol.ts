@@ -95,6 +95,10 @@ export function fresh(issued: number, expires: number, now: number): boolean {
     && issued <= now && expires > now && expires > issued && expires - issued <= 300;
 }
 
+export function validEffectId(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 128 && value.trim() === value;
+}
+
 /** Acme explicitly delegates these fixture actions to this issuer for this agent. */
 export class DemoAuthority {
   readonly root: Signer;

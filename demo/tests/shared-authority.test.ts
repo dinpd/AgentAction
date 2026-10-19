@@ -144,7 +144,7 @@ function request(body: string, contentType = "application/json") {
   return new Request("https://demo.test/api/shared-authority/run", { method: "POST", headers: { "content-type": contentType }, body });
 }
 
-for (const failure of ["bad_snapshot", "bad_execution", "wrong_receipt_grant"] as const) {
+for (const failure of ["bad_snapshot", "bad_execution", "wrong_receipt_grant", "missing_effect_id", "empty_effect_id", "invalid_effect_id"] as const) {
   test(`unverifiable provider result (${failure}) stops downstream dispatch and never reports zero effects`, async () => {
     const world = await createWorld();
     const { root, authority, payments, paymentKey, supportKey, runId, now } = world;
@@ -166,6 +166,11 @@ for (const failure of ["bad_snapshot", "bad_execution", "wrong_receipt_grant"] a
         if (failure === "bad_execution") result.receipt = "forged";
         if (failure === "wrong_receipt_grant") {
           result.execution = { ...result.execution!, grantId: "different-grant" };
+          result.receipt = await sign(result.execution, key, "agentaction.demo.execution.v1");
+        }
+        if (["missing_effect_id", "empty_effect_id", "invalid_effect_id"].includes(failure)) {
+          const effectId = failure === "missing_effect_id" ? undefined : failure === "empty_effect_id" ? "" : 42;
+          result.execution = { ...result.execution!, effectId } as Execution;
           result.receipt = await sign(result.execution, key, "agentaction.demo.execution.v1");
         }
         return response({ result, snapshot: { claims: snapshot,
