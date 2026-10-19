@@ -1,10 +1,25 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "02",
+    slug: "agentic-iam-digest-2026-10-17",
+    title: "Agentic IAM digest: authority has to hold at runtime",
+    date: "2026-10-18",
+    window: "October 7–17, 2026",
+    headline: "Authority has to hold at runtime.",
+    homepageSummary: "Delegated identity, approvals bound to actual actions, and controls that remain effective during execution.",
+    description: "Okta details its Agent Gateway, Workday announces a C1.ai acquisition agreement, CERT-In reports authorization failures, and new research examines approval and action boundaries.",
+    image: "/blog/agentic-iam-2026-10-07.jpg",
+    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+  },
+  {
+    issue: "01",
     slug: "agentic-iam-digest-2026-10-07",
     title: "Agentic IAM digest: identity moves into the execution path",
     date: "2026-10-07",
     window: "September 25–October 7, 2026",
+    headline: "Identity is moving into the action path.",
+    homepageSummary: "Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.",
     description: "NIST moves toward a DevSecOps demonstration, SailPoint and RSA announce agent controls, and new research tests the boundaries of authorization.",
     image: "/blog/agentic-iam-2026-10-07.jpg",
     imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",

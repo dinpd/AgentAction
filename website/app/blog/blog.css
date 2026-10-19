@@ -4,6 +4,7 @@
 .blog-intro > p:last-child, .blog-deck { max-width: 62ch; font-size: 1.2rem; line-height: 1.65; }
 .blog-meta { font-size: .9rem; line-height: 1.7; color: var(--muted); }
 .blog-posts { margin-top: 3rem; }
+.blog-preview + .blog-preview { margin-top: 3rem; }
 .blog-preview { display: grid; grid-template-columns: 1.1fr 1fr; gap: 2.5rem; border-top: 1px solid var(--line); padding-top: 2rem; }
 .blog-cover img { display: block; width: 100%; height: auto; }
 .blog-preview h2 { font-size: clamp(1.65rem, 3vw, 2.4rem); line-height: 1.15; margin: .8rem 0 1rem; }

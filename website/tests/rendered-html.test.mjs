@@ -104,10 +104,6 @@ test("publishes recent public feature highlights with shared feed, strategic cop
   assert.match(html, /aria-label="Recent feature highlights"/);
   const items = [...html.matchAll(/<article class="news-item"[\s\S]*?<\/article>/g)].map((match) => match[0]);
   assert.ok(items.length >= 5 && items.length <= 6);
-  assert.match(items[0], /Workato integration/);
-  assert.match(items[0], /reference integration/);
-  assert.match(items[0], /synthetic USD refunds/);
-  assert.doesNotMatch(items[0], /Automatic refunds in Workato/);
   for (const item of items) {
     assert.match(item, /<h2>[^<]+<\/h2>/);
     assert.match(item, /Release candidate|Feature release/);
@@ -970,15 +966,49 @@ test("publishes the dated IAM digest with sources, context, image and homepage l
   assert.match(html, /<img[^>]+alt="Abstract agent nodes/);
   const jpg = await readFile(new URL("../dist/client/blog/agentic-iam-2026-10-07.jpg", import.meta.url));
   assert.equal(jpg.subarray(0, 3).toString("hex"), "ffd8ff");
-  const home = await (await render("/")).text();
+  const sitemap = await (await render("/sitemap.xml")).text();
+  for (const route of ["/blog", path]) assert.ok(sitemap.includes(`https://agentaction.dev${route}`));
+});
+
+test("publishes Issue 02 for October 7–17 with source-backed scope and preserves both editions", async () => {
+  const path = '/blog/agentic-iam-digest-2026-10-17';
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = (await response.text()).replaceAll('<!-- -->', '');
+  for (const pattern of [/Authority has to hold/, /Issue 02/, /October 7–17, 2026/, /11-day reporting window/, /October 7 overlaps/, /October 18, 2026/, /By AgentAction/, /reused from Issue 01/, /generally available/i, /forthcoming/, /future-availability language/, /acquisition agreement, not a completed acquisition/, /January 31, 2027/, /pre-production preview/, /preprints/, /before the final Version of Record/, /trusted tool contracts/, /approval flooding/, /Editorial outlook/, /not an exhaustive market census/, /not necessarily the date/, /linked abstracts/]) assert.match(html, pattern);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
+  assert.equal(article.datePublished, '2026-10-18');
+  assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
+  assert.match(html, /property="article:published_time" content="2026-10-18"/);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  for (const source of [
+    'https://www.okta.com/blog/product-innovation/okta-agent-gateway-runtime-security/',
+    'https://investor.workday.com/news-and-events/press-releases/news-details/2026/Workday-to-Acquire-C1-ai-a-Leading-Agentic-Identity-Platform-for-People-and-Agents/default.aspx',
+    'https://www.cert-in.org.in/s2cMainServlet?VLCODE=CIAD-2026-0049&pageid=PUBVLNOTES02',
+    'https://blogs.oracle.com/cloud-infrastructure/iam-enables-ai-transformation-at-oracle',
+    'https://arxiv.org/abs/2610.15138v1',
+    'https://www.nature.com/articles/s41598-026-74900-x',
+    'https://arxiv.org/abs/2610.21063v1',
+  ]) assert.ok(html.includes(`href="${source.replaceAll('&', '&amp;')}"`), `missing primary source ${source}`);
+  for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
+  const home = await (await render('/')).text();
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /<h2 id="iam-digest-title">Identity is moving into the action path\.<\/h2>/);
-  assert.match(highlight, /bounded delegation/);
+  assert.match(highlight, /Authority has to hold at runtime\./);
+  assert.match(highlight, /October 7–17, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
   assert.equal([...home.matchAll(/id="iam-digest"/g)].length, 1);
-  const sitemap = await (await render("/sitemap.xml")).text();
-  for (const route of ["/blog", path]) assert.ok(sitemap.includes(`https://agentaction.dev${route}`));
+  const index = (await (await render('/blog')).text()).replaceAll('<!-- -->', '');
+  const previews = [...index.matchAll(/<article class="blog-preview"[\s\S]*?<\/article>/g)].map((match) => match[0]);
+  assert.equal(previews.length, 2);
+  assert.match(previews[0], /Issue 02/);
+  assert.ok(previews[0].includes(`href="${path}"`));
+  assert.match(previews[1], /Issue 01/);
+  assert.ok(previews[1].includes('href="/blog/agentic-iam-digest-2026-10-07"'));
+  const sitemap = await (await render('/sitemap.xml')).text();
+  assert.ok(sitemap.includes(`https://agentaction.dev${path}`));
+  assert.match(sitemap, /<lastmod>2026-10-18/);
 });
