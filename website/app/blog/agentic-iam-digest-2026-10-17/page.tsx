@@ -42,11 +42,11 @@ export default function Digest() {
       </header>
       <figure className="blog-hero">
         <Image src={post.image} alt={post.imageAlt} width={1672} height={941} unoptimized priority sizes="(max-width: 1100px) 100vw, 1100px" />
-        <figcaption>Identity, bounded authority, and evidence along the action path. AI-generated editorial illustration reused from Issue 01.</figcaption>
+        <figcaption>Identity, bounded authority, and evidence along the action path. AI-generated editorial illustration.</figcaption>
       </figure>
       <div className="blog-body">
         <nav className="blog-contents" aria-label="In this digest"><a href="#new">What changed</a><a href="#research">Research signals</a><a href="#vector">Longer-term vector</a><a href="#watch">What to watch</a></nav>
-        <p>This edition covers October 7–17, 2026 inclusive, an 11-day reporting window. It was published on October 18. October 7 overlaps <a href="/blog/agentic-iam-digest-2026-10-07">Issue 01</a>; the RSA announcement covered there remains context for this edition. Dates below identify source publications, not necessarily the date a capability first shipped or an incident occurred.</p>
+        <p>Dates below identify source publications, not necessarily the date a capability first shipped or an incident occurred.</p>
         <div className="blog-callout"><p><strong>The signal this issue:</strong> agent identity is becoming a live operational boundary. The useful question is who authorized a particular action, whether that authority still holds, and what prevents a changed request from borrowing an earlier approval.</p><p>That is our interpretation of this period’s sources. A vendor’s availability statement, an acquisition agreement, an incident advisory, and a research result each provide different evidence.</p></div>
 
         <section id="new" aria-labelledby="new-title">

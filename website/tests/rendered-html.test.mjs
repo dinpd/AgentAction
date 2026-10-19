@@ -975,7 +975,8 @@ test("publishes Issue 02 for October 7–17 with source-backed scope and preserv
   const response = await render(path);
   assert.equal(response.status, 200);
   const html = (await response.text()).replaceAll('<!-- -->', '');
-  for (const pattern of [/Authority has to hold/, /Issue 02/, /October 7–17, 2026/, /11-day reporting window/, /October 7 overlaps/, /October 18, 2026/, /By AgentAction/, /reused from Issue 01/, /generally available/i, /forthcoming/, /future-availability language/, /acquisition agreement, not a completed acquisition/, /January 31, 2027/, /pre-production preview/, /preprints/, /before the final Version of Record/, /trusted tool contracts/, /approval flooding/, /Editorial outlook/, /not an exhaustive market census/, /not necessarily the date/, /linked abstracts/]) assert.match(html, pattern);
+  for (const pattern of [/Authority has to hold/, /Issue 02/, /October 7–17, 2026/, /October 18, 2026/, /By AgentAction/, /AI-generated editorial illustration/, /generally available/i, /forthcoming/, /future-availability language/, /acquisition agreement, not a completed acquisition/, /January 31, 2027/, /pre-production preview/, /preprints/, /before the final Version of Record/, /trusted tool contracts/, /approval flooding/, /Editorial outlook/, /not an exhaustive market census/, /not necessarily the date/, /linked abstracts/]) assert.match(html, pattern);
+  assert.doesNotMatch(html, /October 7 overlaps|11-day reporting window|reused from Issue 01/);
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
   const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
   assert.equal(article.datePublished, '2026-10-18');
