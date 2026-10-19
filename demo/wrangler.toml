@@ -15,6 +15,19 @@ AGENTID_OIDC_AUDIENCE = "agentid-gateway"
 binding = "AGENTID_GATEWAY"
 service = "agentid-gateway"
 
+[[services]]
+binding = "SHARED_AUTHORITY"
+service = "agentaction-demo-authority"
+entrypoint = "DemoIssuer"
+
+[[services]]
+binding = "PAYMENTS_PROVIDER"
+service = "agentaction-demo-payments"
+
+[[services]]
+binding = "SUPPORT_PROVIDER"
+service = "agentaction-demo-support"
+
 # Set the demo OIDC signing secret on both this Worker and the gateway:
 #   npx wrangler secret put AGENTID_DEMO_OIDC_SECRET
 #

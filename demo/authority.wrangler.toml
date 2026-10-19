@@ -1,0 +1,12 @@
+name = "agentaction-demo-authority"
+main = "src/shared-authority/services/authority.ts"
+compatibility_date = "2026-10-10"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "AUTHORITY_STATE"
+class_name = "DemoAuthorityState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DemoAuthorityState"]

@@ -1,0 +1,17 @@
+name = "agentaction-demo-support"
+main = "src/shared-authority/services/support.ts"
+compatibility_date = "2026-10-10"
+workers_dev = true
+
+[[services]]
+binding = "AUTHORITY"
+service = "agentaction-demo-authority"
+entrypoint = "SupportAuthority"
+
+[[durable_objects.bindings]]
+name = "RUNS"
+class_name = "SupportRuns"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SupportRuns"]

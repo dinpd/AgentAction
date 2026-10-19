@@ -1,6 +1,6 @@
 import {
   AGENT, DELEGATION, ISSUER, PAYMENT_ENDPOINT, PRINCIPAL, PROFILE, REFUND, SUPPORT_ENDPOINT, TENANT,
-  canonical, digest, fresh, sign, verify,
+  canonical, digest, fresh, sign, verify, validEffectId,
   type Action, type Execution, type Grant, type Signer, type TrustedKey,
 } from "./protocol.ts";
 
@@ -93,7 +93,7 @@ export class SupportProvider extends Provider {
     try {
       const result = await verify<Execution>(paymentReceipt, this.paymentsKey.publicKey, this.paymentsKey.kid, "agentaction.demo.execution.v1");
       if (result.provider !== "PaymentsCo" || result.runId !== this.options.runId || result.status !== "executed"
-          || typeof result.effectId !== "string" || !result.effectId || typeof result.grantId !== "string" || !result.grantId
+          || !validEffectId(result.effectId) || typeof result.grantId !== "string" || !result.grantId
           || canonical(result.action) !== canonical(REFUND) || result.actionDigest !== await digest(REFUND)
           || !Number.isSafeInteger(result.executedAt) || result.executedAt > this.options.now || result.executedAt < this.options.now - 300
           || action.customerId !== result.action.customerId || action.orderId !== result.action.orderId || action.caseId !== result.action.caseId) return "payment_evidence_invalid";

@@ -12,62 +12,110 @@ Live demo:
 
 https://agentid-refund-demo.drisw.workers.dev
 
-## Shared authority across two providers
+## Shared authority across independently deployed providers
 
 Open [the shared-authority experience](https://agentid-refund-demo.drisw.workers.dev/shared-authority),
-also linked prominently from the original demo. Run **Refund $40. Close the case.**
-and inspect the evidence and actual synthetic effects:
+also linked from the original demo. Run **Refund $40. Close the case.** and
+inspect grants, execution evidence and signed provider effect snapshots.
 
-1. Acme explicitly delegates the fixture actions to AgentAction; both providers
-   recognize the issuer only for Acme's named agent, principal and delegation.
-2. The agent validates signed provider identities and fresh key-possession
-   challenges against expected endpoints before sending customer payloads.
-3. PaymentsCo verifies an ES256 exact-action grant, applies its own policy,
-   consumes the grant once and returns signed execution evidence.
-4. SupportCo accepts a different grant from the same issuer and verifies the
-   matching payment execution receipt before closing case 1042.
+The deployment contains four separate Workers:
 
-Try the eight controls: change $40 to $400, replay the refund, send to the wrong
-provider, substitute an impostor endpoint, revoke an unused grant, use an unknown
-authority, dispatch after expiry, or lower PaymentsCo's own limit to $20.
-Rejected payment attempts leave the case open and create zero effects. Replay
-retains exactly the first $40 refund and can close the case using its verified
-receipt. Impostor detection precedes all customer payload dispatch.
+| Service | Responsibility | Private key custody |
+| --- | --- | --- |
+| Existing refund Worker | Agent orchestration, fixed scenario controls and UI | No authority or provider signing keys |
+| [AgentAction authority](https://agentaction-demo-authority.drisw.workers.dev/.well-known/jwks.json) | Exact-action grants, fixed Acme delegation, provider identity certification and revocation | Its own durable authority namespace |
+| [PaymentsCo](https://agentaction-demo-payments.drisw.workers.dev/health) | Refund verification, provider policy and synthetic execution | Its own durable provider namespace |
+| [SupportCo](https://agentaction-demo-support.drisw.workers.dev/health) | Case update verification and matching payment evidence | Its own durable provider namespace |
 
-This is a self-contained synthetic extension of the existing refund Worker.
-Both providers are separate in-process classes, not independently deployed
-services or vendor integrations. Identity exchanges are local simulations;
-trusted roots and Acme's delegation are provisioned fixtures. Every scenario
-creates fresh ephemeral keys and isolated memory state. Reset/repeat starts a
-new run; there is no durable cross-request revocation/replay guarantee. Provider
-certificates and grants use a demo-only profile, not a public certification.
-No gateway credentials, signing private keys, real payments, external provider
-calls, personal data, or additional secrets are needed for this experience.
+Both providers fetch public trust material and revocation state through fixed,
+role-specific authority service bindings. They independently verify the same
+ES256 grant profile against the same authority key. Grants bind distinct provider
+audiences and every action argument. SupportCo accepts PaymentsCo execution
+evidence only after verifying the root-signed payment identity and payment
+signature. No provider receives another service's private key.
 
-`POST /api/shared-authority/run` accepts only a JSON object with one `scenario`
-field from the server's fixed scenario list, capped at 512 bytes. It returns
-public trust metadata, grants, evidence and synthetic effect counts; it accepts
-no destinations, grants, credentials, arbitrary tool arguments or script input.
-The original gateway-backed demo routes remain available unchanged.
+Provider identity/key-possession challenges cross actual service boundaries.
+The frontend uses HTTP service bindings for provider calls and an RPC issuance
+capability for the authority. Public provider `/mcp` endpoints also verify grants
+directly. Destinations and trust sources are fixed deployment configuration;
+caller-supplied URLs, public keys and arbitrary policy controls are not accepted.
 
-### Verify the demo
+### Controls, evidence and state
+
+All eight controls remain: change $40 to $400, replay, wrong recipient, impostor
+endpoint, revoke before dispatch, unknown authority, expired grant, and lower
+provider limit. Each rejection comes from the relevant service's actual checks.
+The impostor fixture substitutes the expected endpoint while challenging a real
+provider; it stops customer dispatch. The expired-grant fixture is signed with an
+already-expired lifetime; providers use their real clocks.
+
+Each provider serializes operations and commits consumption plus synthetic
+effects in one durable write. Concurrent replay cannot create a second refund.
+State and signing keys survive process restarts. Nonce-bound signed snapshots
+report the provider's own counts and the authority-key fingerprint; the UI does
+not infer effects from an authorization decision.
+
+Issuance, enrollment and revocation are service-only RPC capabilities, not
+public HTTP routes. Each provider's enrollment capability binds its fixed role.
+A run permits one immutable payment grant and one immutable support grant.
+Public clients cannot reset state, replace keys or change provider policy.
+The authority limits the demo to 1,000 active ten-minute runs and prunes expired
+metadata. Grants and identity certificates last at most five minutes. Provider
+records are scheduled for deletion after one hour; expired/unknown runs cannot
+be reinitialized with old grants. Reset starts a new synthetic run and does not
+erase or undo an existing provider record.
+
+Unavailable services, unverifiable results or lost responses stop the workflow.
+The UI displays **Unknown**, not zero or success. When the server can identify
+the run, an error response includes the run ID and fixed provider-state query
+URLs for review. A lost browser response may also lose that identifier; there
+is no automatic execution retry or claim of general recovery guarantees.
+
+This is separate-service verification under one demo operator using a shared
+experimental verifier profile and provisioned trust. It is not independent-vendor
+adoption, a public certification, or real financial execution. The original
+gateway-backed routes are unchanged. No additional secrets or live provider
+credentials are needed.
+
+### Local verification and development
 
 ```bash
 npm ci
 npm test
 npm run build
+npm run test:services
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:browser
+npm run dev:shared
 ```
 
-Browser acceptance starts a local bridge to the real Worker handlers and checks
-every control at desktop/mobile widths, readable proofs, reset/repeat, request
-failure recovery, no outbound provider traffic, and the original page link.
-Use `DEMO_ORIGIN=http://localhost:8790` to run the same acceptance against a
-running local Worker, or the hosted origin after deployment. Screenshots are
-written to `/tmp/agentaction-388-browser` (override with `SCREENSHOT_DIR`).
-The `Refund Demo` workflow verifies pull requests and deploys the existing
-Worker on main only after those checks pass, using the existing Cloudflare
-repository secrets.
+Service acceptance starts four separate Wrangler processes on distinct local
+ports, each with isolated persistent state. It verifies public endpoints,
+the shared authority, separate signing keys, all controls, direct grant checks,
+12 concurrent calls, persisted state/key/replay behavior across restarts, denied
+public administration routes and fail-closed outages. Browser acceptance uses
+the same real service stack at desktop/mobile widths, including Unknown on
+request failure. Screenshots default to `/tmp/agentaction-390-browser`.
+
+`npm run dev:shared` prints the local frontend and service URLs. The original
+`npm run dev` starts only the gateway-backed frontend; the shared-authority flow
+fails closed if its independent services are not running.
+
+The `Refund Demo` workflow validates pull requests, then on main deploys the
+authority, both providers and finally the existing frontend in dependency order
+using existing Cloudflare repository secrets. It runs hosted service acceptance
+after deployment. Use `npm run deploy:services` for the same deployment sequence.
+
+To test the actual hosted services:
+
+```bash
+DEMO_ORIGIN=https://agentid-refund-demo.drisw.workers.dev npm run test:services
+DEMO_ORIGIN=https://agentid-refund-demo.drisw.workers.dev PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs npm run test:browser
+```
+
+`POST /api/shared-authority/run` still accepts only a fixed scenario in a JSON
+object capped at 512 bytes. Provider `/mcp` requests are capped at 24 KB and
+accept only a run, grant, exact action, nonce, and optional signed payment
+receipt/certificate. Authority HTTP exposes health and public keys only.
 
 The demo illustrates:
 

@@ -4,6 +4,25 @@
 
 No changes yet.
 
+## 0.56.0-rc.1 - 2026-10-19
+
+### Website highlight
+
+- Verify action authority across separate services: Run a synthetic refund and case update through independently deployed providers. Inspect shared authority, distinct signing keys, durable replay protection and signed execution evidence, then challenge eight failure cases.
+
+### Added
+
+- Independently deployed shared authority, PaymentsCo and SupportCo Workers behind the existing refund demo. Providers verify the same issuer/profile with distinct audience-bound grants, separate signing keys and provider-owned durable execution state.
+- Service-only issuance, role-bound identity enrollment and revocation capabilities; public verification keys, provider identities, direct grant-verification endpoints and nonce-bound signed effect snapshots. SupportCo independently verifies certified payment execution evidence before case closure.
+- Four-process acceptance with isolated storage, direct public grant checks, concurrent first-use protection, persisted keys/consumption across restarts, denied public administrative routes and outage handling. The UI exposes service endpoints, call evidence and Unknown outcomes when verification cannot complete.
+
+### Compatibility
+
+- Significant minor prerelease for an experimental demo deployment boundary. Existing refund, skill, MCP and enterprise gateway routes remain available. No production protocol/schema migration or added user/provider credentials.
+- Separate services are operated by the same demo operator and share a verifier profile; this does not establish independent-vendor interoperability, external certification or live payment execution. Trust and Acme delegation remain provisioned fixtures.
+- Authority runs expire after ten minutes; grants/certificates after at most five. Provider key/effect records are scheduled for deletion after one hour, with expired runs rejected. Revocation is checked before provider commit; no globally atomic revocation or general lost-response recovery is promised. Unknown outcomes halt further workflow dispatch.
+- Install Python artifacts from the v0.56.0-rc.1 GitHub prerelease; no PyPI or npm registry publication is implied.
+
 ## 0.55.0-rc.1 - 2026-10-18
 
 ### Website highlight

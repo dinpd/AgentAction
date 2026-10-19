@@ -27,6 +27,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Verify independent services, concurrent replay and restart recovery
+        run: npm run test:services
       - name: Install browser acceptance runtime
         run: |
           npm install --prefix /tmp/agentaction-refund-browser --no-save playwright@1.63.0
@@ -50,7 +52,7 @@ jobs:
           cache: npm
           cache-dependency-path: demo/package-lock.json
       - run: npm ci
-      - name: Deploy existing refund Worker
+      - name: Deploy authority, separate providers, then existing refund Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -59,4 +61,8 @@ jobs:
             echo "::error::Refund demo deployment requires the existing Cloudflare repository secrets."
             exit 1
           fi
-          npm run deploy
+          npm run deploy:services
+      - name: Verify hosted cross-service grants and signed evidence
+        run: npm run test:services
+        env:
+          DEMO_ORIGIN: https://agentid-refund-demo.drisw.workers.dev

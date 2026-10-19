@@ -1,24 +1,13 @@
 /** Real Worker handlers + real browser; no mocked authorization responses. */
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { mkdir } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import worker from '../src/worker.ts';
+import { startIndependentStack } from './independent-stack.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
-const shots = process.env.SCREENSHOT_DIR || '/tmp/agentaction-388-browser';
+const shots = process.env.SCREENSHOT_DIR || '/tmp/agentaction-390-browser';
 await mkdir(shots, { recursive: true });
-const server = process.env.DEMO_ORIGIN ? null : createServer(async (req, res) => {
-  try {
-    let body = ''; for await (const chunk of req) body += chunk;
-    const response = await worker.fetch(new Request(new URL(req.url, 'http://localhost'), {
-      method: req.method, headers: req.headers, ...(body ? { body } : {}),
-    }), {});
-    res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(Buffer.from(await response.arrayBuffer()));
-  } catch { res.writeHead(500); res.end('Test bridge failed'); }
-});
-if (server) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = process.env.DEMO_ORIGIN || `http://127.0.0.1:${server.address().port}`;
+const stack = process.env.DEMO_ORIGIN ? null : await startIndependentStack();
+const origin = process.env.DEMO_ORIGIN || stack.origin('frontend');
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, reducedMotion: 'reduce' });
 page.setDefaultTimeout(15000);
@@ -45,11 +34,14 @@ try {
     assert.equal(await page.locator('#refund-count').textContent(), '1');
     assert.equal(await page.locator('#case-state').textContent(), 'Closed');
     assert.equal(await page.locator('#grant-list .grant').count(), 2);
+    assert.equal(await page.getByRole('link', {name:'Independent payment service ↗'}).count(),1);
+    assert.match(await page.locator('#service-evidence').textContent(), /independent-services/);
+    assert.match(await page.locator('#service-evidence').textContent(), /authorityFingerprint/);
     assert.equal(await page.locator('.execution-receipt').count(), 2);
     await page.locator('.execution-receipt summary').first().click();
     assert.match(await page.locator('.execution-receipt').first().textContent(), /"status": "executed"/);
     await page.locator('#grant-list .grant summary').first().click();
-    assert.match(await page.locator('#grant-list .grant').first().textContent(), /payments\.demo\.agentaction\.local/);
+    assert.match(await page.locator('#grant-list .grant').first().textContent(), /agentaction-demo-payments\.drisw\.workers\.dev/);
     assert.match(await page.locator('#grant-list .grant pre').first().textContent(), /"amountCents": 4000/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await page.screenshot({ path: `${shots}/${viewport.width > 1000 ? 'desktop' : 'mobile'}.png`, fullPage: true });
@@ -70,11 +62,23 @@ try {
     assert.equal(await page.locator('#case-state').textContent(), 'Open');
     assert.equal(await page.locator('#run-status').getAttribute('data-run-id'), null);
   }
+  // Render a partial-outcome response distinctly from a zero-effect rejection.
+  const partial=await (await page.request.post(origin+'/api/shared-authority/run',{data:{scenario:'happy_path'}})).json();
+  partial.blocked=true;partial.workflowComplete=false;partial.effects.caseClosed=false;
+  await page.route('**/api/shared-authority/run',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(partial)}));
+  await page.locator('#run-authorized').click();
+  await page.waitForFunction(()=>document.querySelector('#run-status').textContent.includes('Workflow stopped after a verified refund'));
+  assert.equal(await page.locator('#refund-total').textContent(),'$40');
+  assert.equal(await page.locator('#case-state').textContent(),'Open');
+  assert.doesNotMatch(await page.locator('#run-status').textContent(),/No refund executed/);
+  await page.unroute('**/api/shared-authority/run');
+
   // An interrupted request clears previous effects and leaves controls usable.
   await page.route('**/api/shared-authority/run', route => route.abort());
   await page.locator('#run-authorized').click();
   await page.waitForFunction(() => document.querySelector('#run-status').textContent.includes('could not complete'));
-  assert.equal(await page.locator('#refund-count').textContent(), '0');
+  assert.equal(await page.locator('#refund-count').textContent(), 'Unknown');
+  assert.equal(await page.locator('#case-state').textContent(), 'Unknown');
   assert.equal(await page.locator('#run-authorized').isDisabled(), false);
   await page.unroute('**/api/shared-authority/run');
   await run('happy_path');
@@ -85,5 +89,5 @@ try {
   console.log('Shared authority browser acceptance passed: both providers, all eight break controls, effect counts, readable proofs, repeat/reset, network failure recovery and desktop/mobile layout.');
 } finally {
   await browser.close();
-  if (server) await new Promise(resolve => server.close(resolve));
+  if (stack) await stack.close();
 }
