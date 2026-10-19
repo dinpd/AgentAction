@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { posts } from "../posts";
 
-const post = posts[0];
+const post = posts.find((entry) => entry.slug === "agentic-iam-digest-2026-10-07")!;
 const url = `https://agentaction.dev/blog/${post.slug}`;
 const sources = {
   nist: "https://www.nist.gov/news-events/news/2026/09/comments-software-and-agentic-ai-identity-concept-paper",

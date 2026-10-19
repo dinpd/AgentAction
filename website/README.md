@@ -110,6 +110,18 @@ against a local preview, with `DEMO_ORIGIN` overriding `http://localhost:3000`.
 
 ## Agentic IAM blog
 
+Issue 02 covers October 7–17, 2026 inclusive and is published October 18 at
+`/blog/agentic-iam-digest-2026-10-17`. Its seven primary sources cover Okta's
+gateway, Workday's C1.ai acquisition agreement, CERT-In's advisory, Oracle's
+rollout account and three authorization/approval research publications. It
+separates vendor availability, planned capabilities, research status and
+editorial outlook, and discloses the October 7 overlap with Issue 01.
+
+The existing AI-generated illustration is reused with an explicit caption.
+Post metadata carries issue number, coverage, publication date and homepage
+copy. The blog index, homepage highlight and sitemap read that metadata; each
+article selects its own slug so future issues cannot change archived metadata.
+
 ### New in AgentAction
 
 The homepage pairs the digest with public feature news, side by side on desktop

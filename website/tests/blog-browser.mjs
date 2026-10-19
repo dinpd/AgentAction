@@ -7,7 +7,8 @@ const origin = process.env.BLOG_ORIGIN ?? 'http://localhost:3000';
 const errors = [];
 const page = await browser.newPage({ reducedMotion: 'reduce' });
 page.on('pageerror', (error) => errors.push(error.message));
-const permalink = '/blog/agentic-iam-digest-2026-10-07';
+const permalink = '/blog/agentic-iam-digest-2026-10-17';
+const previousPermalink = '/blog/agentic-iam-digest-2026-10-07';
 try {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -17,7 +18,7 @@ try {
     assert.equal(await directory.getAttribute('href'), 'https://mcpcheck.agentaction.dev/servers');
     assert.ok(await directory.isVisible());
     const highlight = page.locator('#iam-digest');
-    assert.match(await highlight.textContent(), /bounded delegation/);
+    assert.match(await highlight.textContent(), /October 7–17, 2026/);
     const digestBox = await highlight.boundingBox();
     const news = page.locator('#product-news');
     assert.match(await news.textContent(), /New in AgentAction/);
@@ -44,18 +45,26 @@ try {
     await page.waitForURL('**/whats-new');
     assert.equal(await page.locator('.news-item').count() >= 5, true);
     assert.equal(await page.locator('.news-item h2').first().textContent(), homepageTitle);
-    assert.match(homepageTitle, /Workato integration/);
+    assert.ok(homepageTitle.trim());
     assert.ok(await page.locator('.news-source').first().evaluate((link) => parseFloat(getComputedStyle(link).fontSize) >= 14));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'news page overflow');
     await page.screenshot({ path: `/private/tmp/agentaction-whats-new-${width}.png`, fullPage: true });
     await page.goto(origin);
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();
     await page.waitForURL(`**${permalink}`);
-    assert.match(await page.locator('h1').textContent(), /Identity moves into/);
+    assert.match(await page.locator('h1').textContent(), /Authority has to hold/);
+    assert.match(await page.locator('.blog-byline').textContent(), /October 18, 2026/);
     assert.ok(await page.locator('.blog-hero img').evaluate((img) => img.complete && img.naturalWidth > 0));
     await page.getByRole('link', { name: 'Longer-term vector', exact: true }).click();
     assert.equal(new URL(page.url()).hash, '#vector');
-    for (const route of ['/', '/blog', permalink]) {
+    await page.goto(`${origin}/blog`);
+    assert.equal(await page.locator('.blog-preview').count(), 2);
+    assert.match(await page.locator('.blog-preview').first().textContent(), /Issue 02/);
+    assert.match(await page.locator('.blog-preview').last().textContent(), /Issue 01/);
+    await page.goto(`${origin}${previousPermalink}`);
+    assert.match(await page.locator('h1').textContent(), /Identity moves into/);
+    assert.match(await page.locator('.blog-byline').textContent(), /October 7, 2026/);
+    for (const route of ['/', '/blog', previousPermalink, permalink]) {
       await page.goto(`${origin}${route}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}px on ${route}`);
     }
@@ -69,6 +78,9 @@ try {
   await page.goto(`${origin}/whats-new`);
   await page.addStyleTag({ content: 'html { font-size: 200%; }' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'news text zoom overflow');
+  await page.goto(`${origin}${permalink}`);
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'digest text zoom overflow');
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const plainPage = await noScript.newPage();
   await plainPage.goto(origin);

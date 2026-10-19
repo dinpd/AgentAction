@@ -6,6 +6,9 @@ import { Brand } from "./brand";
 import { ProjectInquiryForm } from "./project-inquiry-form";
 import { recipes } from "../../recipes/registry";
 import { loadProductNews } from "./public-news";
+import { posts } from "./blog/posts";
+
+const latestDigest = posts[0];
 
 const featuredRecipes = ["competitor-pricing", "support-help-articles", "incident-to-ticket"]
   .flatMap((id) => recipes.filter((recipe) => recipe.id === id));
@@ -224,16 +227,16 @@ export default async function Home() {
       <div className="home-updates">
         <section id="iam-digest" className="home-digest" aria-labelledby="iam-digest-title">
           <div className="digest-highlight">
-            <Image src="/blog/agentic-iam-2026-10-07.jpg" alt="Agent nodes passing through distinct authorization gates" width={1672} height={941} unoptimized sizes="64px" />
+            <Image src={latestDigest.image} alt={latestDigest.imageAlt} width={1672} height={941} unoptimized sizes="64px" />
             <div>
               <div className="update-heading">
                 <span className="update-label">Agentic IAM digest</span>
-                <span className="digest-meta">September 25–October 7, 2026</span>
+                <span className="digest-meta">{latestDigest.window}</span>
               </div>
-              <h2 id="iam-digest-title">Identity is moving into the action path.</h2>
-              <p>Distinct agent identities, bounded delegation, controls on individual actions, and evidence of what happened.</p>
+              <h2 id="iam-digest-title">{latestDigest.headline}</h2>
+              <p>{latestDigest.homepageSummary}</p>
             </div>
-            <a className="proof-link" href="/blog/agentic-iam-digest-2026-10-07">Read the digest and outlook</a>
+            <a className="proof-link" href={`/blog/${latestDigest.slug}`}>Read the digest and outlook</a>
           </div>
         </section>
         {news && (
