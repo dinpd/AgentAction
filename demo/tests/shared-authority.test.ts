@@ -140,6 +140,27 @@ test("HTTP endpoint requires independent services, rejects unbound inputs and ne
   assert.match(await (await worker.fetch(new Request("https://demo.test/"), env)).text(), /href="\/shared-authority"/);
 });
 
+test("named demo hosts open distinct experiences and preserve working navigation and legacy paths", async () => {
+  const env = {} as any;
+  const shared = await worker.fetch(new Request("https://shared-authority.agentaction.dev/"), env);
+  assert.equal(shared.status, 200);
+  assert.match(shared.headers.get("cache-control")!, /no-transform/);
+  assert.match(shared.headers.get("content-security-policy")!, /connect-src 'self'/);
+  const sharedHTML = await shared.text();
+  assert.match(sharedHTML, /One task\. Two providers\./);
+  assert.match(sharedHTML, /href="https:\/\/refund\.agentaction\.dev\/"/);
+  assert.doesNotMatch(sharedHTML, /href="\/"/);
+  const refund = await worker.fetch(new Request("https://refund.agentaction.dev/"), env);
+  assert.match(refund.headers.get("cache-control")!, /no-transform/);
+  const refundHTML = await refund.text();
+  assert.match(refundHTML, /id="run"/);
+  assert.match(refundHTML, /href="https:\/\/shared-authority\.agentaction\.dev\/"/);
+  for (const origin of ["https://demo.test", "https://agentid-refund-demo.drisw.workers.dev"]) {
+    assert.match(await (await worker.fetch(new Request(origin + "/"), env)).text(), /id="run"/);
+    assert.match(await (await worker.fetch(new Request(origin + "/shared-authority"), env)).text(), /One task\. Two providers\./);
+  }
+});
+
 function request(body: string, contentType = "application/json") {
   return new Request("https://demo.test/api/shared-authority/run", { method: "POST", headers: { "content-type": contentType }, body });
 }

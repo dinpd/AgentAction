@@ -398,7 +398,7 @@ const tiers: { title: string; index: string; blurb: string; projects: Project[] 
         self: true,
         note: "Gates the exact tool call against policy, approvals, budgets, idempotency and data-flow rules, then issues a JWS authorization receipt with a public JWKS endpoint, plus Express and FastAPI middleware so a receiving service can verify authority before it mutates. Records the provider result and replays it on an identical retry instead of executing twice. Runs as a local TypeScript guard or a hosted runtime with approval queues and scoped single-use grants, and integrates behind Envoy ext_authz and agentgateway ExtMCP rather than replacing them. Solo-maintained and thinly adopted; the enterprise gateway direction on this site is product direction, not shipped.",
         links: [
-          { label: "Refund and approval demo", href: "https://agentid-refund-demo.drisw.workers.dev/" },
+          { label: "Refund and approval demo", href: "https://refund.agentaction.dev/" },
           { label: "Production deploy demo", href: "https://agentid-devops-demo.drisw.workers.dev/" },
           { label: "npm: @dinpd/ai-agent-guard", href: "https://www.npmjs.com/package/@dinpd/ai-agent-guard" },
         ],

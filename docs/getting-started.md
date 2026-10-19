@@ -207,7 +207,7 @@ See [`cloudflare/README.md`](../cloudflare/README.md) for details.
 The hosted demo shows a SaaS support app and MCP gateway consulting AgentAction
 before tool execution:
 
-https://agentid-refund-demo.drisw.workers.dev
+https://refund.agentaction.dev
 
 It illustrates:
 

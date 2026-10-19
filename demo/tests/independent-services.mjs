@@ -22,6 +22,18 @@ const direct = async (origin, body) => {
   return response.json();
 };
 try {
+  if (process.env.REFUND_ORIGIN) {
+    const sharedPage = await fetch(frontend + '/', { redirect: 'manual' });
+    assert.equal(sharedPage.status, 200);
+    const sharedHTML = await sharedPage.text();
+    assert.match(sharedHTML, /One task\. Two providers\./);
+    assert.ok(sharedHTML.includes('href="' + process.env.REFUND_ORIGIN + '/"'));
+    const refundPage = await fetch(process.env.REFUND_ORIGIN + '/', { redirect: 'manual' });
+    assert.equal(refundPage.status, 200);
+    const refundHTML = await refundPage.text();
+    assert.match(refundHTML, /id="run"/);
+    assert.ok(refundHTML.includes('href="' + frontend + '/"'));
+  }
   for (const [origin, service] of [[authority, 'AgentAction authority'], [payments, 'PaymentsCo'], [support, 'SupportCo']]) {
     const health = await read(await fetch(origin + '/health'));
     assert.equal(health.service, service); assert.equal(health.mode, 'independent-worker');
