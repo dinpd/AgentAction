@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
-import test from "node:test";
+import test, { mock } from "node:test";
+import { RELEASES_URL } from "../app/product-news.mjs";
 import { createHash } from "node:crypto";
 
 const templateRoot = new URL("../", import.meta.url);
@@ -57,25 +58,35 @@ test("publishes the completion preprint with attribution, limits and the reviewe
   assert.ok(sitemap.includes(`https://agentaction.dev${path}`));
 });
 
-async function render(pathname = "/") {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+let renderCount = 0;
 
-  return worker.fetch(
-    new Request(new URL(pathname, "https://agentaction.dev"), {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
+async function render(pathname = "/", { releaseFeed = () => Response.json([]) } = {}) {
+  // Each import creates a fresh feed cache. Give every render the same controlled
+  // input instead of comparing independent GitHub requests across environments.
+  const fetchMock = mock.method(globalThis, "fetch", releaseFeed);
+  try {
+    const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+    workerUrl.searchParams.set("test", `${process.pid}-${++renderCount}`);
+    const { default: worker } = await import(workerUrl.href);
+
+    return await worker.fetch(
+      new Request(new URL(pathname, "https://agentaction.dev"), {
+        headers: { accept: "text/html" },
+      }),
+      {
+        ASSETS: {
+          fetch: async () => new Response("Not found", { status: 404 }),
+        },
       },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
+      {
+        waitUntil() {},
+        passThroughOnException() {},
+      },
+    );
+  } finally {
+    fetchMock.mock.restore();
+    for (const call of fetchMock.mock.calls) assert.equal(call.arguments[0], RELEASES_URL);
+  }
 }
 
 test("shows dated public feature news beside the digest above the hero", async () => {
@@ -95,28 +106,59 @@ test("shows dated public feature news beside the digest above the hero", async (
   assert.ok(html.indexOf('id="product-news"') < html.indexOf('id="hero-title"'));
 });
 
-test("publishes recent public feature highlights with shared feed, strategic copy and discovery metadata", async () => {
-  const response = await render('/whats-new');
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
-  assert.match(html, /What’s new<br\s*\/?>in AgentAction\./);
-  assert.match(html, /aria-label="Recent feature highlights"/);
-  const items = [...html.matchAll(/<article class="news-item"[\s\S]*?<\/article>/g)].map((match) => match[0]);
-  assert.ok(items.length >= 5 && items.length <= 6);
-  for (const item of items) {
-    assert.match(item, /<h2>[^<]+<\/h2>/);
-    assert.match(item, /Release candidate|Feature release/);
-    assert.match(item, /href="https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v\d+\.\d+\.0(?:-rc\.\d+)?"/);
-  }
-  const dates = items.map((item) => item.match(/dateTime="([^"]+)"/i)[1]);
-  assert.deepEqual(dates, [...dates].sort().reverse());
-  const home = await (await render('/')).text();
-  const homepageTitle = home.match(/<h2 id="product-news-title">([^<]+)<\/h2>/)[1];
-  assert.ok(items[0].includes(`<h2>${homepageTitle}</h2>`));
-  assert.match(html, /rel="canonical" href="https:\/\/agentaction.dev\/whats-new"/);
-  assert.match(html, /aria-label="Primary navigation"/);
-  assert.match(await (await render('/sitemap.xml')).text(), /https:\/\/agentaction.dev\/whats-new/);
+test("publishes recent public feature highlights with shared feed, strategic copy and discovery metadata", async (t) => {
+  const feature = {
+    tag_name: 'v0.99.0', draft: false, prerelease: false,
+    published_at: '2026-10-24T10:00:00Z',
+    body: '### Website highlight\n\n- Governed tool access: Review the permitted action and its evidence.\n\n### Added\n\n- Controlled acceptance fixture.',
+  };
+  for (const scenario of [
+    {
+      name: 'newer release from the public feed',
+      releaseFeed: () => Response.json([feature]),
+      title: 'Governed tool access', tag: 'v0.99.0', date: '2026-10-24', count: 6,
+      summary: 'Review the permitted action and its evidence.', status: 'Feature release',
+    },
+    {
+      name: 'bundled reviewed history during a feed outage',
+      releaseFeed: () => { throw new Error('Controlled feed outage'); },
+      title: 'Workato integration', tag: 'v0.50.0-rc.1', date: '2026-10-11', count: 5,
+      summary: 'Bring action controls and outcome evidence into Workato recipes.', status: 'Release candidate',
+    },
+  ]) await t.test(scenario.name, async () => {
+    let requests = 0;
+    const options = { releaseFeed: (...args) => { requests++; return scenario.releaseFeed(...args); } };
+    const response = await render('/whats-new', options);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+    assert.match(html, /What’s new<br\s*\/?>in AgentAction\./);
+    assert.match(html, /aria-label="Recent feature highlights"/);
+    const items = [...html.matchAll(/<article class="news-item"[\s\S]*?<\/article>/g)].map((match) => match[0]);
+    assert.equal(items.length, scenario.count);
+    for (const item of items) {
+      assert.match(item, /<h2>[^<]+<\/h2>/);
+      assert.match(item, /Release candidate|Feature release/);
+      assert.match(item, /href="https:\/\/github.com\/dinpd\/AgentAction\/releases\/tag\/v\d+\.\d+\.0(?:-rc\.\d+)?"/);
+    }
+    const dates = items.map((item) => item.match(/dateTime="([^"]+)"/i)[1]);
+    assert.deepEqual(dates, [...dates].sort().reverse());
+    const home = await (await render('/', options)).text();
+    const homepageNews = home.match(/<section id="product-news"[\s\S]*?<\/section>/)[0];
+    const homepageTitle = homepageNews.match(/<h2 id="product-news-title">([^<]+)<\/h2>/)[1];
+    assert.equal(homepageTitle, scenario.title);
+    assert.ok(items[0].includes(`<h2>${homepageTitle}</h2>`));
+    assert.ok(items[0].includes(`href="https://github.com/dinpd/AgentAction/releases/tag/${scenario.tag}"`));
+    for (const surface of [items[0], homepageNews]) {
+      assert.ok(surface.includes(scenario.summary));
+      assert.ok(surface.includes(scenario.status));
+      assert.match(surface, new RegExp(`dateTime="${scenario.date}"`, 'i'));
+    }
+    assert.equal(requests, 2, 'each fresh worker uses the controlled release feed');
+    assert.match(html, /rel="canonical" href="https:\/\/agentaction.dev\/whats-new"/);
+    assert.match(html, /aria-label="Primary navigation"/);
+    assert.match(await (await render('/sitemap.xml')).text(), /https:\/\/agentaction.dev\/whats-new/);
+  });
 });
 
 test("serves the isolated temporal MCP simulation and links it from the homepage", async () => {
