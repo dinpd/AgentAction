@@ -1,6 +1,18 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "03",
+    slug: "agentic-iam-digest-2026-10-24",
+    title: "Agentic IAM digest: knowing the agent is only the start",
+    date: "2026-10-26",
+    window: "October 18–24, 2026",
+    headline: "Knowing the agent is only the start.",
+    homepageSummary: "New endpoint controls, adaptive permissions, and research on the gap between completing a task and staying within its authority.",
+    description: "Microsoft outlines adaptive agent access, BeyondTrust ships endpoint controls, SentinelOne introduces early-access ADR, and new standards work and research distinguish identity from permission.",
+    image: "/blog/agentic-iam-2026-10-07.jpg",
+    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+  },
+  {
     issue: "02",
     slug: "agentic-iam-digest-2026-10-17",
     title: "Agentic IAM digest: authority has to hold at runtime",

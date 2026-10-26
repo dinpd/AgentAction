@@ -7,7 +7,7 @@ const origin = process.env.BLOG_ORIGIN ?? 'http://localhost:3000';
 const errors = [];
 const page = await browser.newPage({ reducedMotion: 'reduce' });
 page.on('pageerror', (error) => errors.push(error.message));
-const permalink = '/blog/agentic-iam-digest-2026-10-17';
+const permalink = '/blog/agentic-iam-digest-2026-10-24';
 const previousPermalink = '/blog/agentic-iam-digest-2026-10-07';
 try {
   for (const width of [1440, 390]) {
@@ -18,7 +18,7 @@ try {
     assert.equal(await directory.getAttribute('href'), 'https://mcpcheck.agentaction.dev/servers');
     assert.ok(await directory.isVisible());
     const highlight = page.locator('#iam-digest');
-    assert.match(await highlight.textContent(), /October 7–17, 2026/);
+    assert.match(await highlight.textContent(), /October 18–24, 2026/);
     const digestBox = await highlight.boundingBox();
     const news = page.locator('#product-news');
     assert.match(await news.textContent(), /New in AgentAction/);
@@ -52,19 +52,19 @@ try {
     await page.goto(origin);
     await highlight.getByRole('link', { name: 'Read the digest and outlook' }).click();
     await page.waitForURL(`**${permalink}`);
-    assert.match(await page.locator('h1').textContent(), /Authority has to hold/);
-    assert.match(await page.locator('.blog-byline').textContent(), /October 18, 2026/);
+    assert.match(await page.locator('h1').textContent(), /Knowing the agent/);
+    assert.match(await page.locator('.blog-byline').textContent(), /October 26, 2026/);
     assert.ok(await page.locator('.blog-hero img').evaluate((img) => img.complete && img.naturalWidth > 0));
     await page.getByRole('link', { name: 'Longer-term vector', exact: true }).click();
     assert.equal(new URL(page.url()).hash, '#vector');
     await page.goto(`${origin}/blog`);
-    assert.equal(await page.locator('.blog-preview').count(), 2);
-    assert.match(await page.locator('.blog-preview').first().textContent(), /Issue 02/);
+    assert.equal(await page.locator('.blog-preview').count(), 3);
+    assert.match(await page.locator('.blog-preview').first().textContent(), /Issue 03/);
     assert.match(await page.locator('.blog-preview').last().textContent(), /Issue 01/);
     await page.goto(`${origin}${previousPermalink}`);
     assert.match(await page.locator('h1').textContent(), /Identity moves into/);
     assert.match(await page.locator('.blog-byline').textContent(), /October 7, 2026/);
-    for (const route of ['/', '/blog', previousPermalink, permalink]) {
+    for (const route of ['/', '/blog', previousPermalink, '/blog/agentic-iam-digest-2026-10-17', permalink]) {
       await page.goto(`${origin}${route}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}px on ${route}`);
     }
@@ -90,7 +90,7 @@ try {
   await plainPage.waitForURL('**/whats-new');
   assert.equal(await plainPage.locator('.news-item').count() >= 5, true);
   await plainPage.goto(`${origin}${permalink}`);
-  assert.match(await plainPage.locator('#vector').textContent(), /Editorial outlook/);
+  assert.match(await plainPage.locator('#vector').textContent(), /Where this is heading/);
   await noScript.close();
   assert.deepEqual(errors, []);
   console.log('Blog and homepage browser acceptance passed at desktop, mobile, 200% text size and without JavaScript.');
