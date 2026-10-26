@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.56.2-rc.1 - 2026-10-25
+
+### Fixed
+
+- Update the website's pinned Next.js dependency to 16.4.3, removing the vulnerable dependency versions flagged by GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r and GHSA-673q-mjm6-r5xr. Preserve the existing Vinext build and deployment integration.
+
+### Compatibility
+
+- Backward-compatible website dependency maintenance. No AgentAction API, protocol, authorization, evidence, schema or credential changes; no migration is required. The advisory-specific exploit conditions have not been independently reproduced in this Vinext deployment.
+- Continue using the current configuration. Python artifacts are available from the v0.56.2-rc.1 GitHub prerelease; no PyPI or npm registry publication is implied.
+
 ## 0.56.1-rc.1 - 2026-10-19
 
 ### Fixed
