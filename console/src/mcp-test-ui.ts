@@ -28,6 +28,8 @@ function buildFields(args:Record<string,unknown>){
   const properties=tool.inputSchema.properties;
   const required=Array.isArray(tool.inputSchema.required)?tool.inputSchema.required:[];
   if(isObject(properties)&&Object.keys(properties).length<=24&&!['oneOf','anyOf','allOf','$ref'].some(k=>k in tool.inputSchema)) {
+    // Preserve imported fixtures exactly when guided fields cannot represent them.
+    if(Object.entries(args).some(([name,value])=>!isObject(properties[name])||value===''||typeof value!==(properties[name].type==='integer'?'number':properties[name].type)))advanced=true;
     for(const [name,schema] of Object.entries(properties)) {
       if(!isObject(schema)||!['string','number','integer','boolean'].includes(schema.type)){advanced=true;break;}
       const label=node('label',name+(required.includes(name)?' *':''));let input:HTMLInputElement|HTMLSelectElement;

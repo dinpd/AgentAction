@@ -24,6 +24,9 @@ try {
  await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
  await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:'Plan saved'}).waitFor();
  const exported=JSON.parse(await downloaded('#test-export-plan'));assert.equal(exported.name,plan.name);assert.equal(exported.arguments.query,'hello');
+ const edge={...plan,arguments:{query:'',extra:{keep:'exactly'}}};
+ await page.locator('#test-import-plan').setInputFiles({name:'edge.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(edge))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();assert.deepEqual(JSON.parse(await downloaded('#test-export-plan')).arguments,edge.arguments);
+ await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
  await page.reload();await page.locator('#mode-test').click();await page.locator('#test-own').click();await page.locator('#test-saved').selectOption(plan.name);await page.locator('#test-load').click();await page.locator('#test-status').filter({hasText:'Plan loaded'}).waitFor();
  assert.equal(await page.locator('[data-field=query]').inputValue(),'hello');assert.equal(provider.calls(),0);
  await page.locator('[data-field=query]').fill('hello again');await page.locator('#test-json-details summary').click();assert.equal(JSON.parse(await page.locator('#test-arguments').inputValue()).query,'hello again');
