@@ -1,5 +1,6 @@
 import type { McpTool } from './mcp-client.ts';
 import type { PrecheckReport } from './mcp-precheck.ts';
+import { readinessComparison, type ComparisonCatalog } from './readiness-comparison.ts';
 
 export const READINESS_RULESET = '2026-09-22.1';
 export const READINESS_PROTOCOLS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'] as const;
@@ -19,6 +20,7 @@ export type ReadinessProfile = {
   server?: { name?: string; version?: string };
   findingCounts: Record<ReadinessFinding["status"], number>;
   toolCount: number; tools: McpTool[]; findings: ReadinessFinding[];
+  comparisonCatalog?: ComparisonCatalog;
   coverage: { discovery: 'observed' | 'incomplete'; metadata: 'bounded'; toolsShown: number; findingsOmitted: number; conformance: 'untested'; execution: 'untested'; permissions: 'untested'; retries: 'untested' };
 };
 export type ReadinessSummary = Pick<ReadinessProfile, 'endpoint' | 'checkedAt' | 'expiresAt' | 'ruleset' | 'requestedProtocol' | 'observedProtocol' | 'visibility' | 'catalogFingerprint' | 'toolCount'> & {
@@ -49,7 +51,7 @@ export async function createReadinessProfile(report: PrecheckReport, tools: McpT
   const source = spec + '/server/tools';
   const findings: ReadinessFinding[] = [];
   const add = (finding: ReadinessFinding) => findings.push(finding);
-  add({ id: 'discovery', category: 'protocol', basis: 'observation', status: visible ? 'observed' : 'untested', title: visible ? 'Anonymous tool discovery completed' : 'Tool discovery incomplete', evidence: visible ? `${retained.length} tools listed using ${report.protocol}. Catalog limits: 80 tools, five pages and 80,000 characters of retained metadata.` : 'Authentication, network, protocol or inspection limits prevented complete tool discovery.', remediation: visible ? 'Run the official conformance suite for the versions you support; discovery alone does not establish conformance.' : 'Review the probe details. Test an authenticated or scoped endpoint in your own environment; an incomplete check is not a protocol failure.', source: 'https://github.com/modelcontextprotocol/conformance' });
+  add({ id: 'discovery', category: 'protocol', basis: 'observation', status: visible ? 'observed' : 'untested', title: visible ? 'Anonymous tool discovery completed' : 'Tool discovery incomplete', evidence: visible ? `${retained.length} tools listed using ${report.protocol}. Catalog limits: 80 tools, five pages and 512 KiB of retained metadata. Individual metadata can be truncated or omitted; review coverage findings.` : 'Authentication, network, protocol or inspection limits prevented complete tool discovery.', remediation: visible ? 'Run the official conformance suite for the versions you support; discovery alone does not establish conformance.' : 'Review the probe details. Test an authenticated or scoped endpoint in your own environment; an incomplete check is not a protocol failure.', source: 'https://github.com/modelcontextprotocol/conformance' });
   for (const finding of report.findings.filter(f => f.level !== 'info' && !f.title.startsWith('Limited assessment') && !['Potentially consequential tools','Suspicious instructions in tool metadata'].includes(f.title))) add({ id: 'probe-' + finding.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), category: 'protocol', basis: 'observation', status: 'review', title: finding.title, evidence: finding.detail, remediation: 'Review the network and authentication observations below. Resolve blocked discovery or inspect the provider configuration locally before relying on this report.', source: spec + '/basic/authorization' });
   for (const tool of retained) {
     if (tool.inputSchema.type !== 'object') add({ id: 'input-object', tool: tool.name, category: 'protocol', basis: 'requirement', status: 'fail', title: 'Input schema must declare an object', evidence: `inputSchema.type is ${JSON.stringify(tool.inputSchema.type) ?? 'absent'}.`, remediation: 'Declare type: "object" at the input schema root.', source });
@@ -69,11 +71,16 @@ export async function createReadinessProfile(report: PrecheckReport, tools: McpT
   const omitted = findings.length - visibleFindings.length;
   const shown: McpTool[] = []; let bytes = 0;
   for (const tool of retained) { const size = new TextEncoder().encode(JSON.stringify(tool)).byteLength; if (shown.length >= 20 || bytes + size > 32000) break; shown.push(tool); bytes += size; }
+  let comparisonCatalog: ComparisonCatalog | undefined;
+  if (visible) {
+    try { comparisonCatalog=await readinessComparison().manifest(retained); }
+    catch { comparisonCatalog={schemaVersion:'agentaction.catalog-comparison.v1',complete:false,tools:[]}; }
+  }
   return { schemaVersion: 'agentaction.mcp-readiness.v1', ruleset: READINESS_RULESET,
     endpoint: report.endpoint, requestedProtocol: report.requestedProtocol || report.protocol, observedProtocol: report.protocol,
     checkedAt: report.checkedAt, expiresAt: new Date(Date.parse(report.checkedAt) + 86400000).toISOString(), authenticationContext: 'anonymous',
     visibility: report.visibility, authentication: report.authentication,
     catalogFingerprint: visible ? await digest(canonical([...retained].sort((a,b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) : null,
-    fingerprintScope: 'bounded-discovered-tool-metadata', toolCount: retained.length, tools: shown, findings: visibleFindings, findingCounts, server: report.server,
+    fingerprintScope: 'bounded-discovered-tool-metadata', toolCount: retained.length, tools: shown, comparisonCatalog, findings: visibleFindings, findingCounts, server: report.server,
     coverage: { discovery: visible ? 'observed' : 'incomplete', metadata: 'bounded', toolsShown: shown.length, findingsOmitted: omitted, conformance: 'untested', execution: 'untested', permissions: 'untested', retries: 'untested' } };
 }

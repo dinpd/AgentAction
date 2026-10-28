@@ -4,6 +4,34 @@
 
 No changes yet.
 
+## 0.57.0-rc.1 - 2026-10-28
+
+### Website highlight
+
+- MCP workflow diagnostics: Compare exported MCP catalogs in the checker or CI, summarize passive observation findings, and inspect a synthetic lost-response recovery walkthrough. Runtime behavior and provider-specific recovery still need testing.
+
+### Added
+
+- Local baseline comparison in the public readiness checker and an offline comparison command with human/JSON output and CI exit codes. Per-tool digests cover the retained catalog beyond the display limit; incomplete, truncated or incompatible observations cannot produce an unchanged verdict.
+- Passive observation diagnostics with generated correlation IDs, timestamps, duration, distinct HTTP/protocol/tool/invalid/unknown result classes, and explicit unverified business outcomes. A bounded local JSONL report groups findings and coverage, with readable HTML or JSON export and no raw arguments/results or identity fields.
+- A runnable synthetic recovery walkthrough using production supervisor primitives, independent SQLite provider records and fresh processes. It demonstrates lost responses, blocked redispatch, unresolved missing/mismatched evidence, trusted read-back and original-result recovery with one provider effect.
+
+### Changed
+
+- The checker leads with actionable findings and fixes. Baseline comparison, supporting evidence, observed checks and untested behavior are expandable; mobile and keyboard operation remain covered by browser acceptance.
+
+### Fixed
+
+- MCP tool results marked isError are classified as errors even when the JSON-RPC envelope succeeds. Existing observation fields remain available; legacy events without result classification remain unclassified in reports.
+- Refresh compatible console development dependencies to address the high-severity advisories reported during release validation. No new production dependencies or permissions.
+
+### Compatibility
+
+- Significant additive prerelease for diagnostics and optional readiness/observation evidence fields. No authentication, approval, provider-authority or hosted-reconciliation expansion; no production data migration. Baselines stay local and imports do not trigger network requests or publication.
+- Comparisons inspect anonymous bounded metadata, not full JSON Schema compatibility, backend behavior or model tool selection. Older complete exports remain usable; exports missing tools need a new baseline. Local report output retains tool names and fixed finding categories and should be reviewed before sharing.
+- The recovery walkthrough is a synthetic local reference, not a real payment integration or universal exactly-once guarantee. The MCP adapter retains its documented transport, session, authentication and process-local-state limits.
+- Install Python artifacts from the v0.57.0-rc.1 GitHub prerelease. npm package versions remain independent; no PyPI or npm registry publication is implied.
+
 ## 0.56.2-rc.1 - 2026-10-25
 
 ### Fixed

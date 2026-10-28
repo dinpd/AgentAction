@@ -13,17 +13,30 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
 const address=server.address() as {port:number};const origin=`http://127.0.0.1:${address.port}`;
-const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});const page=await browser.newPage({viewport:{width:1440,height:1000}});
 const errors:string[]=[];page.on('pageerror',(e:Error)=>errors.push(e.message));
 try {
- await page.goto(origin);await page.getByRole('heading',{name:'Give agents a clearer path to your tools.'}).waitFor();
+ await page.goto(origin);await page.getByRole('heading',{name:'Check your MCP server.'}).waitFor();
  assert.equal(await page.locator('#publish').isChecked(),false);
  await page.screenshot({path:'/tmp/agentaction-readiness-desktop.png',fullPage:true});
  await page.locator('#endpoint').fill('https://mcp.vendor.com/mcp');await page.locator('#run').click();await page.locator('#status').filter({hasText:'has not been published'}).waitFor();
- assert.match(await page.locator('#report').innerText(),/Behavior untested/);assert.equal(await page.locator('#report img').count(),0);
+ assert.match(await page.locator('#report').innerText(),/Runtime untested/);assert.equal(await page.locator('#report img').count(),0);
  assert.equal(await page.locator('#share').isVisible(),false);
  const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;assert.equal(download.suggestedFilename(),'mcp-readiness.json');
  const stream=await download.createReadStream();let body='';for await(const chunk of stream)body+=chunk;assert.equal(JSON.parse(body).readiness.coverage.execution,'untested');
+ const posted:string[]=[];page.on('request',(r:any)=>{if(r.method()==='POST')posted.push(r.postData()||'');});
+ await page.getByText('Compare with a baseline',{exact:true}).click();
+ const baseline=JSON.parse(body);baseline.localMarker='BASELINE-LOCAL-ONLY';
+ const upload=async(value:string)=>page.locator('#baseline-file').setInputFiles({name:'baseline.json',mimeType:'application/json',buffer:Buffer.from(value)});
+ await upload(JSON.stringify(baseline));await page.locator('#comparison[data-status=unchanged]').waitFor();
+ baseline.readiness.comparisonCatalog.tools[0].description='a'.repeat(64);
+ await upload(JSON.stringify(baseline));await page.locator('#comparison[data-status=changed]').waitFor();assert.match(await page.locator('#comparison').innerText(),/Description changed/);
+ await upload('{');await page.locator('#comparison').filter({hasText:'valid JSON'}).waitFor();
+ await upload(body);await page.locator('#comparison[data-status=unchanged]').waitFor();
+ await page.locator('#baseline-clear').focus();await page.keyboard.press('Enter');assert.equal(await page.locator('#baseline-file').inputValue(),'');
+ assert.equal(await page.locator('#baseline-file').evaluate(el=>el===document.activeElement),true);
+ assert.ok(posted.every(text=>!text.includes('BASELINE-LOCAL-ONLY')));
+
  await page.locator('#publish').check();await page.locator('#run').click();await page.locator('#status').filter({hasText:'This report is public'}).waitFor();
  const share=await page.locator('#share').getAttribute('href');assert.match(share!,/^\/reports\/[a-f0-9]{64}$/);await page.locator('#share').click();await page.locator('#status').filter({hasText:'Published anonymous observations'}).waitFor();
  assert.equal(await page.locator('#endpoint').inputValue(),'https://mcp.vendor.com/mcp');

@@ -47,6 +47,20 @@ jobs:
           manifests: "examples/customer-support-*-agent.yaml examples/provider-mcp-support-agent.yaml"
           max-risk: "75"
 
+  mcp-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build guard dependency
+        working-directory: packages/guard
+        run: npm ci && npm run build
+      - name: Verify reference adapter and observation diagnostics
+        working-directory: mcp-gateway-adapter
+        run: npm ci && npm test && npm run build
+
   typescript-sdk:
     runs-on: ubuntu-latest
     defaults:

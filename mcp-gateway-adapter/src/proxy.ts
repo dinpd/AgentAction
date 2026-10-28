@@ -108,6 +108,12 @@ async function observeToolCall(
   context: RequestContext,
   fetchImpl: typeof fetch,
 ): Promise<JsonRpcResponse> {
+  const started = performance.now();
+  const diagnostic = {
+    observation_id: crypto.randomUUID(),
+    observed_at: new Date().toISOString(),
+    business_outcome: "unverified" as const,
+  };
   let evaluation: Omit<ObservationDecisionLog, "downstream_outcome"> = {
     event: "agentaction.mcp.observation",
     mode: "observe",
@@ -168,20 +174,45 @@ async function observeToolCall(
     }
   }
 
+  let httpStatus: number | undefined;
+  const observedFetch: typeof fetch = async (input, init) => {
+    const response = await fetchImpl(input, init);
+    httpStatus = response.status;
+    return response;
+  };
   try {
-    const response = await forward(request, config, fetchImpl);
+    const response = await forward(request, config, observedFetch);
+    const resultClass = httpStatus !== undefined && (httpStatus < 200 || httpStatus >= 300) ? "http_error" : classifyToolResponse(response, request.id);
     logObservation(context.logger, {
       ...evaluation,
-      downstream_outcome: response.error ? "error" : "success",
+      ...diagnostic,
+      duration_ms: Math.round(performance.now() - started),
+      result_class: resultClass,
+      downstream_http_status: httpStatus,
+      downstream_outcome: resultClass === "result_returned" ? "success" : "error",
     });
     return response;
   } catch (error) {
     logObservation(context.logger, {
       ...evaluation,
-      downstream_outcome: "transport_error",
+      ...diagnostic,
+      duration_ms: Math.round(performance.now() - started),
+      result_class: httpStatus !== undefined && httpStatus >= 300 ? "http_error" : error instanceof SyntaxError ? "invalid_response" : "transport_unknown",
+      downstream_http_status: httpStatus,
+      downstream_outcome: httpStatus !== undefined && httpStatus >= 300 || error instanceof SyntaxError ? "error" : "transport_error",
     });
     throw error;
   }
+}
+
+function classifyToolResponse(response: unknown, id: JsonRpcRequest["id"]): NonNullable<ObservationDecisionLog["result_class"]> {
+  if (!isRecord(response) || response.jsonrpc !== "2.0" || response.id !== id || Object.hasOwn(response,"method")) return "invalid_response";
+  if (Object.hasOwn(response,"error")) {
+    return !Object.hasOwn(response,"result") && isRecord(response.error) && Number.isInteger(response.error.code) && typeof response.error.message === "string" ? "json_rpc_error" : "invalid_response";
+  }
+  const result=response.result;
+  if (!isRecord(result) || (result.isError !== undefined && typeof result.isError !== "boolean") || (!Array.isArray(result.content) && !isRecord(result.structuredContent))) return "invalid_response";
+  return result.isError === true ? "tool_error" : "result_returned";
 }
 
 function observationLogContext(payload: AgentIdAuthorizeRequest): Pick<
