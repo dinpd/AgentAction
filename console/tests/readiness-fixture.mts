@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { Miniflare, convertV4MiniflareOptions } from '../node_modules/miniflare/dist/src/index.js';
 export async function readinessFixture() {
   const calls:string[]=[];
+  execFileSync(process.execPath,[fileURLToPath(new URL('../scripts/build-test-runner.mjs',import.meta.url))],{stdio:'pipe'});
   // Exercise the exact production compiler/config. A separate esbuild invocation
   // missed Wrangler's keep_names helpers inside the serialized browser script.
   const directory=mkdtempSync(join(tmpdir(),'agentaction-readiness-test-'));

@@ -103,6 +103,9 @@ from the matching changelog entry. Verify that:
 - the workflow is green;
 - the GitHub release points to the intended merge commit;
 - the wheel and source distribution are attached;
+- the standalone `agentaction-mcp-tester.mjs` is attached and its local runner
+  acceptance passes on Node 22; this file includes the browser UI, validator
+  and license notices and needs no npm installation;
 - installation from the wheel succeeds in a clean environment;
 - the remote default branch and local branch are synchronized.
 

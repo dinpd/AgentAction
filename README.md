@@ -91,6 +91,14 @@ that tenant's manifest. Workspace owners can then use **Evals** to create an
 immutable eval version and route new Jobs by source, agent, or both without
 changing the Hermes connection.
 
+### Test MCP behavior
+
+Try **Run sample tests** in the [MCP checker](https://mcpcheck.agentaction.dev/),
+then save a plan and download the standalone tester for your own staging server.
+One Node 22+ command opens a local page; **Run tests** checks the selected
+fixtures without automatic retries. See [setup, saved plans, CI and evidence
+limits](docs/mcp-behavior-tests.md).
+
 ### Recommended: Observe An MCP Workflow
 
 Run the self-contained observer from a fresh clone:

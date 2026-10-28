@@ -109,8 +109,29 @@ jobs:
           path: /tmp/agentaction-n8n-reference.zip
           if-no-files-found: error
 
+  mcp-tester:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+      - run: node --test --experimental-strip-types tests/mcp-test-plan.test.ts
+      - run: npm run test:mcp-runner
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcp-tester
+          path: console/generated/agentaction-mcp-tester.mjs
+          if-no-files-found: error
+
   publish:
-    needs: [python, typescript]
+    needs: [python, typescript, mcp-tester]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -130,6 +151,11 @@ jobs:
           name: n8n-reference
           path: release/n8n
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-tester
+          path: release/mcp
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,7 +169,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \
               --notes-file release/release-notes.md
-            gh release upload "$GITHUB_REF_NAME" release/dist/* release/workato/* release/n8n/* \
+            gh release upload "$GITHUB_REF_NAME" release/dist/* release/workato/* release/n8n/* release/mcp/* \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
@@ -151,6 +177,7 @@ jobs:
               release/dist/* \
               release/workato/* \
               release/n8n/* \
+              release/mcp/* \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --title "AgentAction ${GITHUB_REF_NAME#v}" \

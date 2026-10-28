@@ -4,6 +4,26 @@
 
 No changes yet.
 
+## 0.58.0-rc.1 - 2026-10-28
+
+### Website highlight
+
+- Repeatable MCP behavior tests: Try a one-click synthetic sample, save a test plan, and run selected staging checks with a downloadable local tester. Results separate passed, failed, untested and inconclusive behavior; provider outcomes remain unverified.
+
+### Added
+
+- Preview behavior tests in the public MCP checker: one-click synthetic success and timeout samples, guided inputs, saved browser plans, JSON plan/report import and export, and explicit evidence limits.
+- A standalone Node 22+ local tester with no npm installation. One setup command opens a local page; one Run tests button executes a reviewed plan. Tests cover valid calls, optional missing-required-field rejection, declared structured output, an optional isError fixture, and response deadlines. Fresh discovery blocks execution after tool-contract or protocol changes.
+- Saved-plan CLI execution with machine-readable reports and CI exit codes. The GitHub release includes the same standalone tester source as the checker download, with embedded license notices.
+
+### Compatibility
+
+- Significant additive prerelease with new versioned plan/report formats and local execution. Existing anonymous readiness inspection remains discovery-only. No production data migration or change to authorization, approvals or provider authority.
+- The runner uses HTTP MCP endpoints, supports JSON and SSE response envelopes, and accepts an optional local bearer token. HTTPS or HTTP loopback only; no stdio transport, OAuth flow, credential-bearing URLs, automatic retries, redirect following, arbitrary fault injection, or full protocol conformance certification.
+- A run sends at most three selected tool calls. Deadlines and transport failures can leave provider effects unknown and halt further calls. Passed checks establish only the observed fixture behavior; business completion remains unverified.
+- Plans stay in the browser unless explicitly exported and contain sample arguments and endpoint/tool metadata. Dedicated connection tokens are excluded. Reports omit raw arguments/results; review exported names, endpoints and user-supplied content before sharing. Imported evidence is labeled as unverified.
+- Install Python artifacts and the standalone tester from the v0.58.0-rc.1 GitHub prerelease. npm package versions remain independent; no PyPI or npm registry publication is implied.
+
 ## 0.57.0-rc.1 - 2026-10-28
 
 ### Website highlight

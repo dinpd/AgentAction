@@ -15,8 +15,8 @@
     "demo:recovery": "node --experimental-strip-types examples/recovery-walkthrough.mts",
     "test:browser": "node --experimental-strip-types tests/registry-browser.mts",
     "test:catalog-worker": "node --experimental-strip-types tests/directory-worker.mts",
-    "dry-run:readiness": "WRANGLER_LOG_PATH=/tmp/agentaction-readiness-wrangler.log wrangler deploy --config wrangler.readiness.jsonc --dry-run --outdir /tmp/agentaction-readiness-dist",
-    "deploy:readiness": "wrangler deploy --config wrangler.readiness.jsonc",
+    "dry-run:readiness": "npm run build:test-runner && WRANGLER_LOG_PATH=/tmp/agentaction-readiness-wrangler.log wrangler deploy --config wrangler.readiness.jsonc --dry-run --outdir /tmp/agentaction-readiness-dist",
+    "deploy:readiness": "npm run build:test-runner && wrangler deploy --config wrangler.readiness.jsonc",
     "test:readiness-worker": "node --experimental-strip-types tests/readiness-worker.mts",
     "test:readiness-browser": "node --experimental-strip-types tests/readiness-browser.mts",
     "test:oauth-browser": "node --experimental-strip-types tests/oauth-worker-browser.mts",
@@ -24,10 +24,14 @@
     "test:supervisor-browser": "node --experimental-strip-types tests/execution-supervisor-browser.mts",
     "test:supervisor-overrides-browser": "node --experimental-strip-types tests/supervisor-overrides-browser.mts",
     "test:hermes-worker": "node --experimental-strip-types tests/hermes-execution-worker.mts",
-    "test:hermes-browser": "node --experimental-strip-types tests/hermes-supervisor-browser.mts"
+    "test:hermes-browser": "node --experimental-strip-types tests/hermes-supervisor-browser.mts",
+    "build:test-runner": "node scripts/build-test-runner.mjs",
+    "test:mcp-runner": "node --experimental-strip-types tests/mcp-test-runner.mts",
+    "test:mcp-browser": "node --experimental-strip-types tests/mcp-test-browser.mts"
   },
   "devDependencies": {
-    "wrangler": "^4.94.0"
+    "wrangler": "^4.94.0",
+    "esbuild": "0.28.1"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",

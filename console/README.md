@@ -1,5 +1,11 @@
 # AgentAction Console
 
+The public [MCP checker](https://mcpcheck.agentaction.dev/) also offers preview
+[behavior tests](../docs/mcp-behavior-tests.md): one-click synthetic samples,
+saved plans and a standalone local tester. Build the download with
+`npm run build:test-runner`; validate it with `npm run test:mcp-runner` and
+`npm run test:mcp-browser` (Playwright required for the browser check).
+
 This directory contains the Cloudflare-hosted UI/BFF for AgentAction
 Observability. It combines self-service tenant setup, privacy-safe Activity,
 profile-scoped Fleet Overview, finalized Jobs, Job detail, and tenant-scoped

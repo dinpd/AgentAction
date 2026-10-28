@@ -142,6 +142,14 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify standalone MCP behavior runner and local security boundary
+        run: npm run test:mcp-runner
+
+      - name: Verify one-click samples, saved test plans and downloaded local runner
+        run: npm run test:mcp-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify local observation and recovery reports on desktop and mobile
         run: node --experimental-strip-types tests/diagnostics-browser.mts
         env:
