@@ -9,6 +9,12 @@ export class RuntimeError extends Error {
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 export class McpPreflightError extends RuntimeError {}
+// Preserve a fixed diagnostic message while exposing a validated protocol code
+// to the local behavior harness. Never retain provider error messages or data.
+export class McpRpcError extends RuntimeError {
+  rpcCode: number;
+  constructor(code: number) { super('MCP returned an invalid or failed response.', 502); this.rpcCode = code; }
+}
 // Fixed local failure categories only: never log provider responses or credentials.
 export function mcpFailureReason(error: unknown): string {
   const reasons: Record<string, string> = {
@@ -143,6 +149,7 @@ export class McpClient {
       const message = response.headers.get("content-type")?.includes("text/event-stream")
         ? await streamedResponse(response, id!)
         : object(JSON.parse(await boundedText(response)));
+      if (message && message.id === id && message.jsonrpc === '2.0' && !Object.hasOwn(message,'method') && !Object.hasOwn(message,'result') && message.error && typeof message.error === 'object' && !Array.isArray(message.error) && Number.isInteger((message.error as Record<string,unknown>).code) && typeof (message.error as Record<string,unknown>).message === 'string') throw new McpRpcError((message.error as {code:number}).code);
       if (!message || message.id !== id || message.error || message.jsonrpc !== "2.0" || Object.hasOwn(message, "method")) throw new RuntimeError("MCP returned an invalid or failed response.", 502);
       return object(message.result);
     } catch (error) {

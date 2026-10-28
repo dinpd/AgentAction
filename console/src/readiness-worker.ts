@@ -3,6 +3,7 @@ import { boundedText, RuntimeError } from './mcp-client.ts';
 import { parseCheck } from './readiness-store.ts';
 import { READINESS_HTML, READINESS_CSS, READINESS_JS } from './readiness-ui.ts';
 import { faviconBytes } from './favicon.ts';
+import { TEST_UI, TEST_RUNNER } from '../generated/test-assets.ts';
 export { McpReadiness } from './readiness-do.ts';
 
 function response(body: string | Uint8Array, type = 'application/json; charset=utf-8', status = 200): Response {
@@ -22,6 +23,11 @@ export default {
         if (url.pathname === '/' || /^\/reports\/[a-f0-9]{64}$/.test(url.pathname)) return response(READINESS_HTML, 'text/html; charset=utf-8');
         if (url.pathname === '/assets/check.css') return response(READINESS_CSS, 'text/css; charset=utf-8');
         if (url.pathname === '/assets/check.js') return response(READINESS_JS, 'text/javascript; charset=utf-8');
+        if (url.pathname === '/assets/test.js') return response(TEST_UI, 'text/javascript; charset=utf-8');
+        if (url.pathname === '/downloads/mcp-test-runner.mjs') {
+          const download=response(TEST_RUNNER,'text/javascript; charset=utf-8');
+          download.headers.set('content-disposition','attachment; filename="agentaction-mcp-tester.mjs"');return download;
+        }
         if (url.pathname === '/favicon.png') return response(faviconBytes(), 'image/png');
         if (/^\/api\/reports\/[a-f0-9]{64}$/.test(url.pathname)) {
           const result = await env.MCP_READINESS.getByName('public-v1').get(url.pathname.split('/').pop()!);

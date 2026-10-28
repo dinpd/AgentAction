@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { readinessFixture } from './readiness-fixture.mts';
+import { behaviorFixture } from './mcp-test-fixture.mts';
+import { samplePlan } from '../src/mcp-test-plan.ts';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const {mf,calls}=await readinessFixture();let ip=1;
+const host=createServer(async(req,res)=>{const chunks=[];for await(const c of req)chunks.push(c);const headers=new Headers();for(const [k,v]of Object.entries(req.headers))if(v)headers.set(k,Array.isArray(v)?v.join(','):v);headers.set('cf-connecting-ip',`192.0.2.${ip++}`);const response=await mf.dispatchFetch('http://'+req.headers.host+req.url,{method:req.method,headers,...(chunks.length?{body:Buffer.concat(chunks)}:{})});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));});
+await new Promise<void>(resolve=>host.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${(host.address() as any).port}`;
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors:string[]=[];
+page.on('pageerror',(e:Error)=>errors.push(e.message));const directory=await mkdtemp(join(tmpdir(),'agentaction-harness-browser-')),provider=await behaviorFixture();let runner:ReturnType<typeof spawn>|undefined;
+async function downloaded(id:string){const wait=page.waitForEvent('download');await page.locator(id).click();const d=await wait;const stream=await d.createReadStream();let text='';for await(const c of stream)text+=c;return text;}
+try {
+ await page.goto(origin);const before=calls.length;
+ await page.locator('#try-behavior').click();await page.locator('#test-result-title').filter({hasText:'5 of 5'}).waitFor();assert.match(await page.locator('#test-source').innerText(),/Synthetic sample/);assert.equal(calls.length,before);
+ await page.screenshot({path:'/tmp/agentaction-harness-sample-desktop.png',fullPage:true});
+ await page.locator('#test-timeout-sample').click();await page.locator('#test-result-title').filter({hasText:'Inconclusive'}).waitFor();assert.match(await page.locator('#test-result-context').innerText(),/1 tool calls/);
+ await page.locator('#test-own').click();
+ const plan={...samplePlan(),name:'My saved fixture',endpoint:provider.endpoint,tool:provider.tool(),missingArgument:false,errorArguments:undefined};
+ await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ for(const name of ['Unicode one','Unicode two']){await page.locator('#test-import-plan').setInputFiles({name:'unicode.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({...plan,name,arguments:{query:'界'.repeat(21000)}}))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:name==='Unicode one'?'Plan saved':'plan budget'}).waitFor();}
+ await page.locator('#test-saved').selectOption('Unicode one');await page.locator('#test-delete').click();
+ await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:'Plan saved'}).waitFor();
+ const exported=JSON.parse(await downloaded('#test-export-plan'));assert.equal(exported.name,plan.name);assert.equal(exported.arguments.query,'hello');
+ const edge={...plan,arguments:{query:'',extra:{keep:'exactly'}}};
+ await page.locator('#test-import-plan').setInputFiles({name:'edge.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(edge))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();assert.deepEqual(JSON.parse(await downloaded('#test-export-plan')).arguments,edge.arguments);
+ await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ await page.reload();await page.locator('#mode-test').click();await page.locator('#test-own').click();await page.locator('#test-saved').selectOption(plan.name);await page.locator('#test-load').click();await page.locator('#test-status').filter({hasText:'Plan loaded'}).waitFor();
+ assert.equal(await page.locator('[data-field=query]').inputValue(),'hello');assert.equal(provider.calls(),0);
+ await page.locator('[data-field=query]').fill('hello again');await page.locator('#test-json-details summary').click();assert.equal(JSON.parse(await page.locator('#test-arguments').inputValue()).query,'hello again');
+ const source=await downloaded('#test-download');assert.match(source,/node:worker_threads/);assert.doesNotMatch(source,/from ["'](?:@cfworker|esbuild)/);const path=join(directory,'agentaction-mcp-tester.mjs');await writeFile(path,source);
+ runner=spawn(process.execPath,[path,'--no-open','--port','0'],{stdio:['ignore','pipe','pipe']});let output='';const localUrl=await new Promise<string>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Local runner did not start')),10000);runner!.stdout!.on('data',c=>{output+=c;const m=output.match(/http:\/\/127\.0\.0\.1:\d+\/#token=[a-f0-9]{64}/);if(m){clearTimeout(timer);resolve(m[0]);}});});
+ await page.goto(localUrl);await page.locator('#test-status').filter({hasText:'Local tester ready'}).waitFor();await page.locator('#test-token').fill('TEST-CREDENTIAL');await page.locator('#test-discover').click();await page.locator('#test-status').filter({hasText:'Tools loaded'}).waitFor();
+ await page.locator('[data-field=query]').fill('hello');await page.locator('#test-run').click();await page.locator('#test-status').filter({hasText:'Run complete'}).waitFor();assert.match(await page.locator('#test-result-title').innerText(),/Passed/);assert.equal(provider.calls(),1);
+ const report=JSON.parse(await downloaded('#test-export-report'));assert.equal(report.calls,1);assert.ok(!JSON.stringify(report).includes('TEST-CREDENTIAL'));
+ await page.locator('#test-save').click();const stored=await page.evaluate(()=>localStorage.getItem('agentaction.mcp-test-plans.v1'));assert.ok(!stored!.includes('TEST-CREDENTIAL'));
+ await page.locator('#test-run').focus();await page.keyboard.press('Enter');await page.locator('#test-status').filter({hasText:'Run complete'}).waitFor();assert.equal(provider.calls(),2);
+ await page.screenshot({path:'/tmp/agentaction-harness-local-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'/tmp/agentaction-harness-local-mobile.png',fullPage:true});
+ await page.locator('#test-import-report').setInputFiles({name:'report.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))});await page.locator('#test-source').filter({hasText:'Imported report'}).waitFor();
+ await page.locator('#test-saved').selectOption(plan.name);await page.locator('#test-delete').click();assert.equal(await page.locator('#test-saved option').count(),1);
+ await page.locator('#test-import-plan').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});await page.locator('#test-status').filter({hasText:'valid JSON'}).waitFor();
+ assert.deepEqual(errors,[]);console.log('Behavior harness browser acceptance passed: one-click synthetic sample, controlled timeout, saved plans, guided inputs, JSON export/import, actual standalone download and local run, token exclusion, keyboard rerun, report import labels and mobile layout.');
+} finally {runner?.kill();await provider.close();await browser.close();await new Promise<void>(resolve=>{host.closeAllConnections();host.close(()=>resolve());});await mf.dispose();await rm(directory,{recursive:true,force:true});}
