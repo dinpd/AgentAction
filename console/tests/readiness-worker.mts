@@ -8,7 +8,7 @@ try {
   const script=await (await mf.dispatchFetch('https://mcpcheck.agentaction.dev/assets/check.js')).text();
   const listeners:string[]=[];
   runInNewContext(script,{URLSearchParams,document:{getElementById:(id:string)=>({addEventListener:(event:string)=>listeners.push(id+':'+event)})},location:{pathname:'/'}},{timeout:1000});
-  assert.deepEqual(listeners,['check-form:submit','export:click']);
+  assert.deepEqual(listeners,['baseline-file:change','baseline-clear:click','check-form:submit','export:click']);
   const css=await (await mf.dispatchFetch('https://mcpcheck.agentaction.dev/assets/check.css')).text();
   assert.doesNotMatch(css,/Soleil|@font-face|\/res\//i);
   let response=await post('/api/check',{endpoint,protocol:'2026-07-28',publish:false});assert.equal(response.status,200);const hidden=await response.json() as any;assert.equal(hidden.published,false);assert.equal(hidden.id,null);assert.equal(hidden.report.readiness.coverage.execution,'untested');

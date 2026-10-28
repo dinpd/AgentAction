@@ -10,6 +10,11 @@ MCP client -> AgentAction MCP gateway adapter -> AgentAction check -> downstream
 The adapter is intentionally small. It demonstrates the enforcement pattern
 without trying to be a production MCP gateway.
 
+To summarize observe-mode logs as a readable local report, see
+[MCP workflow diagnostics](../docs/mcp-workflow-diagnostics.md#read-an-observation-report).
+The report separates policy findings, missing evaluation coverage and protocol,
+tool or uncertain transport outcomes. It does not establish business completion.
+
 ## What It Does
 
 - Accepts HTTP JSON-RPC requests.

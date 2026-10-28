@@ -142,6 +142,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify local observation and recovery reports on desktop and mobile
+        run: node --experimental-strip-types tests/diagnostics-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify public demo Worker bundle
         run: npm run dry-run:demo
 

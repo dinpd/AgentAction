@@ -56,6 +56,12 @@ re-authorized server-side before its data is read.
 
 ## Quick Start
 
+For catalog changes, observed failures and interrupted actions, see
+[MCP workflow diagnostics](docs/mcp-workflow-diagnostics.md): compare checker
+exports locally or in CI, generate a bounded observation report, and run the
+synthetic recovery walkthrough. These are separate checks; metadata inspection
+does not prove runtime behavior or a successful business outcome.
+
 ### Hermes Agent: Native Shadow Observer
 
 Install the repository plugin without adding a proxy or changing Hermes tool

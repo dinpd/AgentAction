@@ -50,7 +50,8 @@ assert.deepEqual(
   ],
 );
 
-console.log(JSON.stringify({ mode: "observe", forwarded_calls: forwardedCalls, observations: logs }, null, 2));
+if (process.argv.includes("--jsonl")) for (const entry of logs) console.log(JSON.stringify(entry));
+else console.log(JSON.stringify({ mode: "observe", forwarded_calls: forwardedCalls, observations: logs }, null, 2));
 
 async function call(request: JsonRpcRequest): Promise<void> {
   await handleJsonRpc(

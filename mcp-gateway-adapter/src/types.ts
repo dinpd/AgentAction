@@ -176,6 +176,12 @@ export type ObservationDecisionLog = {
   gateway_outcome: "forwarded";
   evaluation_status: "evaluated" | "skipped" | "error";
   downstream_outcome: "success" | "error" | "transport_error";
+  observation_id?: string;
+  observed_at?: string;
+  duration_ms?: number;
+  result_class?: "result_returned" | "http_error" | "json_rpc_error" | "tool_error" | "invalid_response" | "transport_unknown";
+  downstream_http_status?: number;
+  business_outcome?: "unverified";
   agent_id: string;
   intent_id?: string;
   intent_digest?: string;
