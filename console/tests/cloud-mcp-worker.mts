@@ -14,11 +14,13 @@ export class TestWorkspace extends AgentWorkspace{
  async seed(){await this.ctx.storage.put('connection:provider',{id:'provider',label:'Staging fixture',endpoint:${JSON.stringify(plan.endpoint)},protocol:${JSON.stringify(plan.protocol)},token:'WORKER-CLOUD-SECRET',tools:[${JSON.stringify(plan.tool)}],suggestions:[],status:'connected',createdAt:'2026-10-28T00:00:00Z'});}
  async simulate(id){const key='mcp-test:'+id,record=await this.ctx.storage.get(key);await this.ctx.storage.put(key,{...record,state:'running'});}
  async records(){return [...(await this.ctx.storage.list({prefix:'mcp-test:'})).values()];}
+ async expire(){for(const [key,record]of await this.ctx.storage.list({prefix:'mcp-test:'}))await this.ctx.storage.put(key,{...record,createdAt:Date.now()-86400001});await this.alarm();return {remaining:(await this.ctx.storage.list({prefix:'mcp-test:'})).size,alarm:await this.ctx.storage.getAlarm()};}
 }
 export default {async fetch(request,env){const stub=env.AGENT_WORKSPACES.getByName('workspace:acme'),url=new URL(request.url);
  if(url.pathname==='/seed'){await stub.seed();return Response.json({ok:true});}
  if(url.pathname==='/simulate'){await stub.simulate((await request.json()).id);return Response.json({ok:true});}
  if(url.pathname==='/records')return Response.json(await stub.records());
+ if(url.pathname==='/expire')return Response.json(await stub.expire());
  return stub.request(new Request(request,{headers:{'content-type':'application/json','x-runtime-workspace':'acme','x-runtime-role':'owner'}}));
 }};
 `,resolveDir:fileURLToPath(new URL('../src/',import.meta.url))},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],write:false});
@@ -40,5 +42,6 @@ try{
  await request('simulate',{id:input.requestId});await restart();const recovered=await request('test-run',input);assert.equal(recovered.body.status,'inconclusive');assert.equal(recovered.body.calls,null);assert.equal(effects,1);
  loseResponse=false;const next=cloudRequest(),results=await Promise.all([request('test-run',next),request('test-run',next)]);assert.ok(results.every(r=>r.body.status==='passed'));assert.deepEqual(results[0].body,results[1].body);assert.equal(effects,4);
  await restart();assert.equal((await request('test-run',next)).body.status,'passed');assert.equal(effects,4);assert.equal(cleanups,2);const records=await request('records');assert.ok(!JSON.stringify(records).includes('"query"'));
+ const expired=await request('expire');assert.deepEqual(expired.body,{remaining:0,alarm:null});await restart();assert.deepEqual((await request('records')).body,[]);assert.equal(effects,4);
  console.log('Hosted Worker acceptance passed: real SQLite claims, independent provider commits, lost response, full restarts, unknown interrupted effects, concurrent duplicate suppression, retained reports and no raw inputs/results or credentials.');
 }finally{await mf.dispose();await rm(persistence,{recursive:true,force:true});}

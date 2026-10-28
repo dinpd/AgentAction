@@ -47,10 +47,14 @@ test('retained cloud claims survive recovery and expired IDs cannot become new c
   const h=await cloudFixture(),input=cloudRequest();await h.request('test-run',input);const key='mcp-test:'+input.requestId,record=(await h.storage.get<any>(key))!;await h.storage.put(key,{...record,state:'running'});await h.restart();
   const r=await h.request('test-run',input);assert.equal(r.body.status,'inconclusive');assert.equal(r.body.calls,null);assert.equal(h.state.calls.length,3);
   const expired={...cloudRequest(),requestId:(Date.now()-1_200_000)+'-'+crypto.randomUUID()};assert.equal((await h.request('test-run',expired)).status,410);
-  await h.storage.put(key,{...record,createdAt:Date.now()-86_400_001});assert.equal((await h.request('test-reports')).body.reports.length,0);assert.equal(h.state.calls.length,3);
+  assert.ok(h.storage.alarm!>Date.now());await h.storage.put(key,{...record,createdAt:Date.now()-86_400_001});await h.runtime.alarm();assert.equal((await h.request('test-reports')).body.reports.length,0);assert.equal(h.storage.alarm,undefined);assert.equal(h.state.calls.length,3);
 });
 test('cloud daily quota and request body budgets fail without tool calls',async()=>{
-  const h=await cloudFixture();await h.storage.put('quota:mcp-tests:'+new Date().toISOString().slice(0,10),20);assert.equal((await h.request('test-run',cloudRequest())).status,429);assert.equal(h.state.calls.length,0);
+  const h=await cloudFixture();await h.storage.put('quota:mcp-tests',{day:new Date().toISOString().slice(0,10),count:20});assert.equal((await h.request('test-run',cloudRequest())).status,429);assert.equal(h.state.calls.length,0);
   const huge={...cloudPlan(),arguments:{query:'x'.repeat(18500)}};assert.equal((await h.request('test-run',cloudRequest(huge))).status,400);assert.equal(h.state.calls.length,0);
   const separate=await cloudFixture();const bounded=await separate.request('test-run',cloudRequest({...cloudPlan(),arguments:{query:'hello',items:Array(65).fill(1)}}));assert.equal(bounded.body.status,'inconclusive');assert.equal(separate.state.calls.length,0);
+});
+test('report expiry scheduling preserves an earlier active-agent alarm',async()=>{
+  const h=await cloudFixture(),nextRun=Date.now()+60_000;await h.storage.put('agent:scheduled',{id:'scheduled',status:'active',nextRun});
+  await h.request('test-run',cloudRequest());assert.equal(h.storage.alarm,nextRun);
 });

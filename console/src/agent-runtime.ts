@@ -375,7 +375,7 @@ export class AgentRuntime {
       if(path==='/test-run'){
         if(!body.plan||typeof body.plan!=='object')throw new RuntimeError('Choose a valid AgentAction test plan.');
         await this.noCredentials(body.plan);
-        return new CloudMcpTests(this.storage).run(body,connection,signal=>this.client(connection,signal),value=>this.clean(value));
+        return new CloudMcpTests(this.storage).run(body,connection,signal=>this.client(connection,signal),value=>this.clean(value),expiry=>this.reschedule(expiry));
       }
       await this.charge('test-discovery',40);
       const lifetime=AbortSignal.timeout(30_000),client=this.client(connection,lifetime);
@@ -1267,6 +1267,7 @@ export class AgentRuntime {
   }
   async alarm(): Promise<void> {
     return this.serialize(async () => {
+      await new CloudMcpTests(this.storage).reports();
       const due = [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()].filter(a => a.status === "active" && (a.nextRun || Infinity) <= Date.now());
       for (const agent of due) {
         // Advance durably before inference. Alarm delivery may be repeated;
@@ -1281,8 +1282,9 @@ export class AgentRuntime {
       await this.reschedule();
     });
   }
-  private async reschedule(): Promise<void> {
+  private async reschedule(additionalTime?:number): Promise<void> {
     const times = [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()].filter(a => a.status === "active" && a.nextRun).map(a => a.nextRun!);
+    const expiry=await new CloudMcpTests(this.storage).nextExpiry();if(expiry!==undefined)times.push(expiry);if(additionalTime!==undefined)times.push(additionalTime);
     for(const run of (await this.storage.list<Run>({prefix:'run:'})).values())if(run.research?.due&&!terminal(run))times.push(run.research.due);
     if (times.length) await this.storage.setAlarm(Math.max(Date.now()+1000,Math.min(...times))); else await this.storage.deleteAlarm();
   }

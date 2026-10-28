@@ -43,8 +43,12 @@ export class CloudMcpTests {
   async reports():Promise<Array<{id:string;state:Record['state'];report:TestReport}>> {
     const records=await this.storage.list<Record>({prefix:'mcp-test:'});
     const kept:Record[]=[];
-    for(const [key,r]of records)if(Date.now()-r.createdAt>DAY)await this.storage.delete(key);else kept.push(r);
+    for(const [key,r]of records)if(Date.now()-r.createdAt>=DAY)await this.storage.delete(key);else kept.push(r);
     return kept.sort((a,b)=>b.createdAt-a.createdAt).map(({id,state,report})=>({id,state,report}));
+  }
+  async nextExpiry():Promise<number|undefined>{
+    await this.reports();const records=await this.storage.list<Record>({prefix:'mcp-test:'});
+    return records.size?Math.min(...[...records.values()].map(r=>r.createdAt+DAY)):undefined;
   }
   async recover():Promise<void> {
     for(const {id,state,report}of await this.reports())if(state==='running'){
@@ -52,7 +56,7 @@ export class CloudMcpTests {
       await this.storage.put('mcp-test:'+id,{...entry,state:'interrupted',report:unknownReport(report,'The cloud process restarted before retaining completion. Dispatch count and provider effects are unknown; this request will not execute again.')});
     }
   }
-  async run(input:unknown,connection:{id:string;createdAt:string;endpoint:string;protocol:string},client:(signal:AbortSignal)=>McpClient,scrub:(v:unknown)=>Promise<string>):Promise<TestReport> {
+  async run(input:unknown,connection:{id:string;createdAt:string;endpoint:string;protocol:string},client:(signal:AbortSignal)=>McpClient,scrub:(v:unknown)=>Promise<string>,beforeClaim:(expiry:number)=>Promise<void>=async()=>{}):Promise<TestReport> {
     if(!isObject(input)||Object.keys(input).some(k=>!['requestId','connectionId','plan','stagingConfirmed'].includes(k))||input.stagingConfirmed!==true||input.connectionId!==connection.id)throw new RuntimeError('Choose a connected staging server and confirm the reviewed fixtures.');
     const requestId=input.requestId;
     if(typeof requestId!=='string'||!/^\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestId))throw new RuntimeError('Start a fresh cloud request from the tester.');
@@ -62,15 +66,18 @@ export class CloudMcpTests {
     const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical({plan,connection:{id:connection.id,createdAt:connection.createdAt}})))),b=>b.toString(16).padStart(2,'0')).join('');
     await this.reports();
     const key='mcp-test:'+requestId,at=Date.now();
+    // Arm cleanup before persisting a claim, including if the process stops
+    // between that durable claim and provider dispatch. Never postpone earlier work.
+    await beforeClaim(at+DAY);
     const claim=await this.storage.transaction(async tx=>{
       const existing=await tx.get<Record>(key);
       if(existing){if(existing.digest!==digest)throw new RuntimeError('This request ID belongs to a different reviewed plan.',409);return {existing};}
       const issued=Number(requestId.slice(0,13));
       if(at-issued>REQUEST_WINDOW||issued-at>30_000)throw new RuntimeError('This cloud request expired. Review the current plan before creating a new request.',410);
-      const quota='quota:mcp-tests:'+new Date(at).toISOString().slice(0,10),count=await tx.get<number>(quota)||0;
+      const quota='quota:mcp-tests',day=new Date(at).toISOString().slice(0,10),previous=await tx.get<{day:string;count:number}>(quota),count=previous?.day===day?previous.count:0;
       if(count>=20)throw new RuntimeError('This workspace has reached its daily limit of 20 cloud test runs.',429);
       const report=unknownReport(initialReport(plan,'cloud'),'This request is in progress or its completion was not retained. No duplicate dispatch is permitted.');
-      await tx.put(quota,count+1);await tx.put(key,{id:requestId,digest,createdAt:at,state:'running',report} satisfies Record);
+      await tx.put(quota,{day,count:count+1});await tx.put(key,{id:requestId,digest,createdAt:at,state:'running',report} satisfies Record);
       return {};
     });
     if(claim.existing)return claim.existing.report;

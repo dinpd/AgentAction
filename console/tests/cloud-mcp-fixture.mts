@@ -4,12 +4,13 @@ import { samplePlan } from '../src/mcp-test-plan.ts';
 import { testTransaction } from './transaction-storage.ts';
 export class CloudStorage implements RuntimeStorage {
   data=new Map<string,unknown>();
+  alarm:number|undefined;
   transaction<T>(work:(tx:Pick<RuntimeStorage,'get'|'put'>)=>Promise<T>){return testTransaction(this,work);}
   async get<T>(key:string){return structuredClone(this.data.get(key)) as T|undefined;}
   async put<T>(key:string,value:T){this.data.set(key,structuredClone(value));}
   async delete(key:string){return this.data.delete(key);}
   async list<T>({prefix}:{prefix:string}){return new Map([...this.data].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v) as T]));}
-  async setAlarm(){} async deleteAlarm(){}
+  async setAlarm(time:number){this.alarm=time;} async deleteAlarm(){this.alarm=undefined;}
 }
 export const cloudPlan=()=>({...samplePlan(),endpoint:'https://mcp.firecrawl.dev/v2/mcp'});
 export const cloudRequest=(plan=cloudPlan())=>({connectionId:'provider',requestId:Date.now()+'-'+crypto.randomUUID(),plan,stagingConfirmed:true});

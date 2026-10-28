@@ -145,7 +145,7 @@ window.addEventListener('agentaction:catalog',event=>{if(local||cloud)return;con
 el('mode-test')?.addEventListener('click',showTests);
 el('mode-inspect')?.addEventListener('click',()=>{el('behavior-tests').hidden=true;el('inspect-mode').hidden=false;el('try-behavior').hidden=false;el('mode-inspect').setAttribute('aria-pressed','true');el('mode-test').setAttribute('aria-pressed','false');});
 el('try-behavior')?.addEventListener('click',()=>el('test-sample').click());
-el('try-cloud')?.addEventListener('click',()=>el('test-cloud').click());
+el('try-cloud')?.addEventListener('click',()=>{showTests();el('test-cloud').click();});
 savedList();
 if(local){el('behavior-tests').hidden=false;el('local-setup').hidden=true;el('local-connect').hidden=false;el('test-run').hidden=false;el('test-own').hidden=true;el('test-sample').classList.add('secondary');el('test-heading').textContent='Test your MCP server';own();void perform(async()=>{const setup=await api('/api/setup',{});if(setup.plan)applyPlan(parsePlan(setup.plan));else{el<HTMLInputElement>('test-endpoint').value=setup.endpoint||'';el<HTMLSelectElement>('test-protocol').value=setup.protocol||'2025-11-25';}status('Local tester ready. Load tools or run your saved plan.');});}
 async function cloudRequest(action:string,body?:unknown){
