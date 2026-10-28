@@ -22,6 +22,9 @@ try {
  await page.locator('#test-own').click();
  const plan={...samplePlan(),name:'My saved fixture',endpoint:provider.endpoint,tool:provider.tool(),missingArgument:false,errorArguments:undefined};
  await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ for(const name of ['Unicode one','Unicode two']){await page.locator('#test-import-plan').setInputFiles({name:'unicode.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({...plan,name,arguments:{query:'界'.repeat(21000)}}))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:name==='Unicode one'?'Plan saved':'plan budget'}).waitFor();}
+ await page.locator('#test-saved').selectOption('Unicode one');await page.locator('#test-delete').click();
+ await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
  await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:'Plan saved'}).waitFor();
  const exported=JSON.parse(await downloaded('#test-export-plan'));assert.equal(exported.name,plan.name);assert.equal(exported.arguments.query,'hello');
  const edge={...plan,arguments:{query:'',extra:{keep:'exactly'}}};
