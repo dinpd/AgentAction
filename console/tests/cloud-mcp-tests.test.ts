@@ -7,7 +7,7 @@ test('cloud tests execute five reviewed checks, retain no raw data and replay no
   const h=await cloudFixture(),input=cloudRequest();
   const discovery=await h.request('test-discover',{connectionId:'provider'});assert.equal(discovery.status,200);assert.equal(h.state.calls.length,0);
   const r=await h.request('test-run',input);assert.equal(r.status,200);assert.equal(r.body.source,'cloud');assert.equal(r.body.status,'passed');assert.equal(r.body.calls,3);assert.equal(h.state.calls.length,3);
-  assert.deepEqual((await h.request('test-run',input)).body,r.body);assert.equal(h.state.calls.length,3);
+  assert.equal(h.state.closed,2);assert.deepEqual((await h.request('test-run',input)).body,r.body);assert.equal(h.state.calls.length,3);assert.equal(h.state.closed,2);
   assert.equal((await h.request('test-run',{...input,plan:{...input.plan,arguments:{query:'changed'}}})).status,409);
   const reports=await h.request('test-reports');assert.equal(reports.body.reports.length,1);assert.ok(!JSON.stringify(reports).includes('CLOUD-PROVIDER-SECRET'));
   const stored=JSON.stringify([...h.storage.data].filter(([key])=>key.startsWith('mcp-test:')));assert.ok(!stored.includes('"query"'));assert.ok(!stored.includes('CLOUD-PROVIDER-SECRET'));

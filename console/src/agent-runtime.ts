@@ -379,7 +379,7 @@ export class AgentRuntime {
       }
       await this.charge('test-discovery',40);
       const lifetime=AbortSignal.timeout(30_000),client=this.client(connection,lifetime);
-      try{const tools=await client.discover({allowEmpty:true});return {tools:JSON.parse(await this.clean(tools)),protocol:client.connection.protocol};}finally{void client.close();}
+      try{const tools=await client.discover({allowEmpty:true});return {tools:JSON.parse(await this.clean(tools)),protocol:client.connection.protocol};}finally{await client.close();}
     }
     if (['/external-register','/external-rotate','/external-revoke'].includes(path)) return new ExternalSupervisor(this.storage).owner(path,body,role,actor);
     if(path === '/supervisor-settings') return this.configureSupervisor(body, role, actor);

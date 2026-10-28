@@ -16,7 +16,7 @@ export const cloudRequest=(plan=cloudPlan())=>({connectionId:'provider',requestI
 export async function cloudFixture(){
   const storage=new CloudStorage(),plan=cloudPlan();
   await storage.put('connection:provider',{id:'provider',label:'Synthetic cloud staging',endpoint:plan.endpoint,protocol:plan.protocol,token:'CLOUD-PROVIDER-SECRET',tools:[plan.tool],suggestions:[],status:'connected',createdAt:'2026-10-28T00:00:00Z'});
-  const state={calls:[] as any[],drift:false,redirect:false,privateDNS:false,delayAfterCatalog:0,catalogs:0,protocol:plan.protocol};
+  const state={calls:[] as any[],drift:false,redirect:false,privateDNS:false,delayAfterCatalog:0,catalogs:0,protocol:plan.protocol,closed:0};
   const fetcher:typeof fetch=async(input,init={})=>{
     const url=String(input);
     if(url.startsWith('https://cloudflare-dns.com/')){
@@ -25,7 +25,7 @@ export async function cloudFixture(){
     }
     assert.equal(url,plan.endpoint);assert.equal(init.redirect,'manual');if(init.signal?.aborted)throw new Error('aborted');
     assert.equal(new Headers(init.headers).get('authorization'),'Bearer CLOUD-PROVIDER-SECRET');
-    if(init.method==='DELETE')return new Response(null,{status:204});
+    if(init.method==='DELETE'){state.closed++;return new Response(null,{status:204});}
     if(state.redirect)return new Response(null,{status:302,headers:{location:'https://unapproved.invalid/sink'}});
     const rpc=JSON.parse(String(init.body));
     if(rpc.method==='notifications/initialized')return new Response(null,{status:202});
@@ -36,7 +36,7 @@ export async function cloudFixture(){
       if(!Object.hasOwn(rpc.params.arguments,'query'))return Response.json({jsonrpc:'2.0',id:rpc.id,error:{code:-32602,message:'CLOUD-PROVIDER-SECRET'}});
     }
     const result=rpc.method==='initialize'?{protocolVersion:state.protocol}:rpc.method==='tools/list'?{tools:[{...plan.tool,...(state.drift?{inputSchema:{type:'object',properties:{changed:{type:'boolean'}}}}:{})}]}:rpc.params.arguments.query==='missing'?{isError:true,content:[{type:'text',text:'CLOUD-PROVIDER-SECRET'}]}:{content:[{type:'text',text:'Found CLOUD-PROVIDER-SECRET'}],structuredContent:{found:true}};
-    return Response.json({jsonrpc:'2.0',id:rpc.id,result});
+    return Response.json({jsonrpc:'2.0',id:rpc.id,result},{headers:{'Mcp-Session-Id':'cloud-fixture-session'}});
   };
   let runtime=new AgentRuntime(storage,{},fetcher);
   return {storage,state,get runtime(){return runtime;},async restart(){runtime=new AgentRuntime(storage,{},fetcher);await runtime.recover();},async request(path:string,body?:unknown,role='owner',workspace='acme'){

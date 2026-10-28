@@ -79,6 +79,7 @@ export class CloudMcpTests {
       report.checks[0].status='inconclusive';report.checks[0].detail='This fixture exceeds the hosted schema or input subset. Use the local runner for references, patterns, compositions or larger fixtures. No tool calls sent.';
     }else {
       const controller=new AbortController(),transport=client(controller.signal);
+      let completed:TestReport|undefined;
       let timer:ReturnType<typeof setTimeout>;
       const work=async()=>{
         const preflight=initialReport(plan,'cloud');
@@ -86,19 +87,19 @@ export class CloudMcpTests {
           const tools=JSON.parse(await scrub((await transport.discover({allowEmpty:true})).map(toTool))) as TestTool[];
           const actual=tools.find(t=>t.name===plan.tool.name);
           if(!actual||canonical(actual.inputSchema)!==canonical(plan.tool.inputSchema)||canonical(actual.outputSchema??null)!==canonical(plan.tool.outputSchema??null)||transport.connection.protocol!==plan.protocol){
-            preflight.checks[0].status='inconclusive';preflight.checks[0].detail='The current tool contract or protocol differs from this plan. Load tools again. No tool calls sent.';return preflight;
+            preflight.checks[0].status='inconclusive';preflight.checks[0].detail='The current tool contract or protocol differs from this plan. Load tools again. No tool calls sent.';return completed=preflight;
           }
           const result=await runTestPlan(plan,async(args,signal)=>{
             try{return {kind:'result',value:await transport.rpc('tools/call',{name:plan.tool.name,arguments:args},false,plan.deadlineMs+250,signal)};}
             catch(error){return error instanceof McpRpcError?{kind:'rpc-error',code:error.rpcCode}:{kind:'transport-error'};}
           },'cloud');
           if(result.checks.find(c=>c.id==='arguments')!.status==='passed')try{await transport.rpc('tools/list');}catch{result.checks.find(c=>c.id==='arguments')!.status='failed';result.checks.find(c=>c.id==='arguments')!.detail='Discovery failed after the negative-input probe.';if(result.status!=='inconclusive')result.status='failed';}
-          return result;
+          return completed=result;
         }catch{
-          preflight.checks[0].status='inconclusive';preflight.checks[0].detail='Cloud discovery could not finish. Check the approved connection and its credentials. No tool calls sent.';return preflight;
-        }finally{void transport.close();}
+          preflight.checks[0].status='inconclusive';preflight.checks[0].detail='Cloud discovery could not finish. Check the approved connection and its credentials. No tool calls sent.';return completed=preflight;
+        }finally{await transport.close();}
       };
-      try {report=await Promise.race([work(),new Promise<TestReport>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(unknownReport(report,'The cloud run exceeded its 45-second limit. Dispatch count and provider effects are unknown; no retry was sent.'));},45_000);})]);}
+      try {report=await Promise.race([work(),new Promise<TestReport>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(completed||unknownReport(report,'The cloud run exceeded its 45-second limit. Dispatch count and provider effects are unknown; no retry was sent.'));},45_000);})]);}
       finally{clearTimeout(timer!);controller.abort();}
     }
     report=JSON.parse(await scrub(report));
