@@ -55,6 +55,12 @@ fixtures and review files before sharing. Clearing site data removes browser pla
 | Tool error handling | Opt-in extra call uses schema-valid arguments you deliberately expect to return `isError: true`. The runner does not invent provider-specific failure fixtures. |
 | Response deadline | Measures the valid call against a configurable 50–10,000 ms deadline. The sample can simulate a timeout; the real runner does not inject delay into a provider. |
 
+The valid-call check verifies required payload fields for text, image, audio,
+resource-link and embedded-resource blocks using the
+[MCP content schema](https://modelcontextprotocol.io/specification/2025-11-25/schema#contentblock).
+Malformed required fields fail the check; unsupported block types make it
+inconclusive. Media and resource references are never fetched or rendered.
+
 Each plan sends at most three tool calls, sequentially, with no automatic retry.
 A timeout or transport failure stops further calls and leaves effects unknown.
 Aborting a request does not roll back provider work. A process-wide limit also

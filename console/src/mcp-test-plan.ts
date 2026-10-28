@@ -48,6 +48,23 @@ export function parseTestReport(input:unknown):TestReport {
   for(const c of r.checks){if(!isObject(c)||Object.keys(c).some(k=>!['id','title','status','detail'].includes(k))||!['call','arguments','output','error','deadline'].includes(c.id)||ids.has(c.id)||!['passed','failed','not-run','inconclusive'].includes(c.status)||typeof c.title!=='string'||c.title.length>80||typeof c.detail!=='string'||c.detail.length>1000)throw new Error('Report checks are invalid.');ids.add(c.id);}
   return r as TestReport;
 }
+// Required payload shapes from the MCP 2025-11-25 ContentBlock schema.
+// References and media are inspected as data; never fetched, decoded or rendered.
+function resultShape(value:unknown):'valid'|'invalid'|'unsupported' {
+  if(!isObject(value)||(value.isError!==undefined&&typeof value.isError!=='boolean')||!Array.isArray(value.content)||(value.structuredContent!==undefined&&!isObject(value.structuredContent)))return 'invalid';
+  let unsupported=false;
+  for(const block of value.content) {
+    if(!isObject(block)||typeof block.type!=='string')return 'invalid';
+    if(block.type==='text'){if(typeof block.text!=='string')return 'invalid';}
+    else if(block.type==='image'||block.type==='audio'){if(typeof block.data!=='string'||typeof block.mimeType!=='string')return 'invalid';}
+    else if(block.type==='resource_link'){if(typeof block.name!=='string'||typeof block.uri!=='string')return 'invalid';}
+    else if(block.type==='resource'){
+      const resource=block.resource;
+      if(!isObject(resource)||typeof resource.uri!=='string'||(resource.mimeType!==undefined&&typeof resource.mimeType!=='string')||(typeof resource.text!=='string'&&typeof resource.blob!=='string'))return 'invalid';
+    }else unsupported=true;
+  }
+  return unsupported?'unsupported':'valid';
+}
 export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unknown>,signal:AbortSignal)=>Promise<TestOutcome>,source:'sample'|'local'='local'):Promise<TestReport> {
   const p=parsePlan(input),r=initialReport(p,source),start=performance.now();
   const set=(id:TestCheck['id'],status:TestCheck['status'],detail:string)=>Object.assign(r.checks.find(c=>c.id===id)!,{status,detail});
@@ -64,7 +81,6 @@ export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unk
     catch{return controller.signal.aborted?'timeout':{kind:'transport-error'};}
     finally{clearTimeout(timer!);}
   }
-  const usable=(v:any)=>isObject(v)&&(v.isError===undefined||typeof v.isError==='boolean')&&Array.isArray(v.content)&&v.content.every((c:any)=>isObject(c)&&typeof c.type==='string');
   try {
     if(!validate(p.tool.inputSchema,p.arguments)){set('call','failed','Sample inputs do not match inputSchema. No tool calls sent.');return finish();}
   }catch{set('call','inconclusive','The input schema could not be validated locally. No tool calls sent.');return finish();}
@@ -74,7 +90,8 @@ export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unk
     set('deadline',outcome==='timeout'?'failed':'inconclusive',outcome==='timeout'?'The configured deadline was reached. Provider effects remain unknown.':'A transport failure prevented measuring completion.');return finish();
   }
   set('deadline','passed','The first response arrived within the configured deadline. No slow-server fault was injected.');
-  if(outcome.kind!=='result'||!usable(outcome.value)||outcome.value.isError===true){set('call','failed','The valid-input fixture did not return a usable successful tool result. Further calls stopped.');return finish();}
+  if(outcome.kind==='result'&&resultShape(outcome.value)==='unsupported'){set('call','inconclusive','The result contains an unsupported content block. Further calls stopped; no success was inferred.');return finish();}
+  if(outcome.kind!=='result'||resultShape(outcome.value)!=='valid'||outcome.value.isError===true){set('call','failed','The valid-input fixture did not return a usable successful tool result. Further calls stopped.');return finish();}
   const texts=(outcome.value.content as any[]).filter(c=>c.type==='text'&&typeof c.text==='string').map(c=>c.text).join('\n');
   set('call',p.expectedText&&!texts.includes(p.expectedText)?'failed':'passed',p.expectedText&&!texts.includes(p.expectedText)?'The expected text was absent. Raw results are excluded from this report.':'A usable tool result was returned. This does not prove business completion.');
   if(!p.tool.outputSchema)set('output','not-run','No outputSchema was declared.');
@@ -86,13 +103,14 @@ export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unk
     else {
       const args=structuredClone(p.arguments);delete args[required[0]];const negative=await call(args);
       if(negative==='timeout'||negative.kind==='transport-error'){set('arguments','inconclusive','No confirmed rejection. Effects may have occurred; remaining tool calls stopped.');stop=true;}
-      else set('arguments',(negative.kind==='rpc-error'&&negative.code===-32602)||(negative.kind==='result'&&usable(negative.value)&&negative.value.isError===true)?'passed':'failed','Sent one explicitly selected missing-required-field probe and checked for an error response.');
+      else if(negative.kind==='result'&&resultShape(negative.value)==='unsupported'){set('arguments','inconclusive','The rejection result contains unsupported content. Remaining calls stopped.');stop=true;}
+      else set('arguments',(negative.kind==='rpc-error'&&negative.code===-32602)||(negative.kind==='result'&&resultShape(negative.value)==='valid'&&negative.value.isError===true)?'passed':'failed','Sent one explicitly selected missing-required-field probe and checked for an error response.');
     }
   }else set('arguments','not-run','Enable the negative-input probe only for a controlled staging fixture.');
   if(p.errorArguments&&!stop) {
     try {
       if(!validate(p.tool.inputSchema,p.errorArguments))set('error','not-run','The error fixture must satisfy inputSchema. Use the separate negative-input probe for invalid arguments.');
-      else {const e=await call(p.errorArguments);if(e==='timeout'||e.kind==='transport-error')set('error','inconclusive','No confirmed tool-error response. Effects may have occurred; no retry was sent.');else set('error',e.kind==='result'&&usable(e.value)&&e.value.isError===true?'passed':'failed','Checked the selected error fixture for MCP isError: true. No provider error text is retained.');}
+      else {const e=await call(p.errorArguments);if(e==='timeout'||e.kind==='transport-error')set('error','inconclusive','No confirmed tool-error response. Effects may have occurred; no retry was sent.');else if(e.kind==='result'&&resultShape(e.value)==='unsupported')set('error','inconclusive','The error fixture contains an unsupported content block.');else set('error',e.kind==='result'&&resultShape(e.value)==='valid'&&e.value.isError===true?'passed':'failed','Checked the selected error fixture for MCP isError: true. No provider error text is retained.');}
     }catch{set('error','inconclusive','The selected error fixture could not be validated.');}
   }else if(!stop)set('error','not-run','Provide an optional staging input that is expected to return isError: true.');
   return finish();

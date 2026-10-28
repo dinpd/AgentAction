@@ -34,3 +34,13 @@ test('transport failure and invalid result halt execution; unsupported schemas r
   const p=samplePlan();p.tool.inputSchema={$ref:'https://unresolved.example/schema',type:'object'};
   const unknown=await runTestPlan(p,async()=>{throw new Error('must not execute');});assert.equal(unknown.status,'inconclusive');assert.equal(unknown.calls,0);
 });
+test('malformed content fails without assertions; unknown content is inconclusive and halts',async()=>{
+  const plan={...samplePlan(),expectedText:undefined,missingArgument:false,errorArguments:undefined,tool:{...samplePlan().tool,outputSchema:undefined}};
+  for(const content of [[{type:'text',text:42}],[{type:'image'}],[{type:'audio',data:42,mimeType:'audio/wav'}],[{type:'resource_link',uri:'file:///x'}],[{type:'resource',resource:{uri:'file:///x'}}]]){
+    const r=await runTestPlan(plan,async()=>({kind:'result',value:{content}}));assert.equal(r.status,'failed');assert.equal(r.calls,1);
+  }
+  for(const block of [{type:'text',text:''},{type:'image',data:'eA==',mimeType:'image/png'},{type:'audio',data:'eA==',mimeType:'audio/wav'},{type:'resource_link',uri:'file:///x',name:'x'},{type:'resource',resource:{uri:'file:///x',text:'x'}},{type:'resource',resource:{uri:'file:///x',blob:'eA=='}}]){
+    const r=await runTestPlan(plan,async()=>({kind:'result',value:{content:[block]}}));assert.equal(r.status,'passed');
+  }
+  const unknown=await runTestPlan(samplePlan(),async()=>({kind:'result',value:{content:[{type:'future_extension'}]}}));assert.equal(unknown.status,'inconclusive');assert.equal(unknown.calls,1);
+});
