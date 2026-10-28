@@ -3,13 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --env development --port 8791",
-    "dev:public": "wrangler dev --config wrangler.demo.toml --local --port 8792",
+    "dev": "npm run build:test-runner && wrangler dev --env development --port 8791",
+    "dev:public": "npm run build:test-runner && wrangler dev --config wrangler.demo.toml --local --port 8792",
     "dev:fixture": "node --experimental-strip-types dev/fixture-server.ts",
-    "deploy": "wrangler deploy --env=\"\"",
-    "deploy:demo": "wrangler deploy --config wrangler.demo.toml",
-    "dry-run": "WRANGLER_LOG_PATH=/tmp/agentpass-console-wrangler.log wrangler deploy --env=\"\" --dry-run --outdir /tmp/agentpass-console-worker-dist",
-    "dry-run:demo": "WRANGLER_LOG_PATH=/tmp/agentaction-console-demo-wrangler.log wrangler deploy --config wrangler.demo.toml --dry-run --outdir /tmp/agentaction-console-demo-worker-dist",
+    "deploy": "npm run build:test-runner && wrangler deploy --env=\"\"",
+    "deploy:demo": "npm run build:test-runner && wrangler deploy --config wrangler.demo.toml",
+    "dry-run": "npm run build:test-runner && WRANGLER_LOG_PATH=/tmp/agentpass-console-wrangler.log wrangler deploy --env=\"\" --dry-run --outdir /tmp/agentpass-console-worker-dist",
+    "dry-run:demo": "npm run build:test-runner && WRANGLER_LOG_PATH=/tmp/agentaction-console-demo-wrangler.log wrangler deploy --config wrangler.demo.toml --dry-run --outdir /tmp/agentaction-console-demo-worker-dist",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "readiness:compare": "node --experimental-strip-types scripts/compare-readiness.mts",
     "demo:recovery": "node --experimental-strip-types examples/recovery-walkthrough.mts",
@@ -27,7 +27,10 @@
     "test:hermes-browser": "node --experimental-strip-types tests/hermes-supervisor-browser.mts",
     "build:test-runner": "node scripts/build-test-runner.mjs",
     "test:mcp-runner": "node --experimental-strip-types tests/mcp-test-runner.mts",
-    "test:mcp-browser": "node --experimental-strip-types tests/mcp-test-browser.mts"
+    "test:mcp-browser": "node --experimental-strip-types tests/mcp-test-browser.mts",
+    "pretest": "npm run build:test-runner",
+    "test:cloud-mcp-worker": "node --experimental-strip-types tests/cloud-mcp-worker.mts",
+    "test:cloud-mcp-browser": "npm run build:test-runner && node --experimental-strip-types tests/cloud-mcp-browser.mts"
   },
   "devDependencies": {
     "wrangler": "^4.94.0",

@@ -5,6 +5,9 @@ The public [MCP checker](https://mcpcheck.agentaction.dev/) also offers preview
 saved plans and a standalone local tester. Build the download with
 `npm run build:test-runner`; validate it with `npm run test:mcp-runner` and
 `npm run test:mcp-browser` (Playwright required for the browser check).
+**Run in cloud** opens the authenticated `/mcp-tests` page and reuses workspace
+connections. Validate its durable request boundary with `npm run test:cloud-mcp-worker`
+and its handoff, workspace controls and one-button flow with `npm run test:cloud-mcp-browser`.
 
 This directory contains the Cloudflare-hosted UI/BFF for AgentAction
 Observability. It combines self-service tenant setup, privacy-safe Activity,

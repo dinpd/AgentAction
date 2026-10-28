@@ -5,7 +5,40 @@ tests**. All five checks run immediately against a synthetic fixture in your
 browser. **Try a timeout** shows how an uncertain result stops further calls.
 Neither sample contacts an MCP provider.
 
-## Test your server
+## Choose cloud or local execution
+
+Choose **Test behavior → Test my server**. **Run in cloud** opens the
+[authenticated cloud tester](https://observability-console.agentaction.dev/mcp-tests).
+Sign in, choose the workspace and its connected staging server, review the
+fixtures and maximum call count, then click **Run tests**. No Node installation
+is needed. Owners and operators can execute tests; viewers can open retained
+results. Endpoint approval and connection setup use the existing **Manage server
+connections** flow, with owner approval where required.
+
+If a plan is already open, the button carries it to the cloud page for review.
+It never executes on arrival. The plan travels in a URL fragment that the page
+removes after sign-in; browsers may retain sensitive inputs in history. Use
+synthetic data. Cloud execution sends the reviewed plan to AgentAction; the
+connected account's credentials stay on the server and are not copied into the
+public checker, plan or report.
+
+Cloud runs require an approved connected public HTTPS endpoint without query
+parameters. Version one permits 20 runs per workspace per day, a 45-second overall
+limit and 18,000-byte plans. Schemas are limited to 160 nodes and eight levels,
+with up to 24 properties per object and scalar enum/const values. References,
+patterns, formats and compositions are unsupported. Fixture inputs permit up to
+eight levels, 64 items/fields per container, 2,000 total nodes and 4,000 characters
+per string. Unsupported fixtures are inconclusive and dispatch no tool calls.
+Use the local runner for private endpoints or contracts beyond the hosted subset.
+
+**Recent cloud runs** retains bounded reports for 24 hours. Opening them sends
+no tool calls. A durable claim binds each request ID to the reviewed plan and
+connection: repeated requests return retained evidence, changed plans conflict,
+and interrupted requests become inconclusive with unknown effects. Expired IDs
+without a retained claim are rejected. A deliberate new click creates a new run;
+review uncertain provider effects before doing so. There are no automatic retries.
+
+## Run locally
 
 1. Choose **Test behavior → Test my server → Download local tester**. If you
    already inspected a server, its tools are available to prepare a plan first.
@@ -25,8 +58,9 @@ Neither sample contacts an MCP provider.
    contract or negotiated protocol requires loading tools again.
 
 The browser cannot start a native process from a website, so the setup command
-is required for your own server. The hosted checker does not execute your tool
-calls. The local runner talks directly to the selected endpoint and never uploads
+is required for local execution. Anonymous inspection remains discovery-only;
+cloud execution uses the authenticated workspace flow. The local runner talks
+directly to the selected endpoint and never uploads
 the plan, token or results to AgentAction.
 
 ## Save once, run again
@@ -41,7 +75,9 @@ locally. There are at most 12 saved plans per browser origin. The local runner
 prefers port 8789 so plans survive restarts; if occupied, it uses another port.
 Use `--port 8789` to request a port or export JSON to move between origins.
 
-Connection tokens are separate and excluded from plans. Sample arguments,
+On the cloud page, browser-saved plans are scoped to the selected workspace.
+Cloud execution uses existing workspace credentials; local connection tokens
+are separate and excluded from plans. Sample arguments,
 descriptions and expected text can themselves contain sensitive data: use staging
 fixtures and review files before sharing. Clearing site data removes browser plans.
 

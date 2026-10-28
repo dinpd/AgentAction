@@ -150,6 +150,14 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify hosted MCP claims and recovery on SQLite
+        run: npm run test:cloud-mcp-worker
+
+      - name: Verify cloud test handoff, workspace roles and one-button execution
+        run: npm run test:cloud-mcp-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify local observation and recovery reports on desktop and mobile
         run: node --experimental-strip-types tests/diagnostics-browser.mts
         env:

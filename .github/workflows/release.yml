@@ -124,6 +124,7 @@ jobs:
       - run: npm ci
       - run: node --test --experimental-strip-types tests/mcp-test-plan.test.ts
       - run: npm run test:mcp-runner
+      - run: npm run test:cloud-mcp-worker
       - uses: actions/upload-artifact@v4
         with:
           name: mcp-tester

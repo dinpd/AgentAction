@@ -1,14 +1,18 @@
-import { boundedJSON, isObject, parsePlan, parseTestReport, runSample, samplePlan, type TestPlan, type TestReport, type TestTool } from './mcp-test-plan.ts';
+import { boundedJSON, isObject, parsePlan, parseTestReport, runSample, samplePlan, testEndpoint, type TestPlan, type TestReport, type TestTool } from './mcp-test-plan.ts';
 
 const el=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const node=(tag:string,text:string)=>{const n=document.createElement(tag);n.textContent=text;return n;};
 const local=document.body.dataset.localRunner==='true';
+const cloud=document.body.dataset.cloudRunner==='true';
+let cloudWorkspace='',cloudConnection='',cloudRole='viewer',cloudMemberships:any[]=[],cloudConnections:any[]=[],cloudReports:any[]=[];
+const handoff=cloud?new URLSearchParams(location.hash.slice(1)).get('plan'):null;
+let cloudPlan:TestPlan|undefined;
 let tools:TestTool[]=[],advanced=false,lastReport:TestReport|undefined,busy=false;
 let sessionToken=new URLSearchParams(location.hash.slice(1)).get('token')||'';
-if(local)history.replaceState(null,'',location.pathname);
+if(local||cloud)history.replaceState(null,'',location.pathname+location.search);
 const status=(text:string)=>{el('test-status').textContent=text;};
 function showTests(){el('behavior-tests').hidden=false;const inspect=el('inspect-mode');if(inspect)inspect.hidden=true;const sample=el('try-behavior');if(sample)sample.hidden=true;el('mode-test')?.setAttribute('aria-pressed','true');el('mode-inspect')?.setAttribute('aria-pressed','false');el('behavior-tests').scrollIntoView({block:'start',behavior:'smooth'});}
-function own(){showTests();el('test-editor').hidden=false;el('test-source').textContent=local?'Local runner':'Plan setup · runs locally';}
+function own(){showTests();el('test-editor').hidden=false;el('test-source').textContent=cloud?'Cloud runner':local?'Local runner':'Plan setup · choose a runner';}
 function download(name:string,value:string,type='application/json') {
   const url=URL.createObjectURL(new Blob([value],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -54,6 +58,7 @@ function plan():TestPlan{
   return parsePlan({schemaVersion:'agentaction.mcp-test-plan.v1',name:el<HTMLInputElement>('test-name').value,endpoint:el<HTMLInputElement>('test-endpoint').value,protocol:el<HTMLSelectElement>('test-protocol').value,tool,arguments:argumentsValue(),deadlineMs:Number(el<HTMLInputElement>('test-deadline').value),missingArgument:el<HTMLInputElement>('test-negative').checked,...(error?{errorArguments:boundedJSON(error)}:{}),...(expected?{expectedText:expected}:{})});
 }
 function applyPlan(p:TestPlan){
+  if(cloud){const connection=cloudConnections.find(c=>c.endpoint===p.endpoint);if(!connection)throw new Error('This plan needs a matching connected server in the selected workspace. Choose its workspace or manage server connections first.');cloudConnection=connection.id;el<HTMLSelectElement>('cloud-connection').value=cloudConnection;el<HTMLInputElement>('cloud-staging').checked=false;}
   own();el<HTMLInputElement>('test-endpoint').value=p.endpoint;el<HTMLSelectElement>('test-protocol').value=p.protocol;el<HTMLInputElement>('test-name').value=p.name;
   setTools([p.tool],p.tool.name);buildFields(p.arguments);
   el<HTMLInputElement>('test-deadline').value=String(p.deadlineMs);el<HTMLInputElement>('test-negative').checked=p.missingArgument;
@@ -67,7 +72,7 @@ function preview(){
 function renderReport(value:unknown,imported=false){
   const r=parseTestReport(value);lastReport=r;showTests();el('test-results').hidden=false;
   const labels={passed:'Passed',failed:'Failed',inconclusive:'Inconclusive','not-run':'Not run'};
-  el('test-source').textContent=imported?'Imported report · not verified':r.source==='sample'?'Synthetic sample · no provider calls':'Local run';
+  el('test-source').textContent=imported?'Imported report · not verified':r.source==='sample'?'Synthetic sample · no provider calls':r.source==='cloud'?'AgentAction cloud run':'Local run';
   el('test-result-title').textContent=`${labels[r.status]} · ${r.checks.filter(c=>c.status==='passed').length} of 5 checks passed`;
   el('test-result-context').textContent=`${r.tool} · ${new Date(r.checkedAt).toLocaleString()} · ${r.calls===null?'Unknown':r.calls} tool calls · ${r.durationMs} ms. Business outcome unverified.`;
   const list=el('test-checks');list.replaceChildren();
@@ -76,15 +81,27 @@ function renderReport(value:unknown,imported=false){
 }
 async function perform(work:()=>Promise<void>){
   if(busy)return;busy=true;
-  const controls=[...el('behavior-tests').querySelectorAll<HTMLButtonElement>('button')];for(const c of controls)c.disabled=true;
+  const controls=[...el('behavior-tests').querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>('button,input,select,textarea'),...(cloud?[...el('cloud-controls').querySelectorAll<HTMLSelectElement|HTMLInputElement>('select,input')]:[])];for(const c of controls)c.disabled=true;
   try{await work();}catch(error){status(error instanceof Error?error.message:'The test could not finish. No automatic retry was sent.');}
-  finally{busy=false;for(const c of controls)c.disabled=false;}
+  finally{busy=false;for(const c of controls)c.disabled=false;if(cloud)cloudControls();}
 }
 async function api(path:string,body:unknown){
+  if(cloud){
+    if(!cloudWorkspace||!cloudConnection)throw new Error('Choose a workspace and connected staging server.');
+    if(!['owner','operator'].includes(cloudRole))throw new Error('An owner or operator must run cloud tests.');
+    if(path==='/api/discover')return cloudRequest('test-discover',{connectionId:cloudConnection});
+    if(path==='/api/run'){
+      if(!el<HTMLInputElement>('cloud-staging').checked)throw new Error('Confirm that you reviewed the staging fixtures and have permission to run them.');
+      const requestId=Date.now()+'-'+crypto.randomUUID();
+      try{const report=await cloudRequest('test-run',{connectionId:cloudConnection,requestId,plan:(body as any).plan,stagingConfirmed:true});try{await refreshCloudReports();}catch{}return report;}
+      catch(error){await refreshCloudReports();const retained=cloudReports.find(r=>r.id===requestId);if(retained)return retained.report;throw error;}
+    }
+    throw new Error('Unsupported cloud operation.');
+  }
   const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json','x-agentaction-runner':sessionToken},body:JSON.stringify(body)});
   const result=await response.json();if(!response.ok)throw new Error(result.error||'The local runner is unavailable.');return result;
 }
-const storageKey='agentaction.mcp-test-plans.v1';
+let storageKey='agentaction.mcp-test-plans.v1';
 function saved():TestPlan[]{try{const raw=localStorage.getItem(storageKey);if(!raw)return [];const items=boundedJSON(raw);if(!Array.isArray(items)||items.length>12)throw new Error();return items.map(parsePlan);}catch{status('Saved plans could not be read. Import a saved JSON plan or export your current plan.');return [];}}
 function savedList(selected?:string){const select=el<HTMLSelectElement>('test-saved');select.replaceChildren(new Option('Choose a saved plan',''));for(const p of saved())select.add(new Option(p.name,p.name));if(selected)select.value=selected;}
 function guard(work:()=>void){try{work();}catch(error){status(error instanceof Error?error.message:'This operation could not finish.');}}
@@ -103,7 +120,14 @@ el('test-download').addEventListener('click',()=>perform(async()=>{
   download('agentaction-mcp-tester.mjs',`globalThis.AGENTACTION_TEST_SETUP=${JSON.stringify(setup)};\n`+await response.text(),'text/javascript');
   el('download-status').textContent='Downloaded. Run node agentaction-mcp-tester.mjs in that folder. A local page opens automatically.';
 }));
+el('test-cloud').addEventListener('click',()=>guard(()=>{
+  const selected=tools.some(t=>t.name===el<HTMLSelectElement>('test-tool').value)?plan():undefined;
+  if(selected&&new TextEncoder().encode(JSON.stringify(selected)).length>18000)throw new Error('Cloud plans support up to 18,000 bytes. Use the local tester for this plan.');
+  const url=new URL('https://observability-console.agentaction.dev/mcp-tests');if(selected)url.hash='plan='+encodeURIComponent(JSON.stringify(selected));
+  window.open(url.href,'_blank','noopener,noreferrer');status('Cloud tester opened. Sign in, choose the connected workspace server, and review the staging fixtures before Run tests.');
+}));
 el('test-discover').addEventListener('click',()=>perform(async()=>{
+  if(cloud)el<HTMLInputElement>('cloud-staging').checked=false;
   status('Loading tools from your local runner…');const result=await api('/api/discover',{endpoint:el<HTMLInputElement>('test-endpoint').value,protocol:el<HTMLSelectElement>('test-protocol').value,token:el<HTMLInputElement>('test-token').value});
   setTools(result.tools);el<HTMLSelectElement>('test-protocol').value=result.protocol;status('Tools loaded. Fill in sample inputs, review the call count, then click Run tests.');
 }));
@@ -117,9 +141,54 @@ el('test-export-report').addEventListener('click',()=>{if(lastReport)download('m
 async function readFile(input:HTMLInputElement){const file=input.files?.[0];if(!file)return;if(file.size>128*1024)throw new Error('Choose a JSON file smaller than 128 KiB.');return boundedJSON(await file.text());}
 el('test-import-plan').addEventListener('change',()=>perform(async()=>{const value=await readFile(el('test-import-plan'));if(value){applyPlan(parsePlan(value));status('Plan imported locally. No tests have run.');}}));
 el('test-import-report').addEventListener('change',()=>perform(async()=>{const value=await readFile(el('test-import-report'));if(value){renderReport(value,true);status('Imported report. This evidence has not been independently verified.');}}));
-window.addEventListener('agentaction:catalog',event=>{if(local)return;const value=(event as CustomEvent).detail;el<HTMLInputElement>('test-endpoint').value=value.endpoint;el<HTMLSelectElement>('test-protocol').value=value.protocol;setTools(value.tools);});
+window.addEventListener('agentaction:catalog',event=>{if(local||cloud)return;const value=(event as CustomEvent).detail;el<HTMLInputElement>('test-endpoint').value=value.endpoint;el<HTMLSelectElement>('test-protocol').value=value.protocol;setTools(value.tools);});
 el('mode-test')?.addEventListener('click',showTests);
 el('mode-inspect')?.addEventListener('click',()=>{el('behavior-tests').hidden=true;el('inspect-mode').hidden=false;el('try-behavior').hidden=false;el('mode-inspect').setAttribute('aria-pressed','true');el('mode-test').setAttribute('aria-pressed','false');});
 el('try-behavior')?.addEventListener('click',()=>el('test-sample').click());
+el('try-cloud')?.addEventListener('click',()=>el('test-cloud').click());
 savedList();
 if(local){el('behavior-tests').hidden=false;el('local-setup').hidden=true;el('local-connect').hidden=false;el('test-run').hidden=false;el('test-own').hidden=true;el('test-sample').classList.add('secondary');el('test-heading').textContent='Test your MCP server';own();void perform(async()=>{const setup=await api('/api/setup',{});if(setup.plan)applyPlan(parsePlan(setup.plan));else{el<HTMLInputElement>('test-endpoint').value=setup.endpoint||'';el<HTMLSelectElement>('test-protocol').value=setup.protocol||'2025-11-25';}status('Local tester ready. Load tools or run your saved plan.');});}
+async function cloudRequest(action:string,body?:unknown){
+  const response=await fetch('/api/agents/'+encodeURIComponent(cloudWorkspace)+'/'+action,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json','x-agentaction-request':'agent-builder'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const value=await response.json();if(!response.ok)throw new Error(value.error||'The cloud request could not finish. Open recent results before attempting another run.');return value;
+}
+function cloudControls(){
+  const permitted=['owner','operator'].includes(cloudRole)&&!!cloudConnection;
+  el<HTMLSelectElement>('test-protocol').disabled=true;el<HTMLButtonElement>('test-run').disabled=busy||!permitted;el<HTMLButtonElement>('test-discover').disabled=busy||!permitted;
+  el('cloud-access').textContent=!cloudWorkspace?'Create a workspace in the console, then return here.':cloudRole==='viewer'?'You can inspect saved results. An owner or operator must execute tests.':cloudConnection?'Connected workspace server selected. Review synthetic inputs before running.':'No compatible connected server. Version one needs public HTTPS without URL query parameters. Open Manage server connections, then reload this page.';
+}
+async function refreshCloudReports(){
+  cloudReports=cloudWorkspace?(await cloudRequest('test-reports')).reports:[];
+  const select=el<HTMLSelectElement>('cloud-reports');select.replaceChildren(new Option('Choose a retained result',''));
+  for(const r of cloudReports)select.add(new Option(new Date(r.report.checkedAt).toLocaleString()+' · '+r.report.tool+' · '+r.report.status,r.id));
+}
+function selectCloudConnection(){
+  cloudConnection=el<HTMLSelectElement>('cloud-connection').value;const connection=cloudConnections.find(c=>c.id===cloudConnection);
+  el<HTMLInputElement>('cloud-staging').checked=false;el('test-results').hidden=true;lastReport=undefined;
+  el<HTMLInputElement>('test-negative').checked=false;el<HTMLTextAreaElement>('test-error-arguments').value='';el<HTMLInputElement>('test-expected').value='';
+  el<HTMLInputElement>('test-endpoint').value=connection?.endpoint||'';el<HTMLSelectElement>('test-protocol').value=connection?.protocol||'2025-11-25';setTools(connection?.tools||[]);cloudControls();
+}
+async function selectCloudWorkspace(){
+  cloudWorkspace=el<HTMLSelectElement>('cloud-workspace').value;cloudRole=cloudMemberships.find(m=>m.tenant.tenant_id===cloudWorkspace)?.membership.role||'viewer';cloudConnections=[];cloudConnection='';
+  el<HTMLSelectElement>('cloud-connection').value='';
+  storageKey='agentaction.mcp-test-plans.v1.cloud.'+cloudWorkspace;savedList();selectCloudConnection();
+  el<HTMLAnchorElement>('cloud-connections-link').href='/agents'+(cloudWorkspace?'?workspace='+encodeURIComponent(cloudWorkspace):'')+'#connect';
+  const state=cloudWorkspace?await cloudRequest('state'):{connections:[]};cloudConnections=(state.connections||[]).filter((c:any)=>{try{return c.status==='connected'&&testEndpoint(c.endpoint).startsWith('https:');}catch{return false;}});
+  const select=el<HTMLSelectElement>('cloud-connection');select.replaceChildren();if(!cloudConnections.length)select.add(new Option('No connected servers',''));for(const c of cloudConnections)select.add(new Option(c.label+' · '+c.endpoint,c.id));
+  selectCloudConnection();await refreshCloudReports();
+  if(cloudPlan&&cloudConnections.some(c=>c.endpoint===cloudPlan!.endpoint)){applyPlan(cloudPlan);cloudPlan=undefined;status('Plan opened for review. No tests have run. Confirm the staging fixtures, then click Run tests.');}
+  else status(cloudPlan?'Choose the workspace containing this plan’s connected server. No tests have run.':'Cloud tester ready. Load tools or choose a saved plan.');
+}
+if(cloud){
+  el('cloud-review').hidden=false;el('behavior-tests').hidden=false;el('local-setup').hidden=true;el('local-connect').hidden=false;el('test-token').closest('label')!.hidden=true;el('test-run').hidden=false;el('test-own').hidden=true;el('test-sample').classList.add('secondary');el('test-heading').textContent='Review your test plan';
+  el<HTMLInputElement>('test-endpoint').readOnly=true;el<HTMLSelectElement>('test-protocol').disabled=true;own();
+  for(const event of ['input','change'])el('test-editor').addEventListener(event,e=>{if((e.target as HTMLElement).id!=='cloud-staging')el<HTMLInputElement>('cloud-staging').checked=false;});
+  el('cloud-workspace').addEventListener('change',()=>perform(selectCloudWorkspace));el('cloud-connection').addEventListener('change',selectCloudConnection);
+  el('cloud-refresh-reports').addEventListener('click',()=>perform(refreshCloudReports));el('cloud-open-report').addEventListener('click',()=>guard(()=>{const retained=cloudReports.find(r=>r.id===el<HTMLSelectElement>('cloud-reports').value);if(!retained)throw new Error('Choose a retained result.');renderReport(retained.report);status('Retained cloud result opened. No new tool calls sent.');}));
+  void perform(async()=>{
+    if(handoff)cloudPlan=parsePlan(boundedJSON(handoff));
+    const response=await fetch('/api/console/session');if(!response.ok)throw new Error('Sign in to your AgentAction workspace to run cloud tests.');const session=await response.json();cloudMemberships=session.memberships||[];
+    const select=el<HTMLSelectElement>('cloud-workspace');select.replaceChildren();for(const m of cloudMemberships)select.add(new Option(m.tenant.display_name||m.tenant.tenant_id,m.tenant.tenant_id));
+    if(cloudMemberships.some(m=>m.tenant.tenant_id===session.tenant_id))select.value=session.tenant_id;await selectCloudWorkspace();
+  });
+}

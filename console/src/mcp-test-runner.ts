@@ -47,7 +47,7 @@ async function execute(job:Job):Promise<unknown> {
     }
     const r=await runTestPlan(plan,async(args,signal)=>{
       callSignal=signal;
-      try{return {kind:'result',value:await client.rpc('tools/call',{name:plan.tool.name,arguments:args},false,plan.deadlineMs+250)};}
+      try{return {kind:'result',value:await client.rpc('tools/call',{name:plan.tool.name,arguments:args},false,plan.deadlineMs+250,signal)};}
       catch(error){if(error instanceof McpRpcError)return {kind:'rpc-error',code:error.rpcCode};return {kind:'transport-error'};}
       finally{callSignal=undefined;}
     });
