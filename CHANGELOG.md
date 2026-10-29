@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 0.59.1-rc.1 - 2026-10-28
+
+### Fixed
+
+- Simplified the MCP checker into an endpoint check followed by a contextual Test a tool step in the same tab. The starting page has one primary action; examples, local setup and file operations are secondary.
+- Focused the cloud and local test editors on the selected server, tool, inputs and one Run test action. Saved tests load on selection without a separate load button. Failed and inconclusive results expand their evidence; passed and untested details remain available.
+- Brought owner-reviewed endpoint approval and bearer-token connection setup onto the cloud test page. A requested server that is not connected shows setup rather than silently selecting a different server. Connection setup loads metadata without executing tools.
+
+### Compatibility
+
+- Backward-compatible UX patch to the existing preview. Execution remains explicit; Run test confirms the displayed staging inputs and call count. Current roles, endpoint approval, credential storage, call/deadline budgets and report retention are unchanged. No new API, transport, OAuth provider or migration.
+- Install artifacts from the v0.59.1-rc.1 GitHub prerelease. npm packages keep independent versions; no PyPI or npm registry publication is implied.
+
 ## 0.59.0-rc.1 - 2026-10-28
 
 ### Website highlight

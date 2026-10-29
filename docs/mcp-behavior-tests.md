@@ -1,19 +1,24 @@
 # MCP behavior tests (preview)
 
-Open the [MCP checker](https://mcpcheck.agentaction.dev/) and click **Run sample
-tests**. All five checks run immediately against a synthetic fixture in your
-browser. **Try a timeout** shows how an uncertain result stops further calls.
-Neither sample contacts an MCP provider.
+Open the [MCP checker](https://mcpcheck.agentaction.dev/), enter an endpoint,
+and **Check server**. Review the findings, then **Test a tool** to continue in
+the same tab. If the endpoint needs sign-in, the contextual test link also works
+without a successful anonymous inspection.
 
-## Choose cloud or local execution
+## Test your server
 
-Choose **Test behavior → Test my server**. **Run in cloud** opens the
-[authenticated cloud tester](https://observability-console.agentaction.dev/mcp-tests).
-Sign in, choose the workspace and its connected staging server, review the
-fixtures and maximum call count, then click **Run tests**. No Node installation
-is needed. Owners and operators can execute tests; viewers can open retained
-results. Endpoint approval and connection setup use the existing **Manage server
-connections** flow, with owner approval where required.
+The [signed-in test page](https://observability-console.agentaction.dev/mcp-tests)
+keeps the server you chose. With a connected staging server, choose a tool, fill
+in synthetic inputs, review the target and call count, then **Run test**. No
+local installation is needed. Owners and operators can execute tests; viewers
+can open retained results. Nothing executes on navigation or plan loading.
+
+If the server isn't connected, a workspace owner can **Connect server** on the
+same page. That click approves the displayed endpoint for the workspace and
+loads its catalog, without executing a tool. An optional bearer token is stored
+on the server and shared with the workspace. OAuth and other connection settings
+remain in the existing connection manager. A missing requested endpoint never
+silently switches execution to another server.
 
 If a plan is already open, the button carries it to the cloud page for review.
 It never executes on arrival. The plan travels in a URL fragment that the page
@@ -31,7 +36,7 @@ eight levels, 64 items/fields per container, 2,000 total nodes and 4,000 charact
 per string. Unsupported fixtures are inconclusive and dispatch no tool calls.
 Use the local runner for private endpoints or contracts beyond the hosted subset.
 
-**Recent cloud runs** retains bounded reports for 24 hours. Opening them sends
+**Recent results** retains bounded reports for 24 hours. Opening them sends
 no tool calls. A durable claim binds each request ID to the reviewed plan and
 connection: repeated requests return retained evidence, changed plans conflict,
 and interrupted requests become inconclusive with unknown effects. Expired IDs
@@ -40,8 +45,9 @@ review uncertain provider effects before doing so. There are no automatic retrie
 
 ## Run locally
 
-1. Choose **Test behavior → Test my server → Download local tester**. If you
-   already inspected a server, its tools are available to prepare a plan first.
+1. Open **Examples, saved plans and local testing → More options → Run on your
+   computer** and **Download local tester**. On the signed-in page, start at
+   **More options**. An inspected server can prefill the download.
 2. In the download folder, run this once using Node 22 or newer:
 
    ```bash
@@ -53,7 +59,7 @@ review uncertain provider effects before doing so. There are no automatic retrie
    use the local URL printed in the terminal. Treat that per-launch URL as private.
 3. Enter a staging endpoint and optional access token, then **Load tools**.
    Choose a tool and fill in synthetic sample inputs. Complex schemas use JSON.
-4. Review the target and maximum call count, then click **Run tests**. Subsequent
+4. Review the target and maximum call count, then click **Run test**. Subsequent
    runs use the same button. Each run first reloads the catalog; a changed tool
    contract or negotiated protocol requires loading tools again.
 
@@ -65,11 +71,12 @@ the plan, token or results to AgentAction.
 
 ## Save once, run again
 
-**Save plan** stores the current endpoint, selected tool contract, arguments,
-expectations and probes in that browser. Choose a saved plan, **Load plan**, then
-**Run tests**. Loading, importing and saving never execute calls.
+**Save test** stores the current endpoint, selected tool contract, arguments,
+expectations and probes in that browser. Selecting a **Saved test** loads it for
+review; **Run test** reruns it. There is no separate load step. Loading, importing
+and saving never execute calls. Rename a plan under **More options → Plan files**.
 
-**Export plan** downloads portable JSON. **Import plan** loads it for review.
+Under **More options → Plan files**, **Export plan** downloads portable JSON. **Import plan** loads it for review.
 The downloaded tester can include the current plan; running that file opens it
 locally. There are at most 12 saved plans per browser origin. The local runner
 prefers port 8789 so plans survive restarts; if occupied, it uses another port.
@@ -80,6 +87,13 @@ Cloud execution uses existing workspace credentials; local connection tokens
 are separate and excluded from plans. Sample arguments,
 descriptions and expected text can themselves contain sensitive data: use staging
 fixtures and review files before sharing. Clearing site data removes browser plans.
+
+## Try an example
+
+Under **More options → Try a synthetic example**, **Run example** runs all five
+checks in your browser. **See a timeout** shows how uncertainty stops further
+calls. Neither example contacts a provider. On the public starting page, first
+open **Examples, saved plans and local testing**.
 
 ## What the five checks establish
 
@@ -104,10 +118,9 @@ ends unresponsive runs, reporting uncertainty rather than a confirmed dispatch
 count. Optional checks stay **Not run** when not enabled. A **Passed** report can
 therefore include untested checks; the summary always shows coverage out of five.
 
-**Export report** writes a bounded report with fixed findings, call count,
+**Export this result → Download report JSON** writes a bounded report with fixed findings, call count,
 timing, endpoint and tool name. Raw arguments, raw results and provider error
-messages are excluded. Open it in the hosted checker under **Open a report from
-a local or CI run**. Imported evidence is visibly labeled as not independently
+messages are excluded. Open it in the hosted checker under **More options → Open a local or CI report**. Imported evidence is visibly labeled as not independently
 verified. No report is a conformance, safety or exactly-once certificate.
 
 ## CI and command line

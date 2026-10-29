@@ -17,9 +17,10 @@ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CH
 const errors:string[]=[];page.on('pageerror',(e:Error)=>errors.push(e.message));
 try {
  await page.goto(origin);await page.getByRole('heading',{name:'Check your MCP server.'}).waitFor();
- assert.equal(await page.locator('#publish').isChecked(),false);
+ assert.equal(await page.locator('#publish').isChecked(),false);assert.equal(await page.locator('button:not(.secondary):not(.text-button):visible').count(),1);
  await page.screenshot({path:'/tmp/agentaction-readiness-desktop.png',fullPage:true});
  await page.locator('#endpoint').fill('https://mcp.vendor.com/mcp');await page.locator('#run').click();await page.locator('#status').filter({hasText:'has not been published'}).waitFor();
+ assert.equal(await page.locator('button:not(.secondary):not(.text-button):visible').count(),1);assert.equal(await page.locator('#continue-test').isVisible(),true);
  assert.match(await page.locator('#report').innerText(),/Runtime untested/);assert.equal(await page.locator('#report img').count(),0);
  assert.equal(await page.locator('#share').isVisible(),false);
  const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;assert.equal(download.suggestedFilename(),'mcp-readiness.json');
@@ -37,7 +38,7 @@ try {
  assert.equal(await page.locator('#baseline-file').evaluate(el=>el===document.activeElement),true);
  assert.ok(posted.every(text=>!text.includes('BASELINE-LOCAL-ONLY')));
 
- await page.locator('#publish').check();await page.locator('#run').click();await page.locator('#status').filter({hasText:'This report is public'}).waitFor();
+ await page.locator('.inspection-options > summary').click();await page.locator('#publish').check();await page.locator('#run').click();await page.locator('#status').filter({hasText:'This report is public'}).waitFor();
  const share=await page.locator('#share').getAttribute('href');assert.match(share!,/^\/reports\/[a-f0-9]{64}$/);await page.locator('#share').click();await page.locator('#status').filter({hasText:'Published anonymous observations'}).waitFor();
  assert.equal(await page.locator('#endpoint').inputValue(),'https://mcp.vendor.com/mcp');
  await page.screenshot({path:'/tmp/agentaction-readiness-report.png',fullPage:true});
