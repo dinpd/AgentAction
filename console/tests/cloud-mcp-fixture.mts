@@ -17,7 +17,7 @@ export const cloudRequest=(plan=cloudPlan())=>({connectionId:'provider',requestI
 export async function cloudFixture(){
   const storage=new CloudStorage(),plan=cloudPlan();
   await storage.put('connection:provider',{id:'provider',label:'Synthetic cloud staging',endpoint:plan.endpoint,protocol:plan.protocol,token:'CLOUD-PROVIDER-SECRET',tools:[plan.tool],suggestions:[],status:'connected',createdAt:'2026-10-28T00:00:00Z'});
-  const state={calls:[] as any[],drift:false,redirect:false,privateDNS:false,delayAfterCatalog:0,catalogs:0,protocol:plan.protocol,closed:0};
+  const state={calls:[] as any[],drift:false,redirect:false,privateDNS:false,delayAfterCatalog:0,catalogs:0,protocol:plan.protocol,closed:0,requiresInitialization:false,initialized:false,initializations:0};
   const fetcher:typeof fetch=async(input,init={})=>{
     const url=String(input);
     if(url.startsWith('https://cloudflare-dns.com/')){
@@ -26,10 +26,12 @@ export async function cloudFixture(){
     }
     assert.equal(url,plan.endpoint);assert.equal(init.redirect,'manual');if(init.signal?.aborted)throw new Error('aborted');
     assert.equal(new Headers(init.headers).get('authorization'),'Bearer CLOUD-PROVIDER-SECRET');
-    if(init.method==='DELETE'){state.closed++;return new Response(null,{status:204});}
+    if(init.method==='DELETE'){state.initialized=false;state.closed++;return new Response(null,{status:204});}
     if(state.redirect)return new Response(null,{status:302,headers:{location:'https://unapproved.invalid/sink'}});
     const rpc=JSON.parse(String(init.body));
     if(rpc.method==='notifications/initialized')return new Response(null,{status:202});
+    if(rpc.method==='initialize'){state.initialized=true;state.initializations++;}
+    if(rpc.method==='tools/list'&&state.requiresInitialization&&!state.initialized)return Response.json({jsonrpc:'2.0',id:rpc.id,error:{code:-32000,message:'Initialize the session first'}});
     if(rpc.method==='tools/list')state.catalogs++;
     if(rpc.method==='tools/call'){
       state.calls.push(rpc.params);

@@ -15,7 +15,9 @@ can open retained results. Nothing executes on navigation or plan loading.
 
 If the server isn't connected, a workspace owner can **Connect server** on the
 same page. That click approves the displayed endpoint for the workspace and
-loads its catalog, without executing a tool. An optional bearer token is stored
+loads its catalog, without executing a tool. Connection options support initialized
+2025 protocols and 2026-07-28; an inspected or imported protocol is preserved.
+An optional bearer token is stored
 on the server and shared with the workspace. OAuth and other connection settings
 remain in the existing connection manager. A missing requested endpoint never
 silently switches execution to another server.

@@ -10,7 +10,7 @@ No changes yet.
 
 - Simplified the MCP checker into an endpoint check followed by a contextual Test a tool step in the same tab. The starting page has one primary action; examples, local setup and file operations are secondary.
 - Focused the cloud and local test editors on the selected server, tool, inputs and one Run test action. Saved tests load on selection without a separate load button. Failed and inconclusive results expand their evidence; passed and untested details remain available.
-- Brought owner-reviewed endpoint approval and bearer-token connection setup onto the cloud test page. A requested server that is not connected shows setup rather than silently selecting a different server. Connection setup loads metadata without executing tools.
+- Brought owner-reviewed endpoint approval and bearer-token connection setup onto the cloud test page. A requested server that is not connected shows setup rather than silently selecting a different server. Connection setup loads metadata without executing tools, initializes 2025 servers, and preserves the chosen protocol.
 
 ### Compatibility
 

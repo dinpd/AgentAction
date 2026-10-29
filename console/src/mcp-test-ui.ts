@@ -9,6 +9,7 @@ const incoming=new URLSearchParams(location.hash.slice(1));
 const handoff=cloud?incoming.get('plan'):null;
 let requestedEndpoint=cloud?incoming.get('endpoint')||'':'';
 let cloudPlan:TestPlan|undefined;
+let inspectedEndpoint='',inspectedProtocol='';
 let tools:TestTool[]=[],advanced=false,lastReport:TestReport|undefined,busy=false;
 let sessionToken=new URLSearchParams(location.hash.slice(1)).get('token')||'';
 if(local||cloud)history.replaceState(null,'',location.pathname+location.search);
@@ -128,7 +129,7 @@ function continueInCloud(selected?:TestPlan){
   const url=new URL('https://observability-console.agentaction.dev/mcp-tests');
   const endpoint=selected?.endpoint||el<HTMLInputElement>('endpoint')?.value.trim()||el<HTMLInputElement>('test-endpoint').value;
   if(selected)url.hash='plan='+encodeURIComponent(JSON.stringify(selected));
-  else if(endpoint)url.hash='endpoint='+encodeURIComponent(testEndpoint(endpoint));
+  else if(endpoint){const params=new URLSearchParams({endpoint:testEndpoint(endpoint)});if(endpoint===inspectedEndpoint&&inspectedProtocol)params.set('protocol',inspectedProtocol);url.hash=params.toString();}
   location.assign(url.href);
 }
 el('test-cloud').addEventListener('click',()=>guard(()=>continueInCloud(tools.some(t=>t.name===el<HTMLSelectElement>('test-tool').value)?plan():undefined)));
@@ -155,6 +156,7 @@ el('test-import-report').addEventListener('change',()=>perform(async()=>{const v
 window.addEventListener('agentaction:catalog',event=>{
   if(local||cloud)return;
   const value=(event as CustomEvent).detail;
+  inspectedEndpoint=value.endpoint;inspectedProtocol=value.protocol||'';
   el<HTMLInputElement>('endpoint').value=value.endpoint;nextStep();
   el('continue-test').classList.remove('text-button');el('test-next-heading').textContent='Try a real tool call';
   el('test-next-copy').textContent='Choose a tool and staging inputs. Nothing executes until you click Run test.';
@@ -213,13 +215,14 @@ if(cloud){
     const token=el<HTMLInputElement>('cloud-new-token').value;el<HTMLInputElement>('cloud-new-token').value='';
     status('Approving this endpoint and loading its tool catalog…');
     await cloudRequest('approve-endpoint',{endpoint,reviewed:true});
-    await cloudRequest('connect',{endpoint,protocol:'2026-07-28',...(token?{token}:{})});
+    await cloudRequest('connect',{endpoint,protocol:el<HTMLSelectElement>('cloud-new-protocol').value,...(token?{token}:{})});
     requestedEndpoint=endpoint;await selectCloudWorkspace();status('Connected. Add staging inputs, then Run test.');
   }));
   el('cloud-workspace').addEventListener('change',()=>perform(selectCloudWorkspace));el('cloud-connection').addEventListener('change',()=>{requestedEndpoint='';cloudPlan=undefined;selectCloudConnection();});
   el('cloud-refresh-reports').addEventListener('click',()=>perform(refreshCloudReports));el('cloud-reports').addEventListener('change',()=>guard(()=>{const retained=cloudReports.find(r=>r.id===el<HTMLSelectElement>('cloud-reports').value);if(!retained)return;renderReport(retained.report);status('Retained result opened. No new tool calls sent.');}));
   void perform(async()=>{
     if(handoff){cloudPlan=parsePlan(boundedJSON(handoff));requestedEndpoint=cloudPlan.endpoint;}
+    el<HTMLSelectElement>('cloud-new-protocol').value=(cloudPlan?.protocol||incoming.get('protocol'))==='2026-07-28'?'2026-07-28':'2025-03-26';
     if(requestedEndpoint){requestedEndpoint=testEndpoint(requestedEndpoint);el<HTMLInputElement>('cloud-new-endpoint').value=requestedEndpoint;}
     const response=await fetch('/api/console/session');if(!response.ok)throw new Error('Sign in to your AgentAction workspace to run a test.');const session=await response.json();cloudMemberships=session.memberships||[];
     const select=el<HTMLSelectElement>('cloud-workspace');select.replaceChildren();for(const m of cloudMemberships)select.add(new Option(m.tenant.display_name||m.tenant.tenant_id,m.tenant.tenant_id));
