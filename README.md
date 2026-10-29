@@ -93,13 +93,13 @@ changing the Hermes connection.
 
 ### Test MCP behavior
 
-Try **Run sample tests** in the [MCP checker](https://mcpcheck.agentaction.dev/),
-then save a plan and download the standalone tester for your own staging server.
-Or choose **Run in cloud** to use an approved connected server in your signed-in
-AgentAction workspace; owners and operators can execute reviewed staging plans.
-One Node 22+ command opens a local page; **Run tests** checks the selected
-fixtures without automatic retries. See [setup, saved plans, CI and evidence
-limits](docs/mcp-behavior-tests.md).
+Enter your server in the [MCP checker](https://mcpcheck.agentaction.dev/), review
+the findings, then **Test a tool**. Choose staging inputs and **Run test** in your
+signed-in workspace; owners and operators can use approved connections without
+a local install. Save the test to rerun after a fix. Local execution, synthetic
+examples and file operations are available under **More options**. The local
+tester needs one Node 22+ command and no npm install. See [setup, saved plans, CI
+and evidence limits](docs/mcp-behavior-tests.md).
 
 ### Recommended: Observe An MCP Workflow
 
