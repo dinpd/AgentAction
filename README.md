@@ -95,6 +95,8 @@ changing the Hermes connection.
 
 Try **Run sample tests** in the [MCP checker](https://mcpcheck.agentaction.dev/),
 then save a plan and download the standalone tester for your own staging server.
+Or choose **Run in cloud** to use an approved connected server in your signed-in
+AgentAction workspace; owners and operators can execute reviewed staging plans.
 One Node 22+ command opens a local page; **Run tests** checks the selected
 fixtures without automatic retries. See [setup, saved plans, CI and evidence
 limits](docs/mcp-behavior-tests.md).

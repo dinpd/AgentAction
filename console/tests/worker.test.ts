@@ -742,6 +742,19 @@ test("agent runtime resolves current server-side membership and rejects viewer o
   assert.equal((await worker.fetch(oversized, env)).status, 413);
 });
 
+test('cloud test routes require Access, current operator membership, same origin and bounded input',async()=>{
+  let role='viewer',present=true;const runtimeCalls:string[]=[];
+  const env:Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:present?[{tenant:{tenant_id:'acme'},membership:{role}}]:[]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_WORKSPACES:{getByName(name){runtimeCalls.push(name);return {async request(req){assert.equal(req.headers.get('x-runtime-role'),role);assert.equal(req.headers.get('authorization'),null);return json({ok:true});}};}}};
+  const post=(origin='https://console.test',workspace='acme',body='{}')=>accessRequest(`/api/agents/${workspace}/test-run`,{method:'POST',headers:{origin,'content-type':'application/json','x-agentaction-request':'agent-builder','x-runtime-role':'owner'},body},{custom:{}});
+  assert.equal((await worker.fetch(new Request('https://console.test/mcp-tests'),env)).status,401);
+  assert.equal((await worker.fetch(post(),env)).status,403);assert.equal(runtimeCalls.length,0);
+  role='operator';assert.equal((await worker.fetch(post('https://evil.test'),env)).status,403);assert.equal((await worker.fetch(post('https://console.test','beta'),env)).status,403);
+  assert.equal((await worker.fetch(post('https://console.test','acme','x'.repeat(25000)),env)).status,413);
+  assert.equal((await worker.fetch(post(),env)).status,200);assert.deepEqual(runtimeCalls,['workspace:acme']);
+  assert.equal((await worker.fetch(accessRequest('/api/agents/acme/test-reports',{}, {custom:{}}),env)).status,200);
+  present=false;assert.equal((await worker.fetch(post(),env)).status,403);
+});
+
 test("endpoint approvals require current owner membership and overwrite spoofed runtime roles", async () => {
   let role = "operator", present = true;
   const calls: GatewayCall[] = [], runtimeRoles: string[] = [];

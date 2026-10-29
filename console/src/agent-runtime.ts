@@ -14,6 +14,7 @@ import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type 
 import { mcpFailureReason, McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
 import { mcpEndpointConfig } from './mcp-endpoint-config.ts';
+import { CloudMcpTests } from './cloud-mcp-tests.ts';
 import { AGENT_MODEL, RESEARCH_CLASSIFICATION_INSTRUCTIONS, researchWorkflow, legacyResearchWorkflow } from './research-workflow.ts';
 import { executableResearch, executionState, inputReferences, resolvedInputs, recordStep, completeStep, startedStep, validateExecution } from './research-execution.ts';
 
@@ -69,6 +70,7 @@ export class AgentRuntime {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(storage: RuntimeStorage, env: RuntimeEnv, fetcher: typeof fetch = (input, init) => fetch(input, init), reports: ReportBridge = {async ready(){throw new RuntimeError('Report delivery is unavailable.',503);},async report(){throw new RuntimeError('Report delivery is unavailable.',503);}}) { this.storage = storage; this.env = env; this.fetcher = fetcher; this.reports=reports; }
   async recover(): Promise<void> {
+    await new CloudMcpTests(this.storage).recover();
     for(const plan of (await this.storage.list<AgentPlan>({prefix:'draft:'})).values()) {
       if(await this.storage.get(`agent:${plan.id}`))continue;
       const normalized=normalizeLegacyPlan(plan);
@@ -233,6 +235,7 @@ export class AgentRuntime {
         if (workspace && !saved) await this.storage.put('oauth-workspace', workspace);
         const path = new URL(request.url).pathname;
         if (request.method === 'GET' && path === '/state') return json(await this.snapshot());
+        if (request.method === 'GET' && path === '/test-reports') return json({reports:await new CloudMcpTests(this.storage).reports()});
         if (request.method !== "POST") throw new RuntimeError("Route not found.", 404);
         const body = object(JSON.parse(await boundedText(new Response(request.body), 24000)));
         if (path.startsWith('/external/')) return json(await new ExternalSupervisor(this.storage).request(path,body,request.headers.get('authorization') || ''));
@@ -263,7 +266,7 @@ export class AgentRuntime {
     }
     await this.reschedule();
   }
-  private client(connection: Connection): McpClient {
+  private client(connection: Connection, lifetime?:AbortSignal): McpClient {
     // Only this ephemeral transport receives the access token. Persisted Connection
     // objects and model context carry a credential reference, never OAuth secrets.
     const transport = { ...connection };
@@ -278,12 +281,12 @@ export class AgentRuntime {
     return new McpClient(transport, fetcher, async () => {
       await this.allowedEndpoint(connection.endpoint);
       const access = await this.endpointAccess();
-      if (connection.oauth || !access.deployment.includes(connection.endpoint)) await validatePublicEndpoint(connection.endpoint, this.fetcher);
+      if (lifetime || connection.oauth || !access.deployment.includes(connection.endpoint)) await validatePublicEndpoint(connection.endpoint, this.fetcher);
       if (connection.oauth) {
         try { transport.token = await (await this.oauth()).access(connection.oauth); }
         catch (error) { await this.pauseConnection(connection.id); throw error; }
       }
-    });
+    },lifetime);
   }
   private async required<T>(prefix: string, value: unknown): Promise<T> {
     const key = textField(value, "identifier", 80);
@@ -364,6 +367,20 @@ export class AgentRuntime {
   }
   async mutate(path: string, body: Record<string, unknown>, actor: string, role = "operator"): Promise<unknown> {
     if(!['owner','operator'].includes(role))throw new RuntimeError('An owner or operator must approve agent operations.',403);
+    if(path==='/test-discover'||path==='/test-run') {
+      if(path==='/test-discover'&&Object.keys(body).some(k=>k!=='connectionId'))throw new RuntimeError('Choose a connected workspace server. Credentials come from its saved connection.');
+      const connection=await this.required<Connection>('connection',body.connectionId);
+      if(connection.status!=='connected')throw new RuntimeError('Reconnect this workspace server before testing.',409);
+      await this.allowedEndpoint(connection.endpoint);publicEndpointURL(connection.endpoint);
+      if(path==='/test-run'){
+        if(!body.plan||typeof body.plan!=='object')throw new RuntimeError('Choose a valid AgentAction test plan.');
+        await this.noCredentials(body.plan);
+        return new CloudMcpTests(this.storage).run(body,connection,signal=>this.client(connection,signal),value=>this.clean(value),expiry=>this.reschedule(expiry));
+      }
+      await this.charge('test-discovery',40);
+      const lifetime=AbortSignal.timeout(30_000),client=this.client(connection,lifetime);
+      try{const tools=await client.discover({allowEmpty:true});return {tools:JSON.parse(await this.clean(tools)),protocol:client.connection.protocol};}finally{await client.close();}
+    }
     if (['/external-register','/external-rotate','/external-revoke'].includes(path)) return new ExternalSupervisor(this.storage).owner(path,body,role,actor);
     if(path === '/supervisor-settings') return this.configureSupervisor(body, role, actor);
     if(path.startsWith('/research-'))return this.researchMutation(path,body,actor,role);
@@ -1250,6 +1267,7 @@ export class AgentRuntime {
   }
   async alarm(): Promise<void> {
     return this.serialize(async () => {
+      await new CloudMcpTests(this.storage).reports();
       const due = [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()].filter(a => a.status === "active" && (a.nextRun || Infinity) <= Date.now());
       for (const agent of due) {
         // Advance durably before inference. Alarm delivery may be repeated;
@@ -1264,8 +1282,9 @@ export class AgentRuntime {
       await this.reschedule();
     });
   }
-  private async reschedule(): Promise<void> {
+  private async reschedule(additionalTime?:number): Promise<void> {
     const times = [...(await this.storage.list<Agent>({ prefix: "agent:" })).values()].filter(a => a.status === "active" && a.nextRun).map(a => a.nextRun!);
+    const expiry=await new CloudMcpTests(this.storage).nextExpiry();if(expiry!==undefined)times.push(expiry);if(additionalTime!==undefined)times.push(additionalTime);
     for(const run of (await this.storage.list<Run>({prefix:'run:'})).values())if(run.research?.due&&!terminal(run))times.push(run.research.due);
     if (times.length) await this.storage.setAlarm(Math.max(Date.now()+1000,Math.min(...times))); else await this.storage.deleteAlarm();
   }

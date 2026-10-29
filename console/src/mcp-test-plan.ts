@@ -3,7 +3,7 @@ import { Validator } from '@cfworker/json-schema';
 export type TestTool = {name:string;description?:string;inputSchema:Record<string,unknown>;outputSchema?:Record<string,unknown>};
 export type TestPlan = {schemaVersion:'agentaction.mcp-test-plan.v1';name:string;endpoint:string;protocol:string;tool:TestTool;arguments:Record<string,unknown>;deadlineMs:number;missingArgument:boolean;errorArguments?:Record<string,unknown>;expectedText?:string};
 export type TestCheck = {id:'call'|'arguments'|'output'|'error'|'deadline';title:string;status:'passed'|'failed'|'not-run'|'inconclusive';detail:string};
-export type TestReport = {schemaVersion:'agentaction.mcp-test-report.v1';source:'sample'|'local';checkedAt:string;endpoint:string;tool:string;status:'passed'|'failed'|'inconclusive';calls:number|null;durationMs:number;checks:TestCheck[];businessOutcome:'unverified'};
+export type TestReport = {schemaVersion:'agentaction.mcp-test-report.v1';source:'sample'|'local'|'cloud';checkedAt:string;endpoint:string;tool:string;status:'passed'|'failed'|'inconclusive';calls:number|null;durationMs:number;checks:TestCheck[];businessOutcome:'unverified'};
 export type TestOutcome = {kind:'result';value:Record<string,unknown>}|{kind:'rpc-error';code:number}|{kind:'transport-error'};
 export const isObject=(v:unknown):v is Record<string,any>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 export const PLAN_LIMIT=128*1024;
@@ -38,12 +38,12 @@ export function parsePlan(input:unknown):TestPlan {
 export function samplePlan():TestPlan {
   return {schemaVersion:'agentaction.mcp-test-plan.v1',name:'Sample document search',endpoint:'https://sample.invalid/mcp',protocol:'2025-11-25',tool:{name:'search_documents',description:'Synthetic search fixture. No provider requests.',inputSchema:{type:'object',properties:{query:{type:'string',minLength:1}},required:['query'],additionalProperties:false},outputSchema:{type:'object',properties:{found:{type:'boolean'}},required:['found']}},arguments:{query:'hello'},deadlineMs:500,missingArgument:true,errorArguments:{query:'missing'},expectedText:'Found'};
 }
-export function initialReport(p:TestPlan,source:'sample'|'local'):TestReport {
+export function initialReport(p:TestPlan,source:TestReport['source']):TestReport {
   return {schemaVersion:'agentaction.mcp-test-report.v1',source,checkedAt:new Date().toISOString(),endpoint:p.endpoint,tool:p.tool.name,status:'inconclusive',calls:0,durationMs:0,businessOutcome:'unverified',checks:[['call','Valid call'],['arguments','Argument rejection'],['output','Structured output'],['error','Tool error handling'],['deadline','Response deadline']].map(([id,title])=>({id:id as TestCheck['id'],title,status:'not-run',detail:'Not run.'}))};
 }
 export function parseTestReport(input:unknown):TestReport {
   const r=boundedJSON(JSON.stringify(input));
-  if(!isObject(r)||Object.keys(r).some(k=>!['schemaVersion','source','checkedAt','endpoint','tool','status','calls','durationMs','checks','businessOutcome'].includes(k))||r.schemaVersion!=='agentaction.mcp-test-report.v1'||!['sample','local'].includes(r.source)||!['passed','failed','inconclusive'].includes(r.status)||r.businessOutcome!=='unverified'||typeof r.tool!=='string'||!/^[a-zA-Z0-9_.:-]{1,128}$/.test(r.tool)||!Number.isFinite(Date.parse(r.checkedAt))||(r.calls!==null&&(!Number.isInteger(r.calls)||r.calls<0||r.calls>3))||(r.calls===null&&r.status!=='inconclusive')||!Number.isFinite(r.durationMs)||r.durationMs<0||!Array.isArray(r.checks)||r.checks.length!==5)throw new Error('Choose a valid behavior-test report.');
+  if(!isObject(r)||Object.keys(r).some(k=>!['schemaVersion','source','checkedAt','endpoint','tool','status','calls','durationMs','checks','businessOutcome'].includes(k))||r.schemaVersion!=='agentaction.mcp-test-report.v1'||!['sample','local','cloud'].includes(r.source)||!['passed','failed','inconclusive'].includes(r.status)||r.businessOutcome!=='unverified'||typeof r.tool!=='string'||!/^[a-zA-Z0-9_.:-]{1,128}$/.test(r.tool)||!Number.isFinite(Date.parse(r.checkedAt))||(r.calls!==null&&(!Number.isInteger(r.calls)||r.calls<0||r.calls>3))||(r.calls===null&&r.status!=='inconclusive')||!Number.isFinite(r.durationMs)||r.durationMs<0||!Array.isArray(r.checks)||r.checks.length!==5)throw new Error('Choose a valid behavior-test report.');
   testEndpoint(r.endpoint);const ids=new Set<string>();
   for(const c of r.checks){if(!isObject(c)||Object.keys(c).some(k=>!['id','title','status','detail'].includes(k))||!['call','arguments','output','error','deadline'].includes(c.id)||ids.has(c.id)||!['passed','failed','not-run','inconclusive'].includes(c.status)||typeof c.title!=='string'||c.title.length>80||typeof c.detail!=='string'||c.detail.length>1000)throw new Error('Report checks are invalid.');ids.add(c.id);}
   return r as TestReport;
@@ -65,7 +65,7 @@ function resultShape(value:unknown):'valid'|'invalid'|'unsupported' {
   }
   return unsupported?'unsupported':'valid';
 }
-export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unknown>,signal:AbortSignal)=>Promise<TestOutcome>,source:'sample'|'local'='local'):Promise<TestReport> {
+export async function runTestPlan(input:unknown,dispatch:(args:Record<string,unknown>,signal:AbortSignal)=>Promise<TestOutcome>,source:TestReport['source']='local'):Promise<TestReport> {
   const p=parsePlan(input),r=initialReport(p,source),start=performance.now();
   const set=(id:TestCheck['id'],status:TestCheck['status'],detail:string)=>Object.assign(r.checks.find(c=>c.id===id)!,{status,detail});
   const validate=(schema:Record<string,unknown>,value:unknown):boolean=>{

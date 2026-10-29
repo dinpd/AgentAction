@@ -121,11 +121,14 @@ export class McpClient {
   connection: McpConnection;
   fetcher: typeof fetch;
   private beforeRequest: () => Promise<void>;
-  constructor(connection: McpConnection, fetcher: typeof fetch = (input, init) => fetch(input, init), beforeRequest: () => Promise<void> = async () => {}) { this.connection = connection; this.fetcher = fetcher; this.beforeRequest = beforeRequest; }
-  async rpc(method: string, params: Record<string, unknown> = {}, notification = false, timeoutMs = method === "tools/call" ? 60000 : 20000): Promise<Record<string, unknown>> {
+  private lifetime?: AbortSignal;
+  constructor(connection: McpConnection, fetcher: typeof fetch = (input, init) => fetch(input, init), beforeRequest: () => Promise<void> = async () => {}, lifetime?: AbortSignal) { this.connection = connection; this.fetcher = fetcher; this.beforeRequest = beforeRequest; this.lifetime=lifetime; }
+  async rpc(method: string, params: Record<string, unknown> = {}, notification = false, timeoutMs = method === "tools/call" ? 60000 : 20000, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    this.lifetime?.throwIfAborted();signal?.throwIfAborted();
     try { await this.beforeRequest(); } catch (error) {
       throw new McpPreflightError(error instanceof RuntimeError ? error.message : "Endpoint validation failed before sending the request.", error instanceof RuntimeError ? error.status : 400);
     }
+    this.lifetime?.throwIfAborted();signal?.throwIfAborted();
     const id = notification ? undefined : ++this.counter;
     const modern = this.connection.protocol === "2026-07-28";
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json, text/event-stream", "MCP-Protocol-Version": this.connection.protocol, "Mcp-Method": method };
@@ -136,7 +139,7 @@ export class McpClient {
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await this.fetcher(this.connection.endpoint, {
-        method: "POST", redirect: "manual", signal: controller.signal, headers,
+        method: "POST", redirect: "manual", signal: AbortSignal.any([controller.signal,...(this.lifetime?[this.lifetime]:[]),...(signal?[signal]:[])]), headers,
         body: JSON.stringify({ jsonrpc: "2.0", ...(id === undefined ? {} : { id }), method, params: modern ? { ...params, _meta: { "io.modelcontextprotocol/protocolVersion": this.connection.protocol, "io.modelcontextprotocol/clientInfo": { name: "AgentAction", version: "0.16.0" }, "io.modelcontextprotocol/clientCapabilities": {} } } : params }),
       });
       if (!response.ok) {
@@ -236,9 +239,10 @@ export class McpClient {
     return catalog;
   }
   async close(): Promise<void> {
-    if (!this.session) return;
+    if (!this.session || this.lifetime?.aborted) return;
     try {
       await this.beforeRequest();
+      this.lifetime?.throwIfAborted();
       const response = await this.fetcher(this.connection.endpoint, { method: "DELETE", redirect: "manual", signal: AbortSignal.timeout(3000), headers: { "Mcp-Session-Id": this.session, "MCP-Protocol-Version": this.connection.protocol, ...(this.connection.token ? { authorization: `Bearer ${this.connection.token}` } : {}) } });
       await response.body?.cancel();
     } catch { /* Session cleanup must not replay or conceal the preceding result. */ }

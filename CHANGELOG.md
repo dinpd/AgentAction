@@ -4,6 +4,31 @@
 
 No changes yet.
 
+## 0.59.0-rc.1 - 2026-10-28
+
+### Website highlight
+
+- Hosted MCP behavior tests: Run reviewed staging plans in an authenticated AgentAction workspace without a local install. Reuse connected accounts, save plans in your browser, and recover recent reports without replaying a request. Preview limits apply.
+
+### Added
+
+- A Run in cloud path from the MCP checker to the signed-in console. Owners and operators select an approved connected staging server, review the fixture and call count, then use one Run tests button. Navigation, plan loading and imports never execute tools.
+- Hosted execution of the same five fixture checks, with fresh contract/protocol comparison, bounded schema and input support, at most three tool calls, per-call deadlines and a 45-second overall limit. Workspace credentials remain on the server; the public checker remains anonymous discovery plus browser-only synthetic samples.
+- Durable request claims and recent reports retained for 24 hours. Repeated request IDs return evidence without redispatch; changed plans conflict, expired unclaimed IDs are rejected, and interrupted claims recover as inconclusive with unknown effects. Up to 20 cloud test runs per workspace per day.
+
+### Fixed
+
+- Abort signals are checked after asynchronous MCP preflight and combined with request deadlines, preventing a timed-out test from dispatching later after DNS or credential checks finish.
+- Standalone tester builds use explicit class-field settings, avoiding ambient TypeScript configuration differences outside the repository.
+
+### Compatibility
+
+- Significant additive execution prerelease. Cloud requires current workspace membership, an owner/operator role and an existing approved public HTTPS connection. Existing connection authentication and endpoint controls apply; no anonymous tool execution or new OAuth provider support. No production data migration.
+- Hosted plans are limited to 18,000 bytes and a bounded schema/input subset. References, patterns, schema compositions and larger fixtures use the local runner. Local HTTP/loopback/private execution and CI mode remain available under their existing limits.
+- Saved plans remain in the browser, scoped by cloud workspace. Choosing Run in cloud transfers the selected plan through a URL fragment, removed on page load; browser history may retain sensitive inputs. Cloud execution sends the plan to AgentAction. Retained reports omit raw arguments/results and credentials; they still contain endpoint/tool metadata. Use synthetic staging inputs.
+- The report format adds source cloud. Imported reports remain unverified; observed fixture behavior does not prove full conformance, authorization correctness or business completion. Uncertain effects do not trigger automatic retries.
+- Install artifacts from the v0.59.0-rc.1 GitHub prerelease. npm package versions remain independent; no PyPI or npm registry publication is implied.
+
 ## 0.58.0-rc.1 - 2026-10-28
 
 ### Website highlight
