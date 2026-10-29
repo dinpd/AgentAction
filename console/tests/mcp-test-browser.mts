@@ -31,6 +31,11 @@ try {
  const edge={...plan,arguments:{query:'',extra:{keep:'exactly'}}};
  await page.locator('#test-import-plan').setInputFiles({name:'edge.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(edge))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();assert.deepEqual(JSON.parse(await downloaded('#test-export-plan')).arguments,edge.arguments);
  await page.locator('#test-import-plan').setInputFiles({name:'plan.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(plan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ const longName='x'.repeat(128),longPlan={...plan,name:'Long tool fixture',tool:{...plan.tool,name:longName}};
+ await page.locator('#test-import-plan:enabled').waitFor();await page.locator('#test-import-plan').setInputFiles({name:'long.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(longPlan))});await page.locator('#test-status').filter({hasText:'Plan imported'}).waitFor();
+ await page.locator('#test-import-plan:enabled').waitFor();await page.locator('#test-tool').selectOption(longName);await page.locator('[data-field=query]').fill('hello');await page.locator('#test-save').click();await page.locator('#test-status').filter({hasText:'Plan saved'}).waitFor();
+ assert.equal(JSON.parse(await downloaded('#test-export-plan')).name.length,80);await page.locator('#test-saved').selectOption('');assert.equal(JSON.parse(await downloaded('#test-export-plan')).name.length,80);
+ await page.locator('#test-saved').selectOption(longName.slice(0,75)+' test');await page.locator('#test-delete').click();assert.equal(provider.calls(),0);
  await page.reload();await page.locator('#testing-options > summary').click();await page.locator('#test-extras > summary').click();await page.locator('#test-plan-options > summary').click();await page.locator('#test-saved').selectOption(plan.name);await page.locator('#test-status').filter({hasText:'Plan loaded'}).waitFor();
  assert.equal(await page.locator('[data-field=query]').inputValue(),'hello');assert.equal(provider.calls(),0);
  await page.locator('[data-field=query]').fill('hello again');await page.locator('#test-json-details summary').click();assert.equal(JSON.parse(await page.locator('#test-arguments').inputValue()).query,'hello again');
