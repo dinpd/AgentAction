@@ -1,6 +1,18 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "04",
+    slug: "agentic-iam-digest-2026-10-31",
+    title: "Agentic IAM digest: keep authority outside the agent",
+    date: "2026-11-01",
+    window: "October 25–31, 2026",
+    headline: "Keep authority outside the agent.",
+    homepageSummary: "Independent policy boundaries, governed agent credentials, and evidence that a recovery action actually helps.",
+    description: "NIST proposes agent IAM design tenets, IBM makes agent identity and Vault 2.2 generally available, an OAuth draft examines delegation gaps, and research tests restart decisions.",
+    image: "/blog/agentic-iam-2026-10-07.jpg",
+    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+  },
+  {
     issue: "03",
     slug: "agentic-iam-digest-2026-10-24",
     title: "Agentic IAM digest: knowing the agent is only the start",
