@@ -1041,7 +1041,7 @@ test("publishes Issue 02 for October 7–17 with source-backed scope and preserv
 });
 
 
-test("publishes Issue 03 for October 18–24 with primary sources and updates discovery while preserving archives", async () => {
+test("preserves Issue 03 for October 18–24 with its primary sources and metadata", async () => {
   const path = '/blog/agentic-iam-digest-2026-10-24';
   const response = await render(path);
   assert.equal(response.status, 200);
@@ -1063,11 +1063,40 @@ test("publishes Issue 03 for October 18–24 with primary sources and updates di
   ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
   assert.doesNotMatch(html.match(/<article>[\s\S]*?<\/article>/)?.[0] ?? '', /<footer>/);
   for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
+  const sitemap = await (await render('/sitemap.xml')).text();
+  assert.ok(sitemap.includes(`https://agentaction.dev${path}`));
+});
+
+
+test("publishes Issue 04 for October 25–31 with primary sources, availability and research limits", async () => {
+  const path = '/blog/agentic-iam-digest-2026-10-31';
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = (await response.text()).replaceAll('<!-- -->', '');
+  for (const pattern of [/Keep authority/, /Issue 04/, /October 25–31, 2026/, /November 1, 2026/, /not a new mandatory standard/, /Vault 2.2 as generally available/, /discovery and containment capabilities are in tech preview/, /Secure Hub is in public preview/, /individual Internet-Draft/, /not an adopted IETF standard/, /194 model executions on 19 selected SymPy issues/, /range is analytical/, /103 live comparisons/, /one model and one compact harness/]) assert.match(html, pattern);
+  assert.doesNotMatch(html, /October 7 overlaps|illustration is reused|reused from Issue|Editorial notes|Our interpretation:/i);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
+  assert.equal(article.datePublished, '2026-11-01');
+  assert.equal(article.dateModified, '2026-11-01');
+  assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  assert.match(html, /property="article:published_time" content="2026-11-01"/);
+  for (const source of [
+    'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
+    'https://www.ibm.com/new/announcements/ibm-agent-identity-is-now-generally-available-building-trust-for-the-agentic-era',
+    'https://newsroom.ibm.com/2026-10-27-ibm-introduces-identity-and-control-for-ai-agents,-securing-frontier-intelligence-for-the-enterprise',
+    'https://datatracker.ietf.org/doc/html/draft-chen-oauth-agent-authz-use-cases-05',
+    'https://arxiv.org/abs/2610.36544v1',
+  ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
+  assert.doesNotMatch(html.match(/<article>[\s\S]*?<\/article>/)?.[0] ?? '', /<footer>/);
+  assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-10-24"'));
+  for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
   const home = (await (await render('/')).text()).replaceAll('<!-- -->', '');
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /Knowing the agent is only the start/);
-  assert.match(highlight, /October 18–24, 2026/);
+  assert.match(highlight, /Keep authority outside the agent/);
+  assert.match(highlight, /October 25–31, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
@@ -1075,12 +1104,12 @@ test("publishes Issue 03 for October 18–24 with primary sources and updates di
   assert.match(home, /href="\/whats-new"/);
   const index = (await (await render('/blog')).text()).replaceAll('<!-- -->', '');
   const previews = [...index.matchAll(/<article class="blog-preview"[\s\S]*?<\/article>/g)].map((match) => match[0]);
-  assert.equal(previews.length, 3);
-  for (const [i, issue, slug] of [[0, '03', '2026-10-24'], [1, '02', '2026-10-17'], [2, '01', '2026-10-07']]) {
+  assert.equal(previews.length, 4);
+  for (const [i, issue, slug] of [[0, '04', '2026-10-31'], [1, '03', '2026-10-24'], [2, '02', '2026-10-17'], [3, '01', '2026-10-07']]) {
     assert.ok(previews[i].includes(`Issue ${issue}`));
     assert.ok(previews[i].includes(`href="/blog/agentic-iam-digest-${slug}"`));
   }
   const sitemap = await (await render('/sitemap.xml')).text();
-  for (const slug of ['2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
-  assert.match(sitemap, /<lastmod>2026-10-26/);
+  for (const slug of ['2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
+  assert.match(sitemap, /<lastmod>2026-11-01/);
 });
