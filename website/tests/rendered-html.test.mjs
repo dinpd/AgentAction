@@ -1068,7 +1068,7 @@ test("preserves Issue 03 for October 18–24 with its primary sources and metada
 });
 
 
-test("publishes Issue 04 for October 25–31 with primary sources, availability and research limits", async () => {
+test("preserves Issue 04 for October 25–31 with its primary sources and metadata", async () => {
   const path = '/blog/agentic-iam-digest-2026-10-31';
   const response = await render(path);
   assert.equal(response.status, 200);
@@ -1092,11 +1092,39 @@ test("publishes Issue 04 for October 25–31 with primary sources, availability 
   assert.doesNotMatch(html.match(/<article>[\s\S]*?<\/article>/)?.[0] ?? '', /<footer>/);
   assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-10-24"'));
   for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
+  assert.ok((await (await render('/sitemap.xml')).text()).includes(`https://agentaction.dev${path}`));
+});
+
+test("publishes Issue 05 for November 1–7 with primary sources, availability and research limits", async () => {
+  const path = '/blog/agentic-iam-digest-2026-11-07';
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = (await response.text()).replaceAll('<!-- -->', '');
+  for (const pattern of [/Make delegation/, /Issue 05/, /November 1–7, 2026/, /November 8, 2026/, /working group published revision 01/, /separate individual OAuth draft/, /stops new issuance/, /endpoint termination still to come/, /definitive agreement to acquire Fiddler AI/, /subject to closing conditions/, /Participants are still subject to confirmation/, /14 of 15 adversarial conditions/, /shared key for authorization evidence/, /fixed-depth local setup/]) assert.match(html, pattern);
+  assert.doesNotMatch(html, /October 7 overlaps|illustration is reused|reused from Issue|Editorial notes|Our interpretation:/i);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
+  assert.equal(article.datePublished, '2026-11-08');
+  assert.equal(article.dateModified, '2026-11-08');
+  assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  assert.match(html, /property="article:published_time" content="2026-11-08"/);
+  for (const source of [
+    "https://datatracker.ietf.org/doc/html/draft-ietf-wimse-aims-01",
+    "https://datatracker.ietf.org/doc/html/draft-mcguinness-oauth-mission-02",
+    "https://ir.crowdstrike.com/news-releases/news-release-details/crowdstrike-introduces-ai-kill-switch-ai-safety/",
+    "https://ir.crowdstrike.com/news-releases/news-release-details/crowdstrike-acquire-fiddler-deliver-agent-observability-ai-trust",
+    "https://www.zetrix.com/zetrix-ai-and-china-academy-of-information-and-communications-technology-unveil-know-your-agent-kya-service-to-bring-trust-and-accountability-to-ai-agents/",
+    "https://arxiv.org/abs/2611.07050v1",
+  ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
+  assert.doesNotMatch(html.match(/<article>[\s\S]*?<\/article>/)?.[0] ?? '', /<footer>/);
+  assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-10-31"'));
+  for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
   const home = (await (await render('/')).text()).replaceAll('<!-- -->', '');
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /Keep authority outside the agent/);
-  assert.match(highlight, /October 25–31, 2026/);
+  assert.match(highlight, /Make delegation verifiable/);
+  assert.match(highlight, /November 1–7, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
@@ -1104,12 +1132,12 @@ test("publishes Issue 04 for October 25–31 with primary sources, availability 
   assert.match(home, /href="\/whats-new"/);
   const index = (await (await render('/blog')).text()).replaceAll('<!-- -->', '');
   const previews = [...index.matchAll(/<article class="blog-preview"[\s\S]*?<\/article>/g)].map((match) => match[0]);
-  assert.equal(previews.length, 4);
-  for (const [i, issue, slug] of [[0, '04', '2026-10-31'], [1, '03', '2026-10-24'], [2, '02', '2026-10-17'], [3, '01', '2026-10-07']]) {
+  assert.equal(previews.length, 5);
+  for (const [i, issue, slug] of [[0, '05', '2026-11-07'], [1, '04', '2026-10-31'], [2, '03', '2026-10-24'], [3, '02', '2026-10-17'], [4, '01', '2026-10-07']]) {
     assert.ok(previews[i].includes(`Issue ${issue}`));
     assert.ok(previews[i].includes(`href="/blog/agentic-iam-digest-${slug}"`));
   }
   const sitemap = await (await render('/sitemap.xml')).text();
-  for (const slug of ['2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
-  assert.match(sitemap, /<lastmod>2026-11-01/);
+  for (const slug of ['2026-11-07', '2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
+  assert.match(sitemap, /<lastmod>2026-11-08/);
 });

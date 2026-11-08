@@ -1,6 +1,18 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "05",
+    slug: "agentic-iam-digest-2026-11-07",
+    title: "Agentic IAM digest: make delegation verifiable",
+    date: "2026-11-08",
+    window: "November 1–7, 2026",
+    headline: "Make delegation verifiable.",
+    homepageSummary: "Task-bound authority, gateway containment, and what a downstream agent can actually verify.",
+    description: "New agent authorization drafts, CrowdStrike’s gateway containment, a proposed cross-border identity pilot, and research on verifying delegated authority.",
+    image: "/blog/agentic-iam-2026-10-07.jpg",
+    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+  },
+  {
     issue: "04",
     slug: "agentic-iam-digest-2026-10-31",
     title: "Agentic IAM digest: keep authority outside the agent",
