@@ -15,11 +15,13 @@ export type ActionState = 'awaiting_approval' | 'dispatch_claimed' | 'succeeded'
 export type SupervisedAction = {
   id: string; approvalId: string; bindingDigest: string; state: ActionState;
   createdAt: string; expiresAt: string; approvedBy?: string; claimedAt?: string;
+  target?: { tool: string; resource?: string };
 };
 export type SupervisorRecord = {
   schemaVersion: 'agentaction.execution-supervisor.v1'; policyVersion: number; limits: SupervisorLimits;
+  agentPolicyVersion?: number;
   actions: SupervisedAction[];
-  journal: Array<{ sequence: number; actionId: string; state: ActionState; at: string; reason?: 'restart' | 'revision' | 'cancellation' | 'provider_reconciliation' | 'persistence_failure' }>;
+  journal: Array<{ sequence: number; actionId: string; state: ActionState; at: string; claimDecision?: { version: 1; policyVersion: number }; reason?: 'restart' | 'revision' | 'cancellation' | 'provider_reconciliation' | 'persistence_failure' }>;
 };
 
 /** Child limits can only tighten the parent. Recovery capabilities are supplied by trusted code. */
@@ -96,7 +98,9 @@ export function claimAction(state: SupervisorRecord, approvalId: string, binding
   });
   if (decision.decision === 'deny') throw new RuntimeError(CLAIM_ERRORS[decision.reason], 409);
   if (!action) throw new RuntimeError(CLAIM_ERRORS.approval_unavailable, 409);
-  action.state = 'dispatch_claimed'; action.approvedBy = actor; action.claimedAt = new Date(at).toISOString(); record(state, action, undefined, at); return action;
+  action.state = 'dispatch_claimed'; action.approvedBy = actor; action.claimedAt = new Date(at).toISOString(); record(state, action, undefined, at);
+  state.journal[state.journal.length - 1].claimDecision = {version: 1, policyVersion};
+  return action;
 }
 export function settleAction(state: SupervisorRecord, actionId: string, result: 'succeeded' | 'failed' | 'uncertain'): void {
   const action = state.actions.find(a => a.id === actionId);
