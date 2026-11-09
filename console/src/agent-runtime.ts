@@ -14,6 +14,7 @@ import { validatePublicEndpoint, publicEndpointURL, type EndpointApproval, type 
 import { mcpFailureReason, McpClient, McpPreflightError, RuntimeError, boundedText, endpointURL, DEFAULT_ENDPOINTS, object, redact, textField, validateArguments, type McpConnection, type McpTool, type CatalogMetadata } from "./mcp-client.ts";
 import { capabilityEngine } from './mcp-capabilities.ts';
 import { mcpEndpointConfig } from './mcp-endpoint-config.ts';
+import { handlePolicyLab, isPolicyLabRoute } from './policy-lab.ts';
 import { recordGovernanceRejection, type GovernanceRejection } from './governance-evidence.ts';
 import { CloudMcpTests } from './cloud-mcp-tests.ts';
 import { AGENT_MODEL, RESEARCH_CLASSIFICATION_INSTRUCTIONS, researchWorkflow, legacyResearchWorkflow } from './research-workflow.ts';
@@ -231,12 +232,14 @@ export class AgentRuntime {
   }
   async handle(request: Request): Promise<Response> {
     try {
+      const url = new URL(request.url);
+      if (isPolicyLabRoute(url.pathname)) return json(await handlePolicyLab(this.storage, request, url));
       return await this.serialize(async () => {
         const workspace = request.headers.get('x-runtime-workspace');
         const saved = await this.storage.get<string>('oauth-workspace');
         if (workspace && saved && saved !== workspace) throw new RuntimeError('Workspace context mismatch.', 403);
         if (workspace && !saved) await this.storage.put('oauth-workspace', workspace);
-        const path = new URL(request.url).pathname;
+        const path = url.pathname;
         if (request.method === 'GET' && path === '/state') return json(await this.snapshot());
         if (request.method === 'GET' && path === '/test-reports') return json({reports:await new CloudMcpTests(this.storage).reports()});
         if (request.method !== "POST") throw new RuntimeError("Route not found.", 404);

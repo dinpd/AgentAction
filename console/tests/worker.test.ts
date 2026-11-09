@@ -742,6 +742,32 @@ test("agent runtime resolves current server-side membership and rejects viewer o
   assert.equal((await worker.fetch(oversized, env)).status, 413);
 });
 
+test('Policy Lab routes preserve verified workspace membership and require same-origin operator replay', async () => {
+  let role = 'viewer';
+  const env: Env = {
+    ...baseEnv([], () => json({workspace_mode: 'directory', memberships: [{tenant: {tenant_id: 'acme'}, membership: {role}}]})),
+    CONSOLE_DIRECTORY_MODE: 'true',
+    AGENT_WORKSPACES: {getByName(name) {
+      assert.equal(name, 'workspace:acme');
+      return {async request(request) {
+        assert.equal(request.headers.get('x-runtime-role'), role);
+        assert.equal(request.headers.get('x-runtime-actor'), 'operator-123');
+        return json({path: new URL(request.url).pathname + new URL(request.url).search});
+      }};
+    }},
+  };
+  const options = {method: 'POST', headers: {origin: 'https://console.test', 'content-type': 'application/json', 'x-agentaction-request': 'agent-builder', 'x-runtime-role': 'owner'}, body: '{}'};
+  const read = await worker.fetch(accessRequest('/api/agents/acme/policy-lab?days=7', {}, {custom: {}}), env);
+  assert.deepEqual(await read.json(), {path: '/policy-lab?days=7'});
+  assert.equal((await worker.fetch(accessRequest('/api/agents/other/policy-lab', {}, {custom: {}}), env)).status, 403);
+  for (const action of ['policy-lab-replay', 'policy-lab-review']) {
+    assert.equal((await worker.fetch(accessRequest('/api/agents/acme/' + action, options, {custom: {}}), env)).status, 403);
+  }
+  role = 'operator';
+  assert.equal((await worker.fetch(accessRequest('/api/agents/acme/policy-lab-replay', options, {custom: {}}), env)).status, 200);
+  assert.equal((await worker.fetch(accessRequest('/api/agents/acme/policy-lab-replay', {...options, headers: {...options.headers, origin: 'https://foreign.test'}}, {custom: {}}), env)).status, 403);
+});
+
 test('cloud test routes require Access, current operator membership, same origin and bounded input',async()=>{
   let role='viewer',present=true;const runtimeCalls:string[]=[];
   const env:Env={...baseEnv([],()=>json({workspace_mode:'directory',memberships:present?[{tenant:{tenant_id:'acme'},membership:{role}}]:[]})),CONSOLE_DIRECTORY_MODE:'true',AGENT_WORKSPACES:{getByName(name){runtimeCalls.push(name);return {async request(req){assert.equal(req.headers.get('x-runtime-role'),role);assert.equal(req.headers.get('authorization'),null);return json({ok:true});}};}}};

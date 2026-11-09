@@ -58,6 +58,12 @@ test("Wrangler bundle keeps the serialized browser client free of external helpe
     const builder = bundle.slice(builderStart, builderEnd);
     assert.doesNotMatch(builder, /\b__[A-Za-z0-9_$]+\s*\(/, "The builder asset must not reference external helpers.");
     assert.doesNotThrow(() => new Function(`(${builder})(window);`));
+    const labStart = bundle.indexOf("function policyLabView(");
+    const labEnd = bundle.indexOf("\nvar POLICY_LAB_FACTORY_JS =", labStart);
+    assert.ok(labStart >= 0 && labEnd > labStart, "Bundled Policy Lab view must be present.");
+    const lab = bundle.slice(labStart, labEnd);
+    assert.doesNotMatch(lab, /\b__[A-Za-z0-9_$]+\s*\(/, "Policy Lab must serialize without bundler helpers.");
+    assert.doesNotThrow(() => new Function(`return (${lab});`));
   } finally {
     rmSync(temporaryRoot, { force: true, recursive: true });
   }

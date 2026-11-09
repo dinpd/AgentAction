@@ -1,3 +1,4 @@
+import { isPolicyLabRoute } from './policy-lab.ts';
 import { DurableObject } from "cloudflare:workers";
 import { AgentRuntime, type RuntimeEnv, type Run, type Agent } from "./agent-runtime.ts";
 
@@ -18,6 +19,7 @@ export class AgentWorkspace extends DurableObject<RuntimeEnv & Cloudflare.Env> {
     ctx.blockConcurrencyWhile(() => this.runtime.recover());
   }
   async request(request: Request): Promise<Response> {
+    if (isPolicyLabRoute(new URL(request.url).pathname)) return this.runtime.handle(request);
     const workspace = request.headers.get("x-runtime-workspace");
     if (workspace && request.method === "POST") await this.ctx.storage.put("notification-workspace", workspace);
     const result = await this.runtime.handle(request);

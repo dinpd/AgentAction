@@ -5,6 +5,7 @@ export const JOURNEY_NAV = `<div class="console-navigation"><nav class="journey-
 <a data-stage="run" href="/agents#run"><span>02</span><strong>Run</strong><small>Trials &amp; schedules</small></a>
 <a data-stage="approvals" href="/agents#approvals"><span>✓</span><strong>Approvals <b data-approval-count aria-label="Approval count loading">…</b></strong><small>Review proposed actions</small></a>
 <a data-stage="monitor" href="/#activity"><span>03</span><strong>Monitor</strong><small>Activity &amp; execution quality</small></a>
+<a data-stage="policy-lab" href="/agents#policy-lab"><span>04</span><strong>Improve controls</strong><small>Policy Lab</small></a>
 <a data-stage="improve" href="/#evals"><span>04</span><strong>Improve</strong><small>Evals &amp; success criteria</small></a>
 <a data-recurring-link data-workspace-link href="/automations#agents"><span>↻</span><strong>Recurring agents</strong><small>Schedules &amp; findings</small></a>
 </nav><nav class="workspace-nav" aria-label="Workspace administration" data-workspace-navigation>
