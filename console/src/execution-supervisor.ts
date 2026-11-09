@@ -53,13 +53,49 @@ export function proposeAction(state: SupervisorRecord, approvalId: string, bindi
   const action: SupervisedAction = { id: crypto.randomUUID(), approvalId, bindingDigest, state: 'awaiting_approval', createdAt: new Date(at).toISOString(), expiresAt: new Date(at + state.limits.approvalTtlMs).toISOString() };
   state.actions.push(action); record(state, action, undefined, at); return action;
 }
+export type ClaimDecisionInput = Readonly<{
+  approvalPending: boolean;
+  bindingMatches: boolean;
+  policyMatches: boolean;
+  expiresAt: number;
+  at: number;
+  priorClaims: number;
+  maxCalls: number;
+}>;
+export type ClaimReason = 'approval_unavailable' | 'binding_or_policy_changed' | 'approval_expired' | 'call_budget_exhausted';
+const CLAIM_ERRORS: Record<ClaimReason, string> = {
+  approval_unavailable: 'This action approval has already been consumed or invalidated.',
+  binding_or_policy_changed: 'The approved action or supervisor policy changed. Cancel and review a fresh trial.',
+  approval_expired: 'This action approval expired. Cancel and review a fresh trial.',
+  call_budget_exhausted: 'Supervisor call budget exhausted.',
+};
+
+export function hasCallBudget(priorCalls: number, maxCalls: number): boolean {
+  return priorCalls < maxCalls;
+}
+
+/** Evaluate a verified supervisor context without changing it or issuing authority. */
+export function evaluateClaim(input: ClaimDecisionInput):
+  { decision: 'allow'; reason: 'exact_approval' } | { decision: 'deny'; reason: ClaimReason } {
+  if (!input.approvalPending) return {decision: 'deny', reason: 'approval_unavailable'};
+  if (!input.policyMatches || !input.bindingMatches) return {decision: 'deny', reason: 'binding_or_policy_changed'};
+  if (input.at >= input.expiresAt) return {decision: 'deny', reason: 'approval_expired'};
+  if (!hasCallBudget(input.priorClaims, input.maxCalls)) return {decision: 'deny', reason: 'call_budget_exhausted'};
+  return {decision: 'allow', reason: 'exact_approval'};
+}
+
 /** Call only inside the host's durable transaction, with the current policy and binding. */
 export function claimAction(state: SupervisorRecord, approvalId: string, bindingDigest: string, policyVersion: number, actor: string, at = Date.now()): SupervisedAction {
   const action = state.actions.find(a => a.approvalId === approvalId);
-  if (!action || action.state !== 'awaiting_approval') throw new RuntimeError('This action approval has already been consumed or invalidated.', 409);
-  if (state.policyVersion !== policyVersion || action.bindingDigest !== bindingDigest) throw new RuntimeError('The approved action or supervisor policy changed. Cancel and review a fresh trial.', 409);
-  if (at >= Date.parse(action.expiresAt)) throw new RuntimeError('This action approval expired. Cancel and review a fresh trial.', 409);
-  if (state.actions.filter(a => a.claimedAt).length >= state.limits.maxCalls) throw new RuntimeError('Supervisor call budget exhausted.', 409);
+  const decision = evaluateClaim({
+    approvalPending: action?.state === 'awaiting_approval',
+    bindingMatches: action?.bindingDigest === bindingDigest,
+    policyMatches: state.policyVersion === policyVersion,
+    expiresAt: action ? Date.parse(action.expiresAt) : 0,
+    at, priorClaims: state.actions.filter(a => a.claimedAt).length, maxCalls: state.limits.maxCalls,
+  });
+  if (decision.decision === 'deny') throw new RuntimeError(CLAIM_ERRORS[decision.reason], 409);
+  if (!action) throw new RuntimeError(CLAIM_ERRORS.approval_unavailable, 409);
   action.state = 'dispatch_claimed'; action.approvedBy = actor; action.claimedAt = new Date(at).toISOString(); record(state, action, undefined, at); return action;
 }
 export function settleAction(state: SupervisorRecord, actionId: string, result: 'succeeded' | 'failed' | 'uncertain'): void {
