@@ -4,6 +4,24 @@
 
 No changes yet.
 
+## 0.60.0 - 2026-11-09
+
+### Website highlight
+
+- Policy Lab for agent governance: In the signed-in console preview, find recurring approval, denial and execution issues for supervised agents and Hermes. Inspect the evidence and preview how a tighter call limit would affect historical decisions.
+
+### Added
+
+- **Improve controls** in the authenticated console. Filter findings by agent, category and time window, open the underlying run evidence, and save review decisions as a workspace owner or operator. Workspace viewers can inspect findings and proposals.
+- Deterministic findings for recurring denials, approval friction, execution uncertainty, tool failures and missing outcome assurance. Findings distinguish changes to agent workflows from improvements to governance controls.
+- Read-only replay for a proposed lower supervisor call cap. Replay uses the shared live claim evaluator and reports which eligible historical decisions would change. Incomplete evidence and decisions that depend on earlier changed claims are inconclusive.
+
+### Compatibility
+
+- Additive preview for hosted supervised agents and Hermes. Existing workspaces and run records require no migration. Older records can support findings where evidence is available, and replay eligibility depends on retained decision inputs.
+- Replay compares authorization decisions. Operator approval, dispatch and provider outcomes remain separate. Policy activation and automatic refund approval are outside this release.
+- Install the Python wheel or source distribution from the v0.60.0 GitHub release. The standalone MCP tester requires Node 22 or later. npm package versions remain independent.
+
 ## 0.59.1-rc.1 - 2026-10-28
 
 ### Fixed
