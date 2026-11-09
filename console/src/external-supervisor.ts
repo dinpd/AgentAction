@@ -1,5 +1,6 @@
 import type { Agent, Run, RuntimeStorage } from './agent-runtime.ts';
-import { DEFAULT_SUPERVISOR_LIMITS, actionDigest, supervisorLimits, supervisorRecord, proposeAction, claimAction, settleAction, cancelActions, recoverActions, type SupervisorPolicy } from './execution-supervisor.ts';
+import { DEFAULT_SUPERVISOR_LIMITS, hasCallBudget, actionDigest, supervisorLimits, supervisorRecord, proposeAction, claimAction, settleAction, cancelActions, recoverActions, type SupervisorPolicy } from './execution-supervisor.ts';
+import { recordGovernanceRejection } from './governance-evidence.ts';
 import { RuntimeError, object, textField } from './mcp-client.ts';
 
 export type ExternalAgent = { framework: 'hermes'; revision: number };
@@ -70,7 +71,7 @@ export class ExternalSupervisor {
     if (!fields[action] || Object.keys(body).some(k => !fields[action].includes(k))) throw new RuntimeError('Invalid external supervisor request.');
     if (action === 'start') return this.start(agent,credential,body);
     const id=textField(body.runId,'run ID',128);
-    return this.storage.transaction(async tx => {
+    const response = await this.storage.transaction(async tx => {
       const current=await this.agent(agent.id,tx), live=await tx.get<Credential>(`external-credential:${agent.id}`);
       const run=await tx.get<Run>(runKey(id));
       if (!run?.external || !run.supervisor || run.agentId !== agent.id) throw new RuntimeError('External run not found.',404);
@@ -91,8 +92,16 @@ export class ExternalSupervisor {
       let result: unknown;
       if (action === 'propose') {
         const tool=textField(body.tool,'tool name',128), args=object(body.arguments);
-        exactNumbers(args);
-        if (!current.tools.includes(tool)) throw new RuntimeError('Tool is outside the owner-approved allowlist.',403);
+        try { exactNumbers(args); }
+        catch (error) {
+          if (!(error instanceof RuntimeError)) throw error;
+          if (recordGovernanceRejection(run, 'invalid_arguments')) await tx.put(runKey(id), run);
+          return error;
+        }
+        if (!current.tools.includes(tool)) {
+          if (recordGovernanceRejection(run, 'tool_out_of_scope')) await tx.put(runKey(id), run);
+          return new RuntimeError('Tool is outside the owner-approved allowlist.',403);
+        }
         if (new TextEncoder().encode(JSON.stringify(args)).byteLength > 8000) throw new RuntimeError('External tool arguments exceed the 8 KB approval limit.');
         // Tokens in arguments would disclose authority to readers of approval evidence.
         if (JSON.stringify(args).includes(bearer.slice(7))) throw new RuntimeError('Keep execution credentials out of tool arguments.');
@@ -102,10 +111,14 @@ export class ExternalSupervisor {
           const a=run.supervisor.actions.find(a => a.approvalId === prior.approvalId)!;
           result={runId:id,actionId:a.id,bindingDigest:a.bindingDigest,state:a.state,approved:run.external.approved?.id === a.approvalId};
         } else {
-          if (run.supervisor.actions.filter(a => a.claimedAt).length >= run.supervisor.limits.maxCalls) blocked('Supervisor call budget exhausted.');
+          if (!hasCallBudget(run.supervisor.actions.filter(a => a.claimedAt).length, run.supervisor.limits.maxCalls)) {
+            if (recordGovernanceRejection(run, 'call_budget_exhausted', tool)) await tx.put(runKey(id), run);
+            return new RuntimeError('Supervisor call budget exhausted.',409);
+          }
           const approvalId=crypto.randomUUID();
           const digest=await actionDigest({workspace:await tx.get('oauth-workspace'),runId:id,agentId:agent.id,agentRevision:run.external.agentRevision,credentialRevision:live.revision,tools:current.tools,tool,arguments:args,policyVersion:p.version,limits:run.supervisor.limits});
           const a=proposeAction(run.supervisor,approvalId,digest);
+          a.target = {tool};
           run.external.proposals[fingerprint]={approvalId,tool,arguments:args}; delete run.external.approved;
           run.pending={id:approvalId,tool,arguments:args};run.status='awaiting_approval';
           result={runId:id,actionId:a.id,bindingDigest:digest,state:a.state,approved:false};
@@ -132,6 +145,8 @@ export class ExternalSupervisor {
       if (new TextEncoder().encode(JSON.stringify(run)).byteLength > 110000) blocked('External session evidence limit reached.');
       await tx.put(runKey(id),run);return result;
     });
+    if (response instanceof RuntimeError) throw response;
+    return response;
   }
   private async start(agent: Agent, credential: Credential, body: Record<string,unknown>): Promise<unknown> {
     const session=textField(body.sessionId,'stable Hermes session ID',200), digest=await actionDigest({agentId:agent.id,session});
@@ -154,6 +169,7 @@ export class ExternalSupervisor {
     for(const k of ['maxCalls','approvalTtlMs','executionTimeoutMs'] as const) parent[k]=Math.min(parent[k],agent.supervisorLimits?.[k] ?? parent[k]);
     const limits=supervisorLimits(body.supervisorLimits ?? {},parent), id=crypto.randomUUID();
     const run: Run={id,agentId:agent.id,kind:'trial',actor:'hermes-adapter',status:'completed',startedAt:now(),tokens:0,events:[],supervisor:supervisorRecord(p,limits),external:{sessionDigest:digest,agentRevision:agent.supervisorVersion || 0,credentialRevision:credential.revision,proposals:{},overrides:body.supervisorLimits || {}}};
+    run.supervisor!.agentPolicyVersion = agent.supervisorVersion || 0;
     await this.storage.transaction(async tx => { await tx.put(key,id);await tx.put(runKey(id),run); });
     return {runId:id,limits};
   }
