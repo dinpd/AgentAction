@@ -70,3 +70,19 @@ layout. Add fixtures for retained and partial evidence, ordered baseline
 parity, a tighter call cap, unsupported candidates, deduplication, and isolated
 review state. Keep analysis bounded by retained runs, and run findings and
 replay outside the serialized authorization queue.
+
+## Operator preview
+
+Open **Improve controls** in the authenticated console. Select a workspace,
+agent, category and time window, then expand a finding's evidence to open the
+original run. A qualifying execution-uncertainty finding can offer a historical
+call-cap comparison across that agent's tools. Review the policy revisions,
+counts, excluded records and safeguards in the replay report before deciding
+whether the proposal merits follow-up.
+
+Workspace viewers can inspect findings and candidates. Owners and operators can
+run replay and mark a finding reviewed, dismissed or a candidate for future
+action. Review status is shared within the workspace, bounded to the most recent
+200 reviews, and keyed to the finding's scope and category across time windows.
+The view reports on retained runs and shows when the scan, findings or rejection
+counts hit their limits. Replay and review do not publish any policy changes.

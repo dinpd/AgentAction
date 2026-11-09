@@ -65,6 +65,11 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify Policy Lab evidence, replay and review in the console
+        run: npm run test:policy-lab-browser
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

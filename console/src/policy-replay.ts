@@ -4,6 +4,7 @@ import type { Finding } from './governance-insights.ts';
 import { RuntimeError } from './mcp-client.ts';
 
 type Scope = {
+  workspace: string;
   path: GovernanceEvidence['path'];
   agentId: string;
   policyVersion: number;
@@ -21,12 +22,12 @@ export type PolicyCandidate = {
 };
 
 const matches = (item: GovernanceEvidence, scope: Scope) =>
-  item.path === scope.path && item.agentId === scope.agentId && item.policyVersion === scope.policyVersion &&
+  item.workspace === scope.workspace && item.path === scope.path && item.agentId === scope.agentId && item.policyVersion === scope.policyVersion &&
   item.agentPolicyVersion === scope.agentPolicyVersion;
 
 export async function proposePolicyCandidate(finding: Finding, runs: GovernanceRun[]): Promise<PolicyCandidate | undefined> {
   if (finding.category !== 'execution_uncertainty' || finding.agentPolicyVersion === undefined) return;
-  const scope: Scope = {path: finding.path, agentId: finding.agentId, policyVersion: finding.policyVersion,
+  const scope: Scope = {workspace: finding.workspace, path: finding.path, agentId: finding.agentId, policyVersion: finding.policyVersion,
     agentPolicyVersion: finding.agentPolicyVersion};
   const from = Date.parse(finding.window.from), to = Date.parse(finding.window.to);
   const caps = [...new Set(runs.flatMap(run => run.claims.filter(({evidence, input}) =>

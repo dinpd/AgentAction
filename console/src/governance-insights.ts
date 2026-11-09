@@ -14,6 +14,7 @@ export type Finding = {
   id: string;
   category: FindingCategory;
   severity: 'high' | 'medium' | 'low';
+  workspace: string;
   agentId: string;
   jobIds: string[];
   tool?: string;
@@ -107,7 +108,7 @@ export async function governanceInsights(runs: GovernanceRun[], filters: {
     const refund = category === 'approval_friction' && /(^|[._-])refund([._-]|$)/i.test(first.tool ?? '');
     return {
       id: await actionDigest(['agentaction.policy-lab.finding.v1', key]), category,
-      severity: rule.severity, path: first.path, agentId: first.agentId,
+      severity: rule.severity, path: first.path, workspace: first.workspace, agentId: first.agentId,
       jobIds: [...new Set(items.map(item => item.jobId))].sort(), tool: first.tool, resource: first.resource,
       policyVersion: first.policyVersion, agentPolicyVersion: first.agentPolicyVersion,
       frequency: items.length, window, evidence: items.slice(0, 8), confidence: rule.confidence,

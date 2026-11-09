@@ -72,6 +72,19 @@ try {
   await request('simulate-claim',{runId:next.body.runId});await restart();
   const claimed=(await request('state')).body.runs.find((r:any)=>r.id===next.body.runId);
   assert.equal(claimed.status,'interrupted');assert.equal(claimed.supervisor.actions[0].state,'uncertain');assert.equal(claimed.supervisor.journal.at(-1).reason,'restart');assert.equal(effects,1);
+  const beforeReplay = (await request('state')).body.runs;
+  const lab = await request('policy-lab?agentId=agent');
+  assert.equal(lab.status, 200);
+  const finding = lab.body.findings.find((item:any) => item.category === 'execution_uncertainty' && item.tool === 'refund');
+  assert.equal(finding.path, 'hosted');
+  assert.equal(finding.resource, 'provider');
+  const replay = await request('policy-lab-replay', {agentId:'agent', findingId:finding.id, candidateId:finding.candidate.id});
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.eligible, 1);
+  assert.equal(replay.body.newlyAllowed, 0);
+  assert.equal(replay.body.limits.partialEvidence, 3);
+  assert.deepEqual((await request('state')).body.runs, beforeReplay);
+  assert.equal(effects, 1);
   // A successful later action remains terminal after another process restart.
   loseResponse=false;const success=await request('trial',{agentId:'agent'});
   const successRun=(await request('state')).body.runs.find((r:any)=>r.id===success.body.runId);
