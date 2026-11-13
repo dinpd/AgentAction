@@ -612,7 +612,7 @@ export default function LandscapePage() {
         <div className="section-heading">
           <div>
             <p className="section-index">01 / What the survey found</p>
-            <h2 id="findings-title">Six findings.</h2>
+            <h2 id="findings-title">Findings</h2>
           </div>
         </div>
         <ol className="landscape-finding-list">
@@ -633,10 +633,11 @@ export default function LandscapePage() {
         <div className="section-heading">
           <div>
             <p className="section-index">02 / The projects</p>
-            <h2 id="projects-title">Ordered by backing, not by preference.</h2>
+            <h2 id="projects-title">Projects</h2>
           </div>
           <p>
-            Newly reviewed entries carry a date. The wider catalog has an August 2026 baseline.
+            Projects are grouped by institutional backing. Newly reviewed entries carry a date.
+            The wider catalog has an August 2026 baseline.
             The map above has its own dated evidence.
           </p>
         </div>
