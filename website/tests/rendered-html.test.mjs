@@ -628,8 +628,9 @@ test("server-renders the governance landscape survey", async () => {
   assert.match(html, /<title>The AI Agent Governance Landscape — AgentAction<\/title>/i);
   assert.match(html, /<link rel="canonical" href="https:\/\/agentaction\.dev\/landscape"/i);
   assert.match(html, /The AI agent governance landscape/);
-  assert.match(html, /Six findings\./);
-  assert.match(html, /Ordered by backing, not by preference/);
+  assert.match(html, /<h2 id="findings-title">Findings<\/h2>/);
+  assert.match(html, /<h2 id="projects-title">Projects<\/h2>/);
+  assert.match(html, /Projects are grouped by institutional backing/);
   assert.match(html, /What is adopted, and what is one person/);
   assert.match(html, /Gating became table stakes\. Evidence did not/);
 
