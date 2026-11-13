@@ -1,6 +1,18 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "06",
+    slug: "agentic-iam-digest-2026-11-12",
+    title: "Agentic IAM digest: when can an agent go ahead?",
+    date: "2026-11-13",
+    window: "November 8–12, 2026",
+    headline: "When can an agent go ahead?",
+    homepageSummary: "Agent-specific access in Google Workspace, runtime checks on AWS, and what happens when permission records are missing.",
+    description: "Google Workspace begins enforcing its agentic OAuth requirement, AWS publishes a governed runtime design, and new research tests missing permission and outcome evidence.",
+    image: "/blog/agentic-iam-2026-10-07.jpg",
+    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+  },
+  {
     issue: "05",
     slug: "agentic-iam-digest-2026-11-07",
     title: "Agentic IAM digest: make delegation verifiable",

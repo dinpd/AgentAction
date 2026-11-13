@@ -1120,11 +1120,38 @@ test("publishes Issue 05 for November 1–7 with primary sources, availability a
   assert.doesNotMatch(html.match(/<article>[\s\S]*?<\/article>/)?.[0] ?? '', /<footer>/);
   assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-10-31"'));
   for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
+});
+
+test("publishes Issue 06 for November 8–12 and features it across the site", async () => {
+  const path = '/blog/agentic-iam-digest-2026-11-12';
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = (await response.text()).replaceAll('<!-- -->', '');
+  for (const pattern of [/When can an agent/, /Issue 06/, /November 8–12, 2026/, /November 13, 2026/,
+    /November 11 as the start date/, /remain in Developer Preview/, /reference architecture/,
+    /27 matched tasks across six models/, /10.3%/, /3.5%/, /cannot be carried over to production traffic/,
+    /will ask whether a group should form/]) assert.match(html, pattern);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
+  assert.equal(article.datePublished, '2026-11-13');
+  assert.equal(article.dateModified, '2026-11-13');
+  assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  assert.match(html, /property="article:published_time" content="2026-11-13"/);
+  for (const source of [
+    "https://developers.google.com/workspace/release-notes#October_12_2026",
+    "https://aws.amazon.com/blogs/architecture/inside-an-enterprise-ai-agent-a-governed-observable-loop-architecture/",
+    "https://arxiv.org/abs/2611.13355v1",
+    "https://arxiv.org/abs/2611.16493v1",
+    "https://mailarchive.ietf.org/arch/msg/audit/TXpgXDJF4y6geQ4nM4Xa_SrD6rs/",
+  ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
+  assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-11-07"'));
+  for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
   const home = (await (await render('/')).text()).replaceAll('<!-- -->', '');
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /Make delegation verifiable/);
-  assert.match(highlight, /November 1–7, 2026/);
+  assert.match(highlight, /When can an agent go ahead/);
+  assert.match(highlight, /November 8–12, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
@@ -1132,12 +1159,12 @@ test("publishes Issue 05 for November 1–7 with primary sources, availability a
   assert.match(home, /href="\/whats-new"/);
   const index = (await (await render('/blog')).text()).replaceAll('<!-- -->', '');
   const previews = [...index.matchAll(/<article class="blog-preview"[\s\S]*?<\/article>/g)].map((match) => match[0]);
-  assert.equal(previews.length, 5);
-  for (const [i, issue, slug] of [[0, '05', '2026-11-07'], [1, '04', '2026-10-31'], [2, '03', '2026-10-24'], [3, '02', '2026-10-17'], [4, '01', '2026-10-07']]) {
+  assert.equal(previews.length, 6);
+  for (const [i, issue, slug] of [[0, '06', '2026-11-12'], [1, '05', '2026-11-07'], [2, '04', '2026-10-31'], [3, '03', '2026-10-24'], [4, '02', '2026-10-17'], [5, '01', '2026-10-07']]) {
     assert.ok(previews[i].includes(`Issue ${issue}`));
     assert.ok(previews[i].includes(`href="/blog/agentic-iam-digest-${slug}"`));
   }
   const sitemap = await (await render('/sitemap.xml')).text();
-  for (const slug of ['2026-11-07', '2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
-  assert.match(sitemap, /<lastmod>2026-11-08/);
+  for (const slug of ['2026-11-12', '2026-11-07', '2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
+  assert.match(sitemap, /<lastmod>2026-11-13/);
 });
