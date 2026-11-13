@@ -9,8 +9,8 @@ export const posts = [
     headline: "When can an agent go ahead?",
     homepageSummary: "Agent-specific access in Google Workspace, runtime checks on AWS, and what happens when permission records are missing.",
     description: "Google Workspace begins enforcing its agentic OAuth requirement, AWS publishes a governed runtime design, and new research tests missing permission and outcome evidence.",
-    image: "/blog/agentic-iam-2026-10-07.jpg",
-    imageAlt: "Abstract agent nodes follow luminous paths through separate translucent authorization gates.",
+    image: "/blog/agentic-iam-2026-11-12.jpg",
+    imageAlt: "An amber pulse pauses on a blue path just before a glass gate.",
   },
   {
     issue: "05",

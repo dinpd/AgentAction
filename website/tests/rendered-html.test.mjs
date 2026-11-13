@@ -645,7 +645,19 @@ test("server-renders the governance landscape survey", async () => {
 
   // live-versus-theory labelling must survive
   assert.match(html, /Early as OSS, Live in AgentCore/);
-  assert.match(html, /Individual draft, expires Sept 2026/);
+  assert.match(html, /Selected catalog and standards entries were reviewed November 13, 2026/);
+  assert.match(html, /Falcon Guardian AI Kill Switch/);
+  assert.match(html, /Endpoint process termination was described as a future extension/);
+  assert.match(html, /https:\/\/www\.crowdstrike\.com\/en-us\/blog\/crowdstrike-introduces-ai-kill-switch\//);
+  assert.match(html, /RSA scheduled Discover and Secure for November 16, 2026 and Govern for the first half of 2027/);
+  assert.match(html, /October 21 availability was early access/);
+  assert.match(html, /AI Identity Management System \(AIMS\)/);
+  assert.match(html, /href="https:\/\/datatracker\.ietf\.org\/doc\/draft-ietf-wimse-aims\/01\/"/);
+  assert.match(html, /WG draft 01/);
+  assert.match(html, /Working-group proposal/);
+  assert.match(html, /RFC Editor queue/);
+  assert.match(html, /This revision expires April 29, 2027/);
+  assert.doesNotMatch(html, /Individual draft, expires Sept 2026/);
   assert.match(html, /Concept/);
   assert.match(html, /Dormant/);
   assert.match(html, /class="status-label status-live"/);
@@ -669,7 +681,7 @@ test("server-renders the governance landscape survey", async () => {
   assert.equal(article?.headline, "The AI Agent Governance Landscape");
   assert.equal(article?.image, "https://agentaction.dev/og.png");
   assert.equal(article?.datePublished, "2026-08-26");
-  assert.equal(article?.dateModified, "2026-09-29");
+  assert.equal(article?.dateModified, "2026-11-13");
   assert.equal(article?.publisher?.["@id"], "https://agentaction.dev/#organization");
 });
 
@@ -742,7 +754,7 @@ test("publishes canonical sitemap and robots discovery endpoints", async () => {
   const sitemap = await sitemapResponse.text();
   assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/<\/loc>/);
   assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/gateway<\/loc>/);
-  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/landscape<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/landscape<\/loc>\s*<lastmod>2026-11-13/);
 
   assert.equal(robotsResponse.status, 200);
   assert.match(robotsResponse.headers.get("content-type") ?? "", /^text\/plain\b/i);
@@ -1135,6 +1147,8 @@ test("publishes Issue 06 for November 8–12 and features it across the site", a
   const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
   assert.equal(article.datePublished, '2026-11-13');
   assert.equal(article.dateModified, '2026-11-13');
+  assert.equal(article.image, 'https://agentaction.dev/blog/agentic-iam-2026-11-12.jpg');
+  assert.match(html, /An amber pulse pauses on a blue path just before a glass gate\./);
   assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
   assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
   assert.match(html, /property="article:published_time" content="2026-11-13"/);
@@ -1153,6 +1167,7 @@ test("publishes Issue 06 for November 8–12 and features it across the site", a
   assert.match(highlight, /When can an agent go ahead/);
   assert.match(highlight, /November 8–12, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
+  assert.ok(highlight.includes('/blog/agentic-iam-2026-11-12.jpg'));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
   assert.equal([...home.matchAll(/id="iam-digest"/g)].length, 1);

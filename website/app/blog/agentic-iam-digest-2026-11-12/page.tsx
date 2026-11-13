@@ -40,7 +40,7 @@ export default function Digest() {
       </header>
       <figure className="blog-hero">
         <Image src={post.image} alt={post.imageAlt} width={1672} height={941} unoptimized priority sizes="(max-width: 1100px) 100vw, 1100px" />
-        <figcaption>Identity, bounded authority, and evidence along the action path. AI-generated editorial illustration.</figcaption>
+        <figcaption>An action waits at an approval checkpoint. AI-generated editorial illustration.</figcaption>
       </figure>
       <div className="blog-body">
         <nav className="blog-contents" aria-label="In this digest"><a href="#new">What changed</a><a href="#research">Research signals</a><a href="#vector">Longer-term vector</a><a href="#watch">What to watch</a></nav>
