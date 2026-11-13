@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     url: "https://agentaction.dev/landscape",
     title: "The AI Agent Governance Landscape",
     description:
-      "Compare control focus and maturity. NVIDIA and capability-map review: September 29, 2026; wider catalog baseline: August 2026.",
+      "Compare agent governance capabilities and maturity. Selected product and standards entries reviewed November 13, 2026.",
     images: [
       {
         url: "/og.png",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "The AI Agent Governance Landscape",
     description:
-      "Compare control focus and maturity. NVIDIA and capability-map review: September 29, 2026; wider catalog baseline: August 2026.",
+      "Compare agent governance capabilities and maturity. Selected product and standards entries reviewed November 13, 2026.",
     images: ["/og.png"],
   },
 };
@@ -50,7 +50,7 @@ const landscapeStructuredData = {
   description: landscapeDescription,
   image: "https://agentaction.dev/og.png",
   datePublished: "2026-08-26",
-  dateModified: "2026-09-29",
+  dateModified: "2026-11-13",
   author: { "@id": "https://agentaction.dev/#organization" },
   publisher: { "@id": "https://agentaction.dev/#organization" },
   isPartOf: { "@id": "https://agentaction.dev/#website" },
@@ -142,6 +142,62 @@ const tiers: { title: string; index: string; blurb: string; projects: Project[] 
         status: "Reference design",
         note: "Announced September 28 as an independent watchdog on BlueField-4 DPUs. Describes identity checks, access policy and attested telemetry. Availability and performance claims require deployment-specific verification; not scored as generally available software or proof of business outcomes.",
         links: [{ label: "NVIDIA announcement", href: "https://nvidianews.nvidia.com/news/open-agent-safety-platform" }],
+      },
+      {
+        name: "Agent Gateway",
+        href: "https://support.okta.com/help/s/article/what-s-new-in-okta-for-ai-agents?language=en_US",
+        org: "Okta · reviewed November 13, 2026",
+        tags: "Identity, Gate",
+        status: "Live",
+        note: "Generally available. Verifies the user and agent on each proxied MCP tool call and applies gateway policy. The MCP server still applies its own permissions.",
+      },
+      {
+        name: "AI Agent Security",
+        href: "https://www.beyondtrust.com/press/ai-agent-security-general-availability",
+        org: "BeyondTrust · reviewed November 13, 2026",
+        tags: "Contain, Gate, Monitor",
+        status: "Live",
+        note: "Generally available for Windows and macOS endpoints. Separates human and agent activity and can require extra approval when an action needs greater privilege.",
+      },
+      {
+        name: "Singularity Agentic Detection and Response",
+        href: "https://investors.sentinelone.com/press-releases/news-details/2026/SentinelOne-Launches-Singularity-Agentic-Detection-and-Response-to-Stop-Rogue-and-Malicious-AI-Agents-at-Machine-Speed/default.aspx",
+        org: "SentinelOne · reviewed November 13, 2026",
+        tags: "Contain, Gate, Monitor",
+        status: "Early access",
+        note: "Vendor describes agent inventory, runtime policy, execution tracing, and containment. October 21 availability was early access.",
+      },
+      {
+        name: "Agent Identity",
+        href: "https://www.ibm.com/new/announcements/ibm-agent-identity-is-now-generally-available-building-trust-for-the-agentic-era",
+        org: "IBM · reviewed November 13, 2026",
+        tags: "Identity, Gate",
+        status: "Live",
+        note: "Generally available since October 26. Registers agents, preserves on-behalf-of context, and uses short-lived task-scoped credentials. Availability applies to Agent Identity.",
+      },
+      {
+        name: "Falcon Guardian AI Kill Switch",
+        href: "https://www.crowdstrike.com/en-us/blog/crowdstrike-introduces-ai-kill-switch/",
+        org: "CrowdStrike · reviewed November 13, 2026",
+        tags: "Contain",
+        status: "Available",
+        note: "Available to Falcon Guardian customers. Connected gateways can cut off model access. Endpoint process termination was described as a future extension.",
+      },
+      {
+        name: "Agentic Fabric",
+        href: "https://investor.sailpoint.com/node/8276/pdf",
+        org: "SailPoint · reviewed November 13, 2026",
+        tags: "Identity, Gate",
+        status: "Rolling out",
+        note: "SailPoint announced an October rollout for Agentic Fabric capabilities. Its posture-management product, Harbor Pilot Policy Agent, and Proofpoint integration were expected in Q4 FY27.",
+      },
+      {
+        name: "RSA Agent ID",
+        href: "https://www.rsa.com/news/press-releases/rsa-agent-id-world-summit-ai/",
+        org: "RSA · reviewed November 13, 2026",
+        tags: "Identity, Gate",
+        status: "Announced",
+        note: "RSA scheduled Discover and Secure for November 16, 2026 and Govern for the first half of 2027. The dates describe separate releases.",
       },
       {
         name: "Agent Governance Toolkit",
@@ -407,21 +463,25 @@ const tiers: { title: string; index: string; blurb: string; projects: Project[] 
   },
 ];
 
-const standards: [string, string, string, string][] = [
+const standards: [string, string, string, string, string?][] = [
   ["RFC 8693 Token Exchange", "IETF", "RFC", "Defines nested act delegation chains, and forbids using prior actors for access control"],
   ["RFC 9449 DPoP", "IETF", "RFC", "Proof of key possession. Covers HTTP method and URI only, not the request body"],
   ["RFC 9943 SCITT", "IETF", "RFC", "Append-only transparency over already-signed statements. Notarization, not a pre-execution gate"],
   ["AuthZEN Authorization API 1.0", "OpenID Foundation", "Final", "The enforcement-point to decision-point envelope. The only settled standard on the action side"],
   ["MCP authorization", "AAIF", "Live spec", "OAuth 2.1 profile at the transport layer. OPTIONAL, HTTP-only"],
   ["A2A 1.0", "Linux Foundation", "Live spec", "Agent interop. No identity primitive, no delegation semantics"],
-  ["OAuth Identity Chaining (ID-JAG)", "IETF", "WG adopted, IESG approved", "Cross-trust-domain token exchange. Identity, not action"],
-  ["Transaction Tokens", "IETF", "WG consensus, awaiting write-up", "Scoped to a single trust domain by design"],
+  ["OAuth Identity Chaining (ID-JAG)", "IETF", "RFC Editor queue", "Cross-domain exchange of identity and authorization context.", "https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-chaining/"],
+  ["Transaction Tokens", "IETF", "WG draft 11", "Carries identity and authorization context for a transaction within one trust domain.", "https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/"],
   ["COSE Receipts", "IETF", "WG draft", "Merkle inclusion proofs. Proves this was logged, not this was authorized"],
   ["WIMSE workload identity", "IETF", "WG drafts, no RFC yet", "Architecture stabilizing, nothing normative shipped"],
+  ["NIST agent IAM design tenets", "NIST", "Proposed guidance", "Ten initial design principles for risk-based agent identity and authorization.", "https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems"],
+  ["AI Identity Management System (AIMS)", "IETF", "WG draft 01", "Guidance on combining workload identity, OAuth and shared security signals for agents.", "https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/"],
+  ["Mission-Bound Authorization for OAuth 2.0", "IETF", "Individual draft 02", "Proposes tying an approved task and its limits to later token issuance.", "https://datatracker.ietf.org/doc/draft-mcguinness-oauth-mission/02/"],
+  ["Agent Use of Delegation and Interaction Traceability (AUDIT)", "IETF", "Working-group proposal", "November 17 discussion on whether to form a group and how to scope records of agent interactions and delegation.", "https://mailarchive.ietf.org/arch/msg/audit/TXpgXDJF4y6geQ4nM4Xa_SrD6rs/"],
   ["AP2", "Google + FIDO", "Draft, code works", "Payment mandates as verifiable credentials. The one place provider-side verification ships"],
-  ["draft-chen agent authz use cases", "IETF", "Individual draft", "The grant-layer versus execution-layer gap analysis. Well argued, no standing"],
+  ["draft-chen agent authz use cases", "IETF", "Individual draft 05", "Examines how approval, delegation constraints, and withdrawal of authority carry through a workflow.", "https://datatracker.ietf.org/doc/html/draft-chen-oauth-agent-authz-use-cases-05"],
   ["draft-schrock EP authorization receipts", "IETF", "Individual draft", "Provider-verified action receipts with declared enforcement classes"],
-  ["draft-niyikiza attenuating agent tokens", "IETF", "Individual draft, expires Sept 2026", "Capability narrowing across delegation hops"],
+  ["draft-niyikiza attenuating agent tokens", "IETF", "Individual draft 02", "Proposes tools and argument constraints that can only narrow across delegation hops. This revision expires April 29, 2027.", "https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/"],
   ["draft-reece WIMSE cross-org delegation", "IETF", "Individual draft", "Explicitly a problem statement. States it does not specify a solution"],
   ["MCP Agent Identity WG", "AAIF", "Forming", "Chartered to address sub-agent authority narrowing"],
   ["Cloudflare Agent Access Model", "Cloudflare", "Concept", "Reference architecture. No implementation, no repository"],
@@ -432,6 +492,8 @@ const standards: [string, string, string, string][] = [
 function toneFor(status: string): string {
   const value = status.toLowerCase();
   if (value === "available") return "live";
+  if (["announced", "rolling out", "rfc editor queue"].includes(value)) return "preview";
+  if (value.startsWith("proposed") || value === "working-group proposal") return "concept";
   if (value === "reference design") return "preview";
   if (value.includes("dormant")) return "dormant";
   if (value.includes("forming") || value.includes("concept")) return "concept";
@@ -498,7 +560,7 @@ export default function LandscapePage() {
       <SiteHeader />
 
       <section id="landscape-content" className="landscape-hero" aria-labelledby="landscape-title">
-        <p className="eyebrow">Maintainer survey · Updated September 29, 2026</p>
+        <p className="eyebrow">Maintainer survey · Updated November 13, 2026</p>
         <h1 id="landscape-title">The AI agent governance landscape.</h1>
         <p className="landscape-lede">
           Agent identity, runtime isolation and action authorization solve different
@@ -508,9 +570,9 @@ export default function LandscapePage() {
         </p>
         <p className="landscape-disclosure">
           Maintained by AgentAction, which is listed in the independent tier
-          below. The capability map, NVIDIA entries and affected findings were
-          reviewed September 29, 2026. Other catalog entries and figures retain
-          their August 2026 baseline; they were not all reverified in this update.
+          below. Selected catalog and standards entries were reviewed November 13, 2026.
+          The capability map and NVIDIA entries were reviewed September 29, 2026.
+          Other catalog entries and figures retain their August 2026 baseline and were not all reverified.
           Inclusion is not endorsement and this is not a ranking.{" "}
           <a href={sourceDoc}>
             Source and revision history on GitHub <span aria-hidden="true">↗</span>
@@ -574,9 +636,8 @@ export default function LandscapePage() {
             <h2 id="projects-title">Ordered by backing, not by preference.</h2>
           </div>
           <p>
-            Wider catalog baseline: August 2026. NVIDIA entries reviewed
-            September 29; the map above has its own dated evidence. Inclusion
-            illustrates an approach, not a ranking.
+            Newly reviewed entries carry a date. The wider catalog has an August 2026 baseline.
+            The map above has its own dated evidence.
           </p>
         </div>
 
@@ -660,10 +721,10 @@ export default function LandscapePage() {
             <span role="columnheader">Status</span>
             <span role="columnheader">What it actually is</span>
           </div>
-          {standards.map(([doc, body, status, detail]) => (
+          {standards.map(([doc, body, status, detail, source]) => (
             <div className="landscape-row" role="row" key={doc}>
               <span role="cell">
-                <strong>{doc}</strong>
+                <strong>{source ? <a href={source}>{doc}</a> : doc}</strong>
               </span>
               <span role="cell" className="landscape-tags">
                 {body}
@@ -680,9 +741,10 @@ export default function LandscapePage() {
           ))}
         </div>
         <p className="compatibility-note">
-          The pattern is hard to miss: everything settled is about identity and
-          transport, everything about action-bound authority is an individual
-          draft or a concept.
+          Token exchange and decision APIs provide building blocks for authorization.
+          AIMS describes how to assemble several of them. The newer proposals
+          address how to carry the authority for a specific task across services and
+          how to correlate evidence afterward.
         </p>
       </section>
 

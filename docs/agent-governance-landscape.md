@@ -5,9 +5,10 @@ largest institutional backing to smallest independent project, with an explicit
 separation between what ships today and what is still a proposal.
 
 Maintained by [AgentAction](https://agentaction.dev). We are listed here too, in the
-independent tier where we belong. **Targeted update: September 29, 2026** for the
-capability map, NVIDIA entries and affected findings. Other catalog entries, status
-labels and figures retain their **August 2026 baseline** and were not all reverified.
+independent tier where we belong. Selected catalog and standards entries were
+reviewed **November 13, 2026**. The capability map and NVIDIA entries were reviewed
+**September 29, 2026**. Other catalog entries and figures retain their **August 2026
+baseline** and were not all reverified.
 Sources are project documentation and repositories, not independent certification.
 Corrections welcome: open an issue or a PR.
 
@@ -251,6 +252,13 @@ does not exist was too broad.
 |---|---|---|---|---|---|---|
 | [OpenShell](https://github.com/NVIDIA/OpenShell) | NVIDIA | Contain, Gate, Identity | **Available** | Apache-2.0 | Not re-counted | Reviewed September 29. Runtime isolation, credential protection and API/network policy with a separate supervisor. Business-payload checks can use [middleware](https://docs.nvidia.com/openshell/latest/extensibility/overview). Software availability is separate from Sentry hardware. |
 | [Sentry](https://nvidianews.nvidia.com/news/open-agent-safety-platform) | NVIDIA | Contain, Monitor | **Reference design** | Component-specific; not assessed | Not applicable | Reviewed September 29. Announced September 28 on BlueField-4 DPUs. Independent monitoring and enforcement; vendor availability/performance claims require deployment-specific verification. Attested telemetry is not a verified business outcome. |
+| [Agent Gateway](https://support.okta.com/help/s/article/what-s-new-in-okta-for-ai-agents?language=en_US) | Okta | Identity, Gate | **Live** | — | — | Reviewed November 13, 2026. Generally available. Verifies the user and agent on each proxied MCP tool call and applies gateway policy. The MCP server still applies its own permissions. |
+| [AI Agent Security](https://www.beyondtrust.com/press/ai-agent-security-general-availability) | BeyondTrust | Contain, Gate, Monitor | **Live** | — | — | Reviewed November 13, 2026. Generally available for Windows and macOS endpoints. Separates human and agent activity and can require extra approval when an action needs greater privilege. |
+| [Singularity Agentic Detection and Response](https://investors.sentinelone.com/press-releases/news-details/2026/SentinelOne-Launches-Singularity-Agentic-Detection-and-Response-to-Stop-Rogue-and-Malicious-AI-Agents-at-Machine-Speed/default.aspx) | SentinelOne | Contain, Gate, Monitor | **Early access** | — | — | Reviewed November 13, 2026. Vendor describes agent inventory, runtime policy, execution tracing, and containment. October 21 availability was early access. |
+| [Agent Identity](https://www.ibm.com/new/announcements/ibm-agent-identity-is-now-generally-available-building-trust-for-the-agentic-era) | IBM | Identity, Gate | **Live** | — | — | Reviewed November 13, 2026. Generally available since October 26. Registers agents, preserves on-behalf-of context, and uses short-lived task-scoped credentials. Availability applies to Agent Identity. |
+| [Falcon Guardian AI Kill Switch](https://www.crowdstrike.com/en-us/blog/crowdstrike-introduces-ai-kill-switch/) | CrowdStrike | Contain | **Available** | — | — | Reviewed November 13, 2026. Available to Falcon Guardian customers. Connected gateways can cut off model access. Endpoint process termination was described as a future extension. |
+| [Agentic Fabric](https://investor.sailpoint.com/node/8276/pdf) | SailPoint | Identity, Gate | **Rolling out** | — | — | Reviewed November 13, 2026. SailPoint announced an October rollout for Agentic Fabric capabilities. Its posture-management product, Harbor Pilot Policy Agent, and Proofpoint integration were expected in Q4 FY27. |
+| [RSA Agent ID](https://www.rsa.com/news/press-releases/rsa-agent-id-world-summit-ai/) | RSA | Identity, Gate | **Announced** | — | — | Reviewed November 13, 2026. RSA scheduled Discover and Secure for November 16, 2026 and Govern for the first half of 2027. The dates describe separate releases. |
 | [Agent Governance Toolkit](https://github.com/microsoft/agent-governance-toolkit) | Microsoft | Gate | **Preview** | MIT | 6.1k | The center of gravity. Intercepts every tool call, message, and delegation pre-execution; policy in YAML, Rego, or Cedar; SDKs in five languages. Also the only at-scale implementation of monotonic delegation narrowing, though on a proprietary `did:mesh:` scheme. Approvals default to an in-memory queue. |
 | [ContextForge](https://github.com/IBM/mcp-context-forge) | IBM | Route, Gate | **Live** | Apache-2.0 | 4.3k | The largest open-source gateway, GA since May 2026. A `tool_pre_invoke` plugin can block a call outright, so enforcement is real but **plugin-authored**: there is no built-in decision point yet (issue #2223 proposes one). 7,000+ tests, monthly releases. |
 | [AP2](https://github.com/google-agentic-commerce/AP2) | Google + FIDO | Receipt | **Draft spec, working implementations** | Apache-2.0 | 3.1k | **The counterexample to findings 3 and 4.** SD-JWT mandates verified by merchant, PSP, and credentials provider against actual cart parameters before settlement, with receipts binding authorization to execution to outcome. Spec is v0.2; the reference SDKs genuinely verify. Payments only. |
@@ -350,20 +358,26 @@ most-cited ones in this space are written by parties selling an implementation.
 | **AuthZEN Authorization API 1.0** | OpenID Foundation | **Final** (Jan 2026) | The PEP-to-PDP request/response envelope. The only settled standard on the action side |
 | **MCP authorization** | AAIF | **Live spec** | OAuth 2.1 profile at the transport layer. OPTIONAL, HTTP-only |
 | **A2A 1.0** | Linux Foundation | **Live spec** | Agent interop. No identity primitive, no delegation semantics |
-| **OAuth Identity Chaining** (ID-JAG) | IETF | **WG adopted, IESG approved** | Cross-trust-domain token exchange. Identity, not action |
-| **Transaction Tokens** | IETF | **WG consensus, awaiting write-up** | Scoped to a *single* trust domain by design |
+| [OAuth Identity Chaining (ID-JAG)](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-chaining/) | IETF | **RFC Editor queue** | Cross-domain exchange of identity and authorization context. |
+| [Transaction Tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | IETF | **WG draft 11** | Carries identity and authorization context for a transaction within one trust domain. |
 | **COSE Receipts** | IETF | **WG draft** | Merkle inclusion proofs. Proves "this was logged," not "this was authorized" |
 | **WIMSE** workload identity | IETF | **WG drafts, no RFC yet** | Architecture stabilizing; nothing normative shipped |
+| [NIST agent IAM design tenets](https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems) | NIST | **Proposed guidance** | Ten initial design principles for risk-based agent identity and authorization. |
+| [AI Identity Management System (AIMS)](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | IETF | **WG draft 01** | Guidance on combining workload identity, OAuth and shared security signals for agents. |
+| [Mission-Bound Authorization for OAuth 2.0](https://datatracker.ietf.org/doc/draft-mcguinness-oauth-mission/02/) | IETF | **Individual draft 02** | Proposes tying an approved task and its limits to later token issuance. |
+| [Agent Use of Delegation and Interaction Traceability (AUDIT)](https://mailarchive.ietf.org/arch/msg/audit/TXpgXDJF4y6geQ4nM4Xa_SrD6rs/) | IETF | **Working-group proposal** | November 17 discussion on whether to form a group and how to scope records of agent interactions and delegation. |
 | **AP2** | Google + FIDO | **Draft v0.2, implementations work** | Payment mandates as verifiable credentials. The one place provider-side verification ships |
-| `draft-chen-oauth-agent-authz-use-cases` | IETF | **Individual draft** | The grant-layer versus execution-layer gap analysis. Well argued, no standing |
+| [draft-chen agent authz use cases](https://datatracker.ietf.org/doc/html/draft-chen-oauth-agent-authz-use-cases-05) | IETF | **Individual draft 05** | Examines how approval, delegation constraints, and withdrawal of authority carry through a workflow. |
 | `draft-schrock-ep-authorization-receipts` | IETF | **Individual draft** | Provider-verified action receipts with declared enforcement classes |
-| `draft-niyikiza-oauth-attenuating-agent-tokens` | IETF | **Individual draft, expires Sept 2026** | Capability narrowing across delegation hops |
+| [draft-niyikiza attenuating agent tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | IETF | **Individual draft 02** | Proposes tools and argument constraints that can only narrow across delegation hops. This revision expires April 29, 2027. |
 | `draft-reece-wimse-cross-org-delegation` | IETF | **Individual draft** | Explicitly a problem statement. States it does not specify a solution |
 | **MCP Agent Identity WG** | AAIF | **Forming** | Chartered to address sub-agent authority narrowing |
 | **Cloudflare Agent Access Model** | Cloudflare | **Concept** | Reference architecture. No implementation, no repository |
 
-The pattern is hard to miss: everything settled is about identity and transport,
-everything about action-bound authority is an individual draft or a concept.
+Token exchange and decision APIs provide building blocks for authorization. AIMS
+describes how to assemble several of them. The newer proposals address how to carry
+the authority for a specific task across services and how to correlate evidence
+afterward.
 
 ---
 
