@@ -19,7 +19,7 @@ export function CapabilityMap() {
         </div>
         <p>Eight representative approaches, not a leaderboard. Coverage and maturity are separate. Select any cell to inspect its evidence.</p>
       </div>
-      <p className="capability-method">Sources reviewed September 29, 2026. Documentation review, not independent certification. A mark may cover only part of a column: read the qualification. “Not established” means the reviewed source does not demonstrate it, not that it is absent.</p>
+      <p className="capability-method">Entra row reviewed November 20, 2026. Other rows reviewed September 29, 2026. Documentation review, not independent certification. A mark may cover only part of a column: read the qualification. “Not established” means the reviewed source does not demonstrate it, not that it is absent.</p>
       <ul className="capability-legend" aria-label="Capability evidence legend">
         {Object.entries(coverage).map(([key, value]) => <li key={key}><span className={`capability-mark coverage-${key}`} aria-hidden="true">{value.symbol}</span>{value.label}</li>)}
       </ul>

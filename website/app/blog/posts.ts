@@ -1,6 +1,18 @@
 // Add each published issue here so the index and sitemap stay in sync.
 export const posts = [
   {
+    issue: "07",
+    slug: "agentic-iam-digest-2026-11-19",
+    title: "Agentic IAM digest: when agent access needs to change",
+    date: "2026-11-20",
+    window: "November 13–19, 2026",
+    headline: "When agent access needs to change.",
+    homepageSummary: "Changing risk, access after deactivation, and policy checks that follow delegated tool calls.",
+    description: "Microsoft previews adaptive agent access, Okta documents gateway denial evidence, AWS adds lifecycle hooks, and research tests authorization across agent boundaries.",
+    image: "/blog/agentic-iam-2026-11-19.jpg",
+    imageAlt: "An amber shutter closes one glass checkpoint while a parallel blue path stays open.",
+  },
+  {
     issue: "06",
     slug: "agentic-iam-digest-2026-11-12",
     title: "Agentic IAM digest: when can an agent go ahead?",

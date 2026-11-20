@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     url: "https://agentaction.dev/landscape",
     title: "The AI Agent Governance Landscape",
     description:
-      "Compare agent governance capabilities and maturity. Selected product and standards entries reviewed November 13, 2026.",
+      "Compare agent governance capabilities and maturity. Entra and selected product entries reviewed November 20, 2026; standards reviewed November 13.",
     images: [
       {
         url: "/og.png",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "The AI Agent Governance Landscape",
     description:
-      "Compare agent governance capabilities and maturity. Selected product and standards entries reviewed November 13, 2026.",
+      "Compare agent governance capabilities and maturity. Entra and selected product entries reviewed November 20, 2026; standards reviewed November 13.",
     images: ["/og.png"],
   },
 };
@@ -50,7 +50,7 @@ const landscapeStructuredData = {
   description: landscapeDescription,
   image: "https://agentaction.dev/og.png",
   datePublished: "2026-08-26",
-  dateModified: "2026-11-13",
+  dateModified: "2026-11-20",
   author: { "@id": "https://agentaction.dev/#organization" },
   publisher: { "@id": "https://agentaction.dev/#organization" },
   isPartOf: { "@id": "https://agentaction.dev/#website" },
@@ -144,12 +144,22 @@ const tiers: { title: string; index: string; blurb: string; projects: Project[] 
         links: [{ label: "NVIDIA announcement", href: "https://nvidianews.nvidia.com/news/open-agent-safety-platform" }],
       },
       {
+        name: "AgentCore harness",
+        href: "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-lifecycle-hooks.html",
+        org: "AWS · reviewed November 20, 2026",
+        tags: "Gate, Monitor",
+        status: "Available",
+        note: "Synchronous Lambda hooks can deny proposed tool calls, including subagent calls. Teams supply policy logic. Notification hooks observe events without blocking execution.",
+        links: [{ label: "November 19 harness update", href: "https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-agentcore-harness-adds-strands-harness-defaults-built-in-tools-and-lifecycle-hooks/" }],
+      },
+      {
         name: "Agent Gateway",
         href: "https://support.okta.com/help/s/article/what-s-new-in-okta-for-ai-agents?language=en_US",
-        org: "Okta · reviewed November 13, 2026",
+        org: "Okta · reviewed November 20, 2026",
         tags: "Identity, Gate",
         status: "Live",
-        note: "Generally available. Verifies the user and agent on each proxied MCP tool call and applies gateway policy. The MCP server still applies its own permissions.",
+        note: "Generally available. Verifies user and agent context on proxied MCP calls. New event definitions document denials after deactivation; rollout depends on the organization’s version.",
+        links: [{ label: "Gateway event definitions", href: "https://developer.okta.com/docs/reference/api/event-types/?q=agent_gateway" }, { label: "Release schedule", href: "https://developer.okta.com/docs/release-notes/2026-okta-identity-engine/#version-2026-47-1" }],
       },
       {
         name: "AI Agent Security",
@@ -560,7 +570,7 @@ export default function LandscapePage() {
       <SiteHeader />
 
       <section id="landscape-content" className="landscape-hero" aria-labelledby="landscape-title">
-        <p className="eyebrow">Maintainer survey · Updated November 13, 2026</p>
+        <p className="eyebrow">Maintainer survey · Updated November 20, 2026</p>
         <h1 id="landscape-title">The AI agent governance landscape.</h1>
         <p className="landscape-lede">
           Agent identity, runtime isolation and action authorization solve different
@@ -570,8 +580,9 @@ export default function LandscapePage() {
         </p>
         <p className="landscape-disclosure">
           Maintained by AgentAction, which is listed in the independent tier
-          below. Selected catalog and standards entries were reviewed November 13, 2026.
-          The capability map and NVIDIA entries were reviewed September 29, 2026.
+          below. The Entra row, Okta gateway entry, and AgentCore harness entry were reviewed November 20, 2026.
+          Other selected catalog and standards entries were reviewed November 13, 2026.
+          Other capability-map rows and NVIDIA entries were reviewed September 29, 2026.
           Other catalog entries and figures retain their August 2026 baseline and were not all reverified.
           Inclusion is not endorsement and this is not a ranking.{" "}
           <a href={sourceDoc}>

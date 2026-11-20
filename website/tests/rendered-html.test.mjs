@@ -646,7 +646,7 @@ test("server-renders the governance landscape survey", async () => {
 
   // live-versus-theory labelling must survive
   assert.match(html, /Early as OSS, Live in AgentCore/);
-  assert.match(html, /Selected catalog and standards entries were reviewed November 13, 2026/);
+  assert.match(html, /Other selected catalog and standards entries were reviewed November 13, 2026/);
   assert.match(html, /Falcon Guardian AI Kill Switch/);
   assert.match(html, /Endpoint process termination was described as a future extension/);
   assert.match(html, /https:\/\/www\.crowdstrike\.com\/en-us\/blog\/crowdstrike-introduces-ai-kill-switch\//);
@@ -682,7 +682,7 @@ test("server-renders the governance landscape survey", async () => {
   assert.equal(article?.headline, "The AI Agent Governance Landscape");
   assert.equal(article?.image, "https://agentaction.dev/og.png");
   assert.equal(article?.datePublished, "2026-08-26");
-  assert.equal(article?.dateModified, "2026-11-13");
+  assert.equal(article?.dateModified, "2026-11-20");
   assert.equal(article?.publisher?.["@id"], "https://agentaction.dev/#organization");
 });
 
@@ -734,6 +734,10 @@ test("landscape renders sourced coverage separately from maturity and preserves 
   assert.match(map, /Reference design/);
   assert.match(map, /Announced/);
   assert.match(map, /Reviewed <!-- -->2026-09-29|Reviewed 2026-09-29/);
+  assert.match(map, /Reviewed <!-- -->2026-11-20|Reviewed 2026-11-20/);
+  assert.match(map, /Conditional Access evaluates token issuance or refresh/);
+  assert.match(html, /AgentCore harness/);
+  assert.match(html, /https:\/\/docs\.aws\.amazon\.com\/bedrock-agentcore\/latest\/devguide\/harness-lifecycle-hooks\.html/);
   assert.match(html, /August 2026 baseline/);
   assert.match(html, /not all reverified/);
   assert.match(html, /NVIDIA announcement/);
@@ -755,7 +759,7 @@ test("publishes canonical sitemap and robots discovery endpoints", async () => {
   const sitemap = await sitemapResponse.text();
   assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/<\/loc>/);
   assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/gateway<\/loc>/);
-  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/landscape<\/loc>\s*<lastmod>2026-11-13/);
+  assert.match(sitemap, /<loc>https:\/\/agentaction\.dev\/landscape<\/loc>\s*<lastmod>2026-11-20/);
 
   assert.equal(robotsResponse.status, 200);
   assert.match(robotsResponse.headers.get("content-type") ?? "", /^text\/plain\b/i);
@@ -1162,25 +1166,51 @@ test("publishes Issue 06 for November 8–12 and features it across the site", a
   ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
   assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-11-07"'));
   for (const anchor of ['new', 'research', 'vector', 'watch']) assert.ok(html.includes(`id="${anchor}"`));
+});
+
+test("publishes Issue 07 and keeps the digest, archives and primary sources consistent", async () => {
+  const path = '/blog/agentic-iam-digest-2026-11-19';
+  const response = await render(path);
+  assert.equal(response.status, 200);
+  const html = (await response.text()).replaceAll('<!-- -->', '');
+  assert.match(html, /Issue 07/);
+  assert.match(html, /November 13–19, 2026/);
+  assert.match(html, /November 20, 2026/);
+  const article = structuredData(html).find((entry) => entry['@type'] === 'BlogPosting');
+  assert.equal(article.datePublished, '2026-11-20');
+  assert.equal(article.dateModified, '2026-11-20');
+  assert.equal(article.image, 'https://agentaction.dev/blog/agentic-iam-2026-11-19.jpg');
+  assert.equal(article.mainEntityOfPage, `https://agentaction.dev${path}`);
+  assert.ok(html.includes(`rel="canonical" href="https://agentaction.dev${path}"`));
+  for (const source of [
+    'https://techcommunity.microsoft.com/blog/microsoft-entra-blog/ai-is-changing-access-see-how-microsoft-entra-helps-you-stay-ahead-/4556456',
+    'https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id',
+    'https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-agentcore-harness-adds-strands-harness-defaults-built-in-tools-and-lifecycle-hooks/',
+    'https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-lifecycle-hooks.html',
+    'https://developer.okta.com/docs/release-notes/2026-okta-identity-engine/#version-2026-47-1',
+    'https://developer.okta.com/docs/reference/api/event-types/?q=agent_gateway',
+    'https://arxiv.org/abs/2611.21259v1',
+  ]) assert.ok(html.includes(`href="${source}"`), `missing primary source ${source}`);
+  assert.ok(html.includes('href="/blog/agentic-iam-digest-2026-11-12"'));
   const home = (await (await render('/')).text()).replaceAll('<!-- -->', '');
   const highlight = home.match(/<section id="iam-digest"[\s\S]*?<\/section>/)?.[0];
   assert.ok(highlight);
-  assert.match(highlight, /When can an agent go ahead/);
-  assert.match(highlight, /November 8–12, 2026/);
+  assert.match(highlight, /When agent access needs to change/);
+  assert.match(highlight, /November 13–19, 2026/);
   assert.ok(highlight.includes(`href="${path}"`));
-  assert.ok(highlight.includes('/blog/agentic-iam-2026-11-12.jpg'));
+  assert.ok(highlight.includes('/blog/agentic-iam-2026-11-19.jpg'));
   assert.ok(home.indexOf('</header>') < home.indexOf('id="iam-digest"'));
   assert.ok(home.indexOf('id="iam-digest"') < home.indexOf('id="hero-title"'));
   assert.equal([...home.matchAll(/id="iam-digest"/g)].length, 1);
   assert.match(home, /href="\/whats-new"/);
   const index = (await (await render('/blog')).text()).replaceAll('<!-- -->', '');
   const previews = [...index.matchAll(/<article class="blog-preview"[\s\S]*?<\/article>/g)].map((match) => match[0]);
-  assert.equal(previews.length, 6);
-  for (const [i, issue, slug] of [[0, '06', '2026-11-12'], [1, '05', '2026-11-07'], [2, '04', '2026-10-31'], [3, '03', '2026-10-24'], [4, '02', '2026-10-17'], [5, '01', '2026-10-07']]) {
+  assert.equal(previews.length, 7);
+  for (const [i, issue, slug] of [[0, '07', '2026-11-19'], [1, '06', '2026-11-12'], [2, '05', '2026-11-07'], [3, '04', '2026-10-31'], [4, '03', '2026-10-24'], [5, '02', '2026-10-17'], [6, '01', '2026-10-07']]) {
     assert.ok(previews[i].includes(`Issue ${issue}`));
     assert.ok(previews[i].includes(`href="/blog/agentic-iam-digest-${slug}"`));
   }
   const sitemap = await (await render('/sitemap.xml')).text();
-  for (const slug of ['2026-11-12', '2026-11-07', '2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
-  assert.match(sitemap, /<lastmod>2026-11-13/);
+  for (const slug of ['2026-11-19', '2026-11-12', '2026-11-07', '2026-10-31', '2026-10-24', '2026-10-17', '2026-10-07']) assert.ok(sitemap.includes(`https://agentaction.dev/blog/agentic-iam-digest-${slug}`));
+  assert.match(sitemap, /<lastmod>2026-11-20/);
 });
