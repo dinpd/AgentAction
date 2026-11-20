@@ -31,6 +31,8 @@ export type Entry = {
 };
 
 const sources = {
+  entraIgnite: "https://techcommunity.microsoft.com/blog/microsoft-entra-blog/ai-is-changing-access-see-how-microsoft-entra-helps-you-stay-ahead-/4556456",
+  conditionalAccess: "https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id",
   shell: "https://docs.nvidia.com/openshell/latest/about/architecture",
   extensions: "https://docs.nvidia.com/openshell/latest/extensibility/overview",
   sentry: "https://nvidianews.nvidia.com/news/open-agent-safety-platform",
@@ -88,12 +90,12 @@ export const entries: Entry[] = [
     },
   },
   {
-    id: "entra", name: "Entra Agent ID", org: "Microsoft / Agent 365", maturity: "Available", offering: "Managed", reviewed: reviewedAt,
-    qualification: "Identity and lifecycle coverage. Do not interpret scoped access tokens as exact-action authorization receipts.",
+    id: "entra", name: "Entra Agent ID", org: "Microsoft / Agent 365", maturity: "Available", offering: "Managed", reviewed: "2026-11-20",
+    qualification: "Existing identity coverage with local-agent identity and adaptive access additions in preview. Check feature availability and resource-side enforcement timing.",
     cells: {
-      identity: cell("built", "Agent identities, ownership, scoped tokens and user/agent context anchor access and lifecycle governance.", sources.entra),
+      identity: cell("built", "Agent identities and user context support access governance. November 17 additions for discovered local agents are in preview.", sources.entraIgnite),
       containment: unknown(sources.entra),
-      action: cell("integration", "Identity and permissions supply access context; the application must enforce its business-action constraints.", sources.entra),
+      action: cell("integration", "Conditional Access evaluates token issuance or refresh. Some resources support Continuous Access Evaluation for specific events. Assistive-agent action controls are in preview.", sources.conditionalAccess),
       state: unknown(sources.entra, "Lifecycle and Conditional Access controls do not establish per-job transaction history or payload-bound approval in this overview."),
       authority: unknown(sources.entra),
       outcome: unknown(sources.entra),

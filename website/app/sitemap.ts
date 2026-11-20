@@ -30,7 +30,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${siteOrigin}/landscape`,
-      lastModified: "2026-11-13",
+      lastModified: "2026-11-20",
     },
   ];
 }

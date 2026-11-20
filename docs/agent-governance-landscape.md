@@ -6,7 +6,7 @@ separation between what ships today and what is still a proposal.
 
 Maintained by [AgentAction](https://agentaction.dev). We are listed here too, in the
 independent tier where we belong. Selected catalog and standards entries were
-reviewed **November 13, 2026**. The capability map and NVIDIA entries were reviewed
+reviewed **November 13, 2026**. The Entra row, Okta gateway entry and AgentCore harness entry were reviewed **November 20, 2026**. Other capability-map rows and NVIDIA entries were reviewed
 **September 29, 2026**. Other catalog entries and figures retain their **August 2026
 baseline** and were not all reverified.
 Sources are project documentation and repositories, not independent certification.
@@ -80,7 +80,7 @@ the capability entries below and linked directly from the website diagram.
 The practical question is: **Which jobs does our stack cover, and where are we
 relying on assumptions?**
 
-## Capability map — September 29, 2026
+## Capability map
 
 Eight representative approaches, including selected managed services and a hardware reference design alongside open-source projects. This is a documentation review, not an independent benchmark or certification. Scope is per row, not vendor-wide. The [interactive map](https://agentaction.dev/landscape#capability-map) filters focus, maturity and offering, and exposes these same qualifications and sources. AgentAction is self-listed under the same criteria.
 
@@ -91,7 +91,7 @@ B = built in; I = integration; A = announced; ? = not established by the reviewe
 | [OpenShell](#map-openshell) | Available / Open source | B | B | I | B | ? | ? | 2026-09-29 |
 | [Sentry](#map-sentry) | Reference design / Hardware reference | A | A | A | ? | ? | ? | 2026-09-29 |
 | [AgentCore Policy](#map-agentcore) | Available / Managed | B | ? | B | B | ? | ? | 2026-09-29 |
-| [Entra Agent ID](#map-entra) | Available / Managed | B | ? | I | ? | ? | ? | 2026-09-29 |
+| [Entra Agent ID](#map-entra) | Available / Managed | B | ? | I | ? | ? | ? | 2026-11-20 |
 | [agentgateway](#map-agentgateway) | Available / Open source | I | ? | B | ? | ? | ? | 2026-09-29 |
 | [Auth0 AI SDKs](#map-auth0) | Early / Open source + managed | B | ? | I | B | ? | ? | 2026-09-29 |
 | [AP2](#map-ap2) | Draft / Open source | I | ? | B | B | B | B | 2026-09-29 |
@@ -132,11 +132,11 @@ AWS. Managed policy service. Dogwood's open-source reference interpreter has a s
 
 ### Entra Agent ID <a id="map-entra"></a>
 
-Microsoft / Agent 365. Identity and lifecycle coverage. Do not interpret scoped access tokens as exact-action authorization receipts.
+Microsoft / Agent 365. Reviewed November 20, 2026. Existing identity coverage with local-agent identity and adaptive access additions in preview. Check feature availability and resource-side enforcement timing.
 
-- **Identity & delegation — Built in:** Agent identities, ownership, scoped tokens and user/agent context anchor access and lifecycle governance. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Identity & delegation — Built in:** Agent identities and user context support access governance. November 17 additions for discovered local agents are in preview. [Source](https://techcommunity.microsoft.com/blog/microsoft-entra-blog/ai-is-changing-access-see-how-microsoft-entra-helps-you-stay-ahead-/4556456).
 - **Runtime containment — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
-- **Action authorization — Integration:** Identity and permissions supply access context; the application must enforce its business-action constraints. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
+- **Action authorization — Integration:** Conditional Access evaluates token issuance or refresh. Some resources support Continuous Access Evaluation for specific events. Assistive-agent action controls are in preview. [Source](https://learn.microsoft.com/en-us/entra/identity/conditional-access/agent-id).
 - **State & approvals — Not established:** Lifecycle and Conditional Access controls do not establish per-job transaction history or payload-bound approval in this overview. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
 - **Provider verification — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
 - **Execution & outcomes — Not established:** This source does not establish this capability. This is not evidence that the product cannot provide it. [Source](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/entra-agent-365).
@@ -252,7 +252,8 @@ does not exist was too broad.
 |---|---|---|---|---|---|---|
 | [OpenShell](https://github.com/NVIDIA/OpenShell) | NVIDIA | Contain, Gate, Identity | **Available** | Apache-2.0 | Not re-counted | Reviewed September 29. Runtime isolation, credential protection and API/network policy with a separate supervisor. Business-payload checks can use [middleware](https://docs.nvidia.com/openshell/latest/extensibility/overview). Software availability is separate from Sentry hardware. |
 | [Sentry](https://nvidianews.nvidia.com/news/open-agent-safety-platform) | NVIDIA | Contain, Monitor | **Reference design** | Component-specific; not assessed | Not applicable | Reviewed September 29. Announced September 28 on BlueField-4 DPUs. Independent monitoring and enforcement; vendor availability/performance claims require deployment-specific verification. Attested telemetry is not a verified business outcome. |
-| [Agent Gateway](https://support.okta.com/help/s/article/what-s-new-in-okta-for-ai-agents?language=en_US) | Okta | Identity, Gate | **Live** | — | — | Reviewed November 13, 2026. Generally available. Verifies the user and agent on each proxied MCP tool call and applies gateway policy. The MCP server still applies its own permissions. |
+| [AgentCore harness](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-lifecycle-hooks.html) | AWS | Gate, Monitor | **Available** | — | — | Reviewed November 20, 2026. Synchronous Lambda hooks can deny proposed tool calls, including subagent calls. Teams supply policy logic. Notification hooks observe events without blocking execution. [November 19 update](https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-agentcore-harness-adds-strands-harness-defaults-built-in-tools-and-lifecycle-hooks/). |
+| [Agent Gateway](https://support.okta.com/help/s/article/what-s-new-in-okta-for-ai-agents?language=en_US) | Okta | Identity, Gate | **Live** | — | — | Reviewed November 20, 2026. Generally available. Verifies user and agent context on proxied MCP calls. [New events](https://developer.okta.com/docs/reference/api/event-types/?q=agent_gateway) document denial after deactivation; check the [release schedule](https://developer.okta.com/docs/release-notes/2026-okta-identity-engine/#version-2026-47-1). |
 | [AI Agent Security](https://www.beyondtrust.com/press/ai-agent-security-general-availability) | BeyondTrust | Contain, Gate, Monitor | **Live** | — | — | Reviewed November 13, 2026. Generally available for Windows and macOS endpoints. Separates human and agent activity and can require extra approval when an action needs greater privilege. |
 | [Singularity Agentic Detection and Response](https://investors.sentinelone.com/press-releases/news-details/2026/SentinelOne-Launches-Singularity-Agentic-Detection-and-Response-to-Stop-Rogue-and-Malicious-AI-Agents-at-Machine-Speed/default.aspx) | SentinelOne | Contain, Gate, Monitor | **Early access** | — | — | Reviewed November 13, 2026. Vendor describes agent inventory, runtime policy, execution tracing, and containment. October 21 availability was early access. |
 | [Agent Identity](https://www.ibm.com/new/announcements/ibm-agent-identity-is-now-generally-available-building-trust-for-the-agentic-era) | IBM | Identity, Gate | **Live** | — | — | Reviewed November 13, 2026. Generally available since October 26. Registers agents, preserves on-behalf-of context, and uses short-lived task-scoped credentials. Availability applies to Agent Identity. |
