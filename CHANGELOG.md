@@ -4,6 +4,21 @@
 
 No changes yet.
 
+## 0.60.1 - 2026-11-20
+
+### Fixed
+
+- Updated the website's pinned Next.js dependency from 16.4.3 to 16.4.6 to address the November 2026 cache, response-header and image-optimization advisories.
+
+### Documentation
+
+- Published Agentic IAM Digest Issue 07 for November 13–19 with an original cover. Refreshed selected Landscape evidence for agent access, gateway denials and tool-call hooks.
+
+### Compatibility
+
+- Backward-compatible website framework maintenance. Existing Python APIs, authorization contracts and hosted data require no migration.
+- Install the Python wheel or source distribution from the v0.60.1 GitHub release. The standalone MCP tester requires Node 22 or later. npm packages retain independent versions.
+
 ## 0.60.0 - 2026-11-09
 
 ### Website highlight
