@@ -821,8 +821,18 @@ proposals are rejected before approval. If retained output exceeds the run's
 storage budget, it is explicitly omitted and checks requiring it become
 insufficient evidence.
 
-Inspect the same binding in **Run → Contract & evaluation**, hosted **Jobs →
-Details**, and **Evals → Hosted agent evaluations**. Gateway definitions and
+Each supervised run opens with a plain-language result: the outcome (met, not
+met, could not be determined), the main reason, the recorded tool calls, and one
+row per check with pass, fail or not measured and its provenance
+(runtime-recorded, provider-reported or AI-assessed). The outcome is met only
+when the run finished, every check passed and the agent's own assessment is
+met. A check that could not be measured says what was missing and what to do
+next. Contract and profile identifiers, digests, the evaluator's own reasons,
+raw expected/actual values and the frozen contract stay unchanged under **Audit
+details**, collapsed by default.
+
+Inspect the same result and binding in **Run**, hosted **Jobs → Details**, and
+**Evals → Hosted agent evaluations**. Gateway definitions and
 external-agent routing remain separate. These hosted records do not claim a
 signed gateway receipt. Existing runs remain unbound; to enable checks for an
 existing agent, create a new draft from the revised recipe.
