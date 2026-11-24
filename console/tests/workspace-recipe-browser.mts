@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
+import { confirmLeavingUnsavedDraft, openTemplateEditor, openTemplateLibrary, reviewFirstAction } from './guided-draft.ts';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 class Storage implements RuntimeStorage {
   transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
@@ -46,16 +47,16 @@ const latest = async () => (await runtimes.acme.snapshot() as any);
 try {
  await page.goto(base+'/agents#create'); await page.locator('#manual-options > summary').click(); await page.getByRole('button',{name:'Start from scratch',exact:true}).click();
  await page.locator('#editor-connection').selectOption('server');
- await field('title').fill('Custom pricing brief'); await page.locator('#draft-customize').evaluate((el:HTMLDetailsElement)=>el.open=true); await field('goal').fill('Read prices from a supplied URL'); await field('inputGuide').fill('Supply the target URL');
+ await field('title').fill('Custom pricing brief'); await openTemplateEditor(page); await field('goal').fill('Read prices from a supplied URL'); await field('inputGuide').fill('Supply the target URL');
  await field('instructions').fill('Summarize with citations'); await field('boundaries').fill('Never change account data'); await field('success').fill('Each price has a source');
  await page.locator('#tool-options input[value=firecrawl_scrape]').check();
  await page.getByRole('button',{name:'Save as a template',exact:true}).click(); await page.getByText('Saved agent template v1.',{exact:false}).waitFor();
  assert.equal((await latest()).agents.length,0); assert.equal(posts.filter(p=>p.action==='suggest').length,0);
- await page.reload(); await page.locator('#example-library').evaluate((el:HTMLDetailsElement)=>el.open=true); await page.getByRole('button',{name:'Use or edit template',exact:true}).click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor(); assert.equal(await field('setup').inputValue(),'');
- await field('setup').fill('PRIVATE instance URL'); await page.getByRole('button',{name:'Review first action',exact:true}).click(); await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();
+ await page.reload(); await openTemplateLibrary(page); await page.getByRole('button',{name:'Use or edit template',exact:true}).click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor(); assert.equal(await field('setup').inputValue(),'');
+ await field('setup').fill('PRIVATE instance URL'); await reviewFirstAction(page); await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();
  const first = (await latest()).agents[0]; assert.equal(first.status,'draft'); assert.equal(first.workspaceRecipe.version,1); assert.equal((await latest()).runs.length,1);
- await page.locator('[data-stage=create]').click(); await page.locator('#example-library').evaluate((el:HTMLDetailsElement)=>el.open=true); await page.getByRole('button',{name:'Use or edit template',exact:true}).click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor(); assert.equal(await field('setup').inputValue(),'');
- await page.locator('#draft-customize').evaluate((el:HTMLDetailsElement)=>el.open=true); await field('goal').fill('Compare supplied prices'); await page.getByRole('button',{name:'Save new version',exact:true}).click(); await page.getByText('Saved agent template v2.',{exact:false}).waitFor();
+ await page.locator('[data-stage=create]').click(); await openTemplateLibrary(page); await page.getByRole('button',{name:'Use or edit template',exact:true}).click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor(); assert.equal(await field('setup').inputValue(),'');
+ await openTemplateEditor(page); await field('goal').fill('Compare supplied prices'); await page.getByRole('button',{name:'Save new version',exact:true}).click(); await page.getByText('Saved agent template v2.',{exact:false}).waitFor();
  assert.equal((await latest()).agents[0].definition.goal, first.definition.goal); assert.equal(JSON.stringify((await latest()).workspaceRecipes).includes('PRIVATE'),false);
  await page.getByRole('button',{name:'Save as new template',exact:true}).click(); await page.getByText('Saved agent template v1.',{exact:false}).waitFor(); assert.equal((await latest()).workspaceRecipes.length,2);
  await field('title').fill('<img src=x onerror=alert(1)>'); await page.getByRole('button',{name:'Save new version',exact:true}).click(); await page.getByText('Saved agent template v2.',{exact:false}).waitFor();
@@ -64,24 +65,24 @@ try {
  await page.setViewportSize({width:390,height:844}); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.locator('#configure').screenshot({path:'/tmp/agentaction-221-builder-mobile.png'});
  await page.setViewportSize({width:1440,height:1050}); await page.locator('#configure').screenshot({path:'/tmp/agentaction-221-builder-desktop.png'});
- await field('setup').fill('PRIVATE unsaved input'); await page.locator('#workspace').selectOption('beta'); await page.locator('#status').getByText('Workspace ready · owner').waitFor();
+ await field('setup').fill('PRIVATE unsaved input'); await confirmLeavingUnsavedDraft(page,()=>page.locator('#workspace').selectOption('beta')); await page.locator('#status').getByText('Workspace ready · owner').waitFor();
  assert.equal(await page.locator('#configure').isHidden(),true); assert.equal(await field('setup').inputValue(),''); assert.equal(await field('goal').inputValue(),''); assert.equal(await page.locator('#tool-options input').count(),0); assert.equal(await page.locator('#workspace-recipes').getByText('Custom pricing brief',{exact:true}).count(),0);
- await page.locator('#workspace').selectOption('acme'); await page.locator('#example-library').evaluate((el:HTMLDetailsElement)=>el.open=true); await page.getByRole('button',{name:'Build this agent',exact:true}).click(); assert.equal(await field('goal').inputValue(),'Research a market'); assert.equal(await field('inputGuide').inputValue(),'Provide a market'); assert.equal(await page.locator('#tool-options input[value=search]').isChecked(),true);
+ await page.locator('#workspace').selectOption('acme'); await openTemplateLibrary(page); await page.getByRole('button',{name:'Build this agent',exact:true}).click(); assert.equal(await field('goal').inputValue(),'Research a market'); assert.equal(await field('inputGuide').inputValue(),'Provide a market'); assert.equal(await page.locator('#tool-options input[value=search]').isChecked(),true);
  // A programmatic workspace switch while a save response is delayed must not restore old editor data.
- holdSave = true; await page.locator('#draft-customize > summary').click(); await page.getByRole('button',{name:'Save as a template',exact:true}).click();
+ holdSave = true; await openTemplateEditor(page); await page.getByRole('button',{name:'Save as a template',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#save-recipe')?.getAttribute('aria-busy')==='true');
  await page.evaluate(()=>{const select=document.querySelector('#workspace') as HTMLSelectElement; select.value='beta'; select.dispatchEvent(new Event('change'));});
  await page.locator('#status').getByText('Workspace ready · owner').waitFor();
  for (let i=0; !delayedSave && i<500; i++) await new Promise(r=>setTimeout(r,10)); assert.ok(delayedSave); delayedSave(); holdSave=false;
  await page.waitForFunction(()=>!document.querySelector('#save-recipe')?.hasAttribute('aria-busy'));
  assert.equal(await page.locator('#configure').isHidden(),true); assert.equal(await field('goal').inputValue(),''); assert.equal(await page.locator('#recipe-save-status').textContent(),'');
- await page.goto(base+'/agents#create'); await page.locator('#example-library').evaluate((el:HTMLDetailsElement)=>el.open=true); await page.getByRole('button',{name:'Use or edit template',exact:true}).first().click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor();
- await page.locator('#draft-customize').evaluate((el:HTMLDetailsElement)=>el.open=true); await field('goal').fill('UNSAVED custom revision'); await field('setup').fill('New instance only'); await page.getByRole('button',{name:'Review first action',exact:true}).click(); await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();
+ await page.goto(base+'/agents#create'); await openTemplateLibrary(page); await page.getByRole('button',{name:'Use or edit template',exact:true}).first().click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor();
+ await openTemplateEditor(page); await field('goal').fill('UNSAVED custom revision'); await field('setup').fill('New instance only'); await reviewFirstAction(page); await page.getByRole('heading',{name:'Put your agent to work.',exact:true}).waitFor();
  const custom = (await latest()).agents.find((a:any)=>a.goal==='UNSAVED custom revision'); assert.ok(custom); assert.equal(custom.workspaceRecipe,undefined);
- await page.locator('[data-stage=create]').click(); await page.locator('#example-library').evaluate((el:HTMLDetailsElement)=>el.open=true); await page.getByRole('button',{name:'Use or edit template',exact:true}).first().click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor();
+ await page.locator('[data-stage=create]').click(); await openTemplateLibrary(page); await page.getByRole('button',{name:'Use or edit template',exact:true}).first().click(); await page.waitForFunction(()=>!document.querySelector('#workspace-recipes button[aria-busy]')); await page.locator('#configure').waitFor();
  const before = (await latest()).workspaceRecipes[0];
  await runtimes.acme.mutate('/save-recipe',{connectionId:'server',id:before.id,baseVersion:before.version,definition:{...before.definition,goal:'Saved in another tab'}},'owner','owner');
- await page.locator('#draft-customize').evaluate((el:HTMLDetailsElement)=>el.open=true); await field('goal').fill('Keep my unsaved text'); await page.getByRole('button',{name:'Save new version',exact:true}).click(); await page.getByText('This recipe has a newer version. Reopen it before saving your changes.',{exact:true}).waitFor(); assert.equal(await field('goal').inputValue(),'Keep my unsaved text');
+ await openTemplateEditor(page); await field('goal').fill('Keep my unsaved text'); await page.getByRole('button',{name:'Save new version',exact:true}).click(); await page.getByText('This recipe has a newer version. Reopen it before saving your changes.',{exact:true}).waitFor(); assert.equal(await field('goal').inputValue(),'Keep my unsaved text');
  viewer=true; await page.goto(base+'/agents#create'); await page.locator('#account-role').getByText('viewer',{exact:true}).waitFor(); await page.locator('#manual-options > summary').click(); await page.locator('#example-library > summary').click(); assert.equal(await page.getByRole('button',{name:'Start from scratch',exact:true}).isDisabled(),true); assert.equal(await page.getByRole('button',{name:'Use or edit template',exact:true}).first().isDisabled(),true);
  assert.deepEqual(errors,[]); console.log('Workspace recipe browser acceptance passed: scratch, saved reuse, immutable revisions, duplicate, fresh inputs, safe text, mobile, suggestions, viewer and delayed workspace isolation.');
 } catch (error) { console.error({errors,body:await page.locator('body').innerText()}); throw error; } finally { delayedSave?.(); await browser.close(); server.close(); }

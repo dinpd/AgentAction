@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
+import { openDetails } from './guided-draft.ts';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 class Storage implements RuntimeStorage {
   transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
@@ -52,21 +53,23 @@ page.on('pageerror', e=>errors.push(e.message));
 const base = `http://127.0.0.1:${(server.address() as any).port}`;
 const field = (name:string) => page.locator(`#create [name=${name}]`);
 const latest = async () => (await runtimes.acme.snapshot() as any);
+// A template opens as a guided draft; its tool mappings live in the collapsed "2. Tools" step.
+const tools = async () => { await page.locator('#configure').waitFor(); await openDetails(page,'setup-sources'); await page.locator('#agent-tools').waitFor(); };
 try {
  page.setDefaultTimeout(10000);
  const path='/agents?recipe=competitor-pricing&recipe_version=1.0.0#create';
  await page.goto(base+path);await page.getByRole('button',{name:'Configure this agent',exact:true}).waitFor();
  assert.equal(posts.length,0);assert.equal(await page.locator('#recipe-connection').count(),0);
  assert.equal(await page.getByRole('button',{name:'Configure this agent',exact:true}).isEnabled(),true);
- await page.getByRole('button',{name:'Configure this agent',exact:true}).click();await page.locator('#agent-tools').waitFor();
+ await page.getByRole('button',{name:'Configure this agent',exact:true}).click();await tools();
  assert.equal(await field('title').inputValue(),'Track competitor pricing changes');assert.equal(await field('setup').inputValue(),'');
  assert.equal(await page.locator('#review-first-action').isDisabled(),true);
- await field('setup').fill('PRIVATE acme input');await page.locator('#create-agent').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
+ await field('setup').fill('PRIVATE acme input');await page.locator('#draft-save-shortcut').click();await page.getByText('Agent draft saved.',{exact:false}).waitFor();
  assert.equal((await latest()).agents.length,0);assert.equal((await latest()).drafts.length,1);
  await page.locator('#workspace').selectOption('beta');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
  assert.equal(await page.locator('#configure').isHidden(),true);assert.equal(await field('setup').inputValue(),'');assert.equal(await page.locator('#agent-drafts').getByText('Track competitor pricing changes').count(),0);
  await page.goto(base+'/agents?recipe=competitor-pricing&recipe_version=0.0.0#create');await page.locator('#recipe-error').waitFor();assert.equal(await page.locator('#recipe-detail').isHidden(),true);
- await page.goto(base+'/agents?recipe=incident-to-ticket&recipe_version=1.0.0#create');await page.getByRole('button',{name:'Configure this agent',exact:true}).click();await page.locator('#agent-tools').waitFor();
+ await page.goto(base+'/agents?recipe=incident-to-ticket&recipe_version=1.0.0#create');await page.getByRole('button',{name:'Configure this agent',exact:true}).click();await tools();
  assert.ok(await page.locator('[data-tool-mapping]').count()>1);assert.equal(await page.locator('#review-first-action').isDisabled(),true);
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  assert.ok(posts.every(p=>['template-draft','save-draft'].includes(p.action)));assert.deepEqual(errors,[]);
