@@ -47,19 +47,44 @@ jobs:
           manifests: "examples/customer-support-*-agent.yaml examples/provider-mcp-support-agent.yaml"
           max-risk: "75"
 
-  mcp-diagnostics:
+  # Packages checked by `npm test` and, where they have one, a type-checking build.
+  # tests/test_ci_test_coverage.py fails when no pull-request workflow runs a package's test script.
+  package-tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - packages/guard
+          - packages/openclaw
+          - packages/provider-express
+          - mcp-gateway-adapter
+          - cloudflare
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Build guard dependency
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+
+      - name: Build workspace guard dependency
+        if: ${{ matrix.package == 'packages/openclaw' || matrix.package == 'mcp-gateway-adapter' }}
         working-directory: packages/guard
         run: npm ci && npm run build
-      - name: Verify reference adapter and observation diagnostics
-        working-directory: mcp-gateway-adapter
-        run: npm ci && npm test && npm run build
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: npm ci
+
+      - name: Test
+        working-directory: ${{ matrix.package }}
+        run: npm test
+
+      - name: Build
+        working-directory: ${{ matrix.package }}
+        run: npm run build --if-present
 
   typescript-sdk:
     runs-on: ubuntu-latest
