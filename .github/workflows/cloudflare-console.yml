@@ -131,6 +131,56 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
 
+      - name: Verify focused stages, navigation and the create-to-run transition
+        run: node --experimental-strip-types tests/journey-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify guided Create from an empty draft to an approved first trial
+        run: node --experimental-strip-types tests/guided-create-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify job suggestions by area and the profiler-to-draft handoff
+        run: node --experimental-strip-types tests/agent-profiler-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify catalog template deep links and saved unbound drafts
+        run: node --experimental-strip-types tests/recipe-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify workspace templates, immutable versions and fresh inputs
+        run: node --experimental-strip-types tests/workspace-recipe-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify measured checks from a template through Run, Jobs and Evals
+        run: node --experimental-strip-types tests/recipe-evaluation-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify declared, blocked and unknown capability mappings
+        run: node --experimental-strip-types tests/capability-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify per-capability server discovery and explicit tool choice
+        run: node --experimental-strip-types tests/server-matching-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify recurring agent baseline, outage, recovery and pause
+        run: node --experimental-strip-types tests/recurring-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
+      - name: Verify registry pre-checks, OAuth discovery and connection setup
+        run: node --experimental-strip-types tests/registry-browser.mts
+        env:
+          PLAYWRIGHT_MODULE: /tmp/agentaction-oauth-browser/node_modules/playwright/index.mjs
+
       - name: Verify OAuth browser and durable workspace flow
         run: npm run test:oauth-browser
         env:

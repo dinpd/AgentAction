@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import { AgentRuntime, type RuntimeStorage } from '../src/agent-runtime.ts';
+import { openDetails } from './guided-draft.ts';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 class Storage implements RuntimeStorage {
   transaction<T>(work: (tx: Pick<RuntimeStorage, "get" | "put">) => Promise<T>): Promise<T> { return testTransaction(this, work); }
@@ -90,7 +91,7 @@ try {
  assert.equal(posts.length,before);assert.match(await page.locator('#job-description').inputValue(),/customer onboarding/);
  assert.equal(await page.locator('#job-description').evaluate((el:any)=>document.activeElement===el),true);
  assert.equal(await page.locator('#agent-profiler').getAttribute('open'),null);
- await page.locator('#job-description').fill('Research onboarding for my review with source links');await page.locator('#generate-draft').click();await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
+ await page.locator('#job-description').fill('Research onboarding for my review with source links');await page.locator('#generate-draft').click();await page.locator('#configure').waitFor();await openDetails(page,'draft-overview');await page.getByText('AI-drafted · untested.',{exact:false}).waitFor();
  assert.equal(await field('setup').inputValue(),'Research onboarding for my review with source links');assert.equal((await latest()).drafts.length,1);
  // Unrelated connected economic-data tools never reach the profiler or appear as matches.
  await storage.put('connection:server',{...connection,tools:[{name:'get_unemployment',description:'Research labor markets and inflation',inputSchema:{type:'object'}}]});await page.goto(base+'/agents');await page.getByText('Workspace ready · owner',{exact:true}).waitFor();
