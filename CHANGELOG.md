@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.60.4 - 2026-11-24
+
+### Changed
+
+- Monitor now names a supervised run's result with the same words as the run detail. Activity, per-agent history, the agent header and hosted Jobs show "Outcome met", "Outcome not met" or "Outcome could not be determined" for a finished run, and "Run cancelled", "Run failed" or "Run interrupted" for one that did not finish, with a supporting line such as "Run finished · 9 of 10 checks passed". The former "Insufficient evidence", "Checks failed", "Outcome uncertain", "Measured checks: …" and "AI assessment: …" labels are gone. Filters, attention flags, recurring checks, stored runs and API responses are unchanged.
+
+### Compatibility
+
+- Backward-compatible console wording change. Stored runs, evaluation records, API responses, Python APIs and authorization contracts are unchanged and require no migration.
+- Install the Python wheel or source distribution from the v0.60.4 GitHub release. The standalone MCP tester requires Node 22 or later. npm packages retain independent versions.
+
 ## 0.60.3 - 2026-11-24
 
 ### Changed
