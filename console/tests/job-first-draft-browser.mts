@@ -181,6 +181,9 @@ try {
  await page.locator('#refresh').click();await page.getByText('Relevant findings · fail',{exact:true}).waitFor({state:'attached'});
  await page.locator('[data-run-group] > summary').click();
  assert.equal((await latest()).runs[0].evaluation.status,'fail');assert.equal((await latest()).runs[0].evaluation.criteria.find((c:any)=>c.id==='outcome_1').trust,'ai_assessed');
+ const outcome=page.locator('[data-run-result=not_met]').first(),finding=outcome.locator('.run-checks li').filter({hasText:'Relevant findings'});
+ assert.match(await outcome.innerText(),/Outcome not met/);assert.match(await finding.innerText(),/Failed/i);assert.match(await finding.innerText(),/AI-assessed/);assert.match(await finding.innerText(),/Measured: 0 \/ 1/);
+ await outcome.locator('summary').filter({hasText:'Audit details'}).click();
  assert.match(await page.locator('[data-hosted-evaluation]').first().innerText(),/Observed measurement: 0 \/ 1/);
  assert.match((await latest()).runs[0].contract.binding.specification.rubrics[0].measurement.method,/divided by all findings/);
  assert.deepEqual(errors,[]);console.log('Job-first browser acceptance passed: scope, ranking, editing, persistence, review, mobile, exact-action approval and outcome failure.');

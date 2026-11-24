@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.ts';
 import demoWorker from '../src/demo-worker.ts';
+import { bindRecipeEval, issueHostedContract, evaluateHostedRun, rubricAssessment } from '../src/recipe-evaluation.ts';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const env={CONSOLE_ENABLE_MOCK_IDENTITY:'true',CONSOLE_ENVIRONMENT:'development',CONSOLE_MOCK_SUBJECT:'test',CONSOLE_MOCK_TENANT_ID:'acme'};
 let mode='success',isDemo=false,posts=0,delayed=false,recurringError=false,privateReads=0,role='owner';
@@ -12,7 +13,28 @@ const connection={id:'c',status:'connected',label:'Test account',endpoint:'https
 const agent={id:'agent',title:'Daily check',goal:'Check a page',success:'Report changes',status:'draft',connectionId:'c'};
 const baseState=(tenant:string)=>({connections:tenant==='beta'||mode==='empty'||mode==='recurring'?[]:[{...connection,hasCredential:mode==='success'}],agents:['draft','pending','success'].includes(mode)&&tenant!=='beta'?[agent]:[],runs:tenant==='beta'?[]:mode==='pending'?[{id:'run',agentId:'agent',kind:'trial',status:'awaiting_approval',startedAt:new Date(stamp-100000).toISOString(),events:[],pending:{id:'p',tool:'read',arguments:{}}}]:mode==='success'?[{id:'run',agentId:'agent',kind:'trial',status:'completed',outcome:'met',startedAt:new Date(stamp-100000).toISOString(),events:[]}]:[],endpointAccess:{deployment:[],workspace:[]},inspections:[]});
 let statusRuns:any[]=[];
-const state=(tenant:string)=>{const data=baseState(tenant);if(tenant==='acme')data.runs.push(...statusRuns);return data;};
+// Run detail fixtures are produced by the hosted evaluator itself, so the page is tested against the shape the runtime stores.
+const scannerDefinition={title:'Social media scanner',goal:'Find recent posts that ask about retirement planning tools',inputGuide:'Topic',instructions:'Search, then read the most relevant post.',boundaries:'Read only; never reply or post.',success:'A short list of relevant posts with links',tools:['search_posts','get_post','publish_reply'],evaluation:{version:1 as const,
+ checks:[{id:'searched',label:'Search ran successfully',kind:'tool_succeeded' as const,tool:'search_posts'},{id:'found',label:'At least 3 posts returned',kind:'result_field' as const,tool:'search_posts',path:'total',operator:'gte' as const,value:3},{id:'no_reply',label:'Nothing was posted',kind:'tool_not_called' as const,tool:'publish_reply'}],
+ rubrics:[{id:'relevant',label:'Relevant findings',criterion:'At least 80% of reported posts ask about retirement planning tools.',measurement:{method:'Relevant reported posts divided by all reported posts.',evidence:'Final answer and search results.'}}]}};
+const scannerBinding=(await bindRecipeEval(scannerDefinition))!;
+const scanner={id:'scanner',title:scannerDefinition.title,goal:scannerDefinition.goal,success:scannerDefinition.success,status:'draft',connectionId:'c',evaluationBinding:scannerBinding};
+async function scannerRun(id:string,minutesAgo:number,total:number,note:string,assessment?:{status:string;reason:string;observed:string},outcome:[string,string]=['met','Found posts that match the topic.']) {
+ const at=(seconds:number)=>new Date(stamp-minutesAgo*60000+seconds*1000).toISOString(),approval=(n:number)=>({id:'approval-'+n,actor:'owner@example.com',at:at(n)});
+ const run:any={id,agentId:'scanner',kind:'trial',actor:'owner@example.com',status:'completed',startedAt:at(0),finishedAt:at(9),tokens:1840,summary:`Found ${total} posts about retirement planning tools; the most relevant asks for a comparison of calculators.`,outcome:outcome[0],reason:outcome[1],events:[
+  {tool:'search_posts',arguments:{query:'retirement planning tools',limit:10},status:'succeeded',durationMs:812,approval:approval(1),result:JSON.stringify({content:[{type:'text',text:'Search results'+note}],structuredContent:{total}})},
+  {tool:'get_post',arguments:{id:'post-1'},status:'succeeded',durationMs:240,approval:approval(4),result:JSON.stringify({content:[{type:'text',text:'Which retirement calculator do you trust?'}]})}]};
+ run.contract=await issueHostedContract(scannerBinding,run,{id:'scanner',goal:scannerDefinition.goal,setup:'retirement planning tools',connectionId:'c'});
+ if(assessment)run.rubricAssessment=await rubricAssessment({criteria:[{id:'relevant',...assessment,calls:[0]}]},run);
+ run.evaluation=await evaluateHostedRun(run);return run;
+}
+const detailRuns=[
+ await scannerRun('scan-undetermined',-4,5,' [truncated]'),
+ await scannerRun('scan-failed',-3,2,'',{status:'fail',reason:'Only one of the two reported posts asks about retirement planning tools.',observed:'1 / 2 relevant (50%)'},['not_met','Too few relevant posts were found.']),
+ await scannerRun('scan-met',-2,5,'',{status:'pass',reason:'All five reported posts ask about retirement planning tools.',observed:'5 / 5 relevant (100%)'}),
+];
+let detail=false;
+const state=(tenant:string)=>{const data:any=baseState(tenant);if(tenant==='acme'){data.runs.push(...statusRuns);if(detail){data.agents.push(scanner);data.runs.push(...detailRuns);}}return data;};
 const tenantSetup=JSON.parse(await readFile(new URL('../fixtures/tenant-setup.v1.json',import.meta.url),'utf8'));
 const setup=(tenant:string)=>({...tenantSetup,tenant_id:tenant,membership:{role}});
 const receipt=JSON.parse(await readFile(new URL('../fixtures/support-refund-job-detail.json',import.meta.url),'utf8'));
@@ -158,6 +180,43 @@ try {
  assert.equal(await page.locator('[data-execution-id="supervised:cancelled"]').getAttribute('data-attention'),'false');
  assert.equal(await page.locator('[data-execution-id="supervised:insufficient"]').getAttribute('data-attention'),'true');
  statusRuns=[];
+ detail=true;mode='success';await page.setViewportSize({width:1440,height:1000});await page.goto(base+'/agents?workspace=acme&run=scan-undetermined#run');
+ const group=page.locator('[data-run-group="supervised:scanner"]');await group.waitFor();await group.evaluate((el:HTMLDetailsElement)=>el.open=true);
+ assert.match(await group.locator('> summary').innerText(),/3 runs · Latest: completed · outcome could not be determined/,'The collapsed group already separates execution from outcome');
+ const card=page.locator('[data-supervised-run=scan-undetermined]'),result=card.locator('[data-run-result]'),contract=detailRuns[0].contract.intent,evaluation=detailRuns[0].evaluation;
+ assert.equal(evaluation.status,'insufficient_evidence');assert.equal(await result.getAttribute('data-run-result'),'undetermined');
+ assert.match(await card.locator('.pill').innerText(),/^run finished$/i);
+ const facts=await result.locator('.run-facts').innerText();
+ assert.match(facts,/Outcome could not be determined\s*The run finished, but 1 of 10 checks could not be measured\./);
+ assert.match(facts,/Relevant findings: The AI assessment was skipped or returned nothing usable; a tool result may have been an error or truncated\. Check the tool calls, then run another trial\./);
+ assert.match(facts,/2 recorded tool calls: search_posts, get_post\. All succeeded\./);assert.match(facts,/Found 5 posts/);
+ assert.equal(await result.locator('.run-checks li').count(),evaluation.criteria.length+1,'Every recorded check and the agent’s own assessment have a row');
+ for(const [id,status,trust] of [['run_completed','pass','Runtime-recorded'],['found','pass','Provider-reported'],['relevant','not_measured','AI-assessed'],['outcome','pass','AI-assessed']]) {
+  const row=result.locator(`[data-check=${id}]`);assert.equal(await row.getAttribute('data-check-status'),status);assert.equal(await row.locator('.check-trust').innerText(),trust);
+ }
+ assert.equal(await result.locator('.run-checks li').first().getAttribute('data-check'),'relevant','The check that needs attention is listed first');
+ assert.equal(await result.locator('[data-run-audit]').getAttribute('open'),null,'Audit material starts collapsed');
+ const firstRead=await card.innerText();
+ for(const hidden of [contract.intent_digest,contract.profile_digest,evaluation.evidence_digest,evaluation.source_digest,contract.intent_id,'selected evidence','"expected"','not a signed gateway receipt']) assert.ok(!firstRead.includes(hidden),'Not in the first read: '+hidden);
+ await page.screenshot({path:'/tmp/agentaction-434-run-detail.png',fullPage:true});
+ await result.locator('summary').filter({hasText:'Audit details'}).click();const audit=await result.locator('[data-run-audit]').innerText();
+ for(const kept of ['Contract & evaluation · insufficient evidence','Contract: '+contract.intent_id,'Profile: '+contract.profile,'Contract digest: '+contract.intent_digest,'Profile digest: '+contract.profile_digest,'Evidence digest: '+evaluation.evidence_digest,'Recorded source digest: '+evaluation.source_digest,'not a signed gateway receipt','any selected evidence satisfied gte','The required evidence is missing, incomplete or unavailable.','Pass threshold / rule: At least 80%','Observed measurement: Unavailable','Inspect frozen contract']) assert.ok(audit.includes(kept),'Audit details keep: '+kept);
+ assert.match(audit,/"expected": 3,\s+"actual": 5/);assert.equal(await result.locator('[data-run-audit] .evaluation-criterion').count(),evaluation.criteria.length);
+ await card.screenshot({path:'/tmp/agentaction-434-run-audit.png'});
+ const failed=page.locator('[data-supervised-run=scan-failed] [data-run-result=not_met]');
+ assert.match(await failed.locator('.run-facts').innerText(),/Outcome not met\s*The run finished, but 3 of 10 checks failed\./);
+ assert.match(await failed.locator('.run-facts').innerText(),/At least 3 posts returned: Expected at least 3; search_posts reported 2\./);
+ assert.match(await failed.locator('[data-check=relevant]').innerText(),/Only one of the two reported posts.*Measured: 1 \/ 2 relevant \(50%\)/s);
+ assert.match(await page.locator('[data-supervised-run=scan-met] [data-run-result=met] .run-facts').innerText(),/Outcome met\s*The run finished and all 10 checks passed\./);
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Run detail and open audit fit a phone');
+ await card.screenshot({path:'/tmp/agentaction-434-run-detail-mobile.png'});await page.setViewportSize({width:1440,height:1000});
+ await page.goto(base+'/?workspace=acme&execution='+encodeURIComponent('supervised:scan-undetermined')+'#jobs');const job=page.locator('[data-job-detail="supervised:scan-undetermined"]');
+ await job.locator('[data-run-result=undetermined]').waitFor();assert.match(await job.innerText(),/2 recorded tool calls\./);assert.ok(!(await job.innerText()).includes(contract.intent_digest));
+ await job.locator('summary').filter({hasText:'Audit details'}).click();assert.ok((await job.innerText()).includes(contract.intent_digest));
+ await page.goto(base+'/?workspace=acme#evals');await page.locator('[data-hosted-evals] [data-run-result=undetermined]').waitFor();
+ role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();await group.evaluate((el:HTMLDetailsElement)=>el.open=true);
+ assert.match(await page.locator('[data-supervised-run=scan-undetermined] .run-facts').innerText(),/Outcome could not be determined/);assert.equal(await page.locator('#runs .run-result').locator('button,input,textarea,select').count(),0,'The result is read-only for every role');
+ detail=false;await page.reload(); // the next step opens this same URL, which would not reload the fixture
  role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Run a trial',exact:true}).isDisabled(),true);assert.equal(await page.locator('#agents [data-recurring-agent]').count(),1);
  isDemo=true;const before=privateReads;await page.goto(base+'/#activity');await page.locator('[data-console-view=activity]').waitFor();
  assert.equal(await page.locator('[data-hosted-history]').isHidden(),true);assert.equal(privateReads,before,'Demo never reads private runtime data');

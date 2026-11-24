@@ -1618,13 +1618,14 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
       const a=state.agents.find((a:any)=>a.id===r.agentId);
       const card = node("article", "", "card run"), heading = node("div", "", "run-heading");
       card.dataset.runAt = String(new Date(r.startedAt).getTime());
-      card.dataset.supervisedRun=r.id;card.dataset.runAgent='supervised:'+r.agentId;card.dataset.runTitle=a?.title || 'Agent run';card.dataset.runStatus=r.status.replaceAll('_',' ');
+      const result=history.describe(r);
+      card.dataset.supervisedRun=r.id;card.dataset.runAgent='supervised:'+r.agentId;card.dataset.runTitle=a?.title || 'Agent run';card.dataset.runStatus=r.status.replaceAll('_',' ')+(['pending','not_evaluated'].includes(result.verdict)?'':' · '+result.label.toLowerCase());
       if(['planning','executing'].includes(r.status)||runFeedback.has(runKey(r.id)))card.dataset.activeRun='true';
       if (actionable(r)) card.dataset.pendingApproval = "true";
-      heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.external?.approved ? "approved · awaiting Hermes claim" : r.status.replaceAll("_", " "), "pill"));
+      heading.append(node("h3", state.agents.find((a: any) => a.id === r.agentId)?.title || "Agent run"), node("span", r.external?.approved ? "approved · awaiting Hermes claim" : result.execution, "pill"));
       card.append(heading, node("p", `${r.external ? "Hermes session" : r.kind} · ${new Date(r.startedAt).toLocaleString()} · ${r.events.length}/${r.research?20:(r.supervisor?.limits.maxCalls ?? 4)} tool calls · ${r.tokens || "unreported"} model tokens`, "note"));
       const runStatus=node('p','','action-feedback');runStatus.dataset.runFeedback='';runStatus.setAttribute('role','status');runStatus.setAttribute('aria-live','polite');card.append(runStatus);
-      if (r.summary) card.append(node("p", r.summary));
+      history.appendResult(card, r, { audit: !r.research && !r.external, answer: true });
       if(r.research){
         workflows.append(card,r.research.definition,r);
         const progress=r.research.sources.map((s:any)=>`${s.platform.toUpperCase()}: ${s.stage}${s.gap?' — '+s.gap:''}`).join(' · ');card.append(node('p',progress,'note'));
@@ -1639,9 +1640,8 @@ export function agentBuilderApp(runtime: Window, recipeCatalog: Recipe[] = [], h
         for (const action of r.supervisor.actions) supervisor.append(node('p', `Action ${action.id}: ${action.state}. Approval expires ${action.expiresAt}.`, 'note'));
         supervisor.append(node('pre', JSON.stringify(r.supervisor.journal, null, 2))); card.append(supervisor);
       }
-      if(!r.research && !r.external)history.appendEvaluation(card, r);
       if(r.external)card.append(node('p','Tool completion is adapter-reported. Independent provider and business outcome verification is unavailable.','note'));
-      if (r.outcome) card.append(node("p", `Outcome: ${r.outcome.replaceAll("_", " ")}. ${r.reason || ""}`, "note"));
+      if (r.events.length) card.append(node("h4", "Tool calls"));
       for (const event of r.events) {
         const detail = node("details"); detail.append(node("summary", `${event.source?.tool || event.tool}${event.source ? " · " + (state.connections.find((c:any)=>c.id===event.source.connectionId)?.label || event.source.connectionId) : ""} · ${event.status}${event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}`), node("pre", JSON.stringify({ actionId: event.actionId, source: event.source, arguments: event.arguments, result: event.result }, null, 2))); card.append(detail);
       }

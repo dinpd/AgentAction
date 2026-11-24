@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 0.60.3 - 2026-11-24
+
+### Changed
+
+- Supervised run details in the console now open with a plain-language result: the outcome (met, not met or could not be determined), the main reason, the recorded tool calls and one row per check with pass, fail or not measured and its provenance. A run that finished but could not be judged no longer reads as a contradiction between "completed" and "insufficient evidence". Checks that could not be measured say what was missing and what to do next. Contract and profile identifiers, digests, evaluator reasons, raw expected/actual values and the frozen contract are unchanged under a collapsed **Audit details** section in Run, hosted Jobs and Evals. Stored runs and API responses are unchanged.
+
+### Compatibility
+
+- Backward-compatible console presentation change. Stored runs, evaluation records, API responses, Python APIs and authorization contracts are unchanged and require no migration.
+- Install the Python wheel or source distribution from the v0.60.3 GitHub release. The standalone MCP tester requires Node 22 or later. npm packages retain independent versions.
+
 ## 0.60.2 - 2026-11-24
 
 ### Fixed
