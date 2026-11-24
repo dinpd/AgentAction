@@ -60,6 +60,7 @@ jobs:
           - packages/provider-express
           - mcp-gateway-adapter
           - cloudflare
+          - spikes/think-runtime
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +74,12 @@ jobs:
         if: ${{ matrix.package == 'packages/openclaw' || matrix.package == 'mcp-gateway-adapter' }}
         working-directory: packages/guard
         run: npm ci && npm run build
+
+      # The spike bundles console/src/execution-supervisor.ts, which resolves packages from console.
+      - name: Install console dependencies
+        if: ${{ matrix.package == 'spikes/think-runtime' }}
+        working-directory: console
+        run: npm ci
 
       - name: Install dependencies
         working-directory: ${{ matrix.package }}
