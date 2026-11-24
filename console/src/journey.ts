@@ -1,17 +1,23 @@
 /** Shared navigation and read-only journey guidance for the console and builder. */
+/** The four lifecycle stages, in order. Navigation numbers and page headings are derived from this list. */
+export const JOURNEY_STAGES = ['Create', 'Run', 'Monitor', 'Improve'] as const;
+type JourneyStage = typeof JOURNEY_STAGES[number];
+const stageNumber = (stage: JourneyStage): string => `0${JOURNEY_STAGES.indexOf(stage) + 1}`;
+/** Heading label for a stage page, e.g. "03 / Monitor". */
+export const stageEyebrow = (stage: JourneyStage): string => `${stageNumber(stage)} / ${stage}`;
 export const JOURNEY_NAV = `<div class="console-navigation"><nav class="journey-nav" aria-label="Agent lifecycle">
 <a data-stage="home" href="/#overview"><span aria-hidden="true">⌂</span><strong>Overview</strong><small>Your workspace at a glance</small></a>
-<a data-stage="create" href="/agents#create"><span>01</span><strong>Create</strong><small>Jobs, tools &amp; boundaries</small></a>
-<a data-stage="run" href="/agents#run"><span>02</span><strong>Run</strong><small>Trials &amp; schedules</small></a>
-<a data-stage="approvals" href="/agents#approvals"><span>✓</span><strong>Approvals <b data-approval-count aria-label="Approval count loading">…</b></strong><small>Review proposed actions</small></a>
-<a data-stage="monitor" href="/#activity"><span>03</span><strong>Monitor</strong><small>Activity &amp; execution quality</small></a>
-<a data-stage="policy-lab" href="/agents#policy-lab"><span>04</span><strong>Improve controls</strong><small>Policy Lab</small></a>
-<a data-stage="improve" href="/#evals"><span>04</span><strong>Improve</strong><small>Evals &amp; success criteria</small></a>
-<a data-recurring-link data-workspace-link href="/automations#agents"><span>↻</span><strong>Recurring agents</strong><small>Schedules &amp; findings</small></a>
+<a data-stage="create" href="/agents#create"><span>${stageNumber('Create')}</span><strong>Create</strong><small>Jobs, tools &amp; boundaries</small></a>
+<a data-stage="run" href="/agents#run"><span>${stageNumber('Run')}</span><strong>Run</strong><small>Trials &amp; schedules</small></a>
+<a data-stage="approvals" href="/agents#approvals"><span aria-hidden="true">✓</span><strong>Approvals <b data-approval-count aria-label="Approval count loading">…</b></strong><small>Review proposed actions</small></a>
+<a data-stage="monitor" href="/#activity"><span>${stageNumber('Monitor')}</span><strong>Monitor</strong><small>Activity &amp; execution quality</small></a>
+<a data-stage="improve" href="/#evals"><span>${stageNumber('Improve')}</span><strong>Improve</strong><small>Evals &amp; success criteria</small></a>
+<a data-stage="policy-lab" href="/agents#policy-lab"><span aria-hidden="true">◇</span><strong>Improve controls</strong><small>Policy Lab</small></a>
+<a data-recurring-link data-workspace-link href="/automations#agents"><span aria-hidden="true">↻</span><strong>Recurring agents</strong><small>Schedules &amp; findings</small></a>
 </nav><nav class="workspace-nav" aria-label="Workspace administration" data-workspace-navigation>
-<a data-stage="connect" href="/agents#connect"><span>⌘</span><strong>MCP servers</strong><small>MCP servers &amp; tools</small></a>
+<a data-stage="connect" href="/agents#connect"><span aria-hidden="true">⌘</span><strong>MCP servers</strong><small>MCP servers &amp; tools</small></a>
 <a data-utility="settings" data-workspace-link data-nav-setup href="/#setup"><span aria-hidden="true">⚙</span><strong>Workspace settings</strong><small>Members, invitations &amp; sources</small></a>
-<a data-notifications-link data-workspace-link href="/automations#notifications"><span>✉</span><strong>Notifications</strong><small>Workspace email routing</small></a>
+<a data-notifications-link data-workspace-link href="/automations#notifications"><span aria-hidden="true">✉</span><strong>Notifications</strong><small>Workspace email routing</small></a>
 </nav></div>`;
 export const JOURNEY_HOME = `<section class="journey-home" data-journey-home aria-labelledby="journey-title" hidden>
 <p class="eyebrow">Your agent workspace</p><h2 id="journey-title">From an idea<br>to better agents.</h2><p class="journey-lede">Give an agent a job. Add the tools it needs. Run it, understand what happened, and improve the next attempt.</p>
@@ -34,7 +40,13 @@ export function journeyProgress(tenant: string, setup: any, state: any, recurrin
   const states = ['No agents yet', 'No successful run yet', 'No activity yet', 'Review evals'];
   const result = (next: number, title: string, detail: string, href: string, action: string, attention = false): Progress => ({ next, title, detail, href, action, states, attention });
   if (!tenant) return result(-1, 'Start with your workspace', 'Create a workspace or join your team, then connect the MCP servers your agent will use.', '/#setup', 'Set up your workspace');
-  if (!setup || !state || !recurring) {
+  // Checked here rather than at the fetch site so the unit tests exercise the contract the page relies on.
+  // `setup` is the gateway's agentaction.tenant-setup.v1 document (see fixtures/tenant-setup.v1.json).
+  const records = (value: unknown) => Array.isArray(value) && value.every(item => item !== null && typeof item === 'object' && !Array.isArray(item));
+  const loaded = setup?.tenant_id === tenant && records(setup.sources)
+    && records(state?.connections) && records(state?.agents) && records(state?.runs)
+    && records(recurring?.jobs) && records(recurring?.runs);
+  if (!loaded) {
     states.fill('Status unavailable');
     return result(-1, 'Check your workspace connection', 'Some progress data could not be loaded. Open Workspace settings to check access, or refresh to try again.', '/#setup', 'Open workspace settings');
   }
@@ -137,11 +149,7 @@ export function journeyApp(runtime: Window, progress: typeof journeyProgress): v
     }
     const [setup, state, recurring] = await Promise.all([read(`/api/console/onboarding/tenants/${encodeURIComponent(selected)}/setup`), read(`/api/agents/${encodeURIComponent(selected)}/state`), read(`/api/automations/${encodeURIComponent(selected)}/state`)]);
     if (current !== generation || tenant !== selected) return;
-    const objects = (value: unknown): value is Record<string, unknown>[] => Array.isArray(value) && value.every(item => item !== null && typeof item === 'object' && !Array.isArray(item));
-    const validSetup = setup && objects(setup.sources) && setup.tenant?.tenant_id === selected;
-    const validState = state && objects(state.connections) && objects(state.agents) && objects(state.runs);
-    const validRecurring = recurring && objects(recurring.jobs) && objects(recurring.runs);
-    render(progress(selected, validSetup ? setup : null, validState ? state : null, validRecurring ? recurring : null));
+    render(progress(selected, setup, state, recurring));
   }
   runtime.agentActionJourney = {
     setWorkspace(selected, publicDemo = false) {

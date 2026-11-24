@@ -1,0 +1,14 @@
+{
+  "schema_version": "agentaction.tenant-setup.v1",
+  "tenant_id": "acme",
+  "membership": { "role": "owner" },
+  "sources": [],
+  "members": [],
+  "invitations": [],
+  "ingestion": {
+    "observed": false,
+    "last_observed_at": null,
+    "last_event_type": null,
+    "last_agent_id": null
+  }
+}

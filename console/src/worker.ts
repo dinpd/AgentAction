@@ -4,7 +4,7 @@ import { searchCatalogs } from './mcp-catalog-search.ts';
 import type { Directory } from './mcp-directory.ts';
 import { agentHistory, HISTORY_CSS, HISTORY_FACTORY_JS, EXECUTION_CSS } from "./agent-history.ts";
 import { RECURRING_HTML, RECURRING_JS } from "./recurring-ui.ts";
-import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS } from "./journey.ts";
+import { JOURNEY_NAV, JOURNEY_HOME, JOURNEY_CSS, JOURNEY_JS, stageEyebrow } from "./journey.ts";
 import { faviconBytes } from "./favicon.ts";
 import { recipes } from "../../recipes/registry.ts";
 import { AGENT_HTML, AGENT_CSS, AGENT_JS } from "./agent-builder.ts";
@@ -178,7 +178,7 @@ const SHELL_HTML = `<!doctype html>
     ${JOURNEY_NAV}
     <main id="main" tabindex="-1">
       ${JOURNEY_HOME}
-      <div class="stage-heading" data-monitor-heading hidden><p class="eyebrow">04 / Monitor</p><h2>Understand what happened.</h2><p>Inspect agent activity, review finalized jobs, and compare execution quality.</p></div>
+      <div class="stage-heading" data-monitor-heading hidden><p class="eyebrow">${stageEyebrow('Monitor')}</p><h2>Understand what happened.</h2><p>Inspect agent activity, review finalized jobs, and compare execution quality.</p></div>
       <nav class="stage-tabs" data-monitor-tabs aria-label="Monitor views" hidden>
         <a href="#activity" data-nav-activity>Activity</a><a href="#jobs" data-nav-jobs>Jobs</a><a href="#quality" data-nav-overview>Quality</a><a href="#exceptions">Exceptions · planned</a>
       </nav>
@@ -367,7 +367,7 @@ const SHELL_HTML = `<!doctype html>
       <section id="evals" class="setup-panel" data-console-view="evals" aria-labelledby="evals-heading" tabindex="-1" hidden>
         <header class="section-heading">
           <div>
-            <p class="eyebrow">05 / Improve</p>
+            <p class="eyebrow">${stageEyebrow('Improve')}</p>
             <h2 id="evals-heading">Define what better looks like.</h2>
             <p>Define reusable evaluation versions, then route agents and sources to them. Sources only authenticate telemetry; assignments choose evaluation behavior.</p>
           </div>
@@ -2940,6 +2940,7 @@ export function consoleApp(runtime: ConsoleAppRuntime, catalog: { id: string; ve
     statusCard.hidden = view === "home";
     const stage = view === 'home' ? 'home' : view === 'setup' ? 'settings' : view === 'evals' ? 'improve' : 'monitor';
     runtime.agentActionJourney?.setView(stage);
+    doc.title = `AgentAction — ${{ home: 'Overview', settings: 'Workspace settings', improve: 'Improve', monitor: 'Monitor' }[stage]}`;
     for (const [selector, visible] of [['[data-monitor-heading]', stage === 'monitor'], ['[data-monitor-tabs]', stage === 'monitor'], ['[data-improve-tabs]', stage === 'improve'], ['.future-grid', view === 'exceptions']] as const) {
       const element = doc.querySelector<HTMLElement>(selector); if (element) element.hidden = !visible;
     }

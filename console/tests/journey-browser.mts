@@ -9,7 +9,8 @@ let mode='empty',isDemo=false,posts=0,delayed=false;
 const connection={id:'c',status:'connected',label:'Test account',endpoint:'https://example.com/mcp',tools:[],suggestions:[{id:'s',title:'Daily check',goal:'Check a page',success:'Report changes',tools:[],setupHints:[],setup:'Page URL'}]};
 const agent={id:'agent',title:'Daily check',goal:'Check a page',success:'Report changes',status:'draft',connectionId:'c'};
 const state=(tenant:string)=>({connections:tenant==='beta'||mode==='empty'?[]:[{...connection,hasCredential:mode==='success'}],agents:['draft','pending','success'].includes(mode)&&tenant!=='beta'?[agent]:[],runs:mode==='pending'?[{id:'run',agentId:'agent',kind:'trial',status:'awaiting_approval',startedAt:new Date().toISOString(),events:[],pending:{id:'p',tool:'read',arguments:{}}}]:mode==='success'?[{id:'run',agentId:'agent',kind:'trial',status:'completed',outcome:'met',startedAt:new Date().toISOString(),events:[]}]:[],endpointAccess:{deployment:[],workspace:[]},inspections:[]});
-const setup=(tenant:string)=>({tenant:{tenant_id:tenant,display_name:tenant},membership:{role:'owner'},sources:[],members:[],ingestion:{observed:false}});
+const tenantSetup=JSON.parse(await readFile(new URL('../fixtures/tenant-setup.v1.json',import.meta.url),'utf8'));
+const setup=(tenant:string)=>({...tenantSetup,tenant_id:tenant});
 const fixture=JSON.parse(await readFile(new URL('../fixtures/support-refund-overview.json',import.meta.url),'utf8'));
 const server=createServer(async(req,res)=>{
  const url=new URL(req.url!,'http://localhost');
@@ -36,7 +37,7 @@ const base=`http://127.0.0.1:${(server.address() as any).port}`;
 try {
  for(const [variant,title] of [['new','Start with your workspace'],['empty','Give your agent a job'],['connected','Give your agent a job'],['draft','Try your first run'],['pending','A run needs your review'],['success','Make the next run better'],['error','Check your workspace connection']]) {
   mode=variant;await page.goto(base+'/?case='+variant+'#overview');await page.getByRole('heading',{name:title,exact:true}).waitFor();assert.equal(await page.locator('.journey-track li').count(),4);assert.equal(await page.locator('[data-console-view=overview]').isHidden(),true);
-  assert.equal(await page.locator('.journey-nav [data-stage]').count(),6);
+  assert.equal(await page.locator('.journey-nav [data-stage]').count(),7);
   assert.equal(await page.locator('.journey-nav [data-utility]').count(),0);
   if(variant==='new') {
    assert.equal(await page.locator('.journey-track li[data-next=true]').count(),0);
