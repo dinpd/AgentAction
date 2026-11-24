@@ -38,6 +38,8 @@ export type RunCheck = { id: string; label: string; status: "pass" | "fail" | "n
 export type RunResult = {
   execution: string; verdict: "met" | "not_met" | "undetermined" | "pending" | "not_evaluated";
   label: string; statement: string; reason: string; activity: string; checks: RunCheck[];
+  /** One label for a list row, and the line under it: the outcome once the run finished, otherwise how the run ended or where it stands. */
+  headline: string; support: string;
 };
 export type RunView = {
   status: string; outcome?: string; reason?: string; summary?: string; toolCalls?: number;
@@ -116,11 +118,14 @@ export function runResult(run: RunView): RunResult {
   const failed = checks.filter(c => c.status === "fail"), unmeasured = checks.filter(c => c.status === "not_measured"), recorded = run.evaluation?.status;
   const verdict: RunResult["verdict"] = !terminal ? "pending" : failed.length || recorded === "fail" ? "not_met"
     : unmeasured.length || recorded === "insufficient_evidence" ? "undetermined" : checks.length || recorded === "pass" ? "met" : "not_evaluated";
-  const share = (list: RunCheck[]) => list.length ? `${list.length} of ${checks.length} check${checks.length === 1 ? "" : "s"}` : "its checks";
-  const turn = run.status === "completed" ? ", but" : " and", lead = verdict === "not_met" ? failed[0] : verdict === "undetermined" ? unmeasured[0] : undefined;
+  const noun = checks.length === 1 ? "check" : "checks", share = (list: RunCheck[]) => list.length ? `${list.length} of ${checks.length} ${noun}` : "its checks";
+  const judged = verdict !== "pending" && verdict !== "not_evaluated", finished = run.status === "completed";
+  const label = { met: "Outcome met", not_met: "Outcome not met", undetermined: "Outcome could not be determined", pending: "Not judged yet", not_evaluated: "Not evaluated" }[verdict];
+  const turn = finished ? ", but" : " and", lead = verdict === "not_met" ? failed[0] : verdict === "undetermined" ? unmeasured[0] : undefined;
   return {
-    execution, verdict, activity, checks,
-    label: { met: "Outcome met", not_met: "Outcome not met", undetermined: "Outcome could not be determined", pending: "Not judged yet", not_evaluated: "Not evaluated" }[verdict],
+    execution, verdict, activity, checks, label,
+    headline: finished && judged ? label : execution,
+    support: !judged ? "" : [finished ? execution : label, ...(checks.length ? [`${checks.filter(c => c.status === "pass").length} of ${checks.length} ${noun} passed`] : [])].join(" · "),
     statement: verdict === "pending" ? `The run ${phrase}. The outcome is judged when the run ends.`
       : verdict === "not_evaluated" ? `The run ${phrase}. It has no checks or assessment, so the outcome was not judged.`
       : verdict === "met" ? `The run ${phrase} and ${checks.length > 1 ? `all ${checks.length} checks` : checks.length ? "its check" : "its checks"} passed.`
@@ -269,17 +274,14 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
     b.type = "button"; b.onclick = action; return b;
   }
   const duration = (ms?: number) => ms === undefined ? "—" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
-  const status = (row: HostedExecution) => {
-    if (row.status === 'cancelled') return 'Cancelled';
+  /** Supervised rows read like the run detail; only an approval this member can act on is named here. Recurring checks have no outcome. */
+  const outcomeOf = (row: HostedExecution) => row.source === 'supervised' ? describe(row) : undefined;
+  const status = (row: HostedExecution, result = outcomeOf(row)) => {
     if (row.approvalPending) return 'Awaiting your approval';
     if (row.status === 'awaiting_approval') return 'Proposal unavailable';
-    if (row.status === 'planning') return 'Preparing next action';
-    if (row.status === 'executing') return 'Executing approved action';
+    if (result) return result.headline;
+    if (row.status === 'cancelled') return 'Cancelled';
     if (row.status === 'failed') return 'Execution failed';
-    if (row.evaluation?.status === 'insufficient_evidence') return 'Insufficient evidence';
-    if (row.evaluation?.status === 'fail') return 'Checks failed';
-    if (row.outcome === 'not_met') return 'Outcome not met';
-    if (row.outcome === 'uncertain') return 'Outcome uncertain';
     return row.status.replaceAll('_', ' ') + (row.findings ? ` · ${row.findings} findings` : '');
   };
   function runLink(row: HostedExecution, tenant: string) {
@@ -306,10 +308,9 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       for (const row of rows.slice(page * size, (page + 1) * size)) {
         const tr = node("tr"); tr.dataset.executionId = row.id; tr.dataset.attention = String(row.attention);
         const identity = node("td"); identity.append(node("strong", row.agent), node("span", when(row.startedAt), "execution-meta"), node("span", `${row.source} · ${row.kind}`, "execution-meta"));
-        const result = node("td"); result.append(node("span", status(row), "execution-status"));
+        const outcome = outcomeOf(row), result = node("td"); result.append(node("span", status(row, outcome), "execution-status"));
         if (row.approvalPending) result.append(runLink(row, tenant));
-        if (row.contract) result.append(node("span", `Measured checks: ${row.evaluation?.status.replaceAll("_", " ") || "pending"}`, "execution-meta"));
-        if (row.outcome) result.append(node("span", `AI assessment: ${row.outcome.replaceAll("_", " ")}`, "execution-meta"));
+        if (outcome?.support) result.append(node("span", outcome.support, "execution-meta"));
         const summary = node("td", row.summary, "execution-summary");
         const detail = node("td");
         if (jobs) {

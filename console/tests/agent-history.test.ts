@@ -56,6 +56,7 @@ test('a completed run whose check could not be measured reads as finished but un
  assert.equal(run.evaluation!.status,'insufficient_evidence');assert.deepEqual(run,before,'Reading a run never alters its record');
  assert.equal(result.execution,'Run finished');assert.equal(result.verdict,'undetermined');assert.equal(result.label,'Outcome could not be determined');
  assert.equal(result.statement,'The run finished, but 1 of 9 checks could not be measured.');
+ assert.deepEqual([result.headline,result.support],['Outcome could not be determined','Run finished · 8 of 9 checks passed'],'A list row names the same outcome as the detail');
  assert.match(result.reason,/^Relevant findings: .*AI assessment.*run another trial\.$/);
  assert.equal(result.activity,'1 recorded tool call: search. It succeeded.');
  assert.deepEqual(result.checks.map(c=>[c.id,c.status,c.trust]),run.evaluation!.criteria.map(c=>[c.id,c.status==='insufficient_evidence'?'not_measured':c.status,c.trust]),'Every recorded check keeps its status and provenance');
@@ -70,6 +71,7 @@ test('failed checks give the reason in operator terms and decide the outcome', a
  assert.deepEqual(Object.fromEntries(result.checks.filter(c=>c.status==='fail').map(c=>[c.id,c.reason])),{found:'Expected at least 3; search reported 1.',approval:'At least one tool call has no recorded approval.',no_write:'write was called.'});
  assert.equal(result.activity,'2 recorded tool calls: search, write. All succeeded.');assert.ok(result.checks.every(c=>!internal.test(c.reason)));
  const interrupted=runResult({...await evaluated(r=>{r.status='interrupted';r.events[0].status='uncertain';}),outcome:'uncertain'});
+ assert.deepEqual([interrupted.headline,interrupted.support],['Run interrupted','Outcome not met · 4 of 10 checks passed'],'A run that did not finish leads with how it ended');
  assert.equal(interrupted.verdict,'not_met');assert.equal(interrupted.statement,'The run was interrupted and 2 of 10 checks failed.');assert.equal(interrupted.reason,'Run completed successfully: The run was interrupted.');
  assert.match(interrupted.checks.find(c=>c.id==='searched')!.reason,/interrupted, so its result is unknown\. Confirm with the provider/);
  assert.match(interrupted.checks.find(c=>c.id==='found')!.reason,/did not return a usable “total” value/);
@@ -78,12 +80,17 @@ test('failed checks give the reason in operator terms and decide the outcome', a
 test('a pass needs every measured check and the assessment; pending, unbound and legacy records never imply one', async () => {
  const passing=await evaluated(()=>{},[]);
  const met=runResult({...passing,outcome:'met',reason:'Three matching posts.'});
+ assert.deepEqual([met.headline,met.support],['Outcome met','Run finished · 9 of 9 checks passed']);
  assert.equal(met.verdict,'met');assert.equal(met.statement,'The run finished and all 9 checks passed.');assert.equal(met.reason,'Three matching posts.');
  assert.equal(runResult({...passing,outcome:'not_met',reason:'Posts were off topic.'}).reason,'Goal met, in the agent’s own assessment: Posts were off topic.');
  assert.equal(runResult({...passing,outcome:'uncertain'}).verdict,'undetermined');
  const pending=runResult({status:'awaiting_approval',events:[],contract:passing.contract});
  const rubricRun=await evaluated();
  assert.deepEqual(runResult({status:'planning',contract:rubricRun.contract}).checks.map(c=>[c.id,c.trust]),rubricRun.evaluation!.criteria.map(c=>[c.id,c.trust]),'Pending checks carry the provenance the evaluator will record');
+ assert.deepEqual([pending.headline,pending.support],['Waiting for approval','']);
+ for(const [run,headline,support] of [[{status:'planning'},'Preparing next action',''],[{status:'executing'},'Executing approved action',''],[{status:'completed',toolCalls:2},'Run finished',''],[{status:'failed'},'Run failed',''],
+  [{status:'cancelled',evaluation:{status:'fail'}},'Run cancelled','Outcome not met'],[{status:'completed',evaluation:{status:'insufficient_evidence'}},'Outcome could not be determined','Run finished'],[{status:'completed',evaluation:{status:'fail'}},'Outcome not met','Run finished'],
+  [{status:'completed',outcome:'uncertain'},'Outcome could not be determined','Run finished · 0 of 1 check passed']] as const) assert.deepEqual([runResult(run).headline,runResult(run).support],[headline,support],JSON.stringify(run));
  assert.equal(pending.verdict,'pending');assert.equal(pending.label,'Not judged yet');assert.ok(pending.checks.length===8&&pending.checks.every(c=>c.status==='pending'));assert.equal(pending.activity,'No tool has been called yet.');
  assert.equal(runResult({status:'completed',events:[],contract:passing.contract}).verdict,'undetermined','A finished run without a recorded evaluation is not a pass');
  assert.equal(runResult({status:'completed',toolCalls:2}).verdict,'not_evaluated');assert.equal(runResult({status:'completed',toolCalls:2}).activity,'2 recorded tool calls.');

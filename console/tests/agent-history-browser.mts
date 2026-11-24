@@ -174,8 +174,9 @@ try {
  await page.goto(base+'/?workspace=acme#activity');await page.locator('[data-agent-key]').first().waitFor();
  await page.getByLabel('Layout',{exact:true}).selectOption('list');
  await page.getByLabel('Hosted agent',{exact:true}).selectOption('supervised:agent');
- for(const [id,label] of [['cancelled','Cancelled'],['executing','Executing approved action'],['planning','Preparing next action'],['insufficient','Insufficient evidence'],['failed-checks','Checks failed']]) {
-  assert.equal(await page.locator(`[data-execution-id="supervised:${id}"] .execution-status`).innerText(),label);
+ for(const [id,label,support] of [['cancelled','Run cancelled','Outcome not met · 0 of 1 check passed'],['executing','Executing approved action',''],['planning','Preparing next action',''],['insufficient','Outcome could not be determined','Run finished'],['failed-checks','Outcome not met','Run finished']]) {
+  const cell=page.locator(`[data-execution-id="supervised:${id}"] td`).nth(1);
+  assert.equal(await cell.locator('.execution-status').innerText(),label);assert.deepEqual(await cell.locator('.execution-meta').allInnerTexts(),support?[support]:[],'Monitor uses the run detail’s terms for '+id);
  }
  assert.equal(await page.locator('[data-execution-id="supervised:cancelled"]').getAttribute('data-attention'),'false');
  assert.equal(await page.locator('[data-execution-id="supervised:insufficient"]').getAttribute('data-attention'),'true');
@@ -186,7 +187,7 @@ try {
  const card=page.locator('[data-supervised-run=scan-undetermined]'),result=card.locator('[data-run-result]'),contract=detailRuns[0].contract.intent,evaluation=detailRuns[0].evaluation;
  assert.equal(evaluation.status,'insufficient_evidence');assert.equal(await result.getAttribute('data-run-result'),'undetermined');
  assert.match(await card.locator('.pill').innerText(),/^run finished$/i);
- const facts=await result.locator('.run-facts').innerText();
+ const facts=await result.locator('.run-facts').innerText(),verdict=await result.locator('.run-verdict').innerText();
  assert.match(facts,/Outcome could not be determined\s*The run finished, but 1 of 10 checks could not be measured\./);
  assert.match(facts,/Relevant findings: The AI assessment was skipped or returned nothing usable; a tool result may have been an error or truncated\. Check the tool calls, then run another trial\./);
  assert.match(facts,/2 recorded tool calls: search_posts, get_post\. All succeeded\./);assert.match(facts,/Found 5 posts/);
@@ -211,8 +212,16 @@ try {
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Run detail and open audit fit a phone');
  await card.screenshot({path:'/tmp/agentaction-434-run-detail-mobile.png'});await page.setViewportSize({width:1440,height:1000});
  await page.goto(base+'/?workspace=acme&execution='+encodeURIComponent('supervised:scan-undetermined')+'#jobs');const job=page.locator('[data-job-detail="supervised:scan-undetermined"]');
+ const row=page.locator('[data-execution-id="supervised:scan-undetermined"] td').nth(1);
+ assert.equal(verdict,'Outcome could not be determined');assert.equal(await row.locator('.execution-status').innerText(),verdict,'Jobs names the outcome exactly as the run detail does');
+ assert.deepEqual(await row.locator('.execution-meta').allInnerTexts(),['Run finished · 9 of 10 checks passed']);assert.doesNotMatch(await page.locator('[data-hosted-jobs]').innerText(),/Measured checks|AI assessment:|Insufficient evidence/i);
  await job.locator('[data-run-result=undetermined]').waitFor();assert.match(await job.innerText(),/2 recorded tool calls\./);assert.ok(!(await job.innerText()).includes(contract.intent_digest));
  await job.locator('summary').filter({hasText:'Audit details'}).click();assert.ok((await job.innerText()).includes(contract.intent_digest));
+ await page.goto(base+'/?workspace=acme#activity');const monitored=page.locator('[data-agent-key="supervised:scanner"]');await monitored.waitFor();
+ assert.ok((await monitored.locator('> summary').innerText()).includes(verdict),'The agent header uses the latest run’s outcome');await monitored.locator('> summary').click();
+ assert.deepEqual(await monitored.locator('.execution-status').allInnerTexts(),[verdict,'Outcome not met','Outcome met']);
+ assert.deepEqual(await monitored.locator('tbody tr td:nth-child(2) .execution-meta').allInnerTexts(),['Run finished · 9 of 10 checks passed','Run finished · 7 of 10 checks passed','Run finished · 10 of 10 checks passed']);
+ await monitored.scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/agentaction-443-monitor.png',fullPage:true});
  await page.goto(base+'/?workspace=acme#evals');await page.locator('[data-hosted-evals] [data-run-result=undetermined]').waitFor();
  role='viewer';await page.goto(base+'/agents?workspace=acme#run');await page.getByText('Workspace ready · viewer',{exact:true}).waitFor();await group.evaluate((el:HTMLDetailsElement)=>el.open=true);
  assert.match(await page.locator('[data-supervised-run=scan-undetermined] .run-facts').innerText(),/Outcome could not be determined/);assert.equal(await page.locator('#runs .run-result').locator('button,input,textarea,select').count(),0,'The result is read-only for every role');
