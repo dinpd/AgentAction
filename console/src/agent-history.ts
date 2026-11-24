@@ -34,8 +34,104 @@ export function executionRecords(supervised: any, recurring: any): HostedExecuti
   return rows.sort((a, b) => b.startedAt - a.startedAt || a.id.localeCompare(b.id));
 }
 
+export type RunCheck = { id: string; label: string; status: "pass" | "fail" | "not_measured" | "pending"; trust: "runtime_recorded" | "provider_reported" | "ai_assessed"; reason: string };
+export type RunResult = {
+  execution: string; verdict: "met" | "not_met" | "undetermined" | "pending" | "not_evaluated";
+  label: string; statement: string; reason: string; activity: string; checks: RunCheck[];
+};
+export type RunView = {
+  status: string; outcome?: string; reason?: string; summary?: string; toolCalls?: number;
+  events?: Array<{ tool?: string; source?: { tool?: string }; status?: string }>;
+  contract?: HostedContract; evaluation?: Partial<HostedEvaluation>;
+  research?: { checks?: Array<{ label: string; status: string; observed: string }>; delivery?: { status?: string } };
+};
+/**
+ * Plain-language reading of one supervised run: what it did, whether it worked and why.
+ * A projection of the stored record that never alters evidence; the unchanged record stays
+ * under Audit details. Self-contained because it is serialized into the page.
+ */
+export function runResult(run: RunView): RunResult {
+  const [execution, phrase, terminal = false] = ({
+    completed: ["Run finished", "finished", true], failed: ["Run failed", "failed", true], partial: ["Run partly finished", "finished only partly", true],
+    interrupted: ["Run interrupted", "was interrupted", true], cancelled: ["Run cancelled", "was cancelled", true],
+    awaiting_approval: ["Waiting for approval", "is waiting for approval"], planning: ["Preparing next action", "is preparing its next action"],
+    executing: ["Executing approved action", "is executing an approved action"],
+  } as Record<string, [string, string, boolean?]>)[run.status] || [run.status.replaceAll("_", " "), `is ${run.status.replaceAll("_", " ")}`];
+  const events = Array.isArray(run.events) ? run.events : undefined, calls = events ? events.length : run.toolCalls;
+  let activity = calls === undefined ? "" : calls ? `${calls} recorded tool call${calls === 1 ? "" : "s"}` : terminal ? "No tool was called." : "No tool has been called yet.";
+  if (events?.length) {
+    const tools = new Map<string, number>();
+    for (const e of events) { const name = e.source?.tool || e.tool || "unknown tool"; tools.set(name, (tools.get(name) || 0) + 1); }
+    const count = (status: string[]) => events.filter(e => status.includes(e.status || "")).length;
+    const ok = count(["succeeded"]), failed = count(["failed"]), open = events.length - ok - failed;
+    activity += `: ${[...tools].map(([name, n]) => n > 1 ? `${name} ×${n}` : name).join(", ")}. ` + (ok === events.length ? (ok === 1 ? "It succeeded." : "All succeeded.")
+      : [`${ok} succeeded`, ...(failed ? [`${failed} failed`] : []), ...(open ? [`${open} with an unknown result`] : [])].join(", ") + ".");
+  } else if (calls) activity += ".";
+
+  const spec = run.contract?.binding?.specification, intent = run.contract?.intent, bindings = run.contract?.binding?.tool_bindings;
+  const receipt = run.evaluation?.receipt, measured = receipt ? [...receipt.outcomes, ...receipt.constraints] : [];
+  const show = (value: unknown) => typeof value === "string" ? `“${value}”` : JSON.stringify(value);
+  const trustOf = (id: string): RunCheck["trust"] => spec?.rubrics?.some(r => r.id === id) ? "ai_assessed" : spec?.checks.find(c => c.id === id)?.kind === "result_field" ? "provider_reported" : "runtime_recorded";
+  const checks: RunCheck[] = [];
+  for (const c of run.evaluation?.criteria || []) {
+    const check = spec?.checks.find(k => k.id === c.id), rubric = spec?.rubrics?.find(k => k.id === c.id), raw = measured.find(r => r.predicate_id === c.id);
+    const pass = c.status === "pass", tool = check ? bindings?.[check.tool]?.tool || check.tool : "";
+    let reason: string;
+    if (c.status === "insufficient_evidence") {
+      // The evaluator's own sentence for a missing measurement names no cause; say what was missing and what to do.
+      if (rubric) reason = (c.reason !== "The required evidence is missing, incomplete or unavailable." ? c.reason
+        : run.status !== "completed" ? `The run ${phrase}, so the AI assessment was skipped.`
+        : events && !events.length ? "No tool call was recorded, so there was nothing to assess."
+        : events?.some(e => e.status !== "succeeded") ? "A tool call did not succeed, so the AI assessment was skipped."
+        : "The AI assessment was skipped or returned nothing usable; a tool result may have been an error or truncated.") + " Check the tool calls, then run another trial.";
+      else if (check?.kind === "result_field") reason = `${tool} did not return a usable “${check.path}” value in its structured result. Check that call; if the tool never returns this field, change the check in Create.`;
+      else if (check?.kind === "tool_succeeded") reason = `A call to ${tool} was interrupted, so its result is unknown. Confirm with the provider whether it took effect before running again.`;
+      else reason = "The runtime did not record the evidence this check needs. Run another trial; if it repeats, revise the check in Create.";
+    }
+    else if (rubric) reason = c.reason + (c.observed ? ` Measured: ${c.observed}` : "");
+    else if (c.id === "run_completed") reason = pass ? "" : `The run ${phrase}.`;
+    else if (c.id === "successful_call") reason = pass ? (raw ? `${show(raw.actual)} succeeded.` : "") : "No tool call succeeded.";
+    else if (c.id === "budget") reason = !raw ? "" : pass ? `${show(raw.actual)} of ${show(raw.expected)} allowed calls used.` : `${show(raw.actual)} calls were made; the limit is ${show(raw.expected)}.`;
+    else if (c.id === "scope") reason = pass ? "" : "A call used a tool or server outside the selected set.";
+    else if (c.id === "approval") reason = pass ? "" : "At least one tool call has no recorded approval.";
+    else if (check?.kind === "tool_succeeded") reason = pass ? "" : `${tool} was not called or did not succeed.`;
+    else if (check?.kind === "tool_not_called") reason = pass ? "" : `${tool} was called.`;
+    else if (check?.kind === "result_field" && raw) reason = check.operator === "exists" ? "" : pass ? `${tool} reported ${show(raw.actual)}.`
+      : `Expected ${check.operator === "gte" ? "at least " : check.operator === "lte" ? "at most " : ""}${show(raw.expected)}; ${tool} reported ${show(raw.actual)}.`;
+    else reason = raw && !pass ? `Expected ${show(raw.expected)}; recorded ${show(raw.actual)}.` : "";
+    checks.push({ id: c.id, label: c.label, status: c.status === "insufficient_evidence" ? "not_measured" : c.status, trust: c.trust, reason });
+  }
+  if (!run.evaluation && intent) for (const p of [...intent.required_outcomes, ...intent.hard_constraints]) {
+    checks.push({ id: p.id, label: p.description || p.id, status: terminal ? "not_measured" : "pending", trust: trustOf(p.id), reason: terminal ? "No evaluation was recorded for this run." : "" });
+  }
+  if (run.outcome) {
+    const status = run.outcome === "met" ? "pass" : run.outcome === "not_met" ? "fail" : "not_measured", gap = run.research?.checks?.find(c => c.status !== "pass");
+    checks.push(run.research
+      ? { id: "outcome", label: "Research checks passed and the report was accepted for delivery", status, trust: "runtime_recorded",
+          reason: status === "pass" ? "" : gap ? `${gap.label}: ${gap.observed}` : `Email delivery: ${run.research.delivery?.status || "not recorded"}.` }
+      : { id: "outcome", label: "Goal met, in the agent’s own assessment", status, trust: "ai_assessed",
+          reason: run.reason || (status !== "not_measured" ? "" : run.status === "completed" ? "The agent could not tell whether it met the goal." : `The run ${phrase} before the agent assessed its result.`) });
+  }
+
+  const failed = checks.filter(c => c.status === "fail"), unmeasured = checks.filter(c => c.status === "not_measured"), recorded = run.evaluation?.status;
+  const verdict: RunResult["verdict"] = !terminal ? "pending" : failed.length || recorded === "fail" ? "not_met"
+    : unmeasured.length || recorded === "insufficient_evidence" ? "undetermined" : checks.length || recorded === "pass" ? "met" : "not_evaluated";
+  const share = (list: RunCheck[]) => list.length ? `${list.length} of ${checks.length} check${checks.length === 1 ? "" : "s"}` : "its checks";
+  const turn = run.status === "completed" ? ", but" : " and", lead = verdict === "not_met" ? failed[0] : verdict === "undetermined" ? unmeasured[0] : undefined;
+  return {
+    execution, verdict, activity, checks,
+    label: { met: "Outcome met", not_met: "Outcome not met", undetermined: "Outcome could not be determined", pending: "Not judged yet", not_evaluated: "Not evaluated" }[verdict],
+    statement: verdict === "pending" ? `The run ${phrase}. The outcome is judged when the run ends.`
+      : verdict === "not_evaluated" ? `The run ${phrase}. It has no checks or assessment, so the outcome was not judged.`
+      : verdict === "met" ? `The run ${phrase} and ${checks.length > 1 ? `all ${checks.length} checks` : checks.length ? "its check" : "its checks"} passed.`
+      : verdict === "not_met" ? `The run ${phrase}${turn} ${share(failed)} failed.`
+      : `The run ${phrase}${turn} ${share(unmeasured)} could not be measured.`,
+    reason: lead ? (lead.reason ? `${lead.label}: ${lead.reason}` : lead.label) : verdict === "met" ? run.reason || "" : "",
+  };
+}
+
 /** Read-only presentation shared by Run and Monitor. Never merges operational checks into signed Jobs. */
-export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { location?: Pick<Location, "pathname" | "search" | "hash">; history?: Pick<History, "replaceState">; agentActionJourney?: Window["agentActionJourney"] }, project = executionRecords) {
+export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { location?: Pick<Location, "pathname" | "search" | "hash">; history?: Pick<History, "replaceState">; agentActionJourney?: Window["agentActionJourney"] }, project = executionRecords, describe = runResult) {
   const doc = runtime.document;
   const node = (tag: string, text = "", css = "") => { const el = doc.createElement(tag); el.textContent = text; if (css) el.className = css; return el; };
   const when = (v: string | number | undefined) => v ? new Date(v).toLocaleString() : "Not yet";
@@ -50,15 +146,45 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       return records(agents) && records(value?.runs) && agents.every(a => typeof a.id === "string" && typeof a.title === "string") && value.runs.every((r: any) => typeof r.id === "string" && typeof r.status === "string" && ["string", "number"].includes(typeof r.startedAt) && Number.isFinite(new Date(r.startedAt).getTime())) ? value : null;
     } catch { return null; }
   }
-  function appendEvaluation(parent: HTMLElement, run: { contract?: HostedContract; evaluation?: HostedEvaluation }) {
-    if (!run.contract) { parent.append(node('p', 'No bound evaluation. This run has no frozen hosted contract.', 'note')); return; }
+  /**
+   * The run's result in reading order: outcome, main reason and activity, then one line per check.
+   * Identifiers, digests, raw measurements and the frozen contract follow, unchanged, under Audit details.
+   */
+  function appendResult(parent: HTMLElement, run: RunView, { audit = true, answer = false } = {}) {
+    const result = describe(run), section = node('section', '', 'run-result'); section.dataset.runResult = result.verdict;
+    const facts = node('dl', '', 'run-facts');
+    const fact = (term: string, ...content: (HTMLElement | string)[]) => { const value = node('dd'); value.append(...content); facts.append(node('dt', term), value); };
+    fact('Outcome', node('strong', result.label, 'run-verdict'), result.statement);
+    if (result.reason) fact('Main reason', result.reason);
+    if (result.activity) fact('What it did', result.activity);
+    if (answer && run.summary) fact('Agent’s answer', run.summary);
+    section.append(facts);
+    if (result.checks.length) {
+      const list = node('ul', '', 'run-checks'), passed = result.checks.filter(c => c.status === 'pass').length, rank = { fail: 0, not_measured: 1, pending: 2, pass: 3 };
+      for (const c of [...result.checks].sort((a, b) => rank[a.status] - rank[b.status])) { // what needs attention reads first
+        const item = node('li'); item.dataset.check = c.id; item.dataset.checkStatus = c.status;
+        const [provenance, meaning] = { runtime_recorded: ['Runtime-recorded', 'Recorded by the runtime during this run.'], provider_reported: ['Provider-reported', 'Reported by the tool provider; not independently verified.'], ai_assessed: ['AI-assessed', 'An AI assessment of the answer and tool evidence; not independent verification.'] }[c.trust];
+        const trust = node('span', provenance, 'check-trust'); trust.title = meaning;
+        item.append(node('span', { pass: '✓ Passed', fail: '✕ Failed', not_measured: '– Not measured', pending: '… Pending' }[c.status], 'check-status'), node('strong', c.label), trust);
+        if (c.reason) item.append(node('p', c.reason, 'note'));
+        list.append(item);
+      }
+      section.append(node('h4', result.verdict === 'pending' ? `Checks · ${result.checks.length} required` : `Checks · ${passed} of ${result.checks.length} passed`), list);
+    }
+    if (audit) appendAudit(section, run);
+    parent.append(section);
+  }
+  function appendAudit(parent: HTMLElement, run: { contract?: HostedContract; evaluation?: Partial<HostedEvaluation> }) {
+    const detail = node('details', '', 'run-audit') as HTMLDetailsElement; detail.dataset.runAudit = '';
+    detail.append(node('summary', 'Audit details')); parent.append(detail);
+    if (!run.contract) { detail.append(node('p', 'No bound evaluation. This run has no frozen hosted contract.', 'note')); return; }
     const { intent, binding } = run.contract, evaluation = run.evaluation;
-    const detail = node('details') as HTMLDetailsElement; detail.dataset.hostedEvaluation = intent.job_id; detail.open=Boolean(binding.specification.rubrics?.length);
-    const result = evaluation ? evaluation.status.replaceAll('_',' ') : 'pending';
-    detail.append(node('summary', `Contract & evaluation · ${result}`), node('p', `Contract: ${intent.intent_id}`), node('p', `Profile: ${intent.profile}`), node('p', `Contract digest: ${intent.intent_digest}`, 'note'), node('p', `Profile digest: ${intent.profile_digest}`, 'note'));
+    detail.dataset.hostedEvaluation = intent.job_id;
+    const result = evaluation?.status ? evaluation.status.replaceAll('_',' ') : 'pending';
+    detail.append(node('p', `Contract & evaluation · ${result}`), node('p', `Contract: ${intent.intent_id}`), node('p', `Profile: ${intent.profile}`), node('p', `Contract digest: ${intent.intent_digest}`, 'note'), node('p', `Profile digest: ${intent.profile_digest}`, 'note'));
     if (binding.recipe) detail.append(node('p', `Agent template: ${binding.recipe.id} · v${binding.recipe.version}`));
     detail.append(node('p', 'All checks are required. Outcome rubrics are AI assessments of the answer and tool evidence, not independent verification. Runtime records establish recorded execution; provider-reported fields are not independently verified. This is a hosted evaluation, not a signed gateway receipt.', 'note'));
-    if (evaluation) {
+    if (evaluation?.criteria && evaluation.receipt) {
       detail.append(node('p', `Evidence digest: ${evaluation.evidence_digest}`, 'note'), node('p', `Recorded source digest: ${evaluation.source_digest}`, 'note'));
       for (const c of evaluation.criteria) {
         const item = node('div', '', 'evaluation-criterion');
@@ -73,11 +199,11 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
         if (raw && !rubric && c.status !== 'insufficient_evidence') item.append(node('pre', JSON.stringify({expected:raw.expected,actual:raw.actual},null,2)));
         detail.append(item);
       }
-    } else {
+    } else if (!evaluation) {
       detail.append(node('p', 'Evaluation will be recorded when this run ends. No pass is implied while work is pending.', 'note'));
       for (const c of [...intent.required_outcomes,...intent.hard_constraints]) detail.append(node('p', c.description || c.id));
     }
-    const contract = node('details'); contract.append(node('summary','Inspect frozen contract'),node('pre',JSON.stringify(run.contract,null,2))); detail.append(contract); parent.append(detail);
+    const contract = node('details'); contract.append(node('summary','Inspect frozen contract'),node('pre',JSON.stringify(run.contract,null,2))); detail.append(contract);
   }
   function appendAgents(parent: HTMLElement, data: any, tenant: string) {
     if (!data) { parent.append(node("p", "Recurring agents are unavailable. Refresh to retry.", "history-error")); return; }
@@ -89,19 +215,17 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       parent.append(card);
     }
   }
-  function appendRuns(parent: HTMLElement, data: any, tenant: string, recurring = true) {
-    if (!data) { parent.append(node("p", `${recurring ? "Recurring" : "Supervised"} run history is unavailable. Refresh to retry.`, "history-error")); return; }
+  function appendRuns(parent: HTMLElement, data: any, tenant: string) {
+    if (!data) { parent.append(node("p", "Recurring run history is unavailable. Refresh to retry.", "history-error")); return; }
     for (const run of data.runs) {
-      const agent = (recurring ? data.jobs : data.agents).find((a: any) => a.id === (recurring ? run.jobId : run.agentId));
+      const agent = data.jobs.find((a: any) => a.id === run.jobId);
       const card = node("article", "", "card run history-card"); card.dataset.runAt = String(new Date(run.startedAt).getTime());
-      card.dataset.runAgent = `${recurring?'recurring':'supervised'}:${recurring?run.jobId:run.agentId}`;
+      card.dataset.runAgent = `recurring:${run.jobId}`;
       card.dataset.runTitle = agent?.title || 'Agent run';
       card.dataset.runStatus = run.status.replaceAll('_',' ');
-      card.append(node("h3", agent?.title || "Agent run"), node("span", `${recurring ? "Recurring check" : "Supervised run"} · ${run.status.replaceAll("_", " ")}`, "pill"), node("p", `${when(run.startedAt)} · ${run.kind}${recurring ? ` · ${run.findings} findings` : ""}`, "note"), node("p", run.summary || "Result not yet available."));
-      if (recurring && run.status !== "completed") card.append(node("p", "Check coverage is unknown; this run does not establish that the target is healthy.", "note"));
-      if (!recurring) appendEvaluation(card, run);
-      if (!recurring && run.outcome) card.append(node("p", `AI-assessed outcome: ${run.outcome.replaceAll("_", " ")}.`, "note"));
-      card.append(link(recurring ? "View findings and check history →" : "Review run and approvals →", tenant, recurring ? "/automations" : "/agents", recurring ? "findings" : "run"));
+      card.append(node("h3", agent?.title || "Agent run"), node("span", `Recurring check · ${run.status.replaceAll("_", " ")}`, "pill"), node("p", `${when(run.startedAt)} · ${run.kind} · ${run.findings} findings`, "note"), node("p", run.summary || "Result not yet available."));
+      if (run.status !== "completed") card.append(node("p", "Check coverage is unknown; this run does not establish that the target is healthy.", "note"));
+      card.append(link("View findings and check history →", tenant, "/automations", "findings"));
       parent.append(card);
     }
   }
@@ -192,11 +316,9 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
           const disclosure = node("details") as HTMLDetailsElement; disclosure.dataset.jobDetail = row.id; disclosure.open = selected === row.id;
           disclosure.append(node("summary", "Details"), node("p", `Job ID: ${row.id}`), node("p", `Evidence: ${row.evidence}. No signed gateway receipt is attached to this record.`));
           disclosure.append(node("p", `Started: ${when(row.startedAt)} · Finished: ${when(row.finishedAt)}`));
-          if (row.source === "supervised") appendEvaluation(disclosure, row);
+          if (row.source === "supervised") appendResult(disclosure, row);
           if (row.evidenceDigest) disclosure.append(node("p", `Recorded result digest: ${row.evidenceDigest}`));
           if (row.observations) disclosure.append(node("pre", JSON.stringify(row.observations, null, 2)));
-          if (row.toolCalls !== undefined) disclosure.append(node("p", `${row.toolCalls} recorded tool calls`));
-          if (row.reason) disclosure.append(node("p", `AI assessment reason: ${row.reason}`));
           if (row.source === "recurring" && row.status !== "completed") disclosure.append(node("p", "Coverage is unknown; this execution does not establish that the target is healthy."));
           disclosure.append(row.source === "recurring" ? link("Schedule and findings →", tenant, "/automations", "findings") : runLink(row, tenant));
           detail.append(node("span", row.evidence, "execution-meta"), disclosure);
@@ -306,21 +428,21 @@ export function agentHistory(runtime: Pick<Window, "document" | "fetch"> & { loc
       card.append(node('h4',agent.title),node('p',`Profile: ${binding.profile.profile}.${binding.profile.version}`),node('p',`Profile digest: ${binding.profile.profile_digest}`,'note'));
       for (const c of [...binding.profile.required_outcomes,...binding.profile.hard_constraints]) card.append(node('p',c.description || c.id,'note'));
       const run = data.runs.filter((r: any) => r.agentId === agent.id).sort((a: any,b: any) => b.startedAt.localeCompare(a.startedAt))[0];
-      if (run) { appendEvaluation(card,run); const url = link('Inspect latest job →',tenant,'/','jobs'); url.href = `/?workspace=${encodeURIComponent(tenant)}&execution=${encodeURIComponent('supervised:'+run.id)}#jobs`; card.append(url); }
+      if (run) { appendResult(card,run); const url = link('Inspect latest job →',tenant,'/','jobs'); url.href = `/?workspace=${encodeURIComponent(tenant)}&execution=${encodeURIComponent('supervised:'+run.id)}#jobs`; card.append(url); }
       else card.append(node('p','No run yet. The first contract is issued before planning starts.','note'));
       panel.append(card);
     }
     if (!agents.length) panel.append(node('p','No hosted agents have bound evaluations yet. Enable measurable checks in Create.','note'));
     panel.append(link('Build or revise an agent →',tenant,'/agents','create'));
   }
-  return { read, appendAgents, appendRuns, appendEvaluation, sortRuns, clearMonitor, loadEvals,
+  return { read, appendAgents, appendRuns, appendResult, describe, sortRuns, clearMonitor, loadEvals,
     loadMonitor: (tenant: string, demo: boolean) => load("activity", tenant, demo),
     loadJobs: (tenant: string, demo: boolean, selected = "") => load("jobs", tenant, demo, selected),
   };
 }
-export const HISTORY_FACTORY_JS = `(runtime) => (${agentHistory.toString()})(runtime, ${executionRecords.toString()})`;
+export const HISTORY_FACTORY_JS = `(runtime) => (${agentHistory.toString()})(runtime, ${executionRecords.toString()}, ${runResult.toString()})`;
 
-export const HISTORY_CSS = `.evaluation-criterion{border-top:1px solid #cbd0c4;padding:12px 0}.evaluation-criterion pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.history-card{border:1px solid #cbd0c4;background:#fff;padding:20px;margin:12px 0;min-width:0;overflow-wrap:anywhere}.history-card h3{margin:8px 0}.history-card p{margin:8px 0}.history-card .note{font-size:14px;color:#596150}.history-error{padding:12px;border-left:4px solid #ad4135;background:#f7e9e6}.hosted-history{margin-bottom:32px}.hosted-history .section-heading{gap:16px;flex-wrap:wrap}`;
+export const HISTORY_CSS = `.run-result{border:1px solid #cbd0c4;border-left:4px solid #8a9180;background:#fafbf7;padding:16px;margin:12px 0;min-width:0;overflow-wrap:anywhere}.run-result[data-run-result=met]{border-left-color:#3c7a52}.run-result[data-run-result=not_met]{border-left-color:#ad4135}.run-result[data-run-result=undetermined]{border-left-color:#aa6f13}.run-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:10px 16px;margin:0}.run-facts,.run-facts dt,.run-facts dd{border:0}.run-facts dt{font-size:12px;font-weight:400;text-transform:uppercase;color:#596150;padding-top:3px}.run-facts dd{margin:0;min-width:0;font-size:15px;font-weight:400}.run-verdict{display:inline-block;padding:2px 8px;margin-right:8px;background:#eef0ea}[data-run-result=met] .run-verdict{background:#d3e8d8;color:#173c28}[data-run-result=not_met] .run-verdict{background:#f7e9e6;color:#782e25}[data-run-result=undetermined] .run-verdict{background:#f6ecd6;color:#6b4208}.run-result h4{margin:16px 0 0;font-size:13px;text-transform:uppercase;color:#596150}.run-checks{list-style:none;margin:8px 0 0;padding:0}.run-checks li{display:grid;grid-template-columns:118px minmax(0,1fr) max-content;gap:4px 12px;align-items:baseline;padding:10px 0;border-top:1px solid #d6dccf;font-size:15px}.run-checks li p{grid-column:2/-1;margin:0}.check-status{font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap}[data-check-status=pass] .check-status{color:#24633c}[data-check-status=fail] .check-status{color:#8f2f24}[data-check-status=not_measured] .check-status{color:#88540b}[data-check-status=pending] .check-status{color:#596150}.check-trust{font-size:12px;color:#596150;border:1px solid #cbd0c4;padding:1px 6px;white-space:nowrap;justify-self:start}.run-heading .pill{background:#eef0ea;align-self:flex-start;white-space:nowrap}.run-audit{margin-top:12px;border-top:1px solid #d6dccf;padding-top:12px}.execution-table .run-result{padding:10px}.execution-table .run-facts dd,.execution-table .run-checks li{font-size:13px}.execution-table .run-facts,.execution-table .run-checks li{grid-template-columns:minmax(0,1fr)}.execution-table .run-checks li p{grid-column:1}@media(max-width:650px){.run-facts,.run-checks li{grid-template-columns:minmax(0,1fr)}.run-facts dt{padding-top:6px}.run-checks li p{grid-column:1}}.evaluation-criterion{border-top:1px solid #cbd0c4;padding:12px 0}.evaluation-criterion pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.history-card{border:1px solid #cbd0c4;background:#fff;padding:20px;margin:12px 0;min-width:0;overflow-wrap:anywhere}.history-card h3{margin:8px 0}.history-card p{margin:8px 0}.history-card .note{font-size:14px;color:#596150}.history-error{padding:12px;border-left:4px solid #ad4135;background:#f7e9e6}.hosted-history{margin-bottom:32px}.hosted-history .section-heading{gap:16px;flex-wrap:wrap}`;
 
 export const EXECUTION_CSS = `
 .execution-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:20px 0}.execution-controls label{display:flex;flex-direction:column;gap:6px;margin:0;min-width:150px;font-size:13px}.execution-controls select,.execution-controls input{font:inherit;padding:10px;max-width:100%;border:1px solid #bac3af;background:white;color:inherit}.execution-controls button{align-self:end}.execution-meta{display:block;font-size:12px;color:#596150;margin-top:4px}.agent-group-columns{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) 70px;gap:14px;align-items:center;padding:14px}.agent-group-columns>span{min-width:0;overflow-wrap:anywhere}.agent-group-columns[aria-hidden]{font-size:12px;text-transform:uppercase;color:#596150;border-bottom:1px solid #cbd0c4}.agent-group{margin:0;border-bottom:1px solid #cbd0c4;background:white}.agent-group summary{cursor:pointer;list-style:none;font-size:14px;font-weight:400}.agent-group summary strong:before{content:'▸ ';color:#596150}.agent-group[open] summary strong:before{content:'▾ '}.agent-group[data-attention=true]{border-left:3px solid #aa6f13}.agent-group[open]{background:#f7f9f2}.agent-group-history{padding:0 14px 14px}.execution-table-wrap{max-width:100%;overflow-x:auto}.execution-table{border-collapse:collapse;width:100%;font-size:13px;text-align:left;table-layout:fixed}.execution-table caption{text-align:left;font-weight:600;padding:12px 0}.execution-table th{font-size:11px;text-transform:uppercase;color:#596150}.execution-table th,.execution-table td{padding:12px 10px;border-bottom:1px solid #d6dccf;vertical-align:top;overflow-wrap:anywhere}.execution-table th:nth-child(1){width:24%}.execution-table th:nth-child(2){width:17%}.execution-table th:nth-child(3){width:9%}.execution-table th:nth-child(4){width:30%}.execution-table th:nth-child(5){width:20%}.execution-table tr[data-attention=true] .execution-status{color:#88540b;font-weight:700}.execution-table details{margin:8px 0}.execution-table pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:200px;overflow:auto}.execution-paging{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;margin:12px 0}.execution-paging button:disabled{opacity:.4;cursor:default}.agent-group summary:focus-visible{outline:3px solid #789832;outline-offset:-3px}
