@@ -13,7 +13,8 @@ const agent={id:'agent',title:'Daily check',goal:'Check a page',success:'Report 
 const baseState=(tenant:string)=>({connections:tenant==='beta'||mode==='empty'||mode==='recurring'?[]:[{...connection,hasCredential:mode==='success'}],agents:['draft','pending','success'].includes(mode)&&tenant!=='beta'?[agent]:[],runs:tenant==='beta'?[]:mode==='pending'?[{id:'run',agentId:'agent',kind:'trial',status:'awaiting_approval',startedAt:new Date(stamp-100000).toISOString(),events:[],pending:{id:'p',tool:'read',arguments:{}}}]:mode==='success'?[{id:'run',agentId:'agent',kind:'trial',status:'completed',outcome:'met',startedAt:new Date(stamp-100000).toISOString(),events:[]}]:[],endpointAccess:{deployment:[],workspace:[]},inspections:[]});
 let statusRuns:any[]=[];
 const state=(tenant:string)=>{const data=baseState(tenant);if(tenant==='acme')data.runs.push(...statusRuns);return data;};
-const setup=(tenant:string)=>({tenant:{tenant_id:tenant,display_name:tenant},membership:{role},sources:[],members:[],ingestion:{observed:false}});
+const tenantSetup=JSON.parse(await readFile(new URL('../fixtures/tenant-setup.v1.json',import.meta.url),'utf8'));
+const setup=(tenant:string)=>({...tenantSetup,tenant_id:tenant,membership:{role}});
 const receipt=JSON.parse(await readFile(new URL('../fixtures/support-refund-job-detail.json',import.meta.url),'utf8'));
 const fixture=JSON.parse(await readFile(new URL('../fixtures/support-refund-overview.json',import.meta.url),'utf8'));
 const server=createServer(async(req,res)=>{

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { validateDecisionBasis } from "../src/decision-basis.ts";
@@ -3295,6 +3296,12 @@ test("control plane creates an isolated tenant and returns source secrets only o
   assert.equal(JSON.stringify(setup.body).includes("token_sha256"), false);
   assert.equal(JSON.stringify(setup.body).includes(created.body.source_token), false);
   assert.equal(setup.body.ingestion.observed, false);
+  // The console reads this document. Its tests use the same fixture, so a shape change must update both.
+  const setupFixture = JSON.parse(readFileSync(new URL("../../console/fixtures/tenant-setup.v1.json", import.meta.url), "utf8"));
+  assert.equal(setup.body.schema_version, setupFixture.schema_version);
+  assert.deepEqual(Object.keys(setup.body).sort(), Object.keys(setupFixture).sort());
+  assert.deepEqual(Object.keys(setup.body.ingestion).sort(), Object.keys(setupFixture.ingestion).sort());
+  assert.equal(setup.body.tenant_id, "acme");
 
   const session = await call(env, ctx, "GET", "/control-plane/session", undefined, alice);
   assert.equal(session.status, 200);

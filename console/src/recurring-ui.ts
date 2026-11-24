@@ -24,6 +24,7 @@ export function recurringApp(runtime: Window): void {
     for (const id of ["agents", "findings", "notifications"]) el(id).hidden = id !== selected;
     doc.querySelectorAll<HTMLAnchorElement>(".stage-tabs a").forEach(a => { if (a.hash === "#" + selected) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     runtime.agentActionJourney?.setView(selected === "notifications" ? "settings" : selected === "findings" ? "monitor" : "run");
+    doc.title = `AgentAction — ${selected === "notifications" ? "Notifications" : "Recurring agents"}`;
   }
   async function refresh() {
     const g = generation, t = tenant;

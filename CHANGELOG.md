@@ -4,6 +4,18 @@
 
 No changes yet.
 
+## 0.60.2 - 2026-11-24
+
+### Fixed
+
+- The console Overview no longer tells a healthy workspace to "Check your workspace connection". It now shows the workspace's actual next step and per-stage progress, and still reports unavailable progress when a request fails or returns another workspace's data.
+- Console stage numbers now agree across the navigation, Overview and page headings (Monitor is 03, Improve is 04). **Improve controls** sits under Improve without a second stage number, and the browser tab title names the current section.
+
+### Compatibility
+
+- Backward-compatible console presentation fixes. Existing Python APIs, authorization contracts, gateway responses and hosted data require no migration.
+- Install the Python wheel or source distribution from the v0.60.2 GitHub release. The standalone MCP tester requires Node 22 or later. npm packages retain independent versions.
+
 ## 0.60.1 - 2026-11-20
 
 ### Fixed
