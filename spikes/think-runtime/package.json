@@ -2,14 +2,16 @@
   "name": "agentaction-think-runtime-spike",
   "private": true,
   "type": "module",
-  "description": "Issue 435 spike: host the execution supervisor inside Cloudflare Think. Not shipped.",
+  "description": "Issues 435 and 446 spike: host the execution supervisor inside Cloudflare Think, with gateway decisions and evidence. Not shipped.",
   "scripts": {
-    "test": "node --experimental-strip-types tests/spike.mts"
+    "test": "node --experimental-strip-types tests/spike.mts && node --experimental-strip-types tests/gateway.mts",
+    "eval:model": "node --experimental-strip-types tests/model-eval.mts"
   },
   "dependencies": {
     "@cloudflare/think": "0.24.0",
     "agents": "0.34.0",
     "ai": "7.0.181",
+    "workers-ai-provider": "4.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
