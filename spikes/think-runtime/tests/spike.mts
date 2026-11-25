@@ -1,44 +1,9 @@
 /** Issue 435 spike checks. Synthetic provider, scripted model, no real accounts. */
 import assert from 'node:assert/strict';
-import { bundle, createRuntime, newProvider, PROVIDER_URL, type Provider } from './harness.mts';
+import { agentCheck, outcomes, proposeRefund, REFUND, settle, summary, type Ctx, type CheckOptions } from './checks.mts';
 
-const script = await bundle();
-const results: string[] = [];
-const check = async (name: string, run: () => Promise<void>) => {
-  await run();
-  results.push(`ok  ${name}`);
-  console.log(`[THINK-SPIKE] ok  ${name}`);
-};
-const REFUND = 'use refund {"paymentId":"synthetic-payment","amount":10}';
-
-type Agent = 'HookProbe' | 'SupervisedAgent';
-type Ctx = { provider: Provider; runtime: Awaited<ReturnType<typeof createRuntime>>; call: (method: string, ...args: unknown[]) => Promise<any> };
-/** A check against one agent: fresh runtime, provider connected unless `connect` is false, always closed. */
-const agentCheck = (agent: Agent, name: string, run: (ctx: Ctx) => Promise<void>, { behavior = 'respond' as Provider['behavior'], connect = true } = {}) =>
-  check(name, async () => {
-    const provider = newProvider();
-    provider.behavior = behavior;
-    const runtime = await createRuntime(script, provider, { [agent]: agent });
-    try {
-      const call = (method: string, ...args: unknown[]) => runtime.rpc(agent, method, ...args);
-      if (connect) await call('connectProvider', PROVIDER_URL);
-      await run({ provider, runtime, call });
-    } finally {
-      await runtime.close();
-    }
-  });
-const probe = (name: string, run: (ctx: Ctx) => Promise<void>, options?: { connect?: boolean }) => agentCheck('HookProbe', name, run, options);
-const supervised = (name: string, run: (ctx: Ctx) => Promise<void>, options?: { behavior?: Provider['behavior'] }) => agentCheck('SupervisedAgent', name, run, options);
-
-const settle = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-/** Await the attempts and return a loggable summary of each (value, or truncated rejection reason). */
-const outcomes = async (attempts: Promise<unknown>[], max: number) =>
-  JSON.stringify((await Promise.allSettled(attempts)).map(a => (a.status === 'fulfilled' ? a.value : String(a.reason).slice(0, max))));
-/** Run a refund turn so it parks, and return the approval id the supervisor recorded for it. */
-const proposeRefund = async (call: Ctx['call']) => {
-  await call('turn', REFUND);
-  return (await call('report')).supervisor.actions[0].approvalId as string;
-};
+const probe = (name: string, run: (ctx: Ctx) => Promise<void>, options?: CheckOptions) => agentCheck('HookProbe', name, run, options);
+const supervised = (name: string, run: (ctx: Ctx) => Promise<void>, options?: CheckOptions) => agentCheck('SupervisedAgent', name, run, options);
 
 await probe('hook: beforeToolCall fires for an auto-merged MCP tool and allow reaches the provider once', async ({ provider, call }) => {
   await call('turn', REFUND);
@@ -131,7 +96,7 @@ await supervised('supervised: process death during dispatch leaves the action un
 
 await supervised('supervised: a changed tool definition after proposal denies the claim and dispatches nothing', async ({ provider, runtime, call }) => {
   const approvalId = await proposeRefund(call);
-  provider.tool.description = 'Synthetic refund with a silently widened meaning';
+  provider.tools[0].description = 'Synthetic refund with a silently widened meaning';
   await runtime.restart(); // rediscovery picks up the drifted definition
   console.log('[THINK-SPIKE] drift approve', await outcomes([call('operatorApprove', approvalId, 'reviewer')], 160));
   assert.equal(provider.calls, 0);
@@ -192,4 +157,4 @@ await supervised('supervised: the model is offered supervised actions only, and 
   assert.equal(provider.calls, 0);
 });
 
-console.log(`[THINK-SPIKE] ${results.length} checks passed`);
+summary();

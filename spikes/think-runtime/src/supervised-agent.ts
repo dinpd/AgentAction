@@ -20,8 +20,8 @@ import {
 import { RuntimeError } from '../../../console/src/mcp-client.ts';
 import { SpikeAgent } from './spike-agent.ts';
 
-type McpTool = { serverId: string; name: string; description?: string; inputSchema: Record<string, unknown> };
-type Link = { approvalId: string; actionId: string; tool: string };
+export type McpTool = { serverId: string; name: string; description?: string; inputSchema: Record<string, unknown> };
+export type Link = { approvalId: string; actionId: string; tool: string };
 type OperatorApproval = { actor: string; at: string };
 
 const SUPERVISOR = 'supervisor';
@@ -56,11 +56,11 @@ export class SupervisedAgent extends SpikeAgent {
     if (state && recoverActions(state, 'restart')) await this.ctx.storage.put(SUPERVISOR, state);
   }
 
-  private async liveTools(): Promise<McpTool[]> {
+  protected async liveTools(): Promise<McpTool[]> {
     await this.mcp.waitForConnections({ timeout: 10000 });
     return this.mcp.listTools() as unknown as McpTool[];
   }
-  private async policy(): Promise<SupervisorPolicy> {
+  protected async policy(): Promise<SupervisorPolicy> {
     return (await this.ctx.storage.get<SupervisorPolicy>(POLICY)) || { version: 0, limits: { ...DEFAULT_SUPERVISOR_LIMITS } };
   }
   private digest(tool: McpTool, input: unknown, policy: SupervisorPolicy): Promise<string> {
@@ -84,16 +84,34 @@ export class SupervisedAgent extends SpikeAgent {
     })]));
   }
 
+  // ---- Extension points. The supervisor's own checks always run; these add a policy and evidence source. ----
+
+  /** Admission at proposal time. Return a reason to deny; the call is then never proposed or parked. */
+  protected async admit(tool: McpTool, _input: unknown, _approvalId: string, _bindingDigest: string): Promise<string | void> {
+    const denied = (await this.ctx.storage.get<string[]>('deny-tools')) || [];
+    if (denied.includes(tool.name)) return 'Denied by workspace policy.';
+  }
+  /** Runs when the operator approves, before anything is recorded locally. Throw to refuse the approval. */
+  protected async recordOperatorApproval(_approvalId: string, _actor: string): Promise<void> {}
+  /** Runs after the claim commits and before provider I/O. Throw to stop the dispatch; the action settles failed. */
+  protected async beforeProvider(_link: Link): Promise<void> {}
+  /** Runs after the outcome is settled. The provider has already acted, so this must not throw. */
+  protected async afterProvider(_link: Link, _outcome: 'succeeded' | 'failed' | 'uncertain', _content: unknown): Promise<void> {}
+
   /** Policy decision point. Runs at pause time, before Think parks the call. */
   async authorizeAction(ctx: ActionAuthorizationContext): Promise<ActionAuthorizationDecision> {
-    const denied = (await this.ctx.storage.get<string[]>('deny-tools')) || [];
-    if (denied.includes(ctx.action)) return { allowed: false, reason: 'Denied by workspace policy.' };
     if (await this.ctx.storage.get<Link>(`call:${ctx.toolCallId}`)) return true; // already proposed
     const tool = (await this.liveTools()).find(t => t.name === ctx.action);
     if (!tool) return { allowed: false, reason: 'Tool is not in the connected catalog.' };
     const policy = await this.policy();
     const approvalId = crypto.randomUUID();
     const bindingDigest = await this.digest(tool, ctx.input, policy);
+    const denial = await this.admit(tool, ctx.input, approvalId, bindingDigest);
+    if (denial) {
+      const denials = (await this.ctx.storage.get<string[]>('denials')) || [];
+      await this.ctx.storage.put('denials', [...denials, `${tool.name}: ${denial}`]);
+      return { allowed: false, reason: denial };
+    }
     try {
       await this.ctx.storage.transaction(async tx => {
         const state = (await tx.get<SupervisorRecord>(SUPERVISOR)) || supervisorRecord(policy, policy.limits);
@@ -136,19 +154,33 @@ export class SupervisedAgent extends SpikeAgent {
       });
       throw error;
     }
+    try {
+      await this.beforeProvider(link);
+    } catch (error) {
+      // The provider was never contacted, so the outcome is known: nothing happened.
+      await this.settle(link, 'failed');
+      throw error;
+    }
     let outcome: 'succeeded' | 'failed' | 'uncertain' = 'uncertain';
+    let content: unknown;
     try {
       const result = await this.mcp.callTool({ serverId: tool.serverId, name: tool.name, arguments: input as Record<string, unknown> }) as { isError?: boolean; content?: unknown };
       outcome = result.isError ? 'failed' : 'succeeded';
-      return result.content;
+      content = result.content;
+      return content;
     } finally {
       // A transport failure after the claim cannot prove the provider did not act.
-      await this.ctx.storage.transaction(async tx => {
-        const state = (await tx.get<SupervisorRecord>(SUPERVISOR))!;
-        settleAction(state, link.actionId, outcome);
-        await tx.put(SUPERVISOR, state);
-      });
+      await this.settle(link, outcome);
+      await this.afterProvider(link, outcome, content);
     }
+  }
+
+  private async settle(link: Link, outcome: 'succeeded' | 'failed' | 'uncertain') {
+    await this.ctx.storage.transaction(async tx => {
+      const state = (await tx.get<SupervisorRecord>(SUPERVISOR))!;
+      settleAction(state, link.actionId, outcome);
+      await tx.put(SUPERVISOR, state);
+    });
   }
 
   // ---- Host API. In production these sit behind verified workspace membership. ----
@@ -157,6 +189,7 @@ export class SupervisedAgent extends SpikeAgent {
     const toolCallId = await this.ctx.storage.get<string>(`approval:${approvalId}`);
     const parked = toolCallId && (await this.pendingApprovals()).find(p => p.descriptor.toolCallId === toolCallId);
     if (!parked) throw new RuntimeError('This action approval has already been consumed or invalidated.', 409);
+    await this.recordOperatorApproval(approvalId, actor);
     const approval: OperatorApproval = { actor, at: new Date().toISOString() };
     await this.ctx.storage.put(`operator-approval:${approvalId}`, approval);
     return this.approveExecution(parked.executionId);
@@ -179,6 +212,7 @@ export class SupervisedAgent extends SpikeAgent {
     return {
       offeredTools: (await this.ctx.storage.get<string[]>('offered-tools')) || [],
       hookSeen: (await this.ctx.storage.get<string[]>('hook-seen')) || [],
+      denials: (await this.ctx.storage.get<string[]>('denials')) || [],
       supervisor: (await this.ctx.storage.get<SupervisorRecord>(SUPERVISOR)) || null,
       pending: (await this.pendingApprovals()).map(p => ({ executionId: p.executionId, toolCallId: p.descriptor.toolCallId, action: p.descriptor.action, input: p.descriptor.input })),
     };
